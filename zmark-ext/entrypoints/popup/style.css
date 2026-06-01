@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* Keep scrollbars slim and soft so they match the popup's light blue accents. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(45, 140, 240, 0.3) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background: rgba(45, 140, 240, 0.24);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(45, 140, 240, 0.38);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(31, 115, 216, 0.48);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

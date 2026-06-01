@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="page-id" content="promptpro">
+    <title>PromptPro - 提示词管理系统</title>
+
+    <!-- 核心样式 -->
+    <link rel="stylesheet" href="promptpro-bundle.css">
+    <link rel="stylesheet" href="promptpro-card-styles.css">
+    <link rel="stylesheet" href="promptpro-dark-theme.css">
+
+    <!-- 引用主项目样式 (侧边栏 + 回到顶部进度环) -->
+    <link rel="stylesheet" href="main-bundle.css">
+    <link rel="stylesheet" href="index-sidebar-fix.css">
+
+    <style>
+        /* ========== 页面布局 ========== */
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: var(--font-system, system-ui, -apple-system, sans-serif);
+        }
+        body {
+            display: flex;
+            background: var(--bg-primary, #f8fafc);
+            color: var(--text-primary, #1e293b);
+        }
+        #sidebar-container {
+            display: flex;
+            flex-shrink: 0;
+        }
+        aside.sidebar {
+            width: 18rem;
+            min-width: 18rem;
+            padding: 1rem;
+            overflow: hidden;
+            border-right: 1px solid rgba(15, 23, 42, 0.06);
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.72) 100%);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        .main-content::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        /* ========== 侧边栏 ========== */
+        .sidebar-shell {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        /* brand 卡片 */
+        .sidebar-brand-card {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.35rem 0.2rem 0.2rem;
+            text-decoration: none;
+        }
+        .sidebar-brand-logo {
+            width: 42px;
+            height: 42px;
+            padding: 8px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(59, 130, 246, 0.12));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+        }
+        .sidebar-brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+        .sidebar-brand-subtitle {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        /* hub-nav */
+        .sidebar-hub-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.22rem;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.04);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+        .sidebar-hub-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            min-height: 36px;
+            flex: 1 1 0;
+            padding: 0.52rem 0.78rem;
+            border-radius: 12px;
+            color: #8b95a7;
+            text-decoration: none;
+            background: transparent;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        .sidebar-hub-link:hover { color: #475569; }
+        .sidebar-hub-link.active {
+            color: #1f2937;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+        .sidebar-hub-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        .sidebar-hub-icon svg {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2.1;
+        }
+        .sidebar-hub-label {
+            white-space: nowrap;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* 导航目录面板 —— 复用主页卡片样式 */
+        .sidebar-folders-panel {
+            padding: 0.85rem 0.7rem 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .sidebar-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 0.2rem;
+        }
+        .sidebar-section-kicker {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+        .sidebar-panel-actions {
+            display: flex;
+            gap: 2px;
+        }
+        .sidebar-panel-action-btn {
+            width: 22px;
+            height: 22px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+        .sidebar-panel-action-btn:hover {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        /* 列表容器 —— 覆盖 main-bundle.css 的 padding-bottom */
+        #categories-list {
+            padding-right: 0.15rem;
+            padding-bottom: 0.5rem;
+            list-style: none;
+            margin: 0;
+        }
+
+        /* 文件夹列表项 —— 颜色/粗细由 index-sidebar-fix.css 提供，此处仅补 promptpro 特有样式 */
+        #categories-list .folder-item {
+            padding: 0.4rem 0.55rem;
+            border-radius: 8px;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.12s;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        #categories-list .folder-item span:not(.item-count):not(.folder-arrow):not(.material-icons) {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #categories-list .folder-item span:last-child {
+            margin-right: 0;
+        }
+        /* hover/active 样式由 index-sidebar-fix.css 统一管理 */
+        #categories-list .folder-item > i {
+            font-size: 18px;
+            flex-shrink: 0;
+            color: inherit;
+            width: 18px;
+            text-align: center;
+        }
+        .folder-item .item-count {
+            font-size: 10px;
+            font-weight: 600;
+            color: #64748b;
+            flex-shrink: 0;
+            min-width: 18px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.04);
+            padding: 1px 5px;
+            border-radius: 10px;
+            order: 10;
+        }
+        .folder-item.bg-emerald-500 .item-count {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .folder-item .item-delete {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 11px;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            margin-left: 2px;
+            order: 11;
+        }
+        .folder-item:hover .item-delete {
+            display: inline-flex;
+        }
+        .folder-item .item-delete:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .folder-item .folder-arrow {
+            font-size: 18px;
+            transition: transform 0.2s;
+            order: 12;
+        }
+        .folder-collapsed {
+            display: none !important;
+        }
+
+        /* 标签区块标题 —— 独立一行 */
+        .tags-section-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+            padding: 0.75rem 0.2rem 0.3rem;
+            margin-top: 0.25rem;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        /* 侧边栏标签网格 —— 3 列网格 */
+        .sidebar-tags-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 0 0.15rem 0.5rem;
+        }
+        .sidebar-tag-chip {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 99px;
+            font-size: 11px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            user-select: none;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+        .sidebar-tag-chip:hover {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.12);
+        }
+        .sidebar-tag-chip.active {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #10b981;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
+        }
+        .sidebar-tag-chip .tag-chip-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sidebar-tag-chip .tag-chip-delete {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: none;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 10px;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+        }
+        .sidebar-tag-chip:hover .tag-chip-delete {
+            display: inline-flex;
+        }
+        .sidebar-tag-chip .tag-chip-delete:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        /* 侧边栏底部 */
+        .sidebar-bottom {
+            position: sticky;
+            bottom: 0;
+            margin-top: auto;
+            padding-top: 0.25rem;
+        }
+        .sidebar-toolbar {
+            padding: 0.35rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.45rem;
+            flex-wrap: nowrap;
+        }
+        /* 主题按钮 + 工具栏图标 —— 由 main-bundle.css 提供，此处不重复定义 */
+
+        /* ========== 主内容区 ========== */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            padding: 1.5rem 2rem;
+        }
+
+        /* 主工具栏 */
+        .main-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin-bottom: 1rem;
+        }
+        .search-box {
+            width: 360px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-card, #fff);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 12px;
+            padding: 0.55rem 0.85rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .search-box:focus-within {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+        .search-box i {
+            color: #94a3b8;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .search-box input {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 13px;
+            color: var(--text-primary, #1e293b);
+        }
+        .search-box input::placeholder {
+            color: #94a3b8;
+        }
+
+        /* 收藏按钮 */
+        .btn-favorite {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.55rem 0.85rem;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 12px;
+            background: var(--bg-card, #fff);
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-favorite:hover {
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.2);
+            background: rgba(245, 158, 11, 0.04);
+        }
+        .btn-favorite.active {
+            color: #f59e0b;
+            border-color: rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.08);
+            font-weight: 600;
+        }
+
+        /* 新建按钮 - 复用主样式 .btn-primary，仅调整尺寸 */
+        .main-toolbar .btn-primary {
+            padding: 0.55rem 1rem;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        /* ========== 筛选栏 ========== */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.75rem;
+            margin-bottom: 0.75rem;
+            border-radius: 8px;
+            background: rgba(16, 185, 129, 0.04);
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* ========== 提示词容器 ========== */
+        .prompts-container {
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* ========== 模态框修复 ========== */
+        .modal {
+            display: none !important;
+        }
+        .modal.active {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .modal .modal-content {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+            width: 100% !important;
+            max-width: 900px !important;
+            margin: 0 auto !important;
+        }
+        #promptModal .modal-content {
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+        }
+
+        /* ========== 版本号 ========== */
+        .version-badge {
+            color: #10b981 !important;
+            background: rgba(16, 185, 129, 0.1) !important;
+        }
+
+        /* ========== 回到顶部 ========== */
+        #back-to-top-container {
+            position: fixed !important;
+            bottom: 0 !important;
+            right: 0 !important;
+            z-index: 999999 !important;
+            pointer-events: none !important;
+        }
+        #back-to-top {
+            width: 50px !important;
+            height: 50px !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: transparent !important;
+            border: none !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 20px rgba(93, 173, 226, 0.4) !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            transform: translateY(20px) scale(0.8) !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            position: relative !important;
+            margin: 30px !important;
+            z-index: 1 !important;
+        }
+        #back-to-top::before {
+            content: '';
+            position: absolute !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: 4px solid #F0F0F0 !important;
+            border-radius: 50% !important;
+            box-sizing: border-box !important;
+            z-index: 1 !important;
+        }
+        #back-to-top::after {
+            content: '';
+            position: absolute !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: 4px solid #5DADE2 !important;
+            border-radius: 50% !important;
+            border-right-color: transparent !important;
+            border-bottom-color: transparent !important;
+            border-top-color: transparent !important;
+            box-sizing: border-box !important;
+            z-index: 2 !important;
+            clip-path: polygon(50% 50%, 100% 0%, 100% 100%, 0% 100%) !important;
+        }
+        #back-to-top.show {
+            opacity: 1 !important;
+            visibility: visible !important;
+            transform: translateY(0) scale(1) !important;
+        }
+        #back-to-top:hover {
+            transform: scale(1.1) !important;
+            box-shadow: 0 6px 25px rgba(93, 173, 226, 0.6) !important;
+        }
+        #back-to-top svg {
+            width: 22px !important;
+            height: 22px !important;
+            fill: none !important;
+            stroke: #333 !important;
+            stroke-width: 2.5 !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 3 !important;
+        }
+        #scroll-percent {
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            color: #333 !important;
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            z-index: 4 !important;
+            display: none;
+        }
+        #back-to-top.show-percent svg { display: none !important; }
+        #back-to-top.show-percent #scroll-percent { display: block !important; }
+
+        /* ========== 暗色模式 ========== */
+        [data-theme="dark"] aside.sidebar {
+            border-right-color: rgba(255, 255, 255, 0.06);
+            background: linear-gradient(180deg, rgba(15,23,42,0.94) 0%, rgba(15,23,42,0.86) 100%);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+        }
+        [data-theme="dark"] .sidebar-brand-title { color: #f1f5f9; }
+        [data-theme="dark"] .sidebar-brand-subtitle { color: #94a3b8; }
+        [data-theme="dark"] .search-box,
+        [data-theme="dark"] .btn-favorite {
+            background: #1e293b;
+            border-color: rgba(255, 255, 255, 0.06);
+            color: #94a3b8;
+        }
+        [data-theme="dark"] .search-box input { color: #e2e8f0; }
+        [data-theme="dark"] .btn-favorite:hover { color: #fbbf24; }
+        [data-theme="dark"] .btn-favorite.active { color: #fbbf24; }
+        [data-theme="dark"] .filter-bar {
+            background: rgba(16, 185, 129, 0.06);
+            color: #94a3b8;
+        }
+        [data-theme="dark"] .version-badge {
+            color: #34d399 !important;
+            background: rgba(52, 211, 153, 0.15) !important;
+        }
+        [data-theme="dark"] #back-to-top::before { border-color: #444 !important; }
+        [data-theme="dark"] #back-to-top svg { stroke: #e0e0e0 !important; }
+        [data-theme="dark"] #scroll-percent { color: #e0e0e0 !important; }
+    </style>
+</head>
+<body>
+    <div id="sidebar-container" class="flex">
+        <aside class="sidebar">
+            <div class="sidebar-shell">
+                <!-- 品牌卡片 -->
+                <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
+                    <a href="#" class="sidebar-brand-card" title="PromptPro">
+                        <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
+                        <div class="sidebar-brand-copy" style="display:flex;flex-direction:column;gap:2px;">
+                            <span class="sidebar-brand-title">PromptPro</span>
+                            <span class="sidebar-brand-subtitle">Prompt Manager</span>
+                        </div>
+                    </a>
+                    <div class="sidebar-hub-nav">
+                        <a href="index.html" class="sidebar-hub-link" data-page="home" title="主页">
+                            <span class="sidebar-hub-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            </span>
+                            <span class="sidebar-hub-label">主页</span>
+                        </a>
+                        <a href="promptpro.html" class="sidebar-hub-link active" data-page="promptpro" title="提示词管理">
+                            <span class="sidebar-hub-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+                            </span>
+                            <span class="sidebar-hub-label">提示词管理</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 导航目录 -->
+                <div class="sidebar-folders-panel">
+                    <div class="sidebar-panel-header">
+                        <span class="sidebar-section-kicker">导航目录</span>
+                        <div class="sidebar-panel-actions">
+                            <button class="sidebar-panel-action-btn" id="addFolderBtn" title="新建文件夹">
+                                <i class="ri-folder-add-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <ul id="categories-list">
+                        <!-- 文件夹由 JS 动态渲染 -->
+                    </ul>
+                    <div class="tags-section-label">
+                        <span>标签</span>
+                        <button class="sidebar-panel-action-btn" id="addTagBtn" title="新建标签">
+                            <i class="ri-price-tag-3-line"></i>
+                        </button>
+                    </div>
+                    <div id="sidebar-tags-grid" class="sidebar-tags-grid">
+                        <!-- 标签网格由 JS 动态渲染 -->
+                    </div>
+                </div>
+
+                <!-- 底部工具栏 -->
+                <div class="sidebar-bottom">
+                    <div class="sidebar-toolbar">
+                        <button class="sidebar-theme-btn" id="navThemeBtn" title="切换到深色模式"><svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor"><path d="M480-360q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Zm0 60q-74.92 0-127.46-52.54Q300-405.08 300-480q0-74.92 52.54-127.46Q405.08-660 480-660q74.92 0 127.46 52.54Q660-554.92 660-480q0 74.92-52.54 127.46Q554.92-300 480-300ZM80-450q-12.75 0-21.37-8.63Q50-467.26 50-480.01q0-12.76 8.63-21.37Q67.25-510 80-510h90q12.75 0 21.38 8.63 8.62 8.63 8.62 21.38 0 12.76-8.62 21.37Q182.75-450 170-450H80Zm710 0q-12.75 0-21.38-8.63-8.62-8.63-8.62-21.38 0-12.76 8.62-21.37Q777.25-510 790-510h90q12.75 0 21.37 8.63 8.63 8.63 8.63 21.38 0 12.76-8.63 21.37Q892.75-450 880-450h-90ZM479.99-760q-12.76 0-21.37-8.62Q450-777.25 450-790v-90q0-12.75 8.63-21.37 8.63-8.63 21.38-8.63 12.76 0 21.37 8.63Q510-892.75 510-880v90q0 12.75-8.63 21.38-8.63 8.62-21.38 8.62Zm0 710q-12.76 0-21.37-8.63Q450-67.25 450-80v-90q0-12.75 8.63-21.38 8.63-8.62 21.38-8.62 12.76 0 21.37 8.62Q510-182.75 510-170v90q0 12.75-8.63 21.37Q492.74-50 479.99-50ZM240.23-678.38l-50.31-48.93q-8.92-8.31-8.61-20.88.31-12.58 8.73-21.89 9.19-9.3 21.58-9.3 12.38 0 21.07 9.3L282-720.15q8.69 9.3 8.69 21.07t-8.5 21.08q-8.5 9.31-20.57 8.81-12.08-.5-21.39-9.19Zm487.08 488.46L678-239.85q-8.69-9.3-8.69-21.38 0-12.08 8.69-20.77 8.12-9.31 20.29-8.81t21.48 9.19l50.31 48.93q8.92 8.31 8.61 20.88-.31 12.58-8.73 21.89-9.19 9.3-21.58 9.3-12.38 0-21.07-9.3ZM678-677.81q-9.31-8.5-8.81-20.57.5-12.08 9.19-21.39l48.93-50.31q8.31-8.92 20.88-8.61 12.58.31 21.89 8.73 9.3 9.19 9.3 21.58 0 12.38-9.3 21.07L720.15-678q-9.3 8.69-21.07 8.69t-21.08-8.5ZM189.92-189.84q-9.3-9.39-9.3-21.78 0-12.38 9.3-21.07L239.85-282q9.3-8.69 21.38-8.69 12.08 0 20.77 8.69 8.92 8.12 8.42 20.29t-8.8 21.48l-48.93 50.31q-8.69 9.3-21.07 9-12.39-.31-21.7-8.92ZM480-480Z"/></svg></button>
+                        <button class="sidebar-toolbar-icon" id="exportDataBtn" title="备份到文件夹">
+                            <i class="ri-download-cloud-2-line"></i>
+                        </button>
+                        <button class="sidebar-toolbar-icon" id="importDataBtn" title="导入数据">
+                            <i class="ri-upload-cloud-2-line"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 右侧主内容 -->
+        <main class="main-content">
+            <div class="main-area">
+                <!-- 主工具栏 -->
+                <div class="main-toolbar">
+                    <div class="search-box">
+                        <i class="ri-search-line"></i>
+                        <input type="text" id="searchInput" placeholder="搜索提示词...">
+                    </div>
+                    <button class="btn-favorite" id="btnFavorites" data-view="favorites" title="收藏筛选">
+                        <i class="ri-star-line"></i>
+                        <span>收藏</span>
+                    </button>
+                    <button class="btn btn-primary" id="createPromptBtn">
+                        <i class="ri-add-line"></i>
+                        <span>新建提示词</span>
+                    </button>
+                </div>
+
+                <!-- 筛选提示栏 -->
+                <div class="filter-bar" id="filterBar" style="display: none;">
+                    <span class="filter-text">当前筛选：</span>
+                    <span id="filterInfo"></span>
+                    <button class="btn btn-xs btn-clear" id="clearFilter">
+                        <i class="ri-close-line"></i> 清除
+                    </button>
+                </div>
+
+                <!-- 提示词列表 -->
+                <div class="prompts-container">
+                    <div class="prompts-grid" id="promptsGrid">
+                        <!-- 动态加载 -->
+                    </div>
+                    <div class="loading" id="loading">
+                        <i class="ri-loader-4-line spin"></i>
+                        <p>加载中...</p>
+                    </div>
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <i class="ri-file-warning-line"></i>
+                        <p>暂无数据</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input type="file" id="importFileInput" accept=".json" style="display: none;">
+
+    <!-- 提示词详情模态框 -->
+    <div class="modal" id="promptModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="modalTitle">提示词详情</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="prompt-detail">
+                    <div class="detail-meta">
+                        <span class="meta-item" id="detailFolder">
+                            <i class="ri-folder-line"></i>
+                            <span></span>
+                        </span>
+                        <span class="meta-item" id="detailTags">
+                            <i class="ri-price-tag-3-line"></i>
+                            <span></span>
+                        </span>
+                        <span class="meta-item" id="detailTime">
+                            <i class="ri-time-line"></i>
+                            <span></span>
+                        </span>
+                    </div>
+                    <div class="detail-description">
+                        <h4>描述</h4>
+                        <p id="detailDescription"></p>
+                    </div>
+                    <div class="detail-content">
+                        <h4>内容</h4>
+                        <pre id="detailContent"></pre>
+                    </div>
+                    <div class="detail-versions">
+                        <h4>版本历史</h4>
+                        <div class="versions-list" id="versionsList"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="copyContentBtn">
+                    <i class="ri-file-copy-line"></i>
+                    复制内容
+                </button>
+                <button class="btn btn-primary" id="editPromptBtn">
+                    <i class="ri-edit-line"></i>
+                    编辑
+                </button>
+                <button class="btn btn-danger" id="deletePromptBtn">
+                    <i class="ri-delete-bin-line"></i>
+                    删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建/编辑提示词模态框 -->
+    <div class="modal" id="editModal">
+        <div class="modal-content modal-xlarge">
+            <div class="modal-header">
+                <h2 id="editModalTitle">新建提示词</h2>
+                <button class="modal-close" id="closeEditModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="promptForm">
+                    <input type="hidden" id="editPromptId">
+                    <div class="form-group">
+                        <label for="formTitle">标题 *</label>
+                        <input type="text" id="formTitle" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="formDescription">描述</label>
+                        <input type="text" id="formDescription">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>文件夹</label>
+                            <div class="custom-select" id="folderSelect">
+                                <div class="custom-select-trigger" data-select-id="folderSelect">
+                                    <span class="selected-text placeholder">选择文件夹</span>
+                                    <i class="ri-arrow-down-s-line arrow"></i>
+                                </div>
+                                <div class="custom-select-dropdown">
+                                    <div class="custom-select-option" data-value="">选择文件夹</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="formFolder">
+                        </div>
+                        <div class="form-group">
+                            <label for="formCurrentVersion">版本号</label>
+                            <input type="text" id="formCurrentVersion" value="1.0.0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>标签</label>
+                        <div id="formTags" class="tag-selector">
+                            <div class="tag-list" id="formTagList"></div>
+                            <input type="text" id="formTagInput" placeholder="输入标签后回车" class="tag-input">
+                            <div id="tagSuggestions" class="tag-suggestions" style="display: none;"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="formContent">内容 *</label>
+                        <textarea id="formContent" rows="20" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelEditBtn">取消</button>
+                <button class="btn btn-primary" id="savePromptBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建文件夹模态框 -->
+    <div class="modal" id="folderModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="folderModalTitle">新建文件夹</h2>
+                <button class="modal-close" id="closeFolderModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="folderNameInput">文件夹名称</label>
+                    <input type="text" id="folderNameInput" placeholder="输入文件夹名称" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelFolderBtn">取消</button>
+                <button class="btn btn-primary" id="saveFolderBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建标签模态框 -->
+    <div class="modal" id="tagModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="tagModalTitle">新建标签</h2>
+                <button class="modal-close" id="closeTagModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="tagNameInput">标签名称</label>
+                    <input type="text" id="tagNameInput" placeholder="输入标签名称" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelTagBtn">取消</button>
+                <button class="btn btn-primary" id="saveTagBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>确认删除</h2>
+                <button class="modal-close" id="closeDeleteModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这个提示词吗？此操作不可撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelDeleteBtn">取消</button>
+                <button class="btn btn-danger" id="confirmDeleteBtn">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备份目录设置对话框 -->
+    <div class="modal" id="backupSetupModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h2>设置备份目录</h2>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem; color: var(--text-secondary, #64748b); font-size: 14px;">
+                    为了保护您的提示词数据，建议设置一个本地备份目录。系统会自动备份您的提示词、文件夹和标签。
+                </p>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <button class="btn btn-primary" id="setupBackupFolderBtn" style="white-space: nowrap;">
+                        选择目录
+                    </button>
+                    <span id="setupFolderName" style="font-size: 13px; color: var(--text-secondary, #94a3b8);">未选择</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="skipBackupSetupBtn">稍后设置</button>
+                <button class="btn btn-primary" id="confirmBackupSetupBtn" disabled>确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast通知 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 回到顶部按钮 -->
+    <div id="back-to-top-container" style="position: fixed; bottom: 0; right: 0; z-index: 999999; pointer-events: none;">
+        <div id="back-to-top" title="回到顶部" style="pointer-events: auto;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px; height:20px;">
+                <path d="M12 19V5M5 12l7-7 7 7"></path>
+            </svg>
+            <span id="scroll-percent" class="scroll-percent-text">0%</span>
+        </div>
+    </div>
+
+    <script src="chrome-shim.js?v=8"></script>
+    <script src="/js/api.js?v=5"></script>
+    <script src="settings-store.js?v=1"></script>
+    <script defer src="icons.js?v=2"></script>
+    <script defer src="backup-manager.js?v=2"></script>
+    <script defer src="settings.js?v=2"></script>
+    <script defer src="promptpro-bundle.js"></script>
+    <script defer src="promptpro-utils.js"></script>
+</body>
+</html>

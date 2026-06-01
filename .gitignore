@@ -1,0 +1,15 @@
+.vercel
+node_modules
+.env
+.env.*
+!.env.example
+.claude/
+*.rar
+*.zip
+*.log
+*.backup
+*.bak
+wwwroot/server/data/
+wwwroot/server/node_modules/
+bak/
+.claude/

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FavsHub 图标设计器 v2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #e2e8f0;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 8px; font-size: 32px; }
+        h1 span { 
+            background: linear-gradient(135deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 40px; font-size: 14px; }
+        
+        .designs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        .design-card {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .design-card:hover { 
+            border-color: #10b981; 
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+        }
+        .design-card.active { 
+            border-color: #10b981; 
+            background: #142a1f;
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
+        }
+        .design-card canvas {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+        }
+        .design-card h3 { font-size: 16px; color: #e2e8f0; margin-bottom: 4px; }
+        .design-card p { font-size: 12px; color: #64748b; }
+        
+        .preview-section {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+        .preview-section h2 {
+            font-size: 20px;
+            color: #e2e8f0;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .preview-grid {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+        .preview-item {
+            text-align: center;
+        }
+        .preview-item canvas {
+            border-radius: 12px;
+            image-rendering: pixelated;
+        }
+        .preview-item .size-label {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .preview-item .usage {
+            font-size: 11px;
+            color: #475569;
+        }
+        
+        .download-section {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 32px;
+        }
+        .download-section h2 {
+            font-size: 20px;
+            color: #e2e8f0;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .btn-row { 
+            display: flex; 
+            gap: 12px; 
+            flex-wrap: wrap; 
+            justify-content: center;
+        }
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            color: white; 
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(16,185,129,0.3);
+        }
+        .btn-secondary { 
+            background: #334155; 
+            color: #e2e8f0; 
+        }
+        .btn-secondary:hover { background: #475569; }
+        
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        
+        .bg-pattern {
+            display: inline-block;
+            background: 
+                linear-gradient(45deg, #334155 25%, transparent 25%),
+                linear-gradient(-45deg, #334155 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #334155 75%),
+                linear-gradient(-45deg, transparent 75%, #334155 75%);
+            background-size: 12px 12px;
+            background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+            border-radius: 12px;
+            padding: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 <span>FavsHub</span> 图标设计器</h1>
+        <p class="subtitle">选择设计方案 → 预览效果 → 下载图标文件</p>
+        
+        <div class="designs">
+            <div class="design-card active" data-design="logoBadge" onclick="switchDesign('logoBadge')">
+                <canvas id="thumbLogo" width="64" height="64"></canvas>
+                <h3>Logo 徽章</h3>
+                <p>现有 Logo 升级版</p>
+            </div>
+            <div class="design-card" data-design="letterF" onclick="switchDesign('letterF')">
+                <canvas id="thumbF" width="64" height="64"></canvas>
+                <h3>字母 F</h3>
+                <p>简约字母标识</p>
+            </div>
+            <div class="design-card" data-design="hexagon" onclick="switchDesign('hexagon')">
+                <canvas id="thumbHex" width="64" height="64"></canvas>
+                <h3>六边形 Hub</h3>
+                <p>几何聚合中心</p>
+            </div>
+            <div class="design-card" data-design="starBookmark" onclick="switchDesign('starBookmark')">
+                <canvas id="thumbStar" width="64" height="64"></canvas>
+                <h3>星标书签</h3>
+                <p>收藏与书签</p>
+            </div>
+            <div class="design-card" data-design="orbit" onclick="switchDesign('orbit')">
+                <canvas id="thumbOrbit" width="64" height="64"></canvas>
+                <h3>轨道环绕</h3>
+                <p>Hub 聚合概念</p>
+            </div>
+        </div>
+        
+        <div class="preview-section">
+            <h2>📐 实时预览</h2>
+            <div class="preview-grid">
+                <div class="preview-item">
+                    <div class="bg-pattern"><canvas id="p128" width="128" height="128"></canvas></div>
+                    <div class="size-label">128 × 128</div>
+                    <div class="usage">Chrome Web Store</div>
+                </div>
+                <div class="preview-item">
+                    <div class="bg-pattern"><canvas id="p48" width="48" height="48"></canvas></div>
+                    <div class="size-label">48 × 48</div>
+                    <div class="usage">扩展管理页</div>
+                </div>
+                <div class="preview-item">
+                    <div class="bg-pattern"><canvas id="p16" width="16" height="16"></canvas></div>
+                    <div class="size-label">16 × 16</div>
+                    <div class="usage">浏览器工具栏</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="download-section">
+            <h2>📥 下载图标</h2>
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="downloadAll()">📦 一键下载全部（含 SVG）</button>
+                <button class="btn btn-secondary" onclick="dl('favicon.png', 512)">favicon.png</button>
+                <button class="btn btn-secondary" onclick="dl('icon-128.png', 128)">icon-128.png</button>
+                <button class="btn btn-secondary" onclick="dl('icon-48.png', 48)">icon-48.png</button>
+                <button class="btn btn-secondary" onclick="dl('icon-16.png', 16)">icon-16.png</button>
+                <button class="btn btn-secondary" style="background:#f59e0b;color:#1e293b" onclick="downloadSVG()">📄 logo.svg</button>
+                <button class="btn btn-secondary" style="background:#8b5cf6;color:white" onclick="downloadICO()">🔷 favicon.ico</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    <canvas id="p512" width="512" height="512" style="display:none"></canvas>
+    
+    <script>
+    // ===== 设计配置 =====
+    const DESIGNS = {
+        logoBadge: {
+            name: 'Logo 徽章',
+            draw: function(ctx, s, t) {
+                // 圆角正方形背景（与 logo.svg 风格一致）
+                this.drawRoundedRect(ctx, 96*s, 64*s, 320*s, 384*s, 48*s, ['#10b981', '#10b981']);
+                
+                // 书签形状（白色）- 基于 logo.svg 路径转换
+                ctx.save();
+                ctx.fillStyle = '#ffffff';
+                const bw = 160*s, bh = 220*s;
+                const bx = 176*s, by = 120*s;
+                const tailH = 36*s;
+                
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(bx + bw, by);
+                ctx.lineTo(bx + bw, by + bh - tailH);
+                ctx.lineTo(bx + bw/2, by + bh);
+                ctx.lineTo(bx, by + bh - tailH);
+                ctx.closePath();
+                ctx.fill();
+                
+                // F 字母（简化版）
+                ctx.fillStyle = '#10b981';
+                const fw = 36*s, fh = 80*s;
+                const fx = bx + 28*s, fy = by + 32*s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy, fw, fh, 8*s);
+                ctx.fill();
+                
+                // F 上横线
+                const hw1 = 60*s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy, hw1, 28*s, 8*s);
+                ctx.fill();
+                
+                // F 中横线
+                const hw2 = 48*s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy + 36*s, hw2, 24*s, 8*s);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        },
+        letterF: {
+            name: '字母 F',
+            draw: function(ctx, s, t) {
+                // 圆角正方形背景
+                this.drawRoundedRect(ctx, 80*s, 60*s, 352*s, 392*s, 64*s, t.bg);
+                
+                // 字母 F - 使用几何形状构建
+                ctx.save();
+                ctx.fillStyle = t.accent;
+                
+                // F 的竖线
+                const fw = 48 * s;
+                const fh = 200 * s;
+                const fx = 176 * s;
+                const fy = 140 * s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy, fw, fh, 12*s);
+                ctx.fill();
+                
+                // F 的上横线
+                const hw1 = 140 * s;
+                const hh = 48 * s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy, hw1, hh, 12*s);
+                ctx.fill();
+                
+                // F 的中横线
+                const hw2 = 100 * s;
+                ctx.beginPath();
+                ctx.roundRect(fx, fy + 72*s, hw2, hh, 12*s);
+                ctx.fill();
+                
+                ctx.restore();
+                
+                // 右下角小圆点装饰
+                if (s > 0.15) {
+                    ctx.save();
+                    ctx.fillStyle = t.dot;
+                    ctx.beginPath();
+                    ctx.arc(360*s, 360*s, 16*s, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+        },
+        hexagon: {
+            name: '六边形 Hub',
+            draw: function(ctx, s, t) {
+                // 背景渐变圆
+                const grad = ctx.createRadialGradient(256*s, 256*s, 0, 256*s, 256*s, 256*s);
+                grad.addColorStop(0, t.bg[0]);
+                grad.addColorStop(1, t.bg[1]);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(256*s, 256*s, 200*s, 0, Math.PI*2);
+                ctx.fill();
+                
+                // 六边形
+                ctx.save();
+                ctx.fillStyle = t.accent;
+                this.drawHexagon(ctx, 256*s, 230*s, 80*s);
+                ctx.fill();
+                
+                // 内部小六边形
+                ctx.fillStyle = t.inner || t.bg[0];
+                this.drawHexagon(ctx, 256*s, 230*s, 35*s);
+                ctx.fill();
+                ctx.restore();
+                
+                // 环绕小点
+                if (s > 0.15) {
+                    ctx.save();
+                    ctx.fillStyle = t.dot;
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (i / 6) * Math.PI * 2 - Math.PI/2;
+                        const dx = 256*s + Math.cos(angle) * 130*s;
+                        const dy = 230*s + Math.sin(angle) * 130*s;
+                        ctx.beginPath();
+                        ctx.arc(dx, dy, 8*s, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+            }
+        },
+        starBookmark: {
+            name: '星标书签',
+            draw: function(ctx, s, t) {
+                // 圆角矩形背景
+                this.drawRoundedRect(ctx, 80*s, 60*s, 352*s, 392*s, 64*s, t.bg);
+                
+                // 书签
+                ctx.save();
+                ctx.fillStyle = t.accent;
+                const bw = 160*s, bh = 220*s;
+                const bx = 176*s, by = 120*s;
+                const tailH = 36*s;
+                
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(bx + bw, by);
+                ctx.lineTo(bx + bw, by + bh - tailH);
+                ctx.lineTo(bx + bw/2, by + bh);
+                ctx.lineTo(bx, by + bh - tailH);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 星星
+                ctx.fillStyle = t.star || '#fbbf24';
+                this.drawStar(ctx, bx + bw/2, by + bh*0.35, 5, 32*s, 14*s);
+                ctx.fill();
+                ctx.restore();
+            }
+        },
+        orbit: {
+            name: '轨道环绕',
+            draw: function(ctx, s, t) {
+                // 背景
+                const grad = ctx.createRadialGradient(256*s, 256*s, 0, 256*s, 256*s, 256*s);
+                grad.addColorStop(0, t.bg[0]);
+                grad.addColorStop(1, t.bg[1]);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(256*s, 256*s, 200*s, 0, Math.PI*2);
+                ctx.fill();
+                
+                // 轨道环
+                ctx.save();
+                ctx.strokeStyle = t.ring || 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 4*s;
+                ctx.beginPath();
+                ctx.ellipse(256*s, 256*s, 140*s, 50*s, -0.3, 0, Math.PI*2);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.ellipse(256*s, 256*s, 140*s, 50*s, 0.5, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.restore();
+                
+                // 中心球
+                ctx.save();
+                const cGrad = ctx.createRadialGradient(250*s, 250*s, 0, 256*s, 256*s, 40*s);
+                cGrad.addColorStop(0, t.accent);
+                cGrad.addColorStop(1, t.bg[0]);
+                ctx.fillStyle = cGrad;
+                ctx.beginPath();
+                ctx.arc(256*s, 256*s, 40*s, 0, Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+                
+                // 轨道上的点
+                ctx.save();
+                ctx.fillStyle = t.dot || '#fff';
+                ctx.beginPath();
+                ctx.arc(380*s, 230*s, 12*s, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(150*s, 280*s, 8*s, 0, Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+    };
+    
+    // ===== 主题 =====
+    const THEMES = {
+        logoBadge: { bg: ['#10b981', '#10b981'], accent: '#ffffff', dot: '#fbbf24' },
+        letterF: { bg: ['#10b981', '#059669'], accent: '#ffffff', dot: '#fbbf24' },
+        hexagon: { bg: ['#3b82f6', '#1d4ed8'], accent: '#ffffff', dot: '#60a5fa', inner: '#1e40af' },
+        starBookmark: { bg: ['#10b981', '#0ea5e9'], accent: '#ffffff', star: '#fbbf24' },
+        orbit: { bg: ['#6366f1', '#4338ca'], accent: '#a78bfa', ring: 'rgba(167,139,250,0.4)', dot: '#c4b5fd' }
+    };
+    
+    let currentDesign = 'letterF';
+    
+    // ===== 绘图工具函数 =====
+    function drawRoundedRect(ctx, x, y, w, h, r, colors) {
+        const grad = ctx.createLinearGradient(x, y, x+w, y+h);
+        grad.addColorStop(0, colors[0]);
+        grad.addColorStop(1, colors[1]);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.fill();
+    }
+    
+    function drawStar(ctx, cx, cy, spikes, outerR, innerR) {
+        let rot = Math.PI/2 * 3;
+        const step = Math.PI / spikes;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerR);
+        for (let i = 0; i < spikes; i++) {
+            ctx.lineTo(cx + Math.cos(rot)*outerR, cy + Math.sin(rot)*outerR);
+            rot += step;
+            ctx.lineTo(cx + Math.cos(rot)*innerR, cy + Math.sin(rot)*innerR);
+            rot += step;
+        }
+        ctx.closePath();
+    }
+    
+    function drawHexagon(ctx, cx, cy, r) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = (i/6) * Math.PI * 2 - Math.PI/2;
+            const x = cx + Math.cos(angle) * r;
+            const y = cy + Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+    }
+    
+    // 绑定到 DESIGNS
+    Object.values(DESIGNS).forEach(d => {
+        d.drawRoundedRect = drawRoundedRect;
+        d.drawStar = drawStar;
+        d.drawHexagon = drawHexagon;
+    });
+    
+    // ===== 绘制 =====
+    function drawIcon(canvasId, size) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const design = DESIGNS[currentDesign];
+        const theme = THEMES[currentDesign];
+        const s = size / 512;
+        
+        ctx.clearRect(0, 0, size, size);
+        design.draw(ctx, s, theme);
+    }
+    
+    function refreshAll() {
+        ['p16', 'p48', 'p128', 'p512'].forEach(id => {
+            const canvas = document.getElementById(id);
+            if (canvas) drawIcon(id, canvas.width);
+        });
+        // 刷新缩略图
+        ['thumbLogo', 'thumbF', 'thumbHex', 'thumbStar', 'thumbOrbit'].forEach(id => {
+            const canvas = document.getElementById(id);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, 64, 64);
+                const key = id.replace('thumb', '').toLowerCase();
+                const designMap = { logo: 'logoBadge', f: 'letterF', hex: 'hexagon', star: 'starBookmark', orbit: 'orbit' };
+                const design = DESIGNS[designMap[key]];
+                if (design) design.draw(ctx, 64/512, THEMES[designMap[key]]);
+            }
+        });
+    }
+    
+    // ===== 切换设计 =====
+    function switchDesign(name) {
+        currentDesign = name;
+        document.querySelectorAll('.design-card').forEach(c => {
+            c.classList.toggle('active', c.dataset.design === name);
+        });
+        refreshAll();
+        showToast('已选择: ' + DESIGNS[name].name);
+    }
+    
+    // ===== 下载 =====
+    function dl(filename, size) {
+        const canvas = document.getElementById('p' + size);
+        if (!canvas) return;
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('✅ 已下载: ' + filename);
+    }
+    
+    function downloadAll() {
+        const files = [
+            { name: 'favicon.png', size: 512 },
+            { name: 'icon-128.png', size: 128 },
+            { name: 'icon-48.png', size: 48 },
+            { name: 'icon-16.png', size: 16 }
+        ];
+        files.forEach((f, i) => setTimeout(() => dl(f.name, f.size), i * 250));
+        // 最后下载 SVG 和 ICO
+        setTimeout(() => downloadSVG(), 1200);
+        setTimeout(() => downloadICO(), 1500);
+        showToast('📦 正在下载 6 个图标文件（含 SVG + ICO）...');
+    }
+    
+    // ===== 下载 SVG =====
+    function downloadSVG() {
+        const design = currentDesign;
+        const theme = THEMES[currentDesign];
+        let svgContent = '';
+
+        if (design === 'logoBadge') {
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:${theme.bg[0]}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[1]}"/>
+    </linearGradient>
+  </defs>
+  <rect x="96" y="64" width="320" height="384" rx="48" fill="url(#bgGrad)"/>
+  <path d="M176 120 L336 120 L336 304 L256 340 L176 304 Z" fill="#ffffff"/>
+  <rect x="204" y="152" width="36" height="80" rx="8" fill="#10b981"/>
+  <rect x="204" y="152" width="60" height="28" rx="8" fill="#10b981"/>
+  <rect x="204" y="188" width="48" height="24" rx="8" fill="#10b981"/>
+</svg>`;
+        } else if (design === 'letterF') {
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:${theme.bg[0]}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[1]}"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="60" width="352" height="392" rx="64" fill="url(#bgGrad)"/>
+  <rect x="176" y="140" width="48" height="200" rx="12" fill="${theme.accent}"/>
+  <rect x="176" y="140" width="140" height="48" rx="12" fill="${theme.accent}"/>
+  <rect x="176" y="212" width="100" height="48" rx="12" fill="${theme.accent}"/>
+  <circle cx="360" cy="360" r="16" fill="${theme.dot}"/>
+</svg>`;
+        } else if (design === 'hexagon') {
+            const hexPts = Array.from({length:6}, (_,i) => {
+                const a = (i/6)*Math.PI*2 - Math.PI/2;
+                return `${256+Math.cos(a)*80},${230+Math.sin(a)*80}`;
+            }).join(' ');
+            const innerHexPts = Array.from({length:6}, (_,i) => {
+                const a = (i/6)*Math.PI*2 - Math.PI/2;
+                return `${256+Math.cos(a)*35},${230+Math.sin(a)*35}`;
+            }).join(' ');
+            const dots = Array.from({length:6}, (_,i) => {
+                const a = (i/6)*Math.PI*2 - Math.PI/2;
+                const dx = 256+Math.cos(a)*130;
+                const dy = 230+Math.sin(a)*130;
+                return `<circle cx="${dx}" cy="${dy}" r="8" fill="${theme.dot}"/>`;
+            }).join('\n  ');
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:${theme.bg[0]}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[1]}"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="200" fill="url(#bgGrad)"/>
+  <polygon points="${hexPts}" fill="${theme.accent}"/>
+  <polygon points="${innerHexPts}" fill="${theme.inner}"/>
+  ${dots}
+</svg>`;
+        } else if (design === 'starBookmark') {
+            const starPts = [];
+            for (let i=0;i<10;i++) {
+                const r = i%2===0 ? 32 : 14;
+                const a = (i/10)*Math.PI*2 - Math.PI/2;
+                starPts.push(`${256+Math.cos(a)*r},${202+Math.sin(a)*r}`);
+            }
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:${theme.bg[0]}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[1]}"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="60" width="352" height="392" rx="64" fill="url(#bgGrad)"/>
+  <path d="M176 120 L336 120 L336 304 L256 340 L176 304 Z" fill="${theme.accent}"/>
+  <polygon points="${starPts.join(' ')}" fill="${theme.star}"/>
+</svg>`;
+        } else if (design === 'orbit') {
+            svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:${theme.bg[0]}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[1]}"/>
+    </radialGradient>
+    <radialGradient id="coreGrad" cx="45%" cy="45%" r="50%">
+      <stop offset="0%" style="stop-color:${theme.accent}"/>
+      <stop offset="100%" style="stop-color:${theme.bg[0]}"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="200" fill="url(#bgGrad)"/>
+  <ellipse cx="256" cy="256" rx="140" ry="50" fill="none" stroke="${theme.ring}" stroke-width="4" transform="rotate(-17 256 256)"/>
+  <ellipse cx="256" cy="256" rx="140" ry="50" fill="none" stroke="${theme.ring}" stroke-width="4" transform="rotate(29 256 256)"/>
+  <circle cx="256" cy="256" r="40" fill="url(#coreGrad)"/>
+  <circle cx="380" cy="230" r="12" fill="${theme.dot}"/>
+  <circle cx="150" cy="280" r="8" fill="${theme.dot}"/>
+</svg>`;
+        }
+
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+        const link = document.createElement('a');
+        link.download = 'logo.svg';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        showToast('✅ 已下载: logo.svg');
+    }
+    
+    // ===== 下载 favicon.ico =====
+    async function downloadICO() {
+        const sizes = [16, 32, 48];
+        const pngBuffers = [];
+        
+        // 获取各尺寸的 PNG 数据
+        for (const size of sizes) {
+            const canvas = document.getElementById('p' + size);
+            if (!canvas) continue;
+            
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const buffer = await blob.arrayBuffer();
+            pngBuffers.push({ size, buffer });
+        }
+        
+        // 构建 ICO 文件
+        const numImages = pngBuffers.length;
+        const headerSize = 6; // ICO header: 2 + 2 + 2
+        const dirEntrySize = 16; // Each directory entry: 16 bytes
+        const dirSize = numImages * dirEntrySize;
+        const dataOffset = headerSize + dirSize;
+        
+        // 计算总大小
+        let totalSize = dataOffset;
+        const pngSizes = [];
+        for (const { buffer } of pngBuffers) {
+            totalSize += buffer.byteLength;
+            pngSizes.push(buffer.byteLength);
+        }
+        
+        // 创建 ICO 文件
+        const icoBuffer = new ArrayBuffer(totalSize);
+        const view = new DataView(icoBuffer);
+        
+        // ICO Header
+        view.setUint16(0, 0, true); // Reserved: 0
+        view.setUint16(2, 1, true); // Type: 1 (ICO)
+        view.setUint16(4, numImages, true); // Number of images
+        
+        // Directory Entries
+        let offset = dataOffset;
+        for (let i = 0; i < numImages; i++) {
+            const { size, buffer } = pngBuffers[i];
+            const base = headerSize + i * dirEntrySize;
+            
+            view.setUint8(base, size >= 256 ? 0 : size); // Width
+            view.setUint8(base + 1, size >= 256 ? 0 : size); // Height
+            view.setUint8(base + 2, 0); // Color palette: 0 (no palette)
+            view.setUint8(base + 3, 0); // Reserved: 0
+            view.setUint16(base + 4, 1, true); // Color planes: 1
+            view.setUint16(base + 6, 32, true); // Bits per pixel: 32
+            view.setUint32(base + 8, buffer.byteLength, true); // Image size
+            view.setUint32(base + 12, offset, true); // Image offset
+            
+            // Copy PNG data
+            const pngView = new Uint8Array(icoBuffer, offset, buffer.byteLength);
+            pngView.set(new Uint8Array(buffer));
+            
+            offset += buffer.byteLength;
+        }
+        
+        // 下载
+        const blob = new Blob([icoBuffer], { type: 'image/x-icon' });
+        const link = document.createElement('a');
+        link.download = 'favicon.ico';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        showToast('✅ 已下载: favicon.ico');
+    }
+    
+    function showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+    
+    // ===== Polyfill =====
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            if (typeof r === 'number') r = [r,r,r,r];
+            this.moveTo(x+r[0], y);
+            this.arcTo(x+w, y, x+w, y+h, r[1]);
+            this.arcTo(x+w, y+h, x, y+h, r[2]);
+            this.arcTo(x, y+h, x, y, r[3]);
+            this.arcTo(x, y, x+w, y, r[0]);
+            this.closePath();
+        };
+    }
+    
+    // ===== 初始化 =====
+    refreshAll();
+    </script>
+</body>
+</html>

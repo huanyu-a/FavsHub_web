@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FavsHub - 登录</title>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-container { background: #fff; border-radius: 16px; padding: 48px 40px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .login-logo { text-align: center; margin-bottom: 32px; }
+    .login-logo img { width: 48px; height: 48px; }
+    .login-logo h1 { font-size: 24px; margin-top: 8px; color: #333; }
+    .login-logo p { color: #888; font-size: 14px; margin-top: 4px; }
+    .tab-nav { display: flex; margin-bottom: 24px; border-bottom: 2px solid #eee; }
+    .tab-nav button { flex: 1; padding: 12px; border: none; background: none; font-size: 15px; cursor: pointer; color: #888; transition: all 0.2s; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-nav button.active { color: #667eea; border-bottom-color: #667eea; font-weight: 600; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 12px 16px; border: 1.5px solid #e0e0e0; border-radius: 10px; font-size: 14px; transition: border-color 0.2s; outline: none; }
+    .form-group input:focus { border-color: #667eea; }
+    .submit-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-top: 8px; }
+    .submit-btn:hover { opacity: 0.9; }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error-msg { color: #e74c3c; font-size: 13px; text-align: center; margin-bottom: 12px; display: none; }
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-logo">
+      <img src="/images/logo.svg" alt="FavsHub">
+      <h1>FavsHub</h1>
+      <p>你的智能书签工作台</p>
+    </div>
+    <div class="tab-nav">
+      <button class="active" data-tab="login">登录</button>
+      <button data-tab="register">注册</button>
+    </div>
+    <div id="error-msg" class="error-msg"></div>
+
+    <div id="login-panel" class="form-panel active">
+      <form id="login-form">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="login-username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="login-password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="submit-btn" id="login-btn">登录</button>
+      </form>
+    </div>
+
+    <div id="register-panel" class="form-panel">
+      <form id="register-form">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="reg-username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>邮箱（可选）</label>
+          <input type="email" id="reg-email" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="reg-password" required autocomplete="new-password" minlength="6">
+        </div>
+        <button type="submit" class="submit-btn" id="reg-btn">注册</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="chrome-shim.js"></script>
+  <script src="/js/api.js"></script>
+  <script>
+    // 获取跳转目标（仅允许相对路径，防止开放重定向）
+    const rawRedirect = new URLSearchParams(window.location.search).get('redirect');
+    const redirectUrl = (rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//'))
+      ? rawRedirect
+      : '/index.html';
+
+    // 已登录直接跳转管理后台
+    if (api.isLoggedIn()) {
+      window.location.href = '/admin.html';
+    }
+
+    // Tab 切换
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+      document.querySelector(`.tab-nav [data-tab="${tabName}"]`)?.classList.add('active');
+      document.querySelectorAll('.form-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(tabName + '-panel')?.classList.add('active');
+      document.getElementById('error-msg').style.display = 'none';
+    }
+
+    document.querySelectorAll('.tab-nav button').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // URL 参数自动切换 tab
+    if (new URLSearchParams(window.location.search).get('tab') === 'register') {
+      switchTab('register');
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      try {
+        await api.login(
+          document.getElementById('login-username').value,
+          document.getElementById('login-password').value
+        );
+        window.location.href = redirectUrl;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('reg-btn');
+      btn.disabled = true;
+      try {
+        await api.register(
+          document.getElementById('reg-username').value,
+          document.getElementById('reg-password').value,
+          document.getElementById('reg-email').value || undefined
+        );
+        window.location.href = redirectUrl;
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
