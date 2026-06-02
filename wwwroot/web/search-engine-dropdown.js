@@ -63,7 +63,7 @@ async function loadServerEngines() {
         }));
       }
     } catch (e) {
-      console.warn('[SearchEngine] 加载服务端引擎失败:', e);
+      
       _serverEngines = [];
     }
     return _serverEngines || [];
@@ -136,7 +136,7 @@ const SearchEngineManager = {
       FavsHubSettings.set('selectedSearchEngine', engineName);
       return true;
     }
-    console.error('[Search] Engine not found:', engineName);
+    
     return false;
   }
 };
@@ -197,7 +197,7 @@ function handleSearchEngineSelection(engine) {
     });
     document.dispatchEvent(event);
   } else {
-    console.error('[Search] Failed to set default engine:', engine);
+    
   }
 }
 
@@ -258,7 +258,7 @@ function initializeSearchEngineUI() {
         searchEngineIcon.alt = `${getLocalizedMessage(defaultEngine.label)} Search`;
       }
     } else {
-      console.error('[Search] Required DOM elements not found');
+      
     }
   }
 }

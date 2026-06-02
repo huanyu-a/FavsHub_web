@@ -165,7 +165,7 @@ function applyAllSettings() {
   const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
   updateSearchEngineIcon(defaultEngine);
 
-  console.log('[Settings] 所有管理员设置已应用到页面');
+  
 }
 
 /**
@@ -624,7 +624,7 @@ function createContextMenu() {
       action: () => {
         
         if (!currentBookmark) {
-          console.error('No item selected for deletion');
+          
           return;
         }
 
@@ -741,7 +741,7 @@ const ColorCache = {
         });
       }
     } catch (error) {
-      console.error('Error initializing color cache:', error);
+      
       this.clear();
     }
   },
@@ -1319,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', async function () {
       }
 
       if (!bookmarkFolderContextMenu) {
-        console.error('Failed to create bookmark folder context menu');
+        
         return;
       }
 
@@ -1508,7 +1508,7 @@ async function waitForFirstCategory(attemptsLeft = 5) {
     bookmarksContainer.style.opacity = '1';
 
   } catch (error) {
-    console.error('Error in waitForFirstCategory:', error);
+    
     if (attemptsLeft > 0) {
       setTimeout(() => waitForFirstCategory(attemptsLeft - 1), 1000);
     } else {
@@ -1557,7 +1557,7 @@ async function switchToFolder(folderId) {
     });
     
   } catch (error) {
-    console.error('Error switching folder:', error);
+    
     // 错误时回退到根目录
     await updateBookmarksDisplay('1');
     updateFolderName('1');
@@ -2037,7 +2037,7 @@ function createBookmarkCard(bookmark, index) {
           active: true
         }).then(tab => {
         }).catch(error => {
-          console.error('[Bookmark Click] Failed to create internal tab:', error);
+          
         });
         return;
       }
@@ -2080,7 +2080,7 @@ function createBookmarkCard(bookmark, index) {
                   // 显示返回按钮
                   backButton.style.display = 'flex';
                 } else {
-                  console.error('[Bookmark Click] Side panel elements not found, falling back to new tab');
+                  
                   chrome.tabs.create({
                     url: bookmark.url,
                   });
@@ -2093,14 +2093,14 @@ function createBookmarkCard(bookmark, index) {
                 window.sidePanelManager.loadUrl(bookmark.url);
               }
             } catch (error) {
-              console.error('[Bookmark Click] Error using SidePanelManager:', error);
+              
               // 出错时回退到在新标签页中打开
               chrome.tabs.create({
                 url: bookmark.url,
               });
             }
           } else if (openInNewTab) {
-            chrome.tabs.create({ url: bookmark.url, active: true }).catch(e => console.error(e));
+            chrome.tabs.create({ url: bookmark.url, active: true }).catch(() => {});
           }
       } else {
         if (FavsHubSettings.get('openInNewTab') !== false) {
@@ -2110,7 +2110,7 @@ function createBookmarkCard(bookmark, index) {
         }
       }
     } catch (error) {
-      console.error('[Bookmark Click] Error:', error);
+      
     } finally {
       setTimeout(() => {
         isProcessingClick = false;
@@ -2169,7 +2169,7 @@ const Utilities = (function() {
   function showToast(message = getLocalizedMessage('moreSearchSupportToast'), duration = 1500) {
     const toast = document.getElementById('more-button-toast');
     if (!toast) {
-      console.error('Toast element not found');
+      
       return;
     }
 
@@ -2201,11 +2201,11 @@ const Utilities = (function() {
       navigator.clipboard.writeText(bookmark.url).then(() => {
         showToast(getLocalizedMessage('linkCopied'));
       }).catch(err => {
-        console.error('Failed to copy link:', err);
+        
         showToast(getLocalizedMessage('copyLinkFailed'));
       });
     } catch (error) {
-      console.error('Error copying bookmark link:', error);
+      
       if (error.message === 'Extension context invalidated.') {
         showToast(getLocalizedMessage('extensionReloaded'));
       } else {
@@ -2236,7 +2236,7 @@ function showContextMenu(event, item, type = 'bookmark') {
   }
 
   if (!contextMenu) {
-    console.error('Failed to create context menu');
+    
     return;
   }
 
@@ -2307,7 +2307,7 @@ function createContextMenuItems(contextMenu, type) {
       action: () => {
         
         if (!currentBookmark) {
-          console.error('No item selected for deletion');
+          
           return;
         }
 
@@ -2338,7 +2338,7 @@ function createContextMenuItems(contextMenu, type) {
               deleteBookmark(itemToDelete.data.id, itemToDelete.data.title);
             }
           } else {
-            console.error('Invalid itemToDelete state:', itemToDelete);
+            
           }
         });
       }
@@ -2376,7 +2376,7 @@ function createContextMenuItems(contextMenu, type) {
 
 function showDeleteConfirmDialog() {
   if (!itemToDelete || !itemToDelete.data) {
-    console.error('Invalid delete item:', itemToDelete);
+    
     return;
   }
 
@@ -2387,7 +2387,7 @@ function showDeleteConfirmDialog() {
   const cancelButton = document.getElementById('cancel-delete-button');
 
   if (!confirmDialog || !confirmMessage || !confirmButton || !cancelButton) {
-    console.error('Required dialog elements not found');
+    
     return;
   }
 
@@ -2475,7 +2475,7 @@ function closeConfirmDialog() {
 // 分别定义两个函数处理不同类型的删除
 function confirmBookmarkDeletion(bookmark) {
   if (!bookmark || !bookmark.id) {
-    console.error('Invalid bookmark data:', bookmark);
+    
     return;
   }
 
@@ -2488,7 +2488,7 @@ function confirmBookmarkDeletion(bookmark) {
   const cancelButton = document.getElementById('cancel-delete-button');
 
   if (!confirmDialog || !confirmMessage || !confirmButton || !cancelButton) {
-    console.error('Required dialog elements not found');
+    
     return;
   }
 
@@ -2530,7 +2530,7 @@ function confirmBookmarkDeletion(bookmark) {
 
 function confirmQuickLinkDeletion(quickLink) {
   if (!quickLink || !quickLink.id) {
-    console.error('Invalid quick link data:', quickLink);
+    
     return;
   }
 
@@ -2543,7 +2543,7 @@ function confirmQuickLinkDeletion(quickLink) {
   const cancelButton = document.getElementById('cancel-delete-button');
 
   if (!confirmDialog || !confirmMessage || !confirmButton || !cancelButton) {
-    console.error('Required dialog elements not found');
+    
     return;
   }
 
@@ -2606,7 +2606,7 @@ function showConfirmDialog(message, callback) {
   const cancelButton = document.getElementById('cancel-delete-button');
 
   if (!confirmDialog || !confirmMessage || !confirmButton || !cancelButton) {
-    console.error('Required dialog elements not found');
+    
     return;
   }
 
@@ -2685,7 +2685,7 @@ function clearAllStates() {
 function handleBookmarkDeletion() {
   
   if (!itemToDelete || !itemToDelete.data) {
-    console.error('No valid bookmark to delete');
+    
     Utilities.showToast(getLocalizedMessage('deleteBookmarkError'));
     clearAllStates();
     return;
@@ -2706,7 +2706,7 @@ function handleBookmarkDeletion() {
 
 function deleteBookmark(bookmarkId, bookmarkTitle) {
   if (!bookmarkId) {
-    console.error('No bookmark ID provided for deletion');
+    
     return;
   }
 
@@ -2727,7 +2727,7 @@ function deleteBookmark(bookmarkId, bookmarkTitle) {
   // 然后调用 Chrome API 删除书签
   chrome.bookmarks.remove(bookmarkId, function() {
     if (chrome.runtime.lastError) {
-      console.error('Error deleting bookmark:', chrome.runtime.lastError);
+      
       Utilities.showToast(getLocalizedMessage('deleteBookmarkError'));
       
       // 如果删除失败，恢复书签卡片
@@ -2760,7 +2760,7 @@ function deleteBookmark(bookmarkId, bookmarkTitle) {
 function showToast(message, duration = 3000) {
   const toast = document.getElementById('toast');
   if (!toast) {
-    console.error('Toast element not found');
+    
     return;
   }
   toast.textContent = message;
@@ -2831,7 +2831,7 @@ function createFolderCard(folder, index) {
     }
 
     if (!bookmarkFolderContextMenu) {
-      console.error('Failed to create bookmark folder context menu');
+      
       return;
     }
 
@@ -3065,7 +3065,7 @@ function setupSortable() {
       sidebarSortableInstances.push(nestedSortable);
     });
   } else {
-    console.error('Categories list element not found');
+    
   }
 }
 
@@ -3078,7 +3078,7 @@ function moveBookmark(itemId, newParentId, newIndex, oldIndex = null, oldParentI
     }
     chrome.bookmarks.move(itemId, destination, (result) => {
       if (chrome.runtime.lastError) {
-        console.error('Error moving bookmark:', chrome.runtime.lastError);
+        
         reject(chrome.runtime.lastError);
       } else {
         updateAffectedBookmarks(newParentId, itemId, result.index)
@@ -3096,7 +3096,7 @@ function updateAffectedBookmarks(parentId, movedItemId, newIndex) {
     const movedElement = document.querySelector(`.bookmark-card[data-id="${movedItemId}"], .bookmark-folder[data-id="${movedItemId}"]`);
     
     if (!movedElement) {
-      console.error('Moved element not found');
+      
       reject(new Error('Moved element not found'));
       return;
     }
@@ -3320,7 +3320,7 @@ function createBookmarkFolderContextMenu() {
 
   // 异步创建菜单项
   createMenuItems(menu).catch(error => {
-    console.error('Error creating menu items:', error);
+    
   });
 
   return menu;
@@ -3340,7 +3340,7 @@ async function createMenuItems(menu) {
       const defaultFolders = Array.isArray(data.defaultFolders) ? data.defaultFolders : (data.defaultFolders?.items || []);
       isDefault = defaultFolders.some(folder => folder.id === currentBookmarkFolder.dataset.id);
     } catch (error) {
-      console.error('Error checking default folder status:', error);
+      
       isDefault = false;
     }
   }
@@ -3369,7 +3369,7 @@ async function createMenuItems(menu) {
               }, (response) => {
                 if (response.success) {
                 } else {
-                  console.error('Error opening bookmarks:', response.error);
+                  
                 }
               });
             }
@@ -3430,7 +3430,7 @@ async function createMenuItems(menu) {
             }
 
           } catch (error) {
-            console.error('Error deleting folder:', error);
+            
             Utilities.showToast(getLocalizedMessage('deleteFolderError'));
           }
         });
@@ -3444,7 +3444,7 @@ async function createMenuItems(menu) {
         const folder = currentBookmarkFolder;
 
         if (!folder?.dataset?.id) {
-          console.error('No valid folder selected');
+          
           return;
         }
 
@@ -3676,7 +3676,7 @@ function startPeriodicSync() {
       try {
         syncBookmarkOrder(currentParentId);
       } catch (error) {
-        console.error('Error during bookmark sync:', error);
+        
       }
     }
   }, 30000); // 每30秒同步一次
@@ -3717,7 +3717,7 @@ function setupSpecialLinks() {
           isProcessingClick = false;
           return;
         default:
-          console.error('Unknown special link:', href);
+          
           isProcessingClick = false;
           return;
       }
@@ -3726,11 +3726,11 @@ function setupSpecialLinks() {
         // 直接使用 chrome.tabs.create 打开新标签页
         chrome.tabs.create({ url: chromeUrl }, (tab) => {
           if (chrome.runtime.lastError) {
-            console.error('Failed to open tab:', chrome.runtime.lastError);
+            
           }
         });
       } catch (error) {
-        console.error('Error opening internal page:', error);
+        
       } finally {
         setTimeout(() => {
           isProcessingClick = false;
@@ -4150,7 +4150,7 @@ document.addEventListener('DOMContentLoaded', function () {
           const defaultFolders = Array.isArray(data.defaultFolders) ? data.defaultFolders : (data.defaultFolders?.items || []);
           isDefault = defaultFolders.some(folder => folder.id === currentCategory.dataset.id);
         } catch (error) {
-          console.error('Error checking default folder status:', error);
+          
         }
       }
 
@@ -4193,7 +4193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   }, (response) => {
                     if (response.success) {
                     } else {
-                      console.error('Error opening bookmarks:', response.error);
+                      
                     }
                   });
                 }
@@ -4209,7 +4209,7 @@ document.addEventListener('DOMContentLoaded', function () {
           icon: isDefault ? 'keep_off' : 'keep',
           action: async () => {
             if (!currentCategory?.dataset?.id) {
-              console.error('No valid folder selected');
+              
               return;
             }
             await toggleDefaultFolder(currentCategory);
@@ -4680,20 +4680,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     isSearching = true;
 
-    // 获取当前激活的搜索引擎用于本次搜索
+    // 同步获取所需数据（轻量操作）
     const activeTab = document.querySelector('.tab.active');
     const currentEngine = activeTab ? activeTab.getAttribute('data-engine') : defaultSearchEngine;
-
-    // 获取真正的默认搜索引擎
     const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
-    let url = getSearchUrl(currentEngine, query);
+    const openInNewTab = FavsHubSettings.get('openSearchInNewTab') !== false;
+    const url = getSearchUrl(currentEngine, query);
 
-    // 在打开新窗口之前先恢复默认搜索引擎
+    // rAF 仅处理 DOM 视觉更新
     requestAnimationFrame(() => {
-      // 1. 恢复 tabs-container 中的默认选中状态
       const tabs = document.querySelectorAll('.tab');
-
-      // 清除所有临时标记
       tabs.forEach(tab => {
         delete tab.dataset.temporary;
         if (tab.getAttribute('data-engine').toLowerCase() === defaultEngine.toLowerCase()) {
@@ -4702,20 +4698,22 @@ document.addEventListener('DOMContentLoaded', function () {
           tab.classList.remove('active');
         }
       });
+      hideSuggestions();
+    });
 
-      // 根据设置决定打开方式
-      if (FavsHubSettings.get('openSearchInNewTab') !== false) {
+    // 导航操作在 rAF 外通过 setTimeout 执行，避免阻塞渲染帧
+    setTimeout(() => {
+      if (openInNewTab) {
         window.open(url, '_blank');
       } else {
         window.location.href = url;
       }
-      hideSuggestions();
 
-    setTimeout(() => {
-      isSearching = false;
-      processSearchQueue();
-    }, 1000);
-  });
+      setTimeout(() => {
+        isSearching = false;
+        processSearchQueue();
+      }, 1000);
+    }, 50);
   }
 
   // 新增恢复默认搜索引擎的函数
@@ -5129,12 +5127,13 @@ document.addEventListener('DOMContentLoaded', function () {
             text: item.title,
             url: item.url,
             type: 'bookmark',
+            icon: item.icon || '',
             // 不在这里乘 bookmarkRelevanceBoost，由 balanceResults 统一处理（避免双重 boost）
             relevance: calculateRelevance(query, item.title, item.url)
           }));
         }
       } catch (e) {
-        console.warn('[Search] 书签搜索失败:', e);
+        
       }
     }
 
@@ -5142,7 +5141,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let promptSuggestions = [];
     if (settings.showPromptSuggestions) {
       try {
-        const result = await api.getPrompts({ search: query, limit: 20 });
+        const result = await api.getPrompts({ search: query });
         if (result && result.prompts) {
           // 使用与 promptpro-search.js 一致的 calculatePromptScore 算法
           const keywords = query.trim()
@@ -5157,11 +5156,10 @@ document.addEventListener('DOMContentLoaded', function () {
               promptData: prompt
             }))
             .filter(p => p.relevance > 0)
-            .sort((a, b) => b.relevance - a.relevance)
-            .slice(0, 5);
+            .sort((a, b) => b.relevance - a.relevance);
         }
       } catch (e) {
-        console.warn('[Search] 提示词搜索失败:', e);
+        
       }
     }
 
@@ -5524,12 +5522,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let isScrollListenerAttached = false;
 
+  // 分组搜索建议数据（用于 Tab 切换）
+  let groupedSuggestions = { bookmarks: [], prompts: [], histories: [] };
+  let currentCategoryTab = 'default';
+  const categoryTabsEl = document.getElementById('category-tabs');
+
   function showSuggestions(suggestions) {
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
       hideSuggestions();
       return;
     }
 
+    // 分离搜索项本身和分类数据
+    const searchItems = suggestions.filter(s => s.type === 'search');
+    groupedSuggestions = {
+      searchItems,
+      bookmarks: suggestions.filter(s => s.type === 'bookmark'),
+      prompts: suggestions.filter(s => s.type === 'prompt'),
+      histories: suggestions.filter(s => s.type === 'history')
+    };
+
+    // 如果有多种类型的数据，显示 Tab 栏
+    const typeCount = [groupedSuggestions.bookmarks.length > 0, groupedSuggestions.prompts.length > 0, groupedSuggestions.histories.length > 0].filter(Boolean).length;
+    if (typeCount > 1) {
+      renderCategoryTabs();
+      categoryTabsEl.classList.add('visible');
+    } else {
+      categoryTabsEl.classList.remove('visible');
+      categoryTabsEl.innerHTML = '';
+    }
+
+    // 默认 Tab：每类最多显示 5 条
+    currentCategoryTab = 'default';
     allSuggestions = suggestions;
     displayedSuggestions = 0;
     searchSuggestions.innerHTML = '';
@@ -5545,20 +5569,82 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 显示 line-container
     const lineContainer = document.getElementById('line-container');
-    lineContainer.style.display = 'block'; // 显示线条
+    lineContainer.style.display = 'block';
 
-    // Set a fixed height for the suggestions container
-    searchSuggestions.style.maxHeight = '390px'; // Adjust this value as needed
+    searchSuggestions.style.maxHeight = '390px';
     searchSuggestions.style.overflowY = 'auto';
 
-    loadMoreSuggestions();
+    renderCurrentTab();
 
     if (!isScrollListenerAttached) {
       searchSuggestions.addEventListener('scroll', throttledHandleScroll);
       isScrollListenerAttached = true;
     }
-    setTimeout(() => {
-    }, 0);
+  }
+
+  /**
+   * 渲染分类 Tab 栏
+   */
+  function renderCategoryTabs() {
+    const bmCount = groupedSuggestions.bookmarks.length;
+    const prCount = groupedSuggestions.prompts.length;
+    const hiCount = groupedSuggestions.histories.length;
+    // 默认 Tab：每类取前 5 条
+    const defaultCount = Math.min(bmCount, 5) + Math.min(prCount, 5) + Math.min(hiCount, 5);
+    // 子 Tab：前 5 条已在默认 Tab，只显示剩余数量
+    const bmRest = Math.max(bmCount - 5, 0);
+    const prRest = Math.max(prCount - 5, 0);
+    const hiRest = Math.max(hiCount - 5, 0);
+
+    categoryTabsEl.innerHTML = `
+      <button type="button" class="category-tab ${currentCategoryTab === 'default' ? 'active' : ''}" data-tab="default">默认<span class="tab-count">${defaultCount}</span></button>
+      ${bmRest > 0 ? `<button type="button" class="category-tab ${currentCategoryTab === 'bookmark' ? 'active' : ''}" data-tab="bookmark">书签<span class="tab-count">${bmRest}</span></button>` : ''}
+      ${prRest > 0 ? `<button type="button" class="category-tab ${currentCategoryTab === 'prompt' ? 'active' : ''}" data-tab="prompt">提示词<span class="tab-count">${prRest}</span></button>` : ''}
+      ${hiRest > 0 ? `<button type="button" class="category-tab ${currentCategoryTab === 'history' ? 'active' : ''}" data-tab="history">历史<span class="tab-count">${hiRest}</span></button>` : ''}
+    `;
+
+    // 绑定点击事件
+    categoryTabsEl.querySelectorAll('.category-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab === currentCategoryTab) return;
+        currentCategoryTab = tab;
+        // 更新 active 状态
+        categoryTabsEl.querySelectorAll('.category-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderCurrentTab();
+      });
+    });
+  }
+
+  /**
+   * 根据当前 Tab 渲染对应的建议列表
+   */
+  function renderCurrentTab() {
+    displayedSuggestions = 0;
+    searchSuggestions.innerHTML = '';
+
+    if (currentCategoryTab === 'default') {
+      // 默认 Tab：搜索项 + 每类最多 5 条
+      const items = [
+        ...(groupedSuggestions.searchItems || []),
+        ...groupedSuggestions.bookmarks.slice(0, 5),
+        ...groupedSuggestions.prompts.slice(0, 5),
+        ...groupedSuggestions.histories.slice(0, 5)
+      ];
+      allSuggestions = items;
+    } else {
+      // 子 Tab：前 5 条已在默认 Tab，只显示第 6 条起的剩余项
+      const typeMap = { bookmark: 'bookmarks', prompt: 'prompts', history: 'histories' };
+      const key = typeMap[currentCategoryTab];
+      allSuggestions = [
+        ...(groupedSuggestions.searchItems || []),
+        ...(groupedSuggestions[key] || []).slice(5)
+      ];
+    }
+
+    loadMoreSuggestions();
+    searchSuggestions.scrollTop = 0;
   }
 
   function loadMoreSuggestions() {
@@ -5654,10 +5740,19 @@ document.addEventListener('DOMContentLoaded', function () {
   `;
 
     if (suggestion.url && suggestion.type !== 'search') {
-      getFavicon(suggestion.url, (faviconUrl) => {
+      if (suggestion.icon) {
+        // 书签：直接使用 API 返回的 icon 字段（已下载的 favicon）
         const iconSpan = li.querySelector('.suggestion-icon');
-        iconSpan.innerHTML = `<img src="${faviconUrl}" alt="" class="favicon">`;
-      });
+        iconSpan.innerHTML = `<img src="${suggestion.icon}" alt="" class="favicon-from-api" onerror="this.parentElement.innerHTML=''">`;
+      } else {
+        // 历史记录等：异步获取 favicon
+        getFavicon(suggestion.url, (faviconUrl) => {
+          const iconSpan = li.querySelector('.suggestion-icon');
+          if (faviconUrl) {
+            iconSpan.innerHTML = `<img src="${faviconUrl}" alt="" class="favicon">`;
+          }
+        });
+      }
     }
 
     li.addEventListener('click', async () => {
@@ -5804,11 +5899,12 @@ document.addEventListener('DOMContentLoaded', function () {
             text: item.title,
             url: item.url,
             type: 'bookmark',
+            icon: item.icon || '',
             relevance: 1
           })));
         }
       } catch (e) {
-        console.warn('[Search] 获取默认书签失败:', e);
+        
       }
     }
 
@@ -5826,7 +5922,7 @@ document.addEventListener('DOMContentLoaded', function () {
           })));
         }
       } catch (e) {
-        console.warn('[Search] 获取默认提示词失败:', e);
+        
       }
     }
 
@@ -5884,31 +5980,39 @@ document.addEventListener('DOMContentLoaded', function () {
         break;
       case 'Enter':
         e.preventDefault();
-        if (e.metaKey || e.ctrlKey) {
-          // 处理 Cmd/Ctrl + Enter
-          const query = searchInput.value.trim();
-          if (query) {
-            openAllSearchEngines(query);
-          }
-        } else if (index !== -1) {
-          e.stopPropagation(); // 阻止事件冒泡
-          const selectedItem = items[index];
+        // 缓存所需数据
+        const _cachedMetaKey = e.metaKey || e.ctrlKey;
+        const _cachedQuery = searchInput.value.trim();
+        const _cachedIndex = index;
+        const _cachedItems = items;
+
+        if (_cachedMetaKey) {
+          // Ctrl/Cmd+Enter：异步打开多标签
+          setTimeout(() => {
+            if (_cachedQuery) openAllSearchEngines(_cachedQuery);
+          }, 0);
+        } else if (_cachedIndex !== -1) {
+          const selectedItem = _cachedItems[_cachedIndex];
           const suggestionType = selectedItem.getAttribute('data-type');
           if (suggestionType === 'history' || suggestionType === 'bookmark') {
             const url = selectedItem.getAttribute('data-url');
             if (url) {
-              if (FavsHubSettings.get('openSearchInNewTab') !== false) {
-                window.open(url, '_blank');
-              } else {
-                window.location.href = url;
-              }
-              hideSuggestions();
+              // 导航操作通过 setTimeout 异步执行
+              setTimeout(() => {
+                if (FavsHubSettings.get('openSearchInNewTab') !== false) {
+                  window.open(url, '_blank');
+                } else {
+                  window.location.href = url;
+                }
+                hideSuggestions();
+              }, 0);
               return;
             }
           }
-          selectedItem.click();
+          // DOM 点击操作通过 rAF 调度
+          requestAnimationFrame(() => { selectedItem.click(); });
         } else {
-          performSearch(searchInput.value.trim());
+          performSearch(_cachedQuery);
         }
         return;
       default:
@@ -5970,6 +6074,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // Reset suggestions-related variables
     allSuggestions = [];
     displayedSuggestions = 0;
+
+    // 清理分类 Tab 状态
+    currentCategoryTab = 'default';
+    groupedSuggestions = { bookmarks: [], prompts: [], histories: [] };
+    if (categoryTabsEl) {
+      categoryTabsEl.classList.remove('visible');
+      categoryTabsEl.innerHTML = '';
+    }
   }
 
   function showLoadingIndicator() {
@@ -6007,7 +6119,7 @@ document.addEventListener('DOMContentLoaded', function () {
         groupName: query
       }, function (response) {
         if (!response || !response.success) {
-          console.error('打开多个标签页或创建标签组失败:', response ? response.error : '未知错误');
+          
         }
       });
     } else {
@@ -6069,7 +6181,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   async function toggleDefaultFolder(folder) {
     if (!folder?.dataset?.id) {
-      console.error('Invalid folder object:', folder);
+      
       return;
     }
 
@@ -6085,7 +6197,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     if (!folderName) {
-        console.error('Could not find folder name');
+        
         return;
     }
 
@@ -6134,7 +6246,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }));
 
     } catch (error) {
-        console.error('Error toggling default folder:', error);
+        
         showToast('操作失败，请重试');
     }
   }
@@ -6205,7 +6317,7 @@ function openSettingsModal() {
     settingsOverlay.classList.add('active');
     document.body.style.overflow = 'hidden'; // 防止背景滚动
   } else {
-    console.error('Settings sidebar not found');
+    
   }
 }
 

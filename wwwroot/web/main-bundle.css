@@ -4742,6 +4742,65 @@ main.flex-1 {
 [data-theme="dark"] li:hover .suggestion-icon path {
   fill: #E5E7EB;
 }
+
+/* === Category Tabs (搜索建议分类切换) === */
+.category-tabs {
+  display: none;
+  padding: 6px 12px 2px;
+  border-bottom: 1px solid #eee;
+  gap: 4px;
+}
+.category-tabs.visible {
+  display: flex;
+}
+.category-tab {
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  color: #5f6368;
+  background: #f1f3f4;
+  border: none;
+  outline: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.category-tab:hover {
+  background: #e2e5e8;
+}
+.category-tab.active {
+  background: #1a73e8;
+  color: #fff;
+}
+.category-tab .tab-count {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* Dark theme overrides for category tabs */
+[data-theme="dark"] .category-tabs {
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .category-tab {
+  background: rgba(51,65,85,0.5);
+  color: #94a3b8;
+}
+[data-theme="dark"] .category-tab:hover {
+  background: rgba(51,65,85,0.8);
+}
+[data-theme="dark"] .category-tab.active {
+  background: #1a73e8;
+  color: #fff;
+}
+
+/* Bookmark icon from API */
+.suggestion-icon .favicon-from-api {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 2px;
+}
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .links-icons {
   background-color: rgba(30, 41, 59, 0.8);

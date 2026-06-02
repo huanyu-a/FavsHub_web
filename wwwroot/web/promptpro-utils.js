@@ -8,8 +8,7 @@
 
   // 打开 PromptPro 提示词管理页面
   function showPromptPro() {
-    console.log('[PromptPro] 打开提示词管理页面...');
-
+    
     // 使用 Chrome 扩展 API 打开新标签页
     if (typeof chrome !== 'undefined' && chrome.tabs) {
       const promptproUrl = chrome.runtime.getURL('src/promptpro.html');

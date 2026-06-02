@@ -1663,7 +1663,6 @@
           document.getElementById('backup-last-modified').textContent = '最后修改: ' + new Date(data.lastModified).toLocaleString();
         }
       } catch (err) {
-        console.warn('加载备份信息失败:', err);
       }
     }
 
@@ -1683,7 +1682,7 @@
         document.getElementById('backup-hour').value = data.hour;
         document.getElementById('backup-minute').value = data.minute;
         document.getElementById('backup-keep').value = data.keepDays;
-      } catch (e) { console.warn('加载备份配置失败:', e); }
+      } catch (e) { }
     }
 
     async function saveBackupSchedule() {
@@ -1709,7 +1708,7 @@
           <td>${new Date(f.time).toLocaleString()}</td>
           <td><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
         </tr>`).join('');
-      } catch (e) { console.warn('加载备份文件失败:', e); }
+      } catch (e) { }
     }
 
     // === 百度网盘备份 ===
@@ -2188,7 +2187,6 @@
         document.getElementById('admin-show-passwords-link').checked = s.showPasswordsLink !== false;
         document.getElementById('admin-show-extensions-link').checked = s.showExtensionsLink !== false;
       } catch (err) {
-        console.error('加载设置失败:', err);
       } finally {
         _settingsLoaded = true;
       }
@@ -2230,8 +2228,7 @@
       document.getElementById('admin-container-width-val').textContent = s.bookmarkContainerWidth;
       api.updateAdminDefaultSettings(s).then(() => {
         showToast('设置已保存');
-      }).catch(err => {
-        console.error('保存设置失败:', err);
+      }).catch(() => {
       });
     }
 

@@ -44,7 +44,7 @@ async function refreshBookmarksCache() {
     _shimBookmarksCache.flat = data.bookmarks || [];
     _shimBookmarksCache.tree = buildTree(_shimBookmarksCache.flat, data.folders || []);
   } catch (e) {
-    console.warn('[Shim] refreshBookmarksCache failed:', e);
+    
   }
 }
 
@@ -403,6 +403,19 @@ const runtimeShim = {
       });
       return;
     }
+    if (message.action === 'openMultipleTabsAndGroup') {
+      // Web 端：使用 window.open 打开多个标签页（不支持标签组）
+      try {
+        const urls = message.urls || [];
+        for (const url of urls) {
+          window.open(url, '_blank');
+        }
+        if (callback) callback({ success: true });
+      } catch (e) {
+        if (callback) callback({ success: false, error: e.message });
+      }
+      return;
+    }
     if (callback) callback();
   },
   onMessage: { addListener: function() {} },
@@ -471,7 +484,7 @@ const _i18nMessages = {};
       }
     }
   } catch (e) {
-    console.warn('[i18n] 加载语言文件失败:', e);
+    
   }
 })();
 
@@ -516,7 +529,7 @@ window.chrome = {
 };
 
 if (_isExtensionMode) {
-  console.log('[Chrome Shim] 检测到扩展模式，保留原生 history/bookmarks/tabs 等 API');
+  
 }
 
 // ===== Token 同步 =====
@@ -541,4 +554,3 @@ if (!_authExcludePaths.some(p => window.location.pathname.endsWith(p))) {
   }
 }
 
-console.log('[Chrome Shim] 已加载，chrome.* API 已适配为 Web 模式');

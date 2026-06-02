@@ -128,7 +128,6 @@ class SidePanelManager {
     
     // 添加对window message事件的监听，处理来自iframe的消息
     window.addEventListener('message', (event) => {
-      console.log('[SidePanelManager] Received message from iframe:', event.data);
       
       if (!event.data || typeof event.data !== 'object') return;
       
@@ -136,33 +135,27 @@ class SidePanelManager {
       
       switch (action) {
         case 'navigateBack':
-          console.log('[SidePanelManager] Processing navigateBack from iframe');
           this.navigateBack();
           break;
           
         case 'navigateForward':
-          console.log('[SidePanelManager] Processing navigateForward from iframe');
           this.navigateForward();
           break;
           
         case 'navigateHome':
-          console.log('[SidePanelManager] Processing navigateHome from iframe');
           this.navigateHome();
           break;
           
         case 'openInNewTab':
-          console.log('[SidePanelManager] Processing openInNewTab from iframe');
           this.openInNewTab();
           break;
           
         case 'navigateToUrl':
-          console.log('[SidePanelManager] Processing navigateToUrl from iframe:', event.data.url);
           // 使用loadUrl方法加载URL并更新历史记录
           this.loadUrl(event.data.url);
           break;
           
         case 'updateHistory':
-          console.log('[SidePanelManager] Processing updateHistory from iframe:', event.data.url);
           // 更新历史记录但不重新加载页面
           this.addToHistory(event.data.url);
           this.updateUrlBar(event.data.url);
@@ -185,7 +178,6 @@ class SidePanelManager {
       url = url + (url.includes('?') ? '&' : '?') + 'sidepanel_view=true';
     }
     
-    console.log('[SidePanelManager] Loading URL with setOptions:', url);
     
     // 使用消息传递给背景脚本处理
     chrome.runtime.sendMessage({ 
@@ -193,11 +185,9 @@ class SidePanelManager {
       url: url 
     }, (response) => {
       if (response && response.success) {
-        console.log('[SidePanelManager] Successfully opened URL in side panel');
         // 在成功加载后隐藏加载动画
         setTimeout(() => this.hideLoadingSpinner(), 500);
       } else {
-        console.error('[SidePanelManager] Error opening URL in side panel:', response ? response.error : 'Unknown error');
         // 出错时回退到iframe方式
         this.loadUrlWithIframe(url);
       }
@@ -206,7 +196,6 @@ class SidePanelManager {
   
   // 保留原来的iframe方式作为备选
   loadUrlWithIframe(url) {
-    console.log('[SidePanelManager] Falling back to iframe mode for URL:', url);
     
     // 显示加载动画
     this.showLoadingSpinner();
@@ -224,7 +213,6 @@ class SidePanelManager {
     let sidePanelIframe = document.getElementById('side-panel-iframe');
     
     if (!sidePanelContent) {
-      console.log('[SidePanelManager] Creating side panel content container');
       sidePanelContent = document.createElement('div');
       sidePanelContent.id = 'side-panel-content';
       sidePanelContent.className = 'side-panel-content';
@@ -232,7 +220,6 @@ class SidePanelManager {
     }
     
     if (!sidePanelIframe) {
-      console.log('[SidePanelManager] Creating side panel iframe');
       sidePanelIframe = document.createElement('iframe');
       sidePanelIframe.id = 'side-panel-iframe';
       sidePanelIframe.className = 'side-panel-iframe';
@@ -258,7 +245,6 @@ class SidePanelManager {
           url: url
         }, '*');
       } catch (e) {
-        console.error('[SidePanelManager] Error sending history data to iframe on load:', e);
       }
       
       // 移除事件监听器，避免重复
@@ -314,16 +300,13 @@ class SidePanelManager {
   
   // 导航回书签列表主页
   navigateHome() {
-    console.log('[SidePanelManager] Navigating to home page');
     
     // 使用Chrome侧边栏API返回到侧边栏主页
     chrome.sidePanel.setOptions({
       enabled: true,
       path: 'src/sidepanel.html'
     }).then(() => {
-      console.log('[SidePanelManager] Successfully navigated to home page');
     }).catch(error => {
-      console.error('[SidePanelManager] Error navigating to home page:', error);
     });
   }
   
@@ -332,7 +315,6 @@ class SidePanelManager {
     if (this.currentIndex > 0) {
       this.currentIndex--;
       const previousUrl = this.history[this.currentIndex];
-      console.log('[SidePanelManager] Navigating back to:', previousUrl);
       
       // 标记为导航中，避免重复添加历史记录
       this.isNavigating = true;
@@ -341,7 +323,6 @@ class SidePanelManager {
       chrome.sidePanel.setOptions({
         path: previousUrl
       }).then(() => {
-        console.log('[SidePanelManager] Successfully navigated back');
         
         // 更新存储中的历史状态
         chrome.storage.local.set({
@@ -362,15 +343,14 @@ class SidePanelManager {
               url: previousUrl
             }, '*');
           } catch (e) {
-            console.error('[SidePanelManager] Error sending message to iframe:', e);
+            
           }
         }
       }).catch(error => {
-        console.error('[SidePanelManager] Error navigating back:', error);
+        
         this.isNavigating = false;
       });
     } else {
-      console.log('[SidePanelManager] Cannot navigate back, already at oldest history entry');
     }
   }
   
@@ -379,7 +359,6 @@ class SidePanelManager {
     if (this.currentIndex < this.history.length - 1) {
       this.currentIndex++;
       const nextUrl = this.history[this.currentIndex];
-      console.log('[SidePanelManager] Navigating forward to:', nextUrl);
       
       // 标记为导航中，避免重复添加历史记录
       this.isNavigating = true;
@@ -388,7 +367,6 @@ class SidePanelManager {
       chrome.sidePanel.setOptions({
         path: nextUrl
       }).then(() => {
-        console.log('[SidePanelManager] Successfully navigated forward');
         
         // 更新存储中的历史状态
         chrome.storage.local.set({
@@ -409,15 +387,14 @@ class SidePanelManager {
               url: nextUrl
             }, '*');
           } catch (e) {
-            console.error('[SidePanelManager] Error sending message to iframe:', e);
+            
           }
         }
       }).catch(error => {
-        console.error('[SidePanelManager] Error navigating forward:', error);
+        
         this.isNavigating = false;
       });
     } else {
-      console.log('[SidePanelManager] Cannot navigate forward, already at newest history entry');
     }
   }
 
@@ -519,7 +496,7 @@ class SidePanelManager {
           url: url
         }, '*');
       } catch (e) {
-        console.error('[SidePanelManager] Error sending message to iframe:', e);
+        
       }
     }
   }
@@ -539,8 +516,6 @@ class SidePanelManager {
         currentIndex: this.currentIndex
       }
     }, () => {
-      console.log('[SidePanelManager] Saved navigation state to storage:', 
-                  {history: this.history, currentIndex: this.currentIndex});
     });
     
     // 更新iframe中的导航按钮状态
@@ -554,7 +529,7 @@ class SidePanelManager {
           url: this.history[this.currentIndex] || document.getElementById('url-input')?.value
         }, '*');
       } catch (e) {
-        console.error('[SidePanelManager] Error sending navigation update to iframe:', e);
+        
       }
     }
   }
@@ -576,7 +551,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // 侧边栏导航脚本
 (function() {
-  console.log('[SidePanel Navigation] 脚本开始加载');
   
   // 检查Chrome API是否可用
   const isChromeExtension = typeof chrome !== 'undefined' && 
@@ -598,8 +572,6 @@ window.addEventListener('DOMContentLoaded', () => {
   
   // 只有当URL中包含侧边栏参数时才继续，或者如果这是新标签页/侧边栏主页则不添加导航栏
   if (isSidePanelPage || isNewTabPage || !hasSidePanelParam) {
-    console.log('[SidePanel Navigation] Not adding navigation bar: isSidePanelPage=', isSidePanelPage, 
-                'isNewTabPage=', isNewTabPage, 'hasSidePanelParam=', hasSidePanelParam);
     return;
   }
   
@@ -621,7 +593,6 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // 如果URL中包含侧边栏参数，但导航栏还没有添加，则添加导航栏
     if (hasSidePanelParam && !document.querySelector('.sidepanel-nav-bar')) {
-      console.log('[SidePanel Navigation] 页面加载完成后检测到侧边栏参数，添加导航栏');
       inSidePanel = true;
       initOrRefreshNavigationBar();
       navigationBarAdded = true;
@@ -633,7 +604,6 @@ window.addEventListener('DOMContentLoaded', () => {
   
   // 添加全局事件监听器 - 这是直接注入脚本发出的信号
   document.addEventListener('sidepanel_loaded', (event) => {
-    console.log('[SidePanel Navigation] 接收到自定义事件:', event.detail);
     inSidePanel = true;
     
     if (!navigationBarAdded) {
@@ -645,18 +615,15 @@ window.addEventListener('DOMContentLoaded', () => {
   // Chrome消息监听器 - 来自background.js的消息
   if (isChromeExtension) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      console.log('[SidePanel Navigation] 收到Chrome消息:', message);
       
       try {
         if (message && message.action === 'sidepanelNavigation' && message.isSidePanel === true) {
-          console.log('[SidePanel Navigation] 收到侧边栏标记消息:', message);
           
           // 保存标记到存储以供后续使用
           try {
             sessionStorage.setItem('sidepanel_view', 'true');
             localStorage.setItem('sidepanel_view', 'true');
           } catch (e) {
-            console.log('[SidePanel Navigation] 存储标记时出错:', e);
           }
           
           inSidePanel = true;
@@ -673,7 +640,6 @@ window.addEventListener('DOMContentLoaded', () => {
           return true;
         }
       } catch (e) {
-        console.error('[SidePanel Navigation] 处理消息时出错:', e);
         if (sendResponse) {
           sendResponse({ success: false, error: e.message });
         }
@@ -706,10 +672,8 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!linkUrl.searchParams.has('sidepanel_view')) {
           linkUrl.searchParams.set('sidepanel_view', 'true');
           linkElement.href = linkUrl.toString();
-          console.log('[SidePanel Navigation] 添加侧边栏参数到链接:', linkElement.href);
         }
       } catch (e) {
-        console.error('[SidePanel Navigation] 修改链接URL时出错:', e);
       }
       
       // 记录内部导航历史
@@ -724,13 +688,9 @@ window.addEventListener('DOMContentLoaded', () => {
             action: 'updateSidePanelHistory',
             url: targetUrl,
             source: 'in_page_navigation'
-          }, response => {
-            console.log('[SidePanel Navigation] 记录内部导航历史响应:', response);
-          });
+          }, () => {});
           
-          console.log('[SidePanel Navigation] 记录内部导航到:', targetUrl);
         } catch (e) {
-          console.error('[SidePanel Navigation] 记录内部导航时出错:', e);
         }
       }
       
@@ -752,10 +712,8 @@ window.addEventListener('DOMContentLoaded', () => {
           if (!newUrl.searchParams.has('sidepanel_view')) {
             newUrl.searchParams.set('sidepanel_view', 'true');
             url = newUrl.toString();
-            console.log('[SidePanel Navigation] 添加侧边栏参数到pushState URL:', url);
           }
         } catch (e) {
-          console.error('[SidePanel Navigation] 修改pushState URL时出错:', e);
         }
       }
       
@@ -770,9 +728,7 @@ window.addEventListener('DOMContentLoaded', () => {
             url: window.location.href,
             source: 'pushState'
           });
-          console.log('[SidePanel Navigation] 记录pushState导航:', window.location.href);
         } catch (e) {
-          console.error('[SidePanel Navigation] 记录pushState导航时出错:', e);
         }
       }
       
@@ -787,10 +743,8 @@ window.addEventListener('DOMContentLoaded', () => {
           if (!newUrl.searchParams.has('sidepanel_view')) {
             newUrl.searchParams.set('sidepanel_view', 'true');
             url = newUrl.toString();
-            console.log('[SidePanel Navigation] 添加侧边栏参数到replaceState URL:', url);
           }
         } catch (e) {
-          console.error('[SidePanel Navigation] 修改replaceState URL时出错:', e);
         }
       }
       
@@ -805,9 +759,7 @@ window.addEventListener('DOMContentLoaded', () => {
             url: window.location.href,
             source: 'replaceState'
           });
-          console.log('[SidePanel Navigation] 记录replaceState导航:', window.location.href);
         } catch (e) {
-          console.error('[SidePanel Navigation] 记录replaceState导航时出错:', e);
         }
       }
       
@@ -823,9 +775,7 @@ window.addEventListener('DOMContentLoaded', () => {
             url: window.location.href,
             source: 'popstate'
           });
-          console.log('[SidePanel Navigation] 记录popstate导航:', window.location.href);
         } catch (e) {
-          console.error('[SidePanel Navigation] 记录popstate导航时出错:', e);
         }
       }
     });
@@ -876,7 +826,7 @@ window.addEventListener('DOMContentLoaded', () => {
   for (let i = 0; i < maxBackupChecks; i++) {
     setTimeout(() => {
       if (!navigationBarAdded) {
-        console.log(`[SidePanel Navigation] 后备检测 #${i+1}`);
+        
         runDetectionMethods();
       }
     }, (i + 1) * 1000);
@@ -885,7 +835,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // 运行所有检测方法并整合结果
   function runDetectionMethods() {
     detectionAttempts++;
-    console.log(`[SidePanel Navigation] 运行检测方法 (尝试 #${detectionAttempts})`);
     
     // 重置检测结果数组
     detectionMethods = [];
@@ -898,14 +847,14 @@ window.addEventListener('DOMContentLoaded', () => {
             contextTypes: ["SIDE_PANEL"]
           }, (contexts) => {
             if (chrome.runtime.lastError) {
-              console.log('[SidePanel Navigation] API检测错误:', chrome.runtime.lastError);
+              
               resolve(false);
               return;
             }
             
             // 没有上下文或空数组
             if (!contexts || contexts.length === 0) {
-              console.log('[SidePanel Navigation] 没有找到侧边栏上下文');
+              
               resolve(false);
               return;
             }
@@ -916,22 +865,18 @@ window.addEventListener('DOMContentLoaded', () => {
             // 检查当前上下文是否是侧边栏
             chrome.runtime.getContextId((currentContext) => {
               if (chrome.runtime.lastError) {
-                console.log('[SidePanel Navigation] 获取当前上下文错误:', chrome.runtime.lastError);
+                
                 resolve(false);
                 return;
               }
               
               if (!currentContext) {
-                console.log('[SidePanel Navigation] 无法获取当前上下文');
+                
                 resolve(false);
                 return;
               }
               
               const isInSidePanel = sidePanelContextIds.includes(currentContext.contextId);
-              console.log('[SidePanel Navigation] Chrome API检测结果:', isInSidePanel, {
-                sidePanelContextIds,
-                currentContextId: currentContext.contextId
-              });
               
               // 如果确认在侧边栏中，保存标记以便后续页面使用
               if (isInSidePanel) {
@@ -942,7 +887,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
           });
         } catch (e) {
-          console.log('[SidePanel Navigation] 运行API检测时出错:', e);
+          
           resolve(false);
         }
       });
@@ -963,13 +908,13 @@ window.addEventListener('DOMContentLoaded', () => {
       try {
         isSidePanelSession = sessionStorage.getItem('sidepanel_view') === 'true';
       } catch (e) {
-        console.log('[SidePanel Navigation] sessionStorage不可用:', e);
+        
       }
       
       try {
         isSidePanelLocal = localStorage.getItem('sidepanel_view') === 'true';
       } catch (e) {
-        console.log('[SidePanel Navigation] localStorage不可用:', e);
+        
       }
       
       // 检查chrome.storage.session (更可靠的存储)
@@ -980,10 +925,6 @@ window.addEventListener('DOMContentLoaded', () => {
           
           // 检查最后一个URL与当前URL的相似度
           const urlMatchScore = lastUrl ? calculateUrlSimilarity(lastUrl, window.location.href) : 0;
-          console.log('[SidePanel Navigation] URL相似度分数:', urlMatchScore, {
-            lastUrl: lastUrl && lastUrl.substring(0, 50) + '...',
-            currentUrl: window.location.href.substring(0, 50) + '...'
-          });
           
           // 如果URL很相似（分数>0.7），这可能是侧边栏导航的结果
           const isUrlMatch = urlMatchScore > 0.7;
@@ -1029,11 +970,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const result = isDefinitelySidePanel || fromUrl || fromSession || fromLocal || 
                       fromChromeStorage || fromUrlMatch;
                       
-        console.log('[SidePanel Navigation] 传统检测结果:', result, {
-          hasSidePanelParam, isInternalNavigation, referrerIsSidePanel, isDefinitelySidePanel,
-          fromUrl, fromSession, fromLocal, fromChromeStorage, fromUrlMatch
-        });
-        
         // 如果确定是侧边栏，立即应用侧边栏样式
         if (isDefinitelySidePanel) {
           document.body.classList.add('is-sidepanel');
@@ -1056,12 +992,6 @@ window.addEventListener('DOMContentLoaded', () => {
         // 检查窗口尺寸 - 侧边栏通常较窄
         const isNarrowViewport = window.innerWidth <= 480;
         
-        console.log('[SidePanel Navigation] DOM检测结果:', { 
-          hasSidePanelClasses, 
-          isNarrowViewport,
-          windowWidth: window.innerWidth 
-        });
-        
         // 如果有明显的侧边栏特征
         const result = hasSidePanelClasses || isNarrowViewport;
         
@@ -1080,8 +1010,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // 只要有一个检测方法返回true，就认为在侧边栏中
       const detectionResult = results.some(result => result === true);
       
-      console.log('[SidePanel Navigation] 所有检测方法结果:', results);
-      console.log('[SidePanel Navigation] 最终检测结果:', detectionResult);
+      
       
       // 再次检查URL参数，确保只在真正的侧边栏视图中添加导航栏
       const urlParams = new URLSearchParams(window.location.search);
@@ -1089,11 +1018,11 @@ window.addEventListener('DOMContentLoaded', () => {
       
       if (detectionResult && hasSidePanelParam && !navigationBarAdded) {
         inSidePanel = true;
-        console.log('[SidePanel Navigation] 确认在侧边栏中，添加导航栏');
+        
         initOrRefreshNavigationBar();
         navigationBarAdded = true;
       } else if (!detectionResult || !hasSidePanelParam) {
-        console.log('[SidePanel Navigation] 不在侧边栏中，不添加导航栏 (detectionResult=', detectionResult, ', hasSidePanelParam=', hasSidePanelParam, ')');
+        
       }
     });
   }
@@ -1113,7 +1042,7 @@ window.addEventListener('DOMContentLoaded', () => {
           chrome.storage.session.set({ 'sidepanel_view': true });
         }
       } catch (e) {
-        console.log('[SidePanel Navigation] 存储检测结果时出错:', e);
+        
       }
     }
   }
@@ -1179,11 +1108,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // 简化初始化与刷新导航栏的函数
   function initOrRefreshNavigationBar() {
     if (document.querySelector('.sidepanel-nav-bar')) {
-      console.log('[SidePanel Navigation] 导航栏已存在，不需要再次添加');
+      
       return;
     }
     
-    console.log('[SidePanel Navigation] 初始化导航栏');
       initializeNavigationBar();
       
     // 在DOMContentLoaded后进行二次检查，确保导航栏存在
@@ -1207,7 +1135,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // 确保导航栏存在的函数
   function ensureNavigationBar() {
     if (!document.querySelector('.sidepanel-nav-bar')) {
-      console.log('[SidePanel Navigation] Navigation bar not found, reinitializing');
+      
       initializeNavigationBar();
     }
   }
@@ -1215,11 +1143,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // 设置一个MutationObserver以确保导航栏不被移除
   function setupMutationObserver(navBar) {
     if (!navBar) {
-      console.log('[SidePanel Navigation] No navigation bar to observe');
+      
       return null;
     }
     
-    console.log('[SidePanel Navigation] Setting up mutation observer for navigation bar');
     
     // 创建一个MutationObserver实例
     const observer = new MutationObserver((mutations) => {
@@ -1228,7 +1155,7 @@ window.addEventListener('DOMContentLoaded', () => {
           const navBarStillExists = document.body.contains(navBar);
           
           if (!navBarStillExists) {
-            console.log('[SidePanel Navigation] Navigation bar was removed, adding it back');
+            
             // 如果导航栏被移除，重新创建并添加它
             initializeNavigationBar();
             
@@ -1253,7 +1180,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const ensureNavBarExists = () => {
       const navBarExists = document.querySelector('.sidepanel-nav-bar');
       if (!navBarExists) {
-        console.log('[SidePanel Navigation] Navigation bar not found on page load, adding it');
+        
         initializeNavigationBar();
       }
     };
@@ -1266,11 +1193,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   
   function initializeNavigationBar() {
-    console.log('[SidePanel Navigation] Initializing navigation bar for:', window.location.href);
     
     // 检查是否已存在导航栏，如果存在则不再添加
     if (document.querySelector('.sidepanel-nav-bar')) {
-      console.log('[SidePanel Navigation] Navigation bar already exists, not adding again');
+      
       return;
     }
     
@@ -1446,7 +1372,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (isChromeExtension) {
         chrome.runtime.sendMessage({ action: 'navigateHome' });
       } else {
-        console.log('[SidePanel Navigation] Chrome Extension API not available for navigateHome');
+        
       }
     });
     
@@ -1459,7 +1385,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (isChromeExtension) {
         chrome.runtime.sendMessage({ action: 'navigateBack' });
       } else {
-        console.log('[SidePanel Navigation] Chrome Extension API not available for navigateBack');
+        
         // 在普通网页中可以使用浏览器的返回功能
         window.history.back();
       }
@@ -1474,7 +1400,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (isChromeExtension) {
         chrome.runtime.sendMessage({ action: 'navigateForward' });
       } else {
-        console.log('[SidePanel Navigation] Chrome Extension API not available for navigateForward');
+        
         // 在普通网页中可以使用浏览器的前进功能
         window.history.forward();
       }
@@ -1497,7 +1423,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (isChromeExtension) {
         chrome.tabs.create({ url: window.location.href });
       } else {
-        console.log('[SidePanel Navigation] Chrome Extension API not available for openInNewTab');
+        
         // 在普通网页中使用window.open
         window.open(window.location.href, '_blank');
       }
@@ -1523,12 +1449,12 @@ window.addEventListener('DOMContentLoaded', () => {
           'sidepanel_nav_compact_mode': navBar.classList.contains('compact-mode')
         });
       } else {
-        console.log('[SidePanel Navigation] Chrome Extension API not available for storage');
+        
         // 在普通网页中可以使用localStorage作为备选
         try {
           localStorage.setItem('sidepanel_nav_compact_mode', navBar.classList.contains('compact-mode'));
         } catch (e) {
-          console.log('[SidePanel Navigation] localStorage not available:', e);
+          
         }
       }
     });
@@ -1567,15 +1493,7 @@ window.addEventListener('DOMContentLoaded', () => {
           
           // 更新前进按钮状态
           forwardButton.disabled = currentIndex >= history.length - 1;
-          
-          console.log('[SidePanel Navigation] Loaded history state:', {
-            historyLength: history.length,
-            currentIndex: currentIndex,
-            canGoBack: currentIndex > 0,
-            canGoForward: currentIndex < history.length - 1
-          });
         } else {
-          console.log('[SidePanel Navigation] No history state found in storage');
         }
       });
       
@@ -1583,7 +1501,6 @@ window.addEventListener('DOMContentLoaded', () => {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         try {
           if (message && message.action === "updateNavigationState") {
-            console.log('[SidePanel Navigation] Received navigation state update:', message);
             
             // 更新导航按钮状态
             const navBar = document.querySelector('.sidepanel-nav-bar');
@@ -1596,14 +1513,9 @@ window.addEventListener('DOMContentLoaded', () => {
               if (backButton && forwardButton) {
                 backButton.disabled = !message.canGoBack;
                 forwardButton.disabled = !message.canGoForward;
-                console.log('[SidePanel Navigation] Updated navigation buttons - Back:', 
-                          !message.canGoBack ? 'disabled' : 'enabled', 
-                          'Forward:', !message.canGoForward ? 'disabled' : 'enabled');
               } else {
-                console.log('[SidePanel Navigation] Could not find navigation buttons');
               }
             } else {
-              console.log('[SidePanel Navigation] Navigation bar not found');
               // 如果找不到导航栏，可能需要重新创建
               initOrRefreshNavigationBar();
             }
@@ -1614,7 +1526,6 @@ window.addEventListener('DOMContentLoaded', () => {
             }
           }
         } catch (e) {
-          console.error('[SidePanel Navigation] Error processing navigation state update:', e);
           if (sendResponse) {
             sendResponse({ success: false, error: e.message });
           }
@@ -1637,14 +1548,14 @@ window.addEventListener('DOMContentLoaded', () => {
           document.body.classList.add('nav-compact-mode');
         }
       } catch (e) {
-        console.log('[SidePanel Navigation] localStorage not available:', e);
+        
       }
     }
     
     // 使用setTimeout确保导航栏正确添加，避免可能的页面异步加载问题
     setTimeout(() => {
       if (!document.body.contains(navBar)) {
-        console.log('[SidePanel Navigation] Navigation bar was not properly added, retrying');
+        
         document.body.insertBefore(navBar, document.body.firstChild);
       }
     }, 500);
@@ -1657,7 +1568,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       localStorage.setItem('sidepanel_view', 'true');
     } catch (e) {
-      console.log('[SidePanel Navigation] localStorage not available:', e);
+      
     }
     
     // 然后再刷新页面

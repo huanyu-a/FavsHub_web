@@ -70,14 +70,14 @@ const FavsHubSettings = (() => {
           if (!_cache.selectedBackground && _cache.solidBackground) {
             _cache.selectedBackground = _cache.solidBackground;
           }
-          console.log('[Settings] 设置加载成功:', Object.keys(data.data).length, '项');
+          
           _loadFailed = false;
         } else {
-          console.warn('[Settings] API 返回格式异常:', data);
+          
           _loadFailed = true;
         }
       } catch (e) {
-        console.warn('[Settings] 加载设置失败，使用默认值:', e.message || e);
+        
         _loadFailed = true;
       }
       _loaded = true;

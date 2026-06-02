@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 检查 WelcomeManager 是否已经加载
     if (!window.WelcomeManager) {
-        console.error('WelcomeManager not found. Make sure welcome.js is loaded before wallpaper.js');
+        
     }
     const wallpaperManager = new WallpaperManager();
 });
@@ -406,7 +406,7 @@ class WallpaperManager {
             document.documentElement.className = '';
             await this.applyAndSaveWallpaper(url);
         } catch (error) {
-            console.error('设置壁纸失败:', error);
+            
             alert('设置壁纸失败，请重试');
         }
     }
@@ -424,7 +424,7 @@ class WallpaperManager {
                 // 尝试保存压缩后的数据
                 localStorage.setItem('originalWallpaper', compressedDataUrl);
             } catch (storageError) {
-                console.warn('无法保存壁纸到本地存储，将只保存在内存中');
+                
             }
             
             // 更新内存缓存
@@ -438,7 +438,7 @@ class WallpaperManager {
             // 应用壁纸
             await this.applyWallpaper(dataUrl);
         } catch (error) {
-            console.error('Failed to save wallpaper:', error);
+            
             alert('设置壁纸失败，请重试');
         }
     }
@@ -523,7 +523,7 @@ class WallpaperManager {
                 try {
                     localStorage.setItem('userWallpapers', JSON.stringify(this.userWallpapers));
                 } catch (storageError) {
-                    console.warn('Storage quota exceeded, removing oldest wallpapers');
+                    
                     // 如果存储失败，继续删除旧壁纸直到能够存储为止
                     while (this.userWallpapers.length > 1) {
                         this.userWallpapers.pop();
@@ -540,7 +540,7 @@ class WallpaperManager {
                 await this.setWallpaper(compressedDataUrl);
                 
             } catch (error) {
-                console.error('处理壁纸时出错:', error);
+                
                 alert('设置壁纸失败，请重试');
             }
         };
@@ -652,7 +652,7 @@ class WallpaperManager {
     // 处理图片加载错误
     handleImageError(e) {
         if (e.target.tagName === 'IMG' || e.target.tagName === 'IMAGE') {
-            console.error('图片加载失败:', e.target.src);
+            
             if (e.target.src !== this.defaultWallpaper) {
                 this.setWallpaper(this.defaultWallpaper);
             }
@@ -785,7 +785,7 @@ class WallpaperManager {
                 localStorage.setItem('userWallpapers', JSON.stringify(this.userWallpapers));
             }
         } catch (error) {
-            console.error('Failed to load user wallpapers:', error);
+            
             this.userWallpapers = [];
         }
     }
@@ -796,7 +796,7 @@ class WallpaperManager {
             const message = chrome.i18n.getMessage(key, substitutions);
             return message || fallback;
         } catch (error) {
-            console.warn(`Failed to get localized message for key: ${key}`, error);
+            
             if (substitutions.length > 0) {
                 // 如果有替换参数，手动替换fallback中的占位符
                 return fallback.replace(/\$1/g, substitutions[0])
@@ -829,7 +829,7 @@ class WallpaperManager {
                     this.compressAndSetWallpaper(img, maxResolution);
                 }
             } catch (error) {
-                console.error('处理壁纸时出错:', error);
+                
                 alert(this.getLocalizedMessage('wallpaperSetError', '设置壁纸失败，请重试'));
             } finally {
                 URL.revokeObjectURL(img.src);
@@ -852,7 +852,7 @@ class WallpaperManager {
             // 渲染壁纸
             this.renderBingWallpapers();
         } catch (error) {
-            console.error('Failed to initialize Bing wallpapers:', error);
+            
         }
     }
 
@@ -864,7 +864,7 @@ class WallpaperManager {
             const data = await response.json();
             
             if (!data?.images) {
-                console.error('No images data in response');
+                
                 return [];
             }
 
@@ -877,7 +877,7 @@ class WallpaperManager {
                 date: startdate
             }));
         } catch (error) {
-            console.error('Failed to fetch Bing wallpapers:', error);
+            
             return [];
         }
     }
@@ -927,7 +927,7 @@ class WallpaperManager {
             const date = new Date(year, month - 1, day);
             return `${month}月${day}日`;
         } catch (error) {
-            console.error('Error formatting date:', error);
+            
             return dateStr;
         }
     }
@@ -1051,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
 
                 } catch (error) {
-                    console.error('分析背景颜色失败:', error);
+                    
                 }
             };
         }

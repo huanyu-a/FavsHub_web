@@ -182,7 +182,6 @@ function openPopup() {
 }
 
 export default defineBackground(() => {
-  console.log('Background ready', { id: browser.runtime.id });
 
   rebuildContextMenus();
 
@@ -233,19 +232,27 @@ export default defineBackground(() => {
         return true;
 
       case 'openHistory':
-        browser.tabs.create({ url: 'chrome://history' }).then(() => sendResponse({ success: true }));
+        browser.tabs.create({ url: 'chrome://history' })
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
         return true;
 
       case 'openDownloads':
-        browser.tabs.create({ url: 'chrome://downloads' }).then(() => sendResponse({ success: true }));
+        browser.tabs.create({ url: 'chrome://downloads' })
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
         return true;
 
       case 'openPasswords':
-        browser.tabs.create({ url: 'chrome://settings/passwords' }).then(() => sendResponse({ success: true }));
+        browser.tabs.create({ url: 'chrome://settings/passwords' })
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
         return true;
 
       case 'openExtensions':
-        browser.tabs.create({ url: 'chrome://extensions' }).then(() => sendResponse({ success: true }));
+        browser.tabs.create({ url: 'chrome://extensions' })
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
         return true;
 
       case 'searchHistory': {
@@ -279,6 +286,10 @@ export default defineBackground(() => {
         }
         return true; // 异步响应
       }
+
+      default:
+        // 未匹配的消息不做处理，避免通道挂起
+        return false;
     }
   });
 
