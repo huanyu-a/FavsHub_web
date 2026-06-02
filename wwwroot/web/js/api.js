@@ -88,6 +88,10 @@ class FavsHubAPI {
     return this.request(`/bookmarks${q}`);
   }
 
+  searchBookmarks(query, limit = 50) {
+    return this.request(`/bookmarks?search=${encodeURIComponent(query)}&limit=${limit}`);
+  }
+
   createBookmark(data) {
     return this.request('/bookmarks', { method: 'POST', body: JSON.stringify(data) });
   }
@@ -189,6 +193,14 @@ class FavsHubAPI {
   }
 
   // ===== Admin =====
+  getAdminDefaultSettings() {
+    return this.request('/admin/default-settings');
+  }
+
+  updateAdminDefaultSettings(data) {
+    return this.request('/admin/default-settings', { method: 'PUT', body: JSON.stringify({ data }) });
+  }
+
   getAdminStats() {
     return this.request('/admin/stats');
   }

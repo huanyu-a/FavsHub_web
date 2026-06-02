@@ -97,7 +97,7 @@ class WallpaperManager {
     async loadPresetWallpapers() {
         const wallpaperContainer = document.querySelector('.wallpaper-options');
         if (!wallpaperContainer) {
-            console.error('Wallpaper container not found');
+            // 设置面板已移至后台，静默跳过
             return;
         }
         
@@ -133,8 +133,10 @@ class WallpaperManager {
     }
 
     initializeEventListeners() {
-        // 初始化上传事件监听
-        this.uploadInput.addEventListener('change', (event) => this.handleFileUpload(event));
+        // 初始化上传事件监听（元素可能不存在）
+        if (this.uploadInput) {
+            this.uploadInput.addEventListener('change', (event) => this.handleFileUpload(event));
+        }
 
         // 初始化重置按钮事件监听
         const resetButton = document.getElementById('reset-wallpaper');
@@ -247,69 +249,89 @@ class WallpaperManager {
     }
 
     // 初始化壁纸状态
+    // 优先级：用户壁纸 > 用户纯色背景 > 管理员壁纸 URL > 管理员纯色背景 > 硬编码默认
     async initializeWallpaper() {
+        // 等待设置从后端加载完成，确保能读取到管理员系统默认
+        await FavsHubSettings.load();
+
         const savedWallpaper = localStorage.getItem('originalWallpaper');
         const useDefaultBackground = FavsHubSettings.get('useDefaultBackground');
         const savedBg = FavsHubSettings.get('selectedBackground');
+        const adminWallpaper = FavsHubSettings.get('wallpaperUrl');
         const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
 
         // 清除所有选中状态
         this.clearAllActiveStates();
 
-        if (useDefaultBackground === 'true') {
-            // 如果使用纯色背景，激活对应的选项
-            const bgClass = savedBg || 'gradient-background-7';
-            const bgOption = document.querySelector(`.settings-bg-option[data-bg="${bgClass}"]`);
-            
+        // 1. 用户明确设置的壁纸（本地存储）
+        if (savedWallpaper) {
+            let wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${savedWallpaper}"]`);
+            if (!wallpaperOption) {
+                await this.loadPresetWallpapers();
+                wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${savedWallpaper}"]`);
+            }
+            if (wallpaperOption) {
+                wallpaperOption.classList.add('active');
+                this.activeOption = wallpaperOption;
+            }
+            await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { this.applyWallpaper(savedWallpaper); resolve(); };
+                img.onerror = resolve;
+                img.src = savedWallpaper;
+            });
+            return;
+        }
+
+        // 2. 用户明确选择的纯色背景（通过设置侧边栏选择，兼容 boolean true 和字符串 'true'）
+        if (String(useDefaultBackground) === 'true' && savedBg) {
+            const bgOption = document.querySelector(`.settings-bg-option[data-bg="${savedBg}"]`);
             if (bgOption) {
                 bgOption.classList.add('active');
                 this.activeOption = bgOption;
-                // 在暗黑模式下保持暗色背景
                 if (isDarkMode) {
-                    document.documentElement.className = bgClass;
+                    document.documentElement.className = savedBg;
                     document.documentElement.setAttribute('data-theme', 'dark');
                 } else {
-                    document.documentElement.className = bgClass;
+                    document.documentElement.className = savedBg;
                 }
             }
             return;
         }
 
-        if (savedWallpaper) {
-            // 如果使用壁纸，查找对应的选项（包括用户上传的壁纸）
-            let wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${savedWallpaper}"]`);
-            
-            // 如果找不到对应选项，可能是用户上传的壁纸
-            if (!wallpaperOption) {
-                // 重新加载壁纸选项
-                await this.loadPresetWallpapers();
-                wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${savedWallpaper}"]`);
-            }
-            
-            if (wallpaperOption) {
-                wallpaperOption.classList.add('active');
-                this.activeOption = wallpaperOption;
-            }
-            
+        // 3. 管理员设置的壁纸 URL（系统默认，不持久化到 localStorage，允许管理员后续修改生效）
+        if (adminWallpaper) {
             await new Promise((resolve) => {
                 const img = new Image();
-                img.onload = () => {
-                    this.applyWallpaper(savedWallpaper);
-                    resolve();
-                };
+                img.onload = () => { this.applyWallpaper(adminWallpaper); resolve(); };
                 img.onerror = resolve;
-                img.src = savedWallpaper;
+                img.src = adminWallpaper;
             });
-        } else {
-            // 如果没有保存的壁纸和背景，使用默认背景
-            const defaultBgOption = document.querySelector('.settings-bg-option[data-bg="gradient-background-7"]');
-            if (defaultBgOption) {
-                defaultBgOption.classList.add('active');
-                this.activeOption = defaultBgOption;
-                document.documentElement.className = 'gradient-background-7';
-                FavsHubSettings.set('useDefaultBackground', 'true');
-                FavsHubSettings.set('selectedBackground', 'gradient-background-7');
+            return;
+        }
+
+        // 4. 管理员设置的纯色背景（系统默认，用户无偏好时生效）
+        if (savedBg) {
+            const bgOption = document.querySelector(`.settings-bg-option[data-bg="${savedBg}"]`);
+            if (bgOption) {
+                bgOption.classList.add('active');
+                this.activeOption = bgOption;
+                if (isDarkMode) {
+                    document.documentElement.className = savedBg;
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.className = savedBg;
+                }
             }
+            return;
+        }
+
+        // 5. 最终兜底：硬编码默认背景（不写入用户设置，避免覆盖管理员后续配置）
+        const defaultBgOption = document.querySelector('.settings-bg-option[data-bg="gradient-background-7"]');
+        if (defaultBgOption) {
+            defaultBgOption.classList.add('active');
+            this.activeOption = defaultBgOption;
+            document.documentElement.className = 'gradient-background-7';
         }
     }
 

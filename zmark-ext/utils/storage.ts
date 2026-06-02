@@ -18,3 +18,27 @@ export const languageStorage = storage.defineItem<AppLanguage>('local:LANGUAGE',
 export const userInfoStorage = storage.defineItem<{ id: number; username: string; email?: string }>('local:USER_INFO', {
   fallback: null,
 });
+
+// 书签同步快照（用于增量下载的三次 diff）
+export interface SyncSnapshotBookmark {
+  key: string;    // "${container}/${relativePath}/${url}"
+  title: string;
+}
+
+export interface SyncSnapshotFolder {
+  key: string;    // "${container}/${relativePath}"
+}
+
+export interface SyncSnapshot {
+  bookmarks: SyncSnapshotBookmark[];
+  folders: SyncSnapshotFolder[];
+  timestamp: number;
+}
+
+export const syncSnapshotStorage = storage.defineItem<SyncSnapshot | null>('local:SYNC_SNAPSHOT', {
+  fallback: null,
+});
+
+export const lastSyncTimestampStorage = storage.defineItem<number>('local:LAST_SYNC_TIMESTAMP', {
+  fallback: 0,
+});

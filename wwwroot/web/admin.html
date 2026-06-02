@@ -86,6 +86,70 @@
 
     .page { display: none; }
     .page.active { display: block; }
+
+    /* 设置表单 */
+    .setting-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 16px; }
+    .setting-card h3 { font-size: 16px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+    .setting-row label { font-size: 14px; color: #555; flex: 1; }
+    .setting-row select { width: 200px; }
+    .setting-row .val { font-size: 13px; color: #888; margin-left: 8px; min-width: 40px; }
+    select, input[type=text], input[type=number] { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+
+    /* 设置区块标题 */
+    .settings-section-title { font-size: 14px; font-weight: 600; color: #555; margin: 20px 0 10px; }
+
+    /* 纯色背景选择器 */
+    .settings-background-options { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+    .settings-bg-option {
+      width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+      background-size: 200% 200%; background-position: center;
+      border: 2px solid transparent; transition: all 0.2s;
+    }
+    .settings-bg-option:hover { transform: scale(1.08); border-color: #ccc; }
+    .settings-bg-option.active { border: 2px solid #10b981; transform: scale(1.05); }
+    .settings-bg-option.bg-none { background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #999; }
+    .gradient-background-1 { background: linear-gradient(0deg, rgba(226,232,240,1) 0%, rgba(214,222,235,1) 50%, rgba(203,213,225,1) 100%); }
+    .gradient-background-2 { background: linear-gradient(0deg, rgba(165,243,252,1) 0%, rgba(178,231,253,1) 50%, rgba(191,219,254,1) 100%); }
+    .gradient-background-3 { background: linear-gradient(0deg, rgba(251,206,232,1) 0%, rgba(242,210,244,1) 50%, rgba(233,213,255,1) 100%); }
+    .gradient-background-4 { background: linear-gradient(0deg, rgb(182,232,166,1) 0%, rgb(182,232,166,1) 100%); }
+    .gradient-background-5 { background: linear-gradient(0deg, rgba(239,239,66,1) 0%, rgba(239,239,66,1) 100%); }
+    .gradient-background-6 { background: linear-gradient(0deg, rgba(215,200,235,1) 0%, rgba(215,200,235,1) 100%); }
+    .gradient-background-7 { background: linear-gradient(0deg, rgba(251,235,188,1) 0%, rgba(251,235,188,1) 100%); }
+
+    /* 开关样式 */
+    .setting-option { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; transition: background-color 0.2s; }
+    .setting-option:hover { background: #f0f2f5; }
+    .switch-label { font-size: 14px; color: #555; margin-right: 1rem; }
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+    input:checked+.slider { background-color: #10b981; }
+    input:focus+.slider { box-shadow: 0 0 1px #10b981; }
+    input:checked+.slider:before { transform: translateX(16px); }
+    .slider.round { border-radius: 34px; }
+    .slider.round:before { border-radius: 50%; }
+
+    /* 自定义范围滑块 */
+    .slider-container { margin-bottom: 8px; }
+    .slider-container input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+      background: #e2e8f0; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; background: #10b981;
+      border-radius: 50%; cursor: pointer; transition: all 0.2s ease;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15); box-shadow: 0 0 0 6px rgba(16,185,129,0.1);
+    }
+    .slider-container input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; background: #10b981; border-radius: 50%; cursor: pointer; border: none;
+    }
+    .value-display { white-space: nowrap; font-size: 14px; color: #4a5568; min-width: 48px; text-align: right; font-weight: 500; }
+    .preview-text { margin-top: 12px; font-size: 13px; color: #4a5568; }
+    .preview-text span:last-child { color: #10b981; font-weight: 500; }
   </style>
 </head>
 <body>
@@ -240,11 +304,12 @@
                 <th>URL</th>
                 <th>分类</th>
                 <th>默认</th>
+                <th>排序</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="engines-table-body">
-              <tr><td colspan="7" class="empty-state">加载中...</td></tr>
+              <tr><td colspan="8" class="empty-state">加载中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -448,77 +513,171 @@
         </div>
       </div>
 
-    </div>
-  </div>
-
-  <!-- 用户设置 -->
-  <div id="page-settings" class="page">
-    <div class="page-header">
-      <h2>用户设置管理</h2>
-      <p>管理全局默认设置，影响所有用户的初始体验</p>
-    </div>
-    <div class="card">
-      <h3>主题与外观</h3>
-      <div class="form-group">
-        <label>默认主题</label>
-        <select id="admin-default-theme" onchange="saveSettings()">
-          <option value="light">浅色</option>
-          <option value="dark">深色</option>
-          <option value="auto">跟随系统</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>显示搜索框</label>
-        <select id="admin-show-search" onchange="saveSettings()">
-          <option value="1">显示</option>
-          <option value="0">隐藏</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>显示欢迎消息</label>
-        <select id="admin-show-welcome" onchange="saveSettings()">
-          <option value="1">显示</option>
-          <option value="0">隐藏</option>
-        </select>
-      </div>
-    </div>
-    <div class="card">
-      <h3>书签布局</h3>
-      <div class="form-group">
-        <label>书签卡片宽度 (px)</label>
-        <input type="range" id="admin-card-width" min="100" max="300" step="10" onchange="saveSettings()">
-        <span id="admin-card-width-val">200</span>px
-      </div>
-      <div class="form-group">
-        <label>书签卡片高度 (px)</label>
-        <input type="range" id="admin-card-height" min="36" max="80" step="2" onchange="saveSettings()">
-        <span id="admin-card-height-val">50</span>px
-      </div>
-      <div class="form-group">
-        <label>书签容器宽度 (%)</label>
-        <input type="range" id="admin-container-width" min="50" max="100" step="5" onchange="saveSettings()">
-        <span id="admin-container-width-val">85</span>%
-      </div>
-    </div>
-    <div class="card">
-      <h3>搜索设置</h3>
-      <div class="form-group">
-        <label>默认搜索引擎</label>
-        <select id="admin-default-engine" onchange="saveSettings()"></select>
-      </div>
-      <div class="form-group">
-        <label>新标签页打开搜索结果</label>
-        <select id="admin-open-new-tab" onchange="saveSettings()">
-          <option value="1">是</option>
-          <option value="0">否</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>显示搜索建议</label>
-        <select id="admin-search-suggestions" onchange="saveSettings()">
-          <option value="1">显示</option>
-          <option value="0">隐藏</option>
-        </select>
+      <!-- 用户设置 -->
+      <div id="page-settings" class="page">
+        <div class="page-header">
+          <h2>全局默认设置</h2>
+          <p>全局默认设置，所有用户生效（用户个人设置优先于全局默认）</p>
+        </div>
+        <div class="setting-card">
+          <h3>主题与外观</h3>
+          <div class="setting-row">
+            <label>默认主题</label>
+            <select id="admin-default-theme" onchange="saveSettings()">
+              <option value="light">浅色</option>
+              <option value="dark">深色</option>
+              <option value="auto">跟随系统</option>
+            </select>
+          </div>
+          <h4 class="settings-section-title">纯色背景</h4>
+          <div class="settings-background-options">
+            <div class="settings-bg-option gradient-background-1" data-bg="gradient-background-1" onclick="selectBg('gradient-background-1')" title="渐变 1"></div>
+            <div class="settings-bg-option gradient-background-2" data-bg="gradient-background-2" onclick="selectBg('gradient-background-2')" title="渐变 2"></div>
+            <div class="settings-bg-option gradient-background-3" data-bg="gradient-background-3" onclick="selectBg('gradient-background-3')" title="渐变 3"></div>
+            <div class="settings-bg-option gradient-background-4" data-bg="gradient-background-4" onclick="selectBg('gradient-background-4')" title="渐变 4"></div>
+            <div class="settings-bg-option gradient-background-5" data-bg="gradient-background-5" onclick="selectBg('gradient-background-5')" title="渐变 5"></div>
+            <div class="settings-bg-option gradient-background-6" data-bg="gradient-background-6" onclick="selectBg('gradient-background-6')" title="渐变 6"></div>
+            <div class="settings-bg-option gradient-background-7" data-bg="gradient-background-7" onclick="selectBg('gradient-background-7')" title="渐变 7"></div>
+            <div class="settings-bg-option bg-none" data-bg="" onclick="selectBg('')" title="无背景">无</div>
+          </div>
+          <input type="hidden" id="admin-solid-bg" value="">
+          <div style="margin-top:14px;">
+            <label style="font-size:14px;color:#555;">壁纸 URL（必应/自定义）</label>
+            <input type="text" id="admin-wallpaper-url" onchange="saveSettings()" placeholder="留空使用纯色背景" style="width:100%;margin-top:4px;">
+          </div>
+          <h4 class="settings-section-title">界面元素显示</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-search">显示搜索框</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-search" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-welcome">显示欢迎消息</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-welcome" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-footer">显示页脚</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-footer" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-enable-floating-ball">显示悬浮球</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-enable-floating-ball" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-open-in-new-tab">新标签页打开链接</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-open-in-new-tab" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <h4 class="settings-section-title">快捷访问链接</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-history-link">显示历史记录</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-history-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-downloads-link">显示下载记录</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-downloads-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-passwords-link">显示密码管理</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-passwords-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-extensions-link">显示扩展管理</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-extensions-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-card">
+          <h3>搜索设置</h3>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-open-new-tab">新标签页打开搜索结果</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-open-new-tab" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-search-suggestions">显示搜索建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-search-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <h4 class="settings-section-title">搜索建议细分</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-history-suggestions">显示历史记录建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-history-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-bookmark-suggestions">显示书签建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-bookmark-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-prompt-suggestions">显示提示词建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-prompt-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-card">
+          <h3>书签布局</h3>
+          <h4 class="settings-section-title">书签卡片宽度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-card-width" min="100" max="300" step="10" value="200" oninput="document.getElementById('admin-card-width-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-card-width-val">200</span>px</div>
+            </div>
+            <div class="preview-text">每行书签按钮数量：<span id="admin-card-width-preview">~5</span></div>
+          </div>
+          <h4 class="settings-section-title">书签卡片高度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-card-height" min="36" max="80" step="2" value="50" oninput="document.getElementById('admin-card-height-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-card-height-val">50</span>px</div>
+            </div>
+            <div class="preview-text">调整书签卡片的高度</div>
+          </div>
+          <h4 class="settings-section-title">书签容器宽度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-container-width" min="50" max="100" step="5" value="85" oninput="document.getElementById('admin-container-width-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-container-width-val">85</span>%</div>
+            </div>
+            <div class="preview-text">调整书签容器在页面中的宽度比例</div>
+          </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -661,8 +820,8 @@
     </div>
   </div>
 
-  <script src="chrome-shim.js?v=8"></script>
-  <script src="/js/api.js?v=4"></script>
+  <script src="chrome-shim.js?v=10"></script>
+  <script src="/js/api.js?v=6"></script>
   <script>
     // 权限检查
     if (!api.isLoggedIn()) {
@@ -1313,15 +1472,29 @@
         allEngines = data.engines || [];
         renderEnginesTable(allEngines);
       } catch (err) {
-        document.getElementById('engines-table-body').innerHTML = `<tr><td colspan="7" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('engines-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${err.message}</td></tr>`;
       }
     }
 
     function renderEnginesTable(engines) {
       const tbody = document.getElementById('engines-table-body');
       if (!engines.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="ri-search-line"></i>暂无搜索引擎</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-search-line"></i>暂无搜索引擎</td></tr>';
         return;
+      }
+
+      // Group engines by category to determine first/last positions for sort buttons
+      const catGroups = {};
+      for (const e of engines) {
+        const cat = ENGINE_CATEGORY_MAP[e.category] || e.category;
+        if (!catGroups[cat]) catGroups[cat] = [];
+        catGroups[cat].push(e);
+      }
+      const posInfo = {};
+      for (const [cat, group] of Object.entries(catGroups)) {
+        group.forEach((e, idx) => {
+          posInfo[e.id] = { cat, total: group.length, index: idx };
+        });
       }
 
       let currentCat = null;
@@ -1330,8 +1503,11 @@
         const cat = ENGINE_CATEGORY_MAP[e.category] || e.category;
         if (cat !== currentCat) {
           currentCat = cat;
-          html += `<tr style="background:#f0f7ff;"><td colspan="7" style="font-weight:600;font-size:13px;color:#667eea;padding:8px 16px;">${cat}</td></tr>`;
+          html += `<tr style="background:#f0f7ff;"><td colspan="8" style="font-weight:600;font-size:13px;color:#667eea;padding:8px 16px;">${cat}</td></tr>`;
         }
+        const pi = posInfo[e.id];
+        const isFirst = pi.index === 0;
+        const isLast = pi.index === pi.total - 1;
         html += `<tr>
           <td>${e.id}</td>
           <td style="font-weight:500;">${e.name}</td>
@@ -1339,6 +1515,10 @@
           <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.url}</td>
           <td>${cat}</td>
           <td>${e.is_default ? '✓' : '-'}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-ghost btn-sm" onclick="moveEngine(${e.id},'up')" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} title="上移">↑</button>
+            <button class="btn btn-ghost btn-sm" onclick="moveEngine(${e.id},'down')" ${isLast ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} title="下移">↓</button>
+          </td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="editEngine(${e.id})" style="margin-right:4px;">编辑</button>
             <button class="btn btn-danger btn-sm" onclick='deleteEngine(${e.id}, "${e.name.replace(/"/g,'&quot;').replace(/'/g,"\\'")}")'>删除</button>
@@ -1410,6 +1590,53 @@
         await api.deleteAdminSearchEngine(id);
         loadSearchEngines();
       } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    async function moveEngine(id, direction) {
+      const engine = allEngines.find(e => e.id == id);
+      if (!engine) return;
+
+      const cat = ENGINE_CATEGORY_MAP[engine.category] || engine.category;
+
+      // Get siblings in the same category, sorted by sort_order (matching backend ORDER BY category, sort_order, id)
+      const siblings = allEngines
+        .filter(e => (ENGINE_CATEGORY_MAP[e.category] || e.category) === cat)
+        .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+
+      const idx = siblings.findIndex(e => e.id == id);
+      if (idx === -1) return;
+
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= siblings.length) return;
+
+      const target = siblings[targetIdx];
+      const selfOrder = engine.sort_order;
+      const targetOrder = target.sort_order;
+
+      try {
+        // Swap sort_order values on both engines
+        await Promise.all([
+          api.updateAdminSearchEngine(engine.id, { sort_order: targetOrder }),
+          api.updateAdminSearchEngine(target.id, { sort_order: selfOrder })
+        ]);
+
+        // Update local cache
+        engine.sort_order = targetOrder;
+        target.sort_order = selfOrder;
+
+        // Re-sort and re-render immediately
+        allEngines.sort((a, b) => {
+          const catA = ENGINE_CATEGORY_MAP[a.category] || a.category;
+          const catB = ENGINE_CATEGORY_MAP[b.category] || b.category;
+          if (catA !== catB) return catA.localeCompare(catB);
+          if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+          return a.id - b.id;
+        });
+        renderEnginesTable(allEngines);
+      } catch (err) {
+        alert('排序失败: ' + err.message);
+        loadSearchEngines();
+      }
     }
 
     document.getElementById('engine-modal')?.addEventListener('click', (e) => {
@@ -1898,59 +2125,110 @@
     // === 用户设置管理 ===
     const DEFAULT_SETTINGS = {
       theme: 'light',
-      showSearchBox: '1',
-      showWelcomeMessage: '1',
+      showSearchBox: true,
+      showWelcomeMessage: true,
+      showFooter: true,
+      enableFloatingBall: false,
+      openInNewTab: true,
       bookmarkWidth: 200,
       bookmarkCardHeight: 50,
       bookmarkContainerWidth: 85,
-      openSearchInNewTab: '1',
-      showSearchSuggestions: '1',
-      selectedSearchEngine: 'google'
+      openSearchInNewTab: true,
+      showSearchSuggestions: true,
+      showHistorySuggestions: true,
+      showBookmarkSuggestions: true,
+      showPromptSuggestions: true,
+      showHistoryLink: true,
+      showDownloadsLink: true,
+      showPasswordsLink: true,
+      showExtensionsLink: true
     };
 
+    let _settingsLoaded = false;
+    let _saveTimer = null;
+
+    function selectBg(value) {
+      document.getElementById('admin-solid-bg').value = value;
+      document.querySelectorAll('.settings-bg-option').forEach(el => {
+        el.classList.toggle('active', el.dataset.bg === value);
+      });
+      saveSettings();
+    }
+
     async function loadSettings() {
+      _settingsLoaded = false;
       try {
-        const data = await api.getSettings();
+        const data = await api.getAdminDefaultSettings();
         const s = data.data || {};
         document.getElementById('admin-default-theme').value = s.theme || 'light';
-        document.getElementById('admin-show-search').value = s.showSearchBox !== false ? '1' : '0';
-        document.getElementById('admin-show-welcome').value = s.showWelcomeMessage !== false ? '1' : '0';
+        document.getElementById('admin-solid-bg').value = s.solidBackground || '';
+        // 更新背景圆圈选中状态
+        document.querySelectorAll('.settings-bg-option').forEach(el => {
+          el.classList.toggle('active', el.dataset.bg === (s.solidBackground || ''));
+        });
+        document.getElementById('admin-wallpaper-url').value = s.wallpaperUrl || '';
+        document.getElementById('admin-show-search').checked = s.showSearchBox !== false;
+        document.getElementById('admin-show-welcome').checked = s.showWelcomeMessage !== false;
+        document.getElementById('admin-show-footer').checked = s.showFooter !== false;
+        document.getElementById('admin-enable-floating-ball').checked = s.enableFloatingBall === true;
+        document.getElementById('admin-open-in-new-tab').checked = s.openInNewTab !== false;
         document.getElementById('admin-card-width').value = s.bookmarkWidth || 200;
         document.getElementById('admin-card-width-val').textContent = s.bookmarkWidth || 200;
         document.getElementById('admin-card-height').value = s.bookmarkCardHeight || 50;
         document.getElementById('admin-card-height-val').textContent = s.bookmarkCardHeight || 50;
         document.getElementById('admin-container-width').value = s.bookmarkContainerWidth || 85;
         document.getElementById('admin-container-width-val').textContent = s.bookmarkContainerWidth || 85;
-        document.getElementById('admin-open-new-tab').value = s.openSearchInNewTab !== false ? '1' : '0';
-        document.getElementById('admin-search-suggestions').value = s.showSearchSuggestions !== false ? '1' : '0';
-        // 加载搜索引擎列表
-        const engines = await api.getSearchEngines();
-        const sel = document.getElementById('admin-default-engine');
-        sel.innerHTML = engines.engines.map(e =>
-          `<option value="${e.name}">${e.label || e.name}</option>`
-        ).join('');
-        sel.value = s.selectedSearchEngine || 'google';
+        document.getElementById('admin-open-new-tab').checked = s.openSearchInNewTab !== false;
+        document.getElementById('admin-search-suggestions').checked = s.showSearchSuggestions !== false;
+        document.getElementById('admin-show-history-suggestions').checked = s.showHistorySuggestions !== false;
+        document.getElementById('admin-show-bookmark-suggestions').checked = s.showBookmarkSuggestions !== false;
+        document.getElementById('admin-show-prompt-suggestions').checked = s.showPromptSuggestions !== false;
+        document.getElementById('admin-show-history-link').checked = s.showHistoryLink !== false;
+        document.getElementById('admin-show-downloads-link').checked = s.showDownloadsLink !== false;
+        document.getElementById('admin-show-passwords-link').checked = s.showPasswordsLink !== false;
+        document.getElementById('admin-show-extensions-link').checked = s.showExtensionsLink !== false;
       } catch (err) {
         console.error('加载设置失败:', err);
+      } finally {
+        _settingsLoaded = true;
       }
     }
 
     function saveSettings() {
+      // 防止在 loadSettings 完成前执行（避免用表单默认值覆盖数据库）
+      if (!_settingsLoaded) return;
+      // 防抖：合并短时间内的多次调用
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(_doSave, 300);
+    }
+
+    function _doSave() {
       const s = {
         theme: document.getElementById('admin-default-theme').value,
-        showSearchBox: document.getElementById('admin-show-search').value === '1',
-        showWelcomeMessage: document.getElementById('admin-show-welcome').value === '1',
+        solidBackground: document.getElementById('admin-solid-bg').value,
+        wallpaperUrl: document.getElementById('admin-wallpaper-url').value,
+        showSearchBox: document.getElementById('admin-show-search').checked,
+        showWelcomeMessage: document.getElementById('admin-show-welcome').checked,
+        showFooter: document.getElementById('admin-show-footer').checked,
+        enableFloatingBall: document.getElementById('admin-enable-floating-ball').checked,
+        openInNewTab: document.getElementById('admin-open-in-new-tab').checked,
         bookmarkWidth: parseInt(document.getElementById('admin-card-width').value),
         bookmarkCardHeight: parseInt(document.getElementById('admin-card-height').value),
         bookmarkContainerWidth: parseInt(document.getElementById('admin-container-width').value),
-        openSearchInNewTab: document.getElementById('admin-open-new-tab').value === '1',
-        showSearchSuggestions: document.getElementById('admin-search-suggestions').value === '1',
-        selectedSearchEngine: document.getElementById('admin-default-engine').value
+        openSearchInNewTab: document.getElementById('admin-open-new-tab').checked,
+        showSearchSuggestions: document.getElementById('admin-search-suggestions').checked,
+        showHistorySuggestions: document.getElementById('admin-show-history-suggestions').checked,
+        showBookmarkSuggestions: document.getElementById('admin-show-bookmark-suggestions').checked,
+        showPromptSuggestions: document.getElementById('admin-show-prompt-suggestions').checked,
+        showHistoryLink: document.getElementById('admin-show-history-link').checked,
+        showDownloadsLink: document.getElementById('admin-show-downloads-link').checked,
+        showPasswordsLink: document.getElementById('admin-show-passwords-link').checked,
+        showExtensionsLink: document.getElementById('admin-show-extensions-link').checked
       };
       document.getElementById('admin-card-width-val').textContent = s.bookmarkWidth;
       document.getElementById('admin-card-height-val').textContent = s.bookmarkCardHeight;
       document.getElementById('admin-container-width-val').textContent = s.bookmarkContainerWidth;
-      api.updateSettings(s).then(() => {
+      api.updateAdminDefaultSettings(s).then(() => {
         showToast('设置已保存');
       }).catch(err => {
         console.error('保存设置失败:', err);

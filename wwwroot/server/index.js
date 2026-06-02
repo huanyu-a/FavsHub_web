@@ -54,8 +54,16 @@ app.get('/api/search-engines', (req, res) => {
   res.json({ engines });
 });
 
-// 静态文件：网页端 + 资源目录
-app.use(express.static(path.join(__dirname, '..', 'web')));
+// 静态文件：网页端 + 资源目录（JS/CSS 禁用浏览器缓存，确保始终加载最新版）
+app.use(express.static(path.join(__dirname, '..', 'web'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 
 // SPA fallback

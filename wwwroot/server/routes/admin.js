@@ -113,9 +113,10 @@ router.put('/bookmarks/:id', (req, res) => {
   const bookmark = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(bookmarkId);
   if (!bookmark) return res.status(404).json({ error: '书签不存在' });
 
-  if (title !== undefined) db.prepare('UPDATE bookmarks SET title = ? WHERE id = ?').run(title, bookmarkId);
-  if (url !== undefined) db.prepare('UPDATE bookmarks SET url = ? WHERE id = ?').run(url, bookmarkId);
-  if (folder_id !== undefined) db.prepare('UPDATE bookmarks SET folder_id = ? WHERE id = ?').run(folder_id !== 0 ? folder_id : null, bookmarkId);
+  const now = Date.now();
+  if (title !== undefined) db.prepare('UPDATE bookmarks SET title = ?, updated_at = ? WHERE id = ?').run(title, now, bookmarkId);
+  if (url !== undefined) db.prepare('UPDATE bookmarks SET url = ?, updated_at = ? WHERE id = ?').run(url, now, bookmarkId);
+  if (folder_id !== undefined) db.prepare('UPDATE bookmarks SET folder_id = ?, updated_at = ? WHERE id = ?').run(folder_id !== 0 ? folder_id : null, now, bookmarkId);
 
   const updated = db.prepare('SELECT b.*, f.name as folder_name, u.username FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id LEFT JOIN users u ON b.user_id = u.id WHERE b.id = ?').get(bookmarkId);
   res.json({ bookmark: updated });
@@ -687,6 +688,27 @@ router.post('/sync-prompts', (req, res) => {
   } finally {
     db.pragma('foreign_keys = ON');
   }
+});
+
+// 系统默认设置（存储在数据库 user_id=0）
+router.get('/default-settings', (req, res) => {
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
+  res.json({ data: row ? JSON.parse(row.data) : {} });
+});
+
+router.put('/default-settings', (req, res) => {
+  const { data } = req.body;
+  if (!data || typeof data !== 'object') return res.status(400).json({ error: 'data 必须是对象' });
+
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
+  const existing = row ? JSON.parse(row.data) : {};
+  const merged = { ...existing, ...data };
+
+  // Ensure system settings row exists (INSERT OR IGNORE to handle race conditions)
+  db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}');
+  db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged));
+
+  res.json({ data: merged });
 });
 
 module.exports = router;

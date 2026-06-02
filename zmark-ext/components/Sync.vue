@@ -18,7 +18,7 @@ const isDownloading = ref(false);
 const downloadResult = ref('');
 
 /**
- * 从服务端拉取书签，同步到浏览器书签栏
+ * 从服务端拉取书签，增量合并到浏览器书签栏
  */
 async function handleDownloadToBrowser() {
   const token = await tokenStorage.getValue();
@@ -32,7 +32,17 @@ async function handleDownloadToBrowser() {
 
   try {
     const stats = await syncZMarkToBrowser();
-    downloadResult.value = `已同步 ${stats.folders} 个文件夹、${stats.bookmarks} 条书签到浏览器书签栏`;
+    const parts: string[] = [];
+    if (stats.added > 0) parts.push(`新增 ${stats.added}`);
+    if (stats.updated > 0) parts.push(`更新 ${stats.updated}`);
+    if (stats.removed > 0) parts.push(`删除 ${stats.removed}`);
+    if (parts.length === 0) {
+      downloadResult.value = '书签已是最新，无需同步';
+    } else if (stats.isFirstSync) {
+      downloadResult.value = `首次同步完成：${parts.join('、')}（本地新增的书签已保留）`;
+    } else {
+      downloadResult.value = `同步完成：${parts.join('、')}`;
+    }
     message.success(downloadResult.value);
   } catch (error) {
     downloadResult.value = '同步失败：' + (error instanceof Error ? error.message : '未知错误');
@@ -91,13 +101,28 @@ async function handleSync() {
       return;
     }
 
-    const result = await request<{ success: boolean; count: number }>('/api/sync/bookmarks', {
-      method: 'POST',
+    // 使用 PUT 增量合并（不会删除服务端其他来源的数据）
+    const result = await request<{
+      success: boolean;
+      added: number;
+      updated: number;
+      deleted: number;
+      total: number;
+    }>('/api/sync/bookmarks', {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bookmarks }),
     });
 
-    syncResult.value = `已同步 ${result.count} 条书签`;
+    const parts: string[] = [];
+    if (result.added > 0) parts.push(`新增 ${result.added}`);
+    if (result.updated > 0) parts.push(`更新 ${result.updated}`);
+    if (result.deleted > 0) parts.push(`删除 ${result.deleted}`);
+    if (parts.length === 0) {
+      syncResult.value = `共 ${result.total} 条书签，无需变更`;
+    } else {
+      syncResult.value = `已合并 ${result.total} 条书签：${parts.join('、')}`;
+    }
 
     // 第二步：下载浏览器缓存的 favicon 到服务器
     faviconProgress.value = '正在下载书签图标...';
@@ -145,14 +170,14 @@ async function handleSync() {
       <div class="space-y-3">
         <section class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
           <div class="font-semibold">温馨提示</div>
-          <p class="mt-1 leading-6">此功能目前处于测试阶段，可能存在 BUG 或不稳定。</p>
+          <p class="mt-1 leading-6">同步采用增量合并策略，不会删除对方新增的数据。</p>
         </section>
 
         <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-slate-900">浏览器书签同步到 FavsHub</h2>
             <p class="mt-1 text-xs leading-5 text-slate-500">
-              自动读取浏览器书签树，同步到服务器，并下载浏览器缓存的图标到服务器本地。
+              增量合并浏览器书签到服务器，不会删除服务端其他来源的数据，并自动上传图标到服务器本地。
             </p>
           </div>
 
@@ -160,7 +185,7 @@ async function handleSync() {
             <template #icon>
               <n-icon :component="CloudUploadOutline" />
             </template>
-            开始同步（含图标下载）
+            开始同步（含图标上传）
           </n-button>
 
           <div v-if="faviconProgress" class="mt-2 text-center text-xs text-blue-500">
@@ -175,7 +200,7 @@ async function handleSync() {
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-slate-900">服务器书签拉取到浏览器</h2>
             <p class="mt-1 text-xs leading-5 text-slate-500">
-              将 FavsHub 云端书签按文件夹层级拉取到浏览器书签栏，结构与服务器一致。注意：会清空书签栏现有内容后重建。
+              增量合并服务器书签到浏览器书签栏，不会删除本地新增的书签。首次同步仅添加缺失的书签。
             </p>
           </div>
 

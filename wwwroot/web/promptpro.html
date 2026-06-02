@@ -958,12 +958,31 @@
         </div>
     </div>
 
-    <script src="chrome-shim.js?v=8"></script>
-    <script src="/js/api.js?v=5"></script>
-    <script src="settings-store.js?v=1"></script>
+    <script src="chrome-shim.js?v=10"></script>
+    <script src="/js/api.js?v=6"></script>
+    <script src="settings-store.js?v=2"></script>
     <script defer src="icons.js?v=2"></script>
     <script defer src="backup-manager.js?v=2"></script>
-    <script defer src="settings.js?v=2"></script>
+    <script defer>
+      // 主题初始化（原 settings.js 已删除，设置由管理员后台统一管理）
+      document.addEventListener('DOMContentLoaded', async () => {
+        await FavsHubSettings.load();
+        const theme = FavsHubSettings.get('theme') || 'auto';
+        let effective = theme;
+        if (theme === 'auto') {
+          effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', effective);
+        document.body.setAttribute('data-theme', effective);
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+          if (FavsHubSettings.get('theme') === 'auto') {
+            const isDark = e.matches;
+            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+          }
+        });
+      });
+    </script>
     <script defer src="promptpro-bundle.js"></script>
     <script defer src="promptpro-utils.js"></script>
 </body>

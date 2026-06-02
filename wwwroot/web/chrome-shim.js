@@ -494,20 +494,30 @@ const i18nShim = {
 // ===== 构建完整的 chrome 对象 =====
 window.getFaviconUrl = getFaviconUrl;
 window.normalizeFavicon = normalizeFavicon;
+
+// 检测是否在真实扩展环境中运行（content script 在 document_start 注入此标记）
+const _isExtensionMode = document.documentElement.getAttribute('data-favshub-ext') === 'active';
+// 保存原生 chrome 引用（扩展模式下页面可能有部分原生 API，但普通标签页通常没有）
+const _nativeChrome = _isExtensionMode ? window.chrome : null;
+
 window.chrome = {
-  bookmarks: bookmarksShim,
+  bookmarks: (_isExtensionMode && _nativeChrome.bookmarks) ? _nativeChrome.bookmarks : bookmarksShim,
   storage: storageShim,
-  tabs: tabsShim,
-  history: historyShim,
+  tabs: (_isExtensionMode && _nativeChrome.tabs) ? _nativeChrome.tabs : tabsShim,
+  history: (_isExtensionMode && _nativeChrome.history) ? _nativeChrome.history : historyShim,
   identity: identityShim,
   commands: commandsShim,
-  action: actionShim,
-  runtime: runtimeShim,
+  action: (_isExtensionMode && _nativeChrome.action) ? _nativeChrome.action : actionShim,
+  runtime: (_isExtensionMode && _nativeChrome.runtime) ? _nativeChrome.runtime : runtimeShim,
   management: managementShim,
-  sidePanel: sidePanelShim,
+  sidePanel: (_isExtensionMode && _nativeChrome.sidePanel) ? _nativeChrome.sidePanel : sidePanelShim,
   favicon: faviconShim,
   i18n: i18nShim
 };
+
+if (_isExtensionMode) {
+  console.log('[Chrome Shim] 检测到扩展模式，保留原生 history/bookmarks/tabs 等 API');
+}
 
 // ===== Token 同步 =====
 // 登录页用 localStorage.favshub_token，主页内联脚本用 chrome.storage.local.favshub_token

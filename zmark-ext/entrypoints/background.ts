@@ -1,5 +1,5 @@
 import { request } from '@/utils/request';
-import { tokenStorage } from '@/utils/storage';
+import { tokenStorage, baseUrlStorage } from '@/utils/storage';
 
 interface FavsHubFolder {
   id: number;
@@ -222,4 +222,96 @@ export default defineBackground(() => {
         .catch((error) => showNotification('FavsHub', `保存失败：${error.message}`));
     }
   });
+
+  // ===== 快捷访问链接：消息处理器 =====
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message?.action) return;
+
+    switch (message.action) {
+      case 'ping':
+        sendResponse({ connected: true });
+        return true;
+
+      case 'openHistory':
+        browser.tabs.create({ url: 'chrome://history' }).then(() => sendResponse({ success: true }));
+        return true;
+
+      case 'openDownloads':
+        browser.tabs.create({ url: 'chrome://downloads' }).then(() => sendResponse({ success: true }));
+        return true;
+
+      case 'openPasswords':
+        browser.tabs.create({ url: 'chrome://settings/passwords' }).then(() => sendResponse({ success: true }));
+        return true;
+
+      case 'openExtensions':
+        browser.tabs.create({ url: 'chrome://extensions' }).then(() => sendResponse({ success: true }));
+        return true;
+
+      case 'searchHistory': {
+        const { text, maxResults, startTime } = message;
+        const keywords = (text || '').split(/[\s\u3000]+/).filter((k: string) => k.length > 0);
+        const limit = maxResults || 2000;
+
+        if (keywords.length <= 1) {
+          // 单关键词：直接搜索
+          const searchOpts: chrome.history.HistorySearchQuery = { text: keywords[0] || '', maxResults: limit };
+          if (startTime) searchOpts.startTime = startTime;
+          browser.history.search(searchOpts)
+            .then((items) => sendResponse({ success: true, items }))
+            .catch((err) => sendResponse({ success: false, error: String(err) }));
+        } else {
+          // 多关键词：分别搜索，取交集（AND 逻辑）
+          Promise.all(
+            keywords.map((kw: string) => {
+              const opts: chrome.history.HistorySearchQuery = { text: kw, maxResults: limit };
+              if (startTime) opts.startTime = startTime;
+              return browser.history.search(opts);
+            })
+          ).then((resultSets) => {
+            // 以第一个关键词结果为基准，过滤出所有关键词都匹配的条目
+            const urlSets = resultSets.map((items) => new Set(items.map((i) => i.url)));
+            const merged = resultSets[0].filter((item) =>
+              urlSets.every((urlSet) => urlSet.has(item.url))
+            );
+            sendResponse({ success: true, items: merged.slice(0, limit) });
+          }).catch((err) => sendResponse({ success: false, error: String(err) }));
+        }
+        return true; // 异步响应
+      }
+    }
+  });
+
+  // ===== 动态注册 content script 到 FavsHub 网站 =====
+  const CONTENT_SCRIPT_ID = 'favshub-page-relay';
+
+  async function registerContentScript() {
+    const baseUrl = await baseUrlStorage.getValue();
+    if (!baseUrl?.trim()) return;
+
+    // 将 baseUrl 转为匹配模式
+    let urlPattern: string;
+    try {
+      const url = new URL(baseUrl);
+      urlPattern = `${url.origin}/*`;
+    } catch {
+      return;
+    }
+
+    // 先移除旧的注册
+    try {
+      await browser.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] });
+    } catch {}
+
+    await browser.scripting.registerContentScripts([{
+      id: CONTENT_SCRIPT_ID,
+      matches: [urlPattern],
+      js: ['content-scripts/content.js'],
+      runAt: 'document_start',
+    }]);
+  }
+
+  // 启动时注册 + URL 变化时重新注册
+  registerContentScript();
+  baseUrlStorage.watch(() => registerContentScript());
 });

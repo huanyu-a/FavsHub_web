@@ -14,12 +14,206 @@ let pendingWrite = null;
 let sidebarSortableInstances = [];
 const STORAGE_WRITE_INTERVAL = 1000; // 1秒的节流间隔
 
+// ===== 扩展通信：快捷访问链接 =====
+let _extConnected = undefined; // undefined = 未检测, true/false = 已检测
+
+function sendExtensionMessage(action, extraParams = {}) {
+  return new Promise((resolve) => {
+    const requestId = Date.now().toString() + Math.random().toString(36).slice(2);
+    const handler = (event) => {
+      if (event.data?.type === 'favshub-ext-response' && event.data?.requestId === requestId) {
+        window.removeEventListener('message', handler);
+        resolve(event.data.payload);
+      }
+    };
+    window.addEventListener('message', handler);
+    window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, '*');
+    setTimeout(() => { window.removeEventListener('message', handler); resolve(null); }, 3000);
+  });
+}
+
+async function detectExtension() {
+  if (_extConnected !== undefined) return _extConnected;
+  try {
+    const res = await sendExtensionMessage('ping');
+    _extConnected = !!(res && res.connected);
+  } catch {
+    _extConnected = false;
+  }
+  return _extConnected;
+}
+
 // Web 模式下显示书签容器
 function updateContainerHeight() {
   const container = document.querySelector('.bookmarks-container');
   if (!container) return;
   // 仅负责显示容器，高度由内容自适应
   container.classList.add('loaded');
+}
+
+// 从 FavsHubSettings 读取并在 DOM 中应用书签布局设置
+function applyLayoutSettings() {
+  // 书签卡片高度
+  const savedCardHeight = FavsHubSettings.get('bookmarkCardHeight');
+  if (savedCardHeight) {
+    let styleElement = document.getElementById('custom-card-height');
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = 'custom-card-height';
+      document.head.appendChild(styleElement);
+    }
+    styleElement.textContent = `.card { height: ${savedCardHeight}px !important; }`;
+  }
+
+  // 书签宽度（CSS 变量）
+  const savedBookmarkWidth = FavsHubSettings.get('bookmarkWidth') || 200;
+  document.documentElement.style.setProperty('--bookmark-width', `${savedBookmarkWidth}px`);
+
+  // 书签容器宽度
+  const savedContainerWidth = FavsHubSettings.get('bookmarkContainerWidth') || 85;
+  const bookmarksContainer = document.querySelector('.bookmarks-container');
+  if (bookmarksContainer) bookmarksContainer.style.width = `${savedContainerWidth}%`;
+}
+
+/**
+ * 统一应用所有管理员设置到页面元素。
+ * 替代原 settings.js 中 SettingsManager.applyAllSettings()，
+ * 在 FavsHubSettings.load() 完成后调用一次即可。
+ */
+function applyAllSettings() {
+  // --- 主题 ---
+  const theme = FavsHubSettings.get('theme') || 'auto';
+  let effectiveTheme = theme;
+  if (theme === 'auto') {
+    effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', effectiveTheme);
+  document.body.setAttribute('data-theme', effectiveTheme);
+  const themeSelect = document.getElementById('theme-select');
+  if (themeSelect) themeSelect.value = theme;
+  if (typeof updateThemeIcon === 'function') updateThemeIcon(effectiveTheme === 'dark');
+
+  // --- 书签布局（宽度、高度、容器宽度）---
+  applyLayoutSettings();
+
+  // --- 书签网格布局（CSS 变量 + grid）---
+  const savedWidth = FavsHubSettings.get('bookmarkWidth') || 200;
+  document.documentElement.style.setProperty('--bookmark-width', savedWidth + 'px');
+  const bookmarksList = document.getElementById('bookmarks-list');
+  if (bookmarksList) {
+    bookmarksList.style.gridTemplateColumns = `repeat(auto-fit, minmax(${savedWidth}px, 1fr))`;
+    bookmarksList.style.gap = '1rem';
+  }
+
+  // --- 容器宽度百分比 ---
+  const savedContainerWidth = FavsHubSettings.get('bookmarkContainerWidth') || 85;
+  const bContainer = document.querySelector('.bookmarks-container');
+  if (bContainer) bContainer.style.width = `${savedContainerWidth}%`;
+
+  // --- 背景（管理员设定）---
+  const adminBg = FavsHubSettings.get('selectedBackground');
+  const adminWallpaper = FavsHubSettings.get('wallpaperUrl');
+  const hasUserWallpaper = localStorage.getItem('originalWallpaper');
+
+  // 清除所有背景选项 active 状态
+  document.querySelectorAll('.settings-bg-option').forEach(opt => opt.classList.remove('active'));
+
+  if (hasUserWallpaper) {
+    // 用户壁纸优先级最高（localStorage 残留，兼容旧数据）
+    const wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${hasUserWallpaper}"]`);
+    if (wallpaperOption) wallpaperOption.classList.add('active');
+  } else if (adminWallpaper) {
+    // 管理员壁纸 URL 生效中（wallpaper.js 已应用壁纸）
+    document.documentElement.className = '';
+  } else if (adminBg) {
+    // 管理员纯色背景
+    document.documentElement.className = adminBg;
+    const activeOption = document.querySelector(`[data-bg="${adminBg}"]`);
+    if (activeOption) activeOption.classList.add('active');
+  } else {
+    // 兜底：默认梯度背景
+    document.documentElement.className = 'gradient-background-7';
+    const defaultOption = document.querySelector('[data-bg="gradient-background-7"]');
+    if (defaultOption) defaultOption.classList.add('active');
+  }
+
+  // --- 布局可见性 ---
+  const showSearchBox = FavsHubSettings.get('showSearchBox') !== false;
+  const showWelcome = FavsHubSettings.get('showWelcomeMessage') !== false;
+  const showFooterSetting = FavsHubSettings.get('showFooter') !== false;
+
+  const searchContainer = document.querySelector('.search-container');
+  if (searchContainer) searchContainer.style.display = showSearchBox ? '' : 'none';
+
+  const welcomeEl = document.getElementById('welcome-message');
+  if (welcomeEl) {
+    welcomeEl.style.visibility = 'visible';
+    welcomeEl.style.display = showWelcome ? '' : 'none';
+  }
+
+  const footerEl = document.querySelector('footer');
+  if (footerEl) footerEl.style.display = showFooterSetting ? '' : 'none';
+
+  // --- 快捷访问链接 ---
+  const toggleVis = (sel, visible) => { const el = document.querySelector(sel); if (el) el.style.display = visible ? '' : 'none'; };
+  toggleVis('#history-link', FavsHubSettings.get('showHistoryLink') !== false);
+  toggleVis('#downloads-link', FavsHubSettings.get('showDownloadsLink') !== false);
+  toggleVis('#passwords-link', FavsHubSettings.get('showPasswordsLink') !== false);
+  toggleVis('#extensions-link', FavsHubSettings.get('showExtensionsLink') !== false);
+
+  // --- 搜索引擎图标 ---
+  const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
+  updateSearchEngineIcon(defaultEngine);
+
+  console.log('[Settings] 所有管理员设置已应用到页面');
+}
+
+/**
+ * 初始化主题交互控件（系统主题变化监听、主题切换按钮）。
+ * 只需调用一次。
+ */
+function initThemeControls() {
+  // 监听系统主题变化
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (FavsHubSettings.get('theme') === 'auto') {
+      const isDark = e.matches;
+      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      if (typeof updateThemeIcon === 'function') updateThemeIcon(isDark);
+    }
+  });
+
+  // 主题选择下拉框
+  const themeSelect = document.getElementById('theme-select');
+  if (themeSelect) {
+    themeSelect.addEventListener('change', (e) => {
+      const theme = e.target.value;
+      FavsHubSettings.set('theme', theme);
+      let effective = theme;
+      if (theme === 'auto') {
+        effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', effective);
+      document.body.setAttribute('data-theme', effective);
+      if (typeof updateThemeIcon === 'function') updateThemeIcon(effective === 'dark');
+    });
+  }
+
+  // 主题切换按钮
+  const navThemeBtn = document.getElementById('navThemeBtn');
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const toggleTheme = () => {
+    const current = FavsHubSettings.get('theme') || 'light';
+    const newTheme = current === 'dark' ? 'light' : 'dark';
+    FavsHubSettings.set('theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    document.body.setAttribute('data-theme', newTheme);
+    if (typeof updateThemeIcon === 'function') updateThemeIcon(newTheme === 'dark');
+    const themeSelectEl = document.getElementById('theme-select');
+    if (themeSelectEl) themeSelectEl.value = newTheme;
+  };
+  if (navThemeBtn) navThemeBtn.addEventListener('click', toggleTheme);
+  if (themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
 }
 
 // 解决函数未定义错误，将这些函数提升到全局范围
@@ -369,47 +563,18 @@ function initSidebarNavigation() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
   // 初始化左侧导航栏
   initSidebarNavigation();
-  
-  // 应用保存的书签卡片高度设置
-  const savedCardHeight = FavsHubSettings.get('bookmarkCardHeight');
-  if (savedCardHeight) {
-    let styleElement = document.getElementById('custom-card-height');
-    if (!styleElement) {
-      styleElement = document.createElement('style');
-      styleElement.id = 'custom-card-height';
-      document.head.appendChild(styleElement);
-    }
-    styleElement.textContent = `.card { height: ${savedCardHeight}px !important; }`;
-  }
 
-  // 应用保存的书签宽度设置
-  const savedBookmarkWidth = FavsHubSettings.get('bookmarkWidth') || 190;
-  document.documentElement.style.setProperty('--bookmark-width', `${savedBookmarkWidth}px`);
+  // 等待后端设置加载完成（获取管理员全局默认设置）
+  await FavsHubSettings.load();
 
-  // 应用保存的书签容器宽度设置
-  const savedContainerWidth = FavsHubSettings.get('bookmarkContainerWidth') || 85;
-  const bookmarksContainer = document.querySelector('.bookmarks-container');
-  if (bookmarksContainer) bookmarksContainer.style.width = `${savedContainerWidth}%`;
+  // 统一应用所有管理员设置到页面
+  applyAllSettings();
 
-  // 应用布局设置
-  const showSearchBox = FavsHubSettings.get('showSearchBox');
-  if (showSearchBox === false) {
-    const searchContainer = document.querySelector('.search-container');
-    if (searchContainer) searchContainer.style.display = 'none';
-  }
-  const showWelcome = FavsHubSettings.get('showWelcomeMessage');
-  if (showWelcome === false) {
-    const welcomeEl = document.getElementById('welcome-message');
-    if (welcomeEl) welcomeEl.style.display = 'none';
-  }
-  const showFooter = FavsHubSettings.get('showFooter');
-  if (showFooter === false) {
-    const footer = document.querySelector('footer');
-    if (footer) footer.style.display = 'none';
-  }
+  // 初始化主题交互控件（系统主题监听、切换按钮）
+  initThemeControls();
 
   // 初始化手势导航，传入 updateBookmarksDisplay 函数
   initGestureNavigation(updateBookmarksDisplay);
@@ -534,7 +699,7 @@ function applyBackgroundColor() {
     if (savedBg) {
         const useDefaultBackground = FavsHubSettings.get('useDefaultBackground');
         
-        if (useDefaultBackground !== 'true') {
+        if (String(useDefaultBackground) !== 'true') {
             document.querySelectorAll('.settings-bg-option').forEach(option => {
                 option.classList.remove('active');
             });
@@ -551,8 +716,9 @@ function applyBackgroundColor() {
     }
 }
 
-// 立即调用这个函数
-applyBackgroundColor();
+// 背景初始化由 wallpaper.js（initializeWallpaper）和 DOMContentLoaded 中
+// 的背景处理逻辑按优先级统一管理，此函数保留供外部按需调用
+// applyBackgroundColor(); // 已在 DOMContentLoaded 中按正确优先级处理
 
 // 添加颜色缓存管理器
 const ColorCache = {
@@ -659,7 +825,8 @@ const ColorCache = {
 
 
 // 页面加载时更新图标
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await FavsHubSettings.load();
   const defaultEngine = SearchEngineManager.getDefaultEngine();
   if (defaultEngine) {
     updateSearchEngineIcon(defaultEngine);
@@ -768,7 +935,10 @@ function initVirtualScroll() {
 }
 
 // 3. 合并 DOMContentLoaded 事件监听器
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+  // 等待用户设置从后端加载完成（确保 search engine、openSearchInNewTab 等配置可用）
+  await FavsHubSettings.load();
+
   // 初始化虚拟滚动
   initVirtualScroll();
 
@@ -794,82 +964,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
  
 
-  // 加载保存的背景颜色
-  const savedBg = FavsHubSettings.get('selectedBackground');
-  const useDefaultBackground = FavsHubSettings.get('useDefaultBackground');
-  const hasWallpaper = localStorage.getItem('originalWallpaper');
-
-  // 清除所有选项的 active 状态
-  document.querySelectorAll('.settings-bg-option').forEach(opt => {
-    opt.classList.remove('active');
-  });
-
-  if (savedBg) {
-    if (useDefaultBackground === 'true') {
-      document.documentElement.className = savedBg;
-      const activeOption = document.querySelector(`[data-bg="${savedBg}"]`);
-      if (activeOption) {
-        activeOption.classList.add('active');
-      }
-    } else if (hasWallpaper) {
-    }
-  } else {
-    if (!hasWallpaper && useDefaultBackground !== 'false') {
-      document.documentElement.className = 'gradient-background-7';
-      const defaultOption = document.querySelector('[data-bg="gradient-background-7"]');
-      if (defaultOption) {
-        defaultOption.classList.add('active');
-      }
-    } else {
-      document.documentElement.className = '';
-    }
-  }
-
-  // 如果有壁纸，激活对应的壁纸选项
-  if (hasWallpaper) {
-    const wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${hasWallpaper}"]`);
-    if (wallpaperOption) {
-      wallpaperOption.classList.add('active');
-    }
-  }
-
-  // 背景选项点击事件
-  const bgOptions = document.querySelectorAll('.settings-bg-option');
-  bgOptions.forEach(option => {
-    option.addEventListener('click', function() {
-      const bgClass = this.getAttribute('data-bg');
-
-      // 移除所有背景选项的 active 状态
-      bgOptions.forEach(opt => {
-        opt.classList.remove('active');
-      });
-      
-      // 添加当前选项的 active 状态
-      this.classList.add('active');
-      
-      document.documentElement.className = bgClass;
-      FavsHubSettings.setMany({ selectedBackground: bgClass, useDefaultBackground: 'true' });
-      
-      // 清除壁纸相关的状态
-      document.querySelectorAll('.wallpaper-option').forEach(opt => {
-        opt.classList.remove('active');
-      });
-
-      // 清除壁纸
-      const mainElement = document.querySelector('main');
-      if (mainElement) {
-        mainElement.style.backgroundImage = 'none';
-        document.body.style.backgroundImage = 'none';
-      }
-      localStorage.removeItem('originalWallpaper');
-
-      // 使用 WelcomeManager 更新欢迎消息颜色
-      const welcomeElement = document.getElementById('welcome-message');
-      if (welcomeElement && window.WelcomeManager) {
-        window.WelcomeManager.adjustTextColor(welcomeElement);
-      }
-    });
-  });
+  // 背景应用已由第一个 DOMContentLoaded 中的 applyAllSettings() 统一处理
 
   // 监听主题变化
   const observer = new MutationObserver((mutations) => {
@@ -891,9 +986,6 @@ document.addEventListener('DOMContentLoaded', function() {
     attributes: true,
   });
 
-  // 快捷链接功能已删除
-  // chrome.storage.sync.get(['enableQuickLinks'], function(result) { ... });
-
   // 检测是否在 Side Panel 中运行
   const isSidePanel = window.location.search.includes('context=side_panel') || 
                      window.location.hash.includes('context=side_panel');
@@ -911,7 +1003,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 隐藏一些在 Side Panel 中不需要的元素
     const elementsToHide = [
       '.theme-toggle',
-      '.links-icons',
       '.settings-icon'
     ];
 
@@ -979,35 +1070,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 应用保存的书签宽度设置（已在上方 FavsHubSettings.get 中处理）
+  // 布局和可见性设置已由第一个 DOMContentLoaded 中的 applyAllSettings() 统一处理
 
-  // 应用保存的书签容器宽度设置（已在上方 FavsHubSettings.get 中处理）
-
-  // 应用保存的界面元素显示设置
-  const searchContainer2 = document.querySelector('.search-container');
-  if (searchContainer2) searchContainer2.style.display = FavsHubSettings.get('showSearchBox') !== false ? '' : 'none';
-
-  const welcomeMessage = document.getElementById('welcome-message');
-  if (welcomeMessage) {
-    welcomeMessage.style.visibility = 'visible';
-    welcomeMessage.style.display = FavsHubSettings.get('showWelcomeMessage') !== false ? '' : 'none';
-  }
-
-  const footer2 = document.querySelector('footer');
-  if (footer2) footer2.style.display = FavsHubSettings.get('showFooter') !== false ? '' : 'none';
-
-  const toggleVis = (sel, visible) => { const el = document.querySelector(sel); if (el) el.style.display = visible ? '' : 'none'; };
-  toggleVis('#history-link', FavsHubSettings.get('showHistoryLink') !== false);
-  toggleVis('#downloads-link', FavsHubSettings.get('showDownloadsLink') !== false);
-  toggleVis('#passwords-link', FavsHubSettings.get('showPasswordsLink') !== false);
-  toggleVis('#extensions-link', FavsHubSettings.get('showExtensionsLink') !== false);
-
-  const linksContainer2 = document.querySelector('.links-icons');
-  if (linksContainer2) {
-    const allHidden = FavsHubSettings.get('showHistoryLink') === false && FavsHubSettings.get('showDownloadsLink') === false
-      && FavsHubSettings.get('showPasswordsLink') === false && FavsHubSettings.get('showExtensionsLink') === false;
-    linksContainer2.style.display = allHidden ? 'none' : '';
-  }
+  // 快捷访问链接：检测扩展并绑定点击事件
+  detectExtension().then(extConnected => {
+    if (!extConnected) {
+      // Web 模式：隐藏需要扩展的链接
+      ['#history-link', '#downloads-link', '#passwords-link', '#extensions-link'].forEach(sel => {
+        const el = document.querySelector(sel);
+        if (el) el.style.display = 'none';
+      });
+      return;
+    }
+    // 扩展模式：绑定点击事件
+    const linkActions = {
+      '#history-link': 'openHistory',
+      '#downloads-link': 'openDownloads',
+      '#passwords-link': 'openPasswords',
+      '#extensions-link': 'openExtensions',
+    };
+    Object.entries(linkActions).forEach(([sel, action]) => {
+      const el = document.querySelector(sel);
+      if (el) {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          sendExtensionMessage(action);
+        });
+      }
+    });
+  });
 });
 
 // 修改书签缓存对象的定义
@@ -1024,6 +1115,7 @@ const bookmarksCache = {
 
     this.data.set(parentId, {
       timestamp: Date.now(),
+      data: bookmarks
     });
   },
 
@@ -1083,7 +1175,10 @@ function updateBookmarkCards() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+  // 等待设置加载完成（search engine、openSearchInNewTab、建议开关等）
+  await FavsHubSettings.load();
+
   // Create context menu immediately when the document loads
   contextMenu = createContextMenu();
   
@@ -1430,203 +1525,6 @@ async function waitForFirstCategory(attemptsLeft = 5) {
   }
 }
 
-// 文件夹切换功能已删除
-/*
-// 修改 initDefaultFoldersTabs 函数
-async function initDefaultFoldersTabs() {
-  const tabsContainer = document.querySelector('.tabs-container');
-  const defaultFoldersTabs = document.querySelector('.default-folders-tabs');
-  
-  if (!tabsContainer || !defaultFoldersTabs) {
-    console.error('Tabs container not found');
-    return;
-  }
-
-  // 获取默认文件夹列表
-  const data = { defaultFolders: FavsHubSettings.get('defaultFolders') || [], lastViewedFolder: FavsHubSettings.get('lastViewedFolder') };
-  let defaultFolders = Array.isArray(data.defaultFolders) ? data.defaultFolders : (data.defaultFolders?.items || []);
-  const lastViewedFolder = data.lastViewedFolder;
-  
-  // 确保文件夹按 order 排序
-  defaultFolders = defaultFolders.sort((a, b) => a.order - b.order);
-  
-
-  // 清空现有标签
-  tabsContainer.innerHTML = '';
-
-  // 创建标签
-  for (const folder of defaultFolders) {
-    const tab = document.createElement('div');
-    tab.className = 'folder-tab';
-    tab.dataset.folderId = folder.id;
-    tab.dataset.order = folder.order;
-    tab.dataset.name = folder.name;
-    tab.addEventListener('click', () => switchToFolder(folder.id));
-    tabsContainer.appendChild(tab);
-  }
-
-  // 只调用一次更新书签树
-  chrome.bookmarks.getTree(function (nodes) {
-    bookmarkTreeNodes = nodes;
-    displayBookmarkCategories(bookmarkTreeNodes[0].children, 0, null, '1');
-  });
-
-  // 如果有默认文件夹，激活第一个或上次访问的文件夹
-  if (defaultFolders.length > 0) {
-    let folderToActivate;
-    
-    // 检查上次访问的文件夹是否在默认文件夹列表中
-    if (lastViewedFolder && defaultFolders.some(f => f.id === lastViewedFolder)) {
-      folderToActivate = lastViewedFolder;
-    } else {
-      // 否则使用第一个默认文件夹
-      folderToActivate = defaultFolders[0].id;
-    }
-
-    // 激活选中的文件夹
-    const activeTab = document.querySelector(`.folder-tab[data-folder-id="${folderToActivate}"]`);
-    if (activeTab) {
-      activeTab.classList.add('active');
-      activeTab.style.transform = 'scale(1.2)';
-    }
-
-    // 切换到选中的文件夹
-    await switchToFolder(folderToActivate);
-  } else {
-    // 当没有默认文件夹时，切换到根文件夹或其他指定文件夹
-    await switchToFolder('1'); // '1' 是根文件夹的 ID
-  }
-
-  // 重新初始化滚轮切换功能
-  initWheelSwitching();
-
-  // 更新显示状态
-  updateDefaultFoldersTabsVisibility();
-
-  return defaultFolders;
-}
-*/
-
-// 文件夹切换功能已删除
-/*
-// 修改滚轮切换功能的实现
-function initWheelSwitching() {
-  const main = document.querySelector('main');
-  if (!main) return;
-
-  let wheelTimeout;
-  let isProcessing = false;
-  let wheelEventListener = null;
-  let isEnabled = false; // 默认禁用
-  
-  // 创建滚轮事件处理函数
-  const wheelHandler = async (event) => {
-    // 如果功能被禁用，直接返回
-    if (!isEnabled) return;
-    
-    // 检查是否在搜索相关元素内滚动
-    if (event.target.closest('#bookmarks-list') || 
-        event.target.closest('.search-form') || 
-        event.target.closest('.search-suggestions') ||
-        event.target.closest('.search-suggestions-wrapper')) {
-      return;
-    }
-
-    // 防止重复触发
-    if (isProcessing) return;
-
-    // 防抖处理
-    clearTimeout(wheelTimeout);
-    wheelTimeout = setTimeout(async () => {
-      isProcessing = true;
-
-      try {
-        const data = FavsHubSettings.get('defaultFolders') || [];
-        const defaultFolders = Array.isArray(data.defaultFolders) ? data.defaultFolders : (data.defaultFolders?.items || []);
-        if (defaultFolders.length <= 1) {
-          isProcessing = false;
-          return;
-        }
-
-        // 获取当前激活的标签
-        const activeTab = document.querySelector('.folder-tab.active');
-        if (!activeTab) {
-          isProcessing = false;
-          return;
-        }
-
-        const currentOrder = parseInt(activeTab.dataset.order);
-        let nextOrder;
-
-        // 根据滚动方向决定下一个标签
-        if (event.deltaY > 0) { // 向下滚动
-          nextOrder = currentOrder + 1;
-          if (nextOrder >= defaultFolders.length) {
-            nextOrder = 0;
-          }
-        } else { // 向上滚动
-          nextOrder = currentOrder - 1;
-          if (nextOrder < 0) {
-            nextOrder = defaultFolders.length - 1;
-          }
-        }
-
-        // 找到对应顺序的文件夹并切换
-        const nextFolder = defaultFolders.find(f => f.order === nextOrder);
-        if (nextFolder) {
-          await switchToFolder(nextFolder.id);
-          
-          // 添加切换动画效果
-          const tabs = document.querySelectorAll('.folder-tab');
-          tabs.forEach(tab => {
-            if (tab.dataset.folderId === nextFolder.id) {
-              tab.classList.add('switching');
-              tab.style.transform = 'scale(1.2)';
-              setTimeout(() => {
-                tab.classList.remove('switching');
-              }, 1500);
-            } else {
-              tab.style.transform = 'scale(1)';
-            }
-          });
-        }
-      } catch (error) {
-        console.error('Error in wheel switching:', error);
-      } finally {
-        // 设置一个短暂的冷却时间
-        setTimeout(() => {
-          isProcessing = false;
-        }, 150);
-      }
-    }, 50); // 50ms 的防抖延迟
-  };
-  
-  // 添加或移除事件监听器的函数
-  const updateWheelListener = (enabled) => {
-    if (enabled) {
-      if (!wheelEventListener) {
-        main.addEventListener('wheel', wheelHandler, { passive: true });
-        wheelEventListener = wheelHandler;
-      }
-    } else {
-      if (wheelEventListener) {
-        main.removeEventListener('wheel', wheelEventListener);
-        wheelEventListener = null;
-      }
-    }
-  };
-  
-  // 检查设置并初始化
-  isEnabled = FavsHubSettings.get('enableWheelSwitching') || false;
-  updateWheelListener(isEnabled);
-  
-  // 监听设置变化
-  document.addEventListener('wheelSwitchingChanged', (event) => {
-    isEnabled = event.detail.enabled;
-    updateWheelListener(isEnabled);
-  });
-}
-*/
 
 // 修改文件夹切换函数，确保同步更新所有状态
 async function switchToFolder(folderId) {
@@ -3787,7 +3685,7 @@ function startPeriodicSync() {
 let isRequestPending = false;
 
 function setupSpecialLinks() {
-  const specialLinks = document.querySelectorAll('.links-icons a, .settings-icon a, .sidebar-toolbar a');
+  const specialLinks = document.querySelectorAll('.settings-icon a, .sidebar-toolbar a');
   let isProcessingClick = false;
 
   specialLinks.forEach(link => {
@@ -4696,12 +4594,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const searchInput = document.querySelector('.search-input');
   const searchEngineIcon = document.getElementById('search-engine-icon');
 
-  searchInput.addEventListener('focus', function () {
+  searchInput.addEventListener('focus', async function () {
     searchForm.classList.add('focused');
     if (searchInput.value.trim() === '') {
-      showDefaultSuggestions();
+      await showDefaultSuggestions();
     } else {
-      const suggestions = getSuggestions(searchInput.value.trim());
+      const suggestions = await getSuggestions(searchInput.value.trim());
       showSuggestions(suggestions);
     }
   });
@@ -4892,53 +4790,51 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
   async function getRecentHistory(limit = 100, maxPerDomain = 5) {
-    return new Promise((resolve) => {
-      chrome.history.search({ text: '', maxResults: limit * 20 }, (historyItems) => {
-        const now = Date.now();
-        const domainCounts = {};
-        const uniqueItems = new Map();
+    let historyItems = [];
 
-        const recentHistory = historyItems
-          // 映射并添加额外信息
-          .map(item => {
-            const url = new URL(item.url);
-            const domain = url.hostname;
-            return {
-              text: item.title,
-              url: item.url,
-              domain: domain,
-              type: 'history',
-              relevance: 1,
-              timestamp: item.lastVisitTime
-            };
-          })
-          // 按时间排序（最近的优先）
-          .sort((a, b) => b.timestamp - a.timestamp)
-          // 去重（基于URL和标题）并限制每个域名的数量
-          .filter(item => {
-            const key = `${item.url}|${item.text}`;
-            if (uniqueItems.has(key)) return false;
-            
-            domainCounts[item.domain] = (domainCounts[item.domain] || 0) + 1;
-            if (domainCounts[item.domain] > maxPerDomain) return false;
-            
-            uniqueItems.set(key, item);
-            return true;
-          })
-          // 应用时间衰减因子
-          .map(item => {
-            const daysSinceLastVisit = (now - item.timestamp) / (1000 * 60 * 60 * 24);
-            item.relevance *= Math.exp(-daysSinceLastVisit / RELEVANCE_CONFIG.timeDecayHalfLife);
-            return item;
-          })
-          // 再次排序，这次基于相关性（考虑了时间衰减）
-          .sort((a, b) => b.relevance - a.relevance)
-          // 限制结果数量
-          .slice(0, limit);
+    // 扩展模式：通过 content script 中继调用真实的 chrome.history.search
+    if (document.documentElement.getAttribute('data-favshub-ext') === 'active') {
+      const res = await sendExtensionMessage('searchHistory', { text: '', maxResults: limit * 20 });
+      if (res && res.success && res.items) {
+        historyItems = res.items;
+      }
+    }
 
-        resolve(recentHistory);
-      });
-    });
+    const now = Date.now();
+    const domainCounts = {};
+    const uniqueItems = new Map();
+
+    const recentHistory = historyItems
+      .map(item => {
+        let domain;
+        try { domain = new URL(item.url).hostname; } catch { domain = ''; }
+        return {
+          text: item.title,
+          url: item.url,
+          domain: domain,
+          type: 'history',
+          relevance: 1,
+          timestamp: item.lastVisitTime
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .filter(item => {
+        const key = `${item.url}|${item.text}`;
+        if (uniqueItems.has(key)) return false;
+        domainCounts[item.domain] = (domainCounts[item.domain] || 0) + 1;
+        if (domainCounts[item.domain] > maxPerDomain) return false;
+        uniqueItems.set(key, item);
+        return true;
+      })
+      .map(item => {
+        const daysSinceLastVisit = (now - item.timestamp) / (1000 * 60 * 60 * 24);
+        item.relevance *= Math.exp(-daysSinceLastVisit / RELEVANCE_CONFIG.timeDecayHalfLife);
+        return item;
+      })
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, limit);
+
+    return recentHistory;
   }
   // 在文件顶部定义 RELEVANCE_CONFIG
   const RELEVANCE_CONFIG = {
@@ -4951,25 +4847,6 @@ document.addEventListener('DOMContentLoaded', function () {
     fuzzyMatchWeight: 1.5,
     bookmarkRelevanceBoost: 1.2
   };
-  function searchHistory(query, maxResults = 200) {
-    return new Promise((resolve) => {
-      const startTime = new Date().getTime() - (30 * 24 * 60 * 60 * 1000); // 搜索最近30天的历史
-      chrome.history.search(
-        { 
-          text: query, 
-          startTime: startTime,
-          maxResults: maxResults 
-        }, 
-        (results) => {
-          
-          // 对历史记录进行去重
-          const uniqueResults = Array.from(new Set(results.map(r => r.url)))
-            .map(url => results.find(r => r.url === url));
-          resolve(uniqueResults);
-        }
-      );
-    });
-  }
 
   // 计算模糊匹配分数
   function calculateFuzzyMatch(query, text) {
@@ -5087,14 +4964,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-  searchInput.addEventListener('focus', function () {
-    searchForm.classList.add('focused');
-  });
-
-  searchInput.addEventListener('blur', function () {
-    searchForm.classList.remove('focused');
-  });
-
   if (!searchForm || !searchInput || !tabsContainer || !searchEngineIcon) {
     return;
   }
@@ -5198,79 +5067,34 @@ document.addEventListener('DOMContentLoaded', function () {
       return []; // 返回空数组，以便在出错时程序可以继续运行
     }
   }
-  async function getRecentHistory(limit = 100, maxPerDomain = 5) {
-    return new Promise((resolve) => {
-      chrome.history.search({ text: '', maxResults: limit * 20 }, (historyItems) => {
-        const now = Date.now();
-        const domainCounts = {};
-        const uniqueItems = new Map();
-
-        const recentHistory = historyItems
-          // 映射并添加额外信息
-          .map(item => {
-            const url = new URL(item.url);
-            const domain = url.hostname;
-            return {
-              text: item.title,
-              url: item.url,
-              domain: domain,
-              type: 'history',
-              relevance: 1,
-              timestamp: item.lastVisitTime
-            };
-          })
-          // 按时间排序（最近的优先）
-          .sort((a, b) => b.timestamp - a.timestamp)
-          // 去重（基于URL和标题）并限制每个域名的数量
-          .filter(item => {
-            const key = `${item.url}|${item.text}`;
-            if (uniqueItems.has(key)) return false;
-            
-            domainCounts[item.domain] = (domainCounts[item.domain] || 0) + 1;
-            if (domainCounts[item.domain] > maxPerDomain) return false;
-            
-            uniqueItems.set(key, item);
-            return true;
-          })
-          // 应用时间衰减因子
-          .map(item => {
-            const daysSinceLastVisit = (now - item.timestamp) / (1000 * 60 * 60 * 24);
-            item.relevance *= Math.exp(-daysSinceLastVisit / RELEVANCE_CONFIG.timeDecayHalfLife);
-            return item;
-          })
-          // 再次排序，这次基于相关性（考虑了时间衰减）
-          .sort((a, b) => b.relevance - a.relevance)
-          // 限制结果数量
-          .slice(0, limit);
-
-        resolve(recentHistory);
-      });
-    });
-  }
 
   function searchHistory(query, maxResults = 200) {
-    return new Promise((resolve) => {
-      const startTime = new Date().getTime() - (30 * 24 * 60 * 60 * 1000); // 搜索最近30天的历史
-      chrome.history.search(
-        { 
-          text: query, 
-          startTime: startTime,
-          maxResults: maxResults 
-        }, 
-        (results) => {
-          
-          // 对历史记录进行去重
-          const uniqueResults = Array.from(new Set(results.map(r => r.url)))
-            .map(url => results.find(r => r.url === url));
+    return new Promise(async (resolve) => {
+      // 扩展模式：通过 content script 中继调用真实 chrome.history.search
+      if (document.documentElement.getAttribute('data-favshub-ext') === 'active') {
+        const startTime = new Date().getTime() - (30 * 24 * 60 * 60 * 1000);
+        const res = await sendExtensionMessage('searchHistory', {
+          text: query,
+          maxResults: maxResults,
+          startTime: startTime
+        });
+        if (res && res.success && res.items) {
+          const uniqueResults = Array.from(new Set(res.items.map(r => r.url)))
+            .map(url => res.items.find(r => r.url === url));
           resolve(uniqueResults);
+          return;
         }
-      );
+      }
+      resolve([]);
     });
   }
   // 获取搜索建议
   async function getSuggestions(query) {
-    const maxHistoryResults = 200;
-    const maxBookmarkResults = 50;
+    // 如果管理员关闭了搜索建议总开关，只返回搜索词本身
+    if (FavsHubSettings.get('showSearchSuggestions') === false) {
+      return [{ text: query, type: 'search', relevance: Infinity }];
+    }
+
     const maxTotalSuggestions = 50;
 
     let suggestions = [{ text: query, type: 'search', relevance: Infinity }];
@@ -5282,10 +5106,10 @@ document.addEventListener('DOMContentLoaded', function () {
       showPromptSuggestions: FavsHubSettings.get('showPromptSuggestions') !== false,
     };
 
-    // 根据设置获取历史记录建议
+    // === 历史记录建议（仅扩展模式，需要 chrome.history API）===
     let historySuggestions = [];
-    if (settings.showHistorySuggestions !== false) {
-      const historyItems = await searchHistory(query, maxHistoryResults);
+    if (settings.showHistorySuggestions && document.documentElement.getAttribute('data-favshub-ext') === 'active') {
+      const historyItems = await searchHistory(query, 200);
       historySuggestions = historyItems.map(item => ({
         text: item.title,
         url: item.url,
@@ -5295,34 +5119,50 @@ document.addEventListener('DOMContentLoaded', function () {
       }));
     }
 
-    // 根据设置获取书签建议
+    // === 书签建议（通过后端 API 多字段搜索）===
     let bookmarkSuggestions = [];
-    if (settings.showBookmarkSuggestions !== false) {
-      const bookmarkItems = await new Promise(resolve => {
-        chrome.bookmarks.search(query, resolve);
-      });
-      bookmarkSuggestions = bookmarkItems.slice(0, maxBookmarkResults).map(item => ({
-        text: item.title,
-        url: item.url,
-        type: 'bookmark',
-        relevance: calculateRelevance(query, item.title, item.url) * RELEVANCE_CONFIG.bookmarkRelevanceBoost
-      }));
+    if (settings.showBookmarkSuggestions) {
+      try {
+        const result = await api.searchBookmarks(query, 50);
+        if (result && result.bookmarks) {
+          bookmarkSuggestions = result.bookmarks.map(item => ({
+            text: item.title,
+            url: item.url,
+            type: 'bookmark',
+            // 不在这里乘 bookmarkRelevanceBoost，由 balanceResults 统一处理（避免双重 boost）
+            relevance: calculateRelevance(query, item.title, item.url)
+          }));
+        }
+      } catch (e) {
+        console.warn('[Search] 书签搜索失败:', e);
+      }
     }
 
-    // 获取提示词建议（如果 PromptPro 搜索已初始化且设置允许）
+    // === 提示词建议（通过后端 API 搜索 + calculatePromptScore 评分）===
     let promptSuggestions = [];
-    if (settings.showPromptSuggestions !== false && window.promptProSearch && window.promptProSearch.initialized) {
-      const promptResults = window.promptProSearch.search(query);
-      // 只取前5个最高分的提示词，使用对数函数压缩分数范围
-      promptSuggestions = promptResults.slice(0, 5).map(prompt => ({
-        text: prompt.title,
-        url: `promptpro://detail/${prompt.prompt_id}`,
-        type: 'prompt',
-        // 使用对数函数将分数压缩到合理范围（约 20-120）
-        // log(100) ≈ 4.6, log(10000) ≈ 9.2, log(25000) ≈ 10.1
-        relevance: Math.round(Math.log((prompt._score || 0) + 1) * 12),
-        promptData: prompt
-      }));
+    if (settings.showPromptSuggestions) {
+      try {
+        const result = await api.getPrompts({ search: query, limit: 20 });
+        if (result && result.prompts) {
+          // 使用与 promptpro-search.js 一致的 calculatePromptScore 算法
+          const keywords = query.trim()
+            .split(/[\s\u3000\u2000-\u206f\u3000-\u303f\uff00-\uffef,.!?;:，。！？；：、]+/)
+            .filter(k => k.length > 0);
+          promptSuggestions = result.prompts
+            .map(prompt => ({
+              text: prompt.title,
+              url: `promptpro://detail/${prompt.prompt_id || prompt.id}`,
+              type: 'prompt',
+              relevance: calculatePromptScore(prompt, keywords),
+              promptData: prompt
+            }))
+            .filter(p => p.relevance > 0)
+            .sort((a, b) => b.relevance - a.relevance)
+            .slice(0, 5);
+        }
+      } catch (e) {
+        console.warn('[Search] 提示词搜索失败:', e);
+      }
     }
 
     // 合并所有建议
@@ -5332,15 +5172,108 @@ document.addEventListener('DOMContentLoaded', function () {
       ...promptSuggestions
     );
 
-    // 对结果进行排序和去重
-    const uniqueSuggestions = Array.from(new Set(suggestions.map(s => s.url)))
-      .map(url => suggestions.find(s => s.url === url))
+    // 对结果去重（保留同一 URL 中 relevance 最高的条目）并排序
+    const urlBestMap = new Map();
+    for (const s of suggestions) {
+      if (!s.url) continue;
+      const existing = urlBestMap.get(s.url);
+      if (!existing || s.relevance > existing.relevance) {
+        urlBestMap.set(s.url, s);
+      }
+    }
+    // 搜索词本身（relevance: Infinity）也需要保留
+    const uniqueSuggestions = Array.from(urlBestMap.values())
       .sort((a, b) => b.relevance - a.relevance);
 
     // 平衡和交替显示结果
     const balancedResults = await balanceResults(uniqueSuggestions, maxTotalSuggestions);
 
     return balancedResults;
+  }
+
+  /**
+   * 提示词搜索评分算法（与 promptpro-search.js 的 calculateScore 保持一致）
+   * 支持 title/tags/description/folder_name/content 多字段加权匹配
+   */
+  function calculatePromptScore(prompt, keywords) {
+    if (!keywords || keywords.length === 0) return 0;
+
+    const title = (prompt.title || '').toLowerCase();
+    const desc = (prompt.description || '').toLowerCase();
+    const content = (prompt.content || '').toLowerCase();
+    const folder = (prompt.folder_name || '').toLowerCase();
+    const tagNames = (prompt.tags || []).map(t => (t.tag_name || t.name || '').toLowerCase());
+
+    let totalScore = 0;
+    let titleMatchedCount = 0;
+    let tagMatchedCount = 0;
+    let descMatchedCount = 0;
+    let folderMatchedCount = 0;
+    let contentMatchedCount = 0;
+
+    for (const keyword of keywords) {
+      // 标题匹配（权重最高）
+      if (title.includes(keyword)) {
+        if (title === keyword) totalScore += 10000;
+        else if (title.startsWith(keyword)) totalScore += 8000;
+        else totalScore += 5000;
+        titleMatchedCount++;
+      }
+
+      // 标签匹配
+      if (tagNames.some(tag => tag.includes(keyword))) {
+        totalScore += 2000;
+        tagMatchedCount++;
+      }
+
+      // 描述匹配
+      if (desc.includes(keyword)) {
+        if (desc.startsWith(keyword)) totalScore += 1500;
+        else totalScore += 1000;
+        descMatchedCount++;
+      }
+
+      // 文件夹匹配
+      if (folder.includes(keyword)) {
+        totalScore += 800;
+        folderMatchedCount++;
+      }
+
+      // 内容匹配（权重最低）
+      if (content.includes(keyword)) {
+        totalScore += 300;
+        contentMatchedCount++;
+      }
+    }
+
+    // 标题中包含所有关键词时，给予极高奖励
+    if (titleMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 5000;
+    }
+
+    // 标签中包含所有关键词时，给予高奖励
+    if (tagMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 3000;
+    }
+
+    // 描述中包含所有关键词时，给予中等奖励
+    if (descMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 1500;
+    }
+
+    // 跨字段匹配奖励（标题+标签、标题+描述等）
+    const fieldsMatched = [
+      titleMatchedCount > 0,
+      tagMatchedCount > 0,
+      descMatchedCount > 0,
+      folderMatchedCount > 0
+    ].filter(Boolean).length;
+
+    if (fieldsMatched >= 2 && keywords.length > 1) {
+      totalScore += fieldsMatched * 1000;
+    }
+
+    return totalScore;
   }
 
   function calculateRelevance(query, title, url) {
@@ -5505,12 +5438,14 @@ document.addEventListener('DOMContentLoaded', function () {
       return b;
     });
 
-    // 合并所有建议（提示词已经在前面的 getSuggestions 中限制为最多5个）
-    const allItems = [...bookmarks, ...histories, ...prompts, ...bingSuggestions];
-    
-    // 统一按相关性降序排序
-    allItems.sort((a, b) => b.relevance - a.relevance);
+    // 各组内部按相关性降序排序
+    bookmarks.sort((a, b) => b.relevance - a.relevance);
+    prompts.sort((a, b) => b.relevance - a.relevance);
+    histories.sort((a, b) => b.relevance - a.relevance);
 
+    // 合并顺序：书签 → 提示词 → 历史记录
+    const allItems = [...bookmarks, ...prompts, ...histories, ...bingSuggestions];
+    
     // 取前 maxResults - 1 个项目（减去搜索项）
     const results = [...currentSuggestion, ...allItems.slice(0, maxResults - 1)];
 
@@ -5646,7 +5581,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     searchSuggestions.appendChild(fragment);
     displayedSuggestions += suggestionsToAdd;
-
   }
 
   function throttle(func, limit) {
@@ -5824,6 +5758,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   async function showDefaultSuggestions() {
+    // 如果管理员关闭了搜索建议总开关，不显示任何建议
+    if (FavsHubSettings.get('showSearchSuggestions') === false) {
+      hideSuggestions();
+      return;
+    }
+
     // 首先检查设置
     const settings = {
       showHistorySuggestions: FavsHubSettings.get('showHistorySuggestions') !== false,
@@ -5833,8 +5773,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let suggestions = [];
 
-    // 只有在启用了历史记录建议时才获取历史记录
-    if (settings.showHistorySuggestions !== false) {
+    // === 历史记录建议（仅扩展模式，需要 chrome.history API）===
+    if (settings.showHistorySuggestions && document.documentElement.getAttribute('data-favshub-ext') === 'active') {
       const recentHistory = await getRecentHistory(20);
       suggestions = suggestions.concat(recentHistory.map(item => ({
         text: item.text,
@@ -5842,38 +5782,52 @@ document.addEventListener('DOMContentLoaded', function () {
         type: 'history',
         relevance: item.relevance
       })));
-    } else {
-      // 如果历史记录已关闭且没有搜索词，不显示任何建议
-      if (!searchInput.value.trim()) {
-        hideSuggestions();
-        return;
+    }
+
+    // === 书签建议（通过后端 API 获取最近的书签）===
+    if (settings.showBookmarkSuggestions) {
+      try {
+        const result = await api.getBookmarks();
+        if (result && result.bookmarks) {
+          // URL 去重：保留 sort_order 更小的（更靠前的）
+          const seenUrls = new Set();
+          const recentBookmarks = result.bookmarks
+            .filter(item => item.title && item.url)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+            .filter(item => {
+              if (seenUrls.has(item.url)) return false;
+              seenUrls.add(item.url);
+              return true;
+            })
+            .slice(0, 10);
+          suggestions = suggestions.concat(recentBookmarks.map(item => ({
+            text: item.title,
+            url: item.url,
+            type: 'bookmark',
+            relevance: 1
+          })));
+        }
+      } catch (e) {
+        console.warn('[Search] 获取默认书签失败:', e);
       }
     }
 
-    // 如果启用了书签建议，可以在这里添加最近的书签
-    if (settings.showBookmarkSuggestions !== false) {
-      const recentBookmarks = await new Promise(resolve => {
-        chrome.bookmarks.getRecent(10, resolve);
-      });
-      
-      suggestions = suggestions.concat(recentBookmarks.map(item => ({
-        text: item.title,
-        url: item.url,
-        type: 'bookmark',
-        relevance: 1
-      })));
-    }
-
-    // 如果启用了提示词建议，添加最近的提示词
-    if (settings.showPromptSuggestions !== false && window.promptProSearch && window.promptProSearch.initialized) {
-      const recentPrompts = window.promptProSearch.getRecentPrompts ? window.promptProSearch.getRecentPrompts(10) : [];
-      suggestions = suggestions.concat(recentPrompts.map(prompt => ({
-        text: prompt.title,
-        url: `promptpro://edit/${prompt.prompt_id}`,
-        type: 'prompt',
-        relevance: 0.5,
-        promptData: prompt
-      })));
+    // === 提示词建议（通过后端 API 获取最近的提示词）===
+    if (settings.showPromptSuggestions) {
+      try {
+        const result = await api.getPrompts({ limit: 10 });
+        if (result && result.prompts) {
+          suggestions = suggestions.concat(result.prompts.slice(0, 5).map(prompt => ({
+            text: prompt.title,
+            url: `promptpro://detail/${prompt.prompt_id || prompt.id}`,
+            type: 'prompt',
+            relevance: 0.5,
+            promptData: prompt
+          })));
+        }
+      } catch (e) {
+        console.warn('[Search] 获取默认提示词失败:', e);
+      }
     }
 
     // 如果没有任何建议，则不显示建议列表
@@ -5881,6 +5835,9 @@ document.addEventListener('DOMContentLoaded', function () {
       hideSuggestions();
       return;
     }
+
+    // 按 relevance 降序排序
+    suggestions.sort((a, b) => b.relevance - a.relevance);
 
     showSuggestions(suggestions);
   }
@@ -5901,20 +5858,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     updateSubmitButtonState();
   }, 300);
-
-  // 同样修改 focus 事件监听器
-  searchInput.addEventListener('focus', async () => {
-    const searchForm = document.querySelector('.search-form');
-    searchForm.classList.add('focused');
-    
-    if (searchInput.value.trim() === '') {
-      await showDefaultSuggestions();
-    } else {
-      const suggestions = await getSuggestions(searchInput.value.trim());
-      // 移除 length > 1 的判断
-      showSuggestions(suggestions);
-    }
-  });
 
   // 处理输入事件
   searchInput.addEventListener('input', () => {
@@ -5954,7 +5897,11 @@ document.addEventListener('DOMContentLoaded', function () {
           if (suggestionType === 'history' || suggestionType === 'bookmark') {
             const url = selectedItem.getAttribute('data-url');
             if (url) {
-              window.open(url, '_blank');
+              if (FavsHubSettings.get('openSearchInNewTab') !== false) {
+                window.open(url, '_blank');
+              } else {
+                window.location.href = url;
+              }
               hideSuggestions();
               return;
             }
@@ -6068,7 +6015,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
 // 确保在 DOMContentLoaded 时调用创建函数
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+  await FavsHubSettings.load();
   createSearchEngineDropdown();
   // ... 其他初始化代码 ...
 
@@ -6108,17 +6056,6 @@ document.addEventListener('DOMContentLoaded', function() {
       event.stopPropagation();
     });
   }
-
-  // 添加一个全局函数用于更新快捷链接显示状态
-  // 快捷链接功能已删除
-  // function updateQuickLinksVisibility() { ... }
-
-  // 监听存储变化 - 快捷链接相关已删除
-  // chrome.storage.onChanged.addListener(function(changes, namespace) {
-  //   if (namespace === 'sync' && changes.enableQuickLinks) {
-  //     updateQuickLinksVisibility();
-  //   }
-  // });
 
   // 添加搜索引擎变更事件监听
   document.addEventListener('defaultSearchEngineChanged', (event) => {

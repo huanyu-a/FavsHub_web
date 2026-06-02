@@ -179,6 +179,19 @@ ensureColumn('prompt_folders', 'icon', "ALTER TABLE prompt_folders ADD COLUMN ic
 ensureColumn('folders', 'icon', "ALTER TABLE folders ADD COLUMN icon TEXT DEFAULT ''");
 ensureColumn('prompt_versions', 'variables', "ALTER TABLE prompt_versions ADD COLUMN variables TEXT DEFAULT ''");
 ensureColumn('bookmarks', 'container', "ALTER TABLE bookmarks ADD COLUMN container TEXT DEFAULT ''");
+ensureColumn('bookmarks', 'updated_at', 'ALTER TABLE bookmarks ADD COLUMN updated_at INTEGER');
+ensureColumn('bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT ''");
+ensureColumn('folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER');
+
+// 唯一索引：支持增量合并的 upsert 操作
+try {
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_url_folder ON bookmarks(user_id, url, COALESCE(folder_id, -1))');
+} catch (err) {
+  console.error('[DB] 创建唯一索引失败:', err.message);
+}
+
+// 迁移：确保系统用户存在（id=0），用于存储全局默认设置
+db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (0, ?, ?)').run('_system', '');
 
 // 迁移：如果没有任何管理员，将第一个用户设为管理员
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get().c;

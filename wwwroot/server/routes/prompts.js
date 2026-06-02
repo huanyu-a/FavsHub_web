@@ -9,7 +9,7 @@ router.use(authMiddleware);
 // 获取提示词列表
 router.get('/', (req, res) => {
   const { folder_id, tag_ids, search, favorites } = req.query;
-  let sql = 'SELECT p.* FROM prompts p WHERE p.user_id = ?';
+  let sql = 'SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE p.user_id = ?';
   const params = [req.user.id];
 
   if (folder_id) {
@@ -25,9 +25,16 @@ router.get('/', (req, res) => {
     params.push(...ids, ids.length);
   }
   if (search) {
-    sql += ' AND (p.title LIKE ? OR p.description LIKE ? OR p.content LIKE ?)';
-    const q = `%${search}%`;
-    params.push(q, q, q);
+    // 多关键词搜索：匹配任一关键词即返回（OR 逻辑），前端按 calculatePromptScore 评分排序
+    const keywords = search.split(/\s+/).filter(k => k.length > 0);
+    const conditions = keywords.map(() =>
+      '(p.title LIKE ? OR p.description LIKE ? OR p.content LIKE ? OR p.id IN (SELECT pt.prompt_id FROM prompt_tags pt JOIN tags t ON pt.tag_id = t.id WHERE t.name LIKE ?))'
+    );
+    sql += ' AND (' + conditions.join(' OR ') + ')';
+    for (const kw of keywords) {
+      const q = `%${kw}%`;
+      params.push(q, q, q, q);
+    }
   }
 
   sql += ' ORDER BY p.updated_at DESC';

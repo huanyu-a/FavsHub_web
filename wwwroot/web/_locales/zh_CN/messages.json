@@ -837,22 +837,6 @@
         "message": "快捷键",
         "description": "Shortcuts tab name in settings"
     },
-    "wheelSwitchingTab": {
-        "message": "文件夹切换",
-        "description": "Wheel switching tab name in settings"
-    },
-    "wheelSwitchingSettingsTitle": {
-        "message": "滚轮切换设置",
-        "description": "Title for wheel switching settings"
-    },
-    "wheelSwitchingDescription": {
-        "message": "开启滚轮切换功能后，在主页非书签列表区域滚动鼠标滚轮即可快速切换固定的文件夹",
-        "description": "Description for wheel switching settings"
-    },
-    "enableWheelSwitching": {
-        "message": "启用滚轮切换",
-        "description": "Option to enable wheel switching feature"
-    },
     "wechatGroup": {
         "message": "微信群",
         "description": "微信群名称"

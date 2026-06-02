@@ -7,6 +7,7 @@ export interface FlatBookmark {
   container?: string;     // "bar"|"other"|"mobile"|"" — 下载时路由用
   icon?: string;
   sort_order: number;
+  browserId?: string;     // 浏览器书签节点 ID（用于增量合并 diff）
 }
 
 /**
@@ -39,6 +40,7 @@ export function flattenBookmarks(
           container: containerType,
           icon: iconFn(node.url),
           sort_order: index++,
+          browserId: node.id,
         });
       } else if (node.children) {
         // 文件夹 → folder_path = 容器名/文件夹名/...
@@ -61,6 +63,7 @@ export function flattenBookmarks(
           container: containerType,
           icon: iconFn(node.url),
           sort_order: index++,
+          browserId: node.id,
         });
       }
       if (node.children) {
