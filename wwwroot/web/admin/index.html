@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FavsHub - 管理后台</title>
-  <link href="remixicon.css" rel="stylesheet">
+  <link href="../vendor/remixicon.css" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f7; color: #333; }
@@ -216,6 +216,7 @@
               <tr>
                 <th>ID</th>
                 <th>用户名</th>
+                <th>昵称</th>
                 <th>邮箱</th>
                 <th>书签数</th>
                 <th>Prompt 数</th>
@@ -224,7 +225,7 @@
               </tr>
             </thead>
             <tbody id="users-table-body">
-              <tr><td colspan="7" class="empty-state">加载中...</td></tr>
+              <tr><td colspan="8" class="empty-state">加载中...</td></tr>
             </tbody>
           </table>
         </div>
@@ -541,10 +542,6 @@
             <div class="settings-bg-option bg-none" data-bg="" onclick="selectBg('')" title="无背景">无</div>
           </div>
           <input type="hidden" id="admin-solid-bg" value="">
-          <div style="margin-top:14px;">
-            <label style="font-size:14px;color:#555;">壁纸 URL（必应/自定义）</label>
-            <input type="text" id="admin-wallpaper-url" onchange="saveSettings()" placeholder="留空使用纯色背景" style="width:100%;margin-top:4px;">
-          </div>
           <h4 class="settings-section-title">界面元素显示</h4>
           <div class="setting-option">
             <label class="switch-label" for="admin-show-search">显示搜索框</label>
@@ -820,12 +817,12 @@
     </div>
   </div>
 
-  <script src="chrome-shim.js?v=10"></script>
+  <script src="../js/chrome-shim.js?v=11"></script>
   <script src="/js/api.js?v=6"></script>
   <script>
     // 权限检查
     if (!api.isLoggedIn()) {
-      window.location.href = '/login.html?redirect=/admin.html';
+      window.location.href = '/login.html?redirect=/admin/';
     }
 
     // 页面切换
@@ -865,13 +862,14 @@
         adminUsers = data.adminUsers || [];
         const tbody = document.getElementById('users-table-body');
         if (!data.users.length) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="ri-user-line"></i>暂无用户</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-user-line"></i>暂无用户</td></tr>';
           return;
         }
         tbody.innerHTML = data.users.map(u => `
           <tr>
             <td>${u.id}</td>
             <td>${u.username} ${adminUsers.includes(u.username) ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
+            <td>${u.nickname || '-'}</td>
             <td>${u.email || '-'}</td>
             <td>${u.bookmark_count}</td>
             <td>${u.prompt_count}</td>
@@ -884,7 +882,7 @@
           </tr>
         `).join('');
       } catch (err) {
-        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="7" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${err.message}</td></tr>`;
       }
     }
 
@@ -2165,7 +2163,6 @@
         document.querySelectorAll('.settings-bg-option').forEach(el => {
           el.classList.toggle('active', el.dataset.bg === (s.solidBackground || ''));
         });
-        document.getElementById('admin-wallpaper-url').value = s.wallpaperUrl || '';
         document.getElementById('admin-show-search').checked = s.showSearchBox !== false;
         document.getElementById('admin-show-welcome').checked = s.showWelcomeMessage !== false;
         document.getElementById('admin-show-footer').checked = s.showFooter !== false;
@@ -2204,7 +2201,6 @@
       const s = {
         theme: document.getElementById('admin-default-theme').value,
         solidBackground: document.getElementById('admin-solid-bg').value,
-        wallpaperUrl: document.getElementById('admin-wallpaper-url').value,
         showSearchBox: document.getElementById('admin-show-search').checked,
         showWelcomeMessage: document.getElementById('admin-show-welcome').checked,
         showFooter: document.getElementById('admin-show-footer').checked,

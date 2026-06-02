@@ -1,9 +1,7 @@
 /**
- * FavsHub 全局设置存储（只读模式）
+ * FavsHub 全局设置存储
  *
- * 所有设置由管理员后台统一管理，前端仅读取系统默认设置。
- * set/setMany 仅更新内存缓存（运行时临时覆盖），不写入后端。
- *
+ * set/setMany 更新内存缓存并通过 debounced fetch 同步到后端持久化。
  * 搜索引擎用户偏好（启用列表、默认引擎、自定义引擎）仍通过缓存管理。
  */
 const FavsHubSettings = (() => {
@@ -43,7 +41,6 @@ const FavsHubSettings = (() => {
     // 背景
     selectedBackground: '',
     solidBackground: '',
-    wallpaperUrl: '',
     useDefaultBackground: '',
   };
 
@@ -52,6 +49,28 @@ const FavsHubSettings = (() => {
   let _loaded = false;
   let _loadFailed = false;
   let _loadPromise = null;
+
+  // Debounced 后端持久化
+  let _persistTimer = null;
+  const DEBOUNCE_MS = 300;
+
+  function _schedulePersist() {
+    if (_persistTimer) clearTimeout(_persistTimer);
+    _persistTimer = setTimeout(() => {
+      _persistTimer = null;
+      _persistToBackend();
+    }, DEBOUNCE_MS);
+  }
+
+  async function _persistToBackend() {
+    try {
+      if (window.api && typeof window.api.updateSettings === 'function') {
+        await window.api.updateSettings(_cache);
+      }
+    } catch (e) {
+      console.warn('[Settings] 后端持久化失败:', e);
+    }
+  }
 
   /**
    * 从后端加载设置到缓存。页面启动时自动调用一次。
@@ -104,17 +123,19 @@ const FavsHubSettings = (() => {
   }
 
   /**
-   * 写入单个设置项（仅更新内存缓存，不写入后端）
+   * 写入单个设置项（更新内存缓存，debounced 写入后端）
    */
   function set(key, value) {
     _cache[key] = value;
+    _schedulePersist();
   }
 
   /**
-   * 批量写入多个设置项（仅更新内存缓存，不写入后端）
+   * 批量写入多个设置项（更新内存缓存，debounced 写入后端）
    */
   function setMany(obj) {
     Object.assign(_cache, obj);
+    _schedulePersist();
   }
 
   /**

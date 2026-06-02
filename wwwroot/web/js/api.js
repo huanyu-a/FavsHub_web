@@ -64,12 +64,14 @@ class FavsHubAPI {
   async register(username, password, email) {
     const data = await this.request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password, email }) });
     this.setToken(data.token);
+    if (data.user) localStorage.setItem('favshub_user', JSON.stringify(data.user));
     return data;
   }
 
   async login(username, password) {
     const data = await this.request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
     this.setToken(data.token);
+    if (data.user) localStorage.setItem('favshub_user', JSON.stringify(data.user));
     return data;
   }
 
@@ -79,6 +81,7 @@ class FavsHubAPI {
 
   logout() {
     this.setToken(null);
+    localStorage.removeItem('favshub_user');
     window.location.href = '/login.html';
   }
 

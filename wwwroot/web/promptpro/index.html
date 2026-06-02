@@ -7,13 +7,14 @@
     <title>PromptPro - 提示词管理系统</title>
 
     <!-- 核心样式 -->
-    <link rel="stylesheet" href="promptpro-bundle.css">
-    <link rel="stylesheet" href="promptpro-card-styles.css">
-    <link rel="stylesheet" href="promptpro-dark-theme.css">
+    <link rel="stylesheet" href="../css/promptpro-bundle.css">
+    <link rel="stylesheet" href="../css/promptpro-card-styles.css">
+    <link rel="stylesheet" href="../css/promptpro-dark-theme.css">
+    <link rel="stylesheet" href="../css/promptpro-light-theme.css">
 
     <!-- 引用主项目样式 (侧边栏 + 回到顶部进度环) -->
-    <link rel="stylesheet" href="main-bundle.css">
-    <link rel="stylesheet" href="index-sidebar-fix.css">
+    <link rel="stylesheet" href="../css/main-bundle.css">
+    <link rel="stylesheet" href="../css/index-sidebar-fix.css">
 
     <style>
         /* ========== 页面布局 ========== */
@@ -639,13 +640,13 @@
                         </div>
                     </a>
                     <div class="sidebar-hub-nav">
-                        <a href="index.html" class="sidebar-hub-link" data-page="home" title="主页">
+                        <a href="/index.html" class="sidebar-hub-link" data-page="home" title="主页">
                             <span class="sidebar-hub-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                             </span>
                             <span class="sidebar-hub-label">主页</span>
                         </a>
-                        <a href="promptpro.html" class="sidebar-hub-link active" data-page="promptpro" title="提示词管理">
+                        <a href="/promptpro/" class="sidebar-hub-link active" data-page="promptpro" title="提示词管理">
                             <span class="sidebar-hub-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
                             </span>
@@ -958,11 +959,11 @@
         </div>
     </div>
 
-    <script src="chrome-shim.js?v=10"></script>
+    <script src="../js/chrome-shim.js?v=10"></script>
     <script src="/js/api.js?v=6"></script>
-    <script src="settings-store.js?v=2"></script>
-    <script defer src="icons.js?v=2"></script>
-    <script defer src="backup-manager.js?v=2"></script>
+    <script src="../js/settings-store.js?v=2"></script>
+    <script defer src="../js/icons.js?v=2"></script>
+    <script defer src="../js/backup-manager.js?v=2"></script>
     <script defer>
       // 主题初始化（原 settings.js 已删除，设置由管理员后台统一管理）
       document.addEventListener('DOMContentLoaded', async () => {
@@ -983,7 +984,6 @@
         });
       });
     </script>
-    <script defer src="promptpro-bundle.js"></script>
-    <script defer src="promptpro-utils.js"></script>
+    <script defer src="../js/promptpro-bundle.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 import BottomNav from '@/components/BottomNav.vue';
 import PopupLayout from '@/components/PopupLayout.vue';
 import PageTitle from '@/components/title.vue';
-import { baseUrlStorage, tokenStorage, userInfoStorage } from '@/utils/storage';
+import { baseUrlStorage, tokenStorage, userInfoStorage, enableFloatingBallStorage } from '@/utils/storage';
 import { request } from '@/utils/request';
 
 const message = useMessage();
@@ -14,6 +14,7 @@ const currentUser = ref<{ id: number; username: string; email?: string } | null>
 const isLoggingIn = ref(false);
 const isRegistering = ref(false);
 const isTesting = ref(false);
+const floatingBallEnabled = ref(false);
 
 interface LoginResponse {
   token: string;
@@ -31,6 +32,7 @@ async function loadSavedConfig() {
     baseUrl.value = savedBaseUrl;
     currentUser.value = savedUser;
     isLoggedIn.value = !!savedToken && !!savedUser;
+    floatingBallEnabled.value = await enableFloatingBallStorage.getValue();
   } catch {
     message.error('读取配置失败');
   }
@@ -149,6 +151,12 @@ async function handleRegister() {
   }
 }
 
+async function handleToggleFloatingBall(val: boolean) {
+  floatingBallEnabled.value = val;
+  await enableFloatingBallStorage.setValue(val);
+  message.success(val ? '悬浮球已开启' : '悬浮球已关闭');
+}
+
 async function handleLogout() {
   await Promise.all([
     tokenStorage.removeValue(),
@@ -218,6 +226,17 @@ onMounted(() => {
             <n-button secondary type="error" @click="handleLogout">
               退出
             </n-button>
+          </div>
+        </section>
+
+        <!-- 悬浮球设置 -->
+        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-slate-900">悬浮球</h2>
+              <p class="mt-1 text-xs text-slate-500">在所有网页显示快捷操作悬浮球</p>
+            </div>
+            <n-switch :value="floatingBallEnabled" @update:value="handleToggleFloatingBall" />
           </div>
         </section>
       </div>

@@ -22,10 +22,26 @@ router.get('/', (req, res) => {
   }
 });
 
-// 更新设置（前端可能调用，静默忽略，不写入数据库。所有设置由管理员后台管理）
+// 更新设置（前端写入用户设置，合并到 user_id=0 的系统默认设置）
 router.put('/', (req, res) => {
-  // 直接返回成功，不做任何数据库操作
-  res.json({ data: req.body.data || {} });
+  try {
+    const { data } = req.body;
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ error: 'data 必须是对象' });
+    }
+
+    const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
+    const existing = row ? JSON.parse(row.data) : {};
+    const merged = { ...existing, ...data };
+
+    db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}');
+    db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged));
+
+    res.json({ data: merged });
+  } catch (err) {
+    console.error('[Settings] 更新设置失败:', err);
+    res.status(500).json({ error: '更新设置失败' });
+  }
 });
 
 module.exports = router;

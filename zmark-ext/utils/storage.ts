@@ -42,3 +42,8 @@ export const syncSnapshotStorage = storage.defineItem<SyncSnapshot | null>('loca
 export const lastSyncTimestampStorage = storage.defineItem<number>('local:LAST_SYNC_TIMESTAMP', {
   fallback: 0,
 });
+
+// 悬浮球开关（默认开启）
+export const enableFloatingBallStorage = storage.defineItem<boolean>('local:ENABLE_FLOATING_BALL', {
+  fallback: true,
+});

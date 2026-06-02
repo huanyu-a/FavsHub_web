@@ -182,6 +182,7 @@ ensureColumn('bookmarks', 'container', "ALTER TABLE bookmarks ADD COLUMN contain
 ensureColumn('bookmarks', 'updated_at', 'ALTER TABLE bookmarks ADD COLUMN updated_at INTEGER');
 ensureColumn('bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT ''");
 ensureColumn('folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER');
+ensureColumn('users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''");
 
 // 唯一索引：支持增量合并的 upsert 操作
 try {

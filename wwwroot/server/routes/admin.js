@@ -20,7 +20,7 @@ router.get('/stats', (req, res) => {
 // 用户列表（含书签/Prompt 数量）
 router.get('/users', (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.username, u.email, u.created_at,
+    SELECT u.id, u.username, u.nickname, u.email, u.created_at,
       (SELECT COUNT(*) FROM bookmarks WHERE user_id = u.id) as bookmark_count,
       (SELECT COUNT(*) FROM prompts WHERE user_id = u.id) as prompt_count
     FROM users u ORDER BY u.created_at DESC

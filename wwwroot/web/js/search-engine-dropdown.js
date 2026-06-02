@@ -1,46 +1,6 @@
 // 导入所需的依赖
 // ICONS 和 getIconHtml 已通过 icons.js 全局加载
 
-// 预定义的所有可用搜索引擎列表
-const ALL_ENGINES = [
-  { name: 'google', icon: '/images/google-logo.svg', label: 'googleLabel', url: 'https://www.google.com/search?q=', aliases: ['谷歌'] },
-  { name: 'bing', icon: '/images/bing-logo.png', label: 'bingLabel', url: 'https://www.bing.com/search?q=' },
-  { name: 'baidu', icon: '/images/baidu-logo.svg', label: 'baiduLabel', url: 'https://www.baidu.com/s?wd=', aliases: ['百度'] },
-  { name: 'baidu_m', icon: '/images/baidu-logo.svg', label: 'baidumLabel', url: 'https://m.baidu.com/s?wd=', aliases: ['百度移动'] },
-  { name: 'toutiao', icon: '/images/toutiao-logo.png', label: 'toutiaoLabel', url: 'https://so.toutiao.com/search?dvpf=pc&keyword=', aliases: ['头条'] },
-  { name: 'sougou', icon: '/images/sougou-logo.png', label: 'sougouLabel', url: 'https://www.sogou.com/web?query=', aliases: ['搜狗'] },
-  { name: '360', icon: '/images/360-logo.png', label: '360Label', url: 'https://www.so.com/s?q=', aliases: ['360'] },
-  { name: 'shenma', icon: '/images/shenma-logo.png', label: 'shenmaLabel', url: 'https://yz.m.sm.cn/s?q=', aliases: ['神马'] },
-//  { name: 'kimi', icon: '/images/kimi-logo.svg', label: 'kimiLabel', url: 'https://kimi.moonshot.cn/?q=', aliases: ['Kimi'] },
-//  { name: 'doubao', icon: '/images/doubao-logo.png', label: 'doubaoLabel', url: 'https://www.doubao.com/?q=', aliases: ['豆包'] },
-  { name: 'zhida', icon: '/images/zhida-logo.png', label: 'zhidaLabel', url: 'https://zhida.zhihu.com/search?q=', aliases: ['知乎直答'] },
-  { name: 'qwen', icon: '/images/qwen-logo.png', label: 'qwenLabel', url: 'https://www.qianwen.com/chat/?q=', aliases: ['千问'] },
-  { name: 'iflow', icon: '/images/iflow-logo.png', label: 'iflowLabel', url: 'https://iflow.cn/answers/', aliases: ['心流'] },
-  { name: 'chatgpt', icon: '/images/chatgpt-logo.svg', label: 'chatgptLabel', url: 'https://chat.openai.com/?q=', aliases: ['ChatGPT'] },
-  { name: 'felo', icon: '/images/felo-logo.svg', label: 'feloLabel', url: 'https://felo.ai/search?q=', aliases: ['Felo'] },
-  { name: 'metaso', icon: '/images/metaso-logo.png', label: 'metasoLabel', url: 'https://metaso.cn/?q=', aliases: ['Metaso'] },
-  { name: 'perplexity', icon: '/images/perplexity-logo.svg', label: 'perplexityLabel', url: 'https://www.perplexity.ai/?q=', aliases: ['Perplexity'] },
-  { name: 'semanticscholar', icon: '/images/semanticscholar-logo.png', label: 'semanticscholarLabel', url: 'https://www.semanticscholar.org/search?q=', aliases: ['Semantic Scholar'] },
-//  { name: 'deepseek', icon: '/images/deepseek-logo.svg', label: 'deepseekLabel', url: 'https://chat.deepseek.com/?q=', aliases: ['DeepSeek'] },
-  { name: 'grok', icon: '/images/grok-logo.svg', label: 'grokLabel', url: 'https://grok.com/?q=', aliases: ['Grok'] },
-  { name: 'yahoo', icon: '/images/yahoo-logo.svg', label: 'yahooLabel', url: 'https://search.yahoo.com/search?p=', aliases: ['雅虎'] },
-  { name: 'duckduckgo', icon: '/images/duckduckgo-logo.svg', label: 'duckduckgoLabel', url: 'https://duckduckgo.com/?q=', aliases: ['DuckDuckGo'] },
-  { name: 'yandex', icon: '/images/yandex-logo.svg', label: 'yandexLabel', url: 'https://yandex.com/search/?text=', aliases: ['Yandex'] },
-  { name: 'xiaohongshu', icon: '/images/xiaohongshu-logo.svg', label: 'xiaohongshuLabel', url: 'https://www.xiaohongshu.com/search_result?keyword=', aliases: ['小红书'] },
-  { name: 'jike', icon: '/images/jike-logo.svg', label: 'jikeLabel', url: 'https://web.okjike.com/search?keyword=', aliases: ['即刻'] },
-  { name: 'zhihu', icon: '/images/zhihu-logo.svg', label: 'zhihuLabel', url: 'https://www.zhihu.com/search?q=', aliases: ['知乎'] },
-  { name: 'douban', icon: '/images/douban-logo.svg', label: 'doubanLabel', url: 'https://www.douban.com/search?q=', aliases: ['豆瓣'] },
-  { name: 'bilibili', icon: '/images/bilibili-logo.svg', label: 'bilibiliLabel', url: 'https://search.bilibili.com/all?keyword=', aliases: ['Bilibili'] },
-  { name: 'github', icon: '/images/github-logo.svg', label: 'githubLabel', url: 'https://github.com/search?q=', aliases: ['GitHub'] }
-];
-
-// 定义搜索引擎分类
-const ENGINE_CATEGORIES = {
-  AI: ['kimi', 'doubao', 'zhida', 'qwen', 'iflow', 'chatgpt', 'perplexity', 'claude', 'felo', 'metaso', 'semanticscholar', 'deepseek', 'grok'],
-  SEARCH: ['baidu', 'google', 'bing', 'baidu_m', 'toutiao', 'sougou', '360', 'shenma', 'duckduckgo', 'yahoo', 'yandex'],
-  SOCIAL: ['xiaohongshu', 'jike', 'zhihu', 'douban', 'bilibili', 'github']
-};
-
 // 服务端搜索引擎缓存
 let _serverEngines = null;
 let _serverEnginesPromise = null;
@@ -53,17 +13,19 @@ async function loadServerEngines() {
       const res = await fetch('/api/search-engines');
       if (res.ok) {
         const data = await res.json();
-        _serverEngines = (data.engines || []).map(e => ({
+        const engines = data.data?.engines || data.engines || [];
+        _serverEngines = engines.map(e => ({
           name: e.name,
           icon: e.icon || '/images/default-engine-logo.svg',
           label: e.label || e.name,
           url: e.url,
-          category: e.category,
+          category: e.category || 'SEARCH',
           is_default: !!e.is_default
         }));
+      } else {
+        _serverEngines = [];
       }
     } catch (e) {
-      
       _serverEngines = [];
     }
     return _serverEngines || [];
@@ -76,7 +38,8 @@ const SearchEngineManager = {
   getEnabledEngines() {
     const stored = FavsHubSettings.get('enabledSearchEngines');
     if (stored && stored.length) return stored;
-    const defaultEngines = ALL_ENGINES.slice(0, 8);
+    const allEngines = _serverEngines || [];
+    const defaultEngines = allEngines.slice(0, 8);
     this.saveEnabledEngines(defaultEngines);
     return defaultEngines;
   },
@@ -85,14 +48,9 @@ const SearchEngineManager = {
     FavsHubSettings.set('enabledSearchEngines', engines);
   },
 
-  // 获取所有可用的搜索引擎列表
+  // 获取所有可用的搜索引擎列表（完全依赖服务端数据）
   getAllEngines() {
-    // 合并服务端和预定义搜索引擎
-    const server = _serverEngines || [];
-    // 服务端引擎优先，本地引擎作为补充
-    const serverNames = new Set(server.map(e => e.name));
-    const localOnly = ALL_ENGINES.filter(e => !serverNames.has(e.name));
-    return [...server, ...localOnly];
+    return _serverEngines || [];
   },
 
   // 添加搜索引擎到启用列表
@@ -125,18 +83,16 @@ const SearchEngineManager = {
       const engine = this.getAllEngines().find(e => e.name === defaultEngineName);
       if (engine) return engine;
     }
-    return ALL_ENGINES[0];
+    const allEngines = this.getAllEngines();
+    return allEngines[0] || null;
   },
 
   setDefaultEngine(engineName) {
-    FavsHubSettings.set('selectedSearchEngine', engineName);
-    const engine = ALL_ENGINES.find(e => e.name === engineName);
-
+    const engine = this.getAllEngines().find(e => e.name === engineName);
     if (engine) {
       FavsHubSettings.set('selectedSearchEngine', engineName);
       return true;
     }
-    
     return false;
   }
 };
@@ -196,8 +152,6 @@ function handleSearchEngineSelection(engine) {
       detail: { engine: engine }
     });
     document.dispatchEvent(event);
-  } else {
-    
   }
 }
 
@@ -257,8 +211,6 @@ function initializeSearchEngineUI() {
         searchEngineIcon.src = defaultEngine.icon;
         searchEngineIcon.alt = `${getLocalizedMessage(defaultEngine.label)} Search`;
       }
-    } else {
-      
     }
   }
 }
@@ -308,7 +260,7 @@ function createTemporarySearchTabs() {
     tab.className = 'tab';
     tab.setAttribute('data-engine', engine.name);
 
-    if (engine.name === defaultEngine.name) {
+    if (defaultEngine && engine.name === defaultEngine.name) {
       tab.classList.add('active');
     }
 
@@ -347,7 +299,7 @@ function createTemporarySearchTabs() {
         setTimeout(() => {
           const defaultEngine = SearchEngineManager.getDefaultEngine();
           tabsContainer.querySelectorAll('.tab').forEach(t => {
-            if (t.getAttribute('data-engine') === defaultEngine.name) {
+            if (defaultEngine && t.getAttribute('data-engine') === defaultEngine.name) {
               t.classList.add('active');
             } else {
               t.classList.remove('active');
@@ -480,23 +432,9 @@ async function createSearchEnginesList() {
   const enabledEngineNames = enabledEngines.map(e => e.name);
 
   // 从服务端加载引擎列表（loadServerEngines 已内置缓存）
-  const serverEngines = await loadServerEngines();
+  const engineDataSource = await loadServerEngines();
 
-  // 确定数据源：服务端优先，本地 ALL_ENGINES 作为后备
-  let engineDataSource;
-  if (serverEngines.length > 0) {
-    engineDataSource = serverEngines;
-  } else {
-    engineDataSource = ALL_ENGINES.map(e => {
-      let category = 'SEARCH';
-      for (const [cat, names] of Object.entries(ENGINE_CATEGORIES)) {
-        if (names.includes(e.name)) { category = cat; break; }
-      }
-      return { ...e, category };
-    });
-  }
-
-  // 修改创建搜索引擎项目的函数
+  // 创建搜索引擎项目
   const createEngineItem = (engine) => {
     const engineItem = document.createElement('div');
     engineItem.className = 'search-engine-item';
@@ -566,7 +504,7 @@ async function createSearchEnginesList() {
     return engineItem;
   };
 
-  // 按 category 分组填充到对应容器
+  // 按 category 分组填充到对应容器（分类信息从服务端引擎的 category 字段获取）
   const categoryContainers = { AI: aiContainer, SEARCH: searchContainer, SOCIAL: socialContainer };
   engineDataSource.forEach(engine => {
     const container = categoryContainers[engine.category];
@@ -587,12 +525,6 @@ function handleEngineToggle(engine, enabled) {
   createSearchEngineDropdown();
   createTemporarySearchTabs();
 }
-
-
-
-
-
-
 
 // 创建新的初始化函数
 function initializeSearchEngineDialog() {
@@ -665,9 +597,10 @@ window.createTemporarySearchTabs = createTemporarySearchTabs;
 window.getSearchEngineIconPath = getSearchEngineIconPath;
 window.loadServerEngines = loadServerEngines;
 
-// 自动初始化：等待设置加载完成后再创建 UI
+// 自动初始化：先加载服务端数据，再创建 UI
 (async function autoInit() {
   await FavsHubSettings.load();
+  await loadServerEngines();
   createSearchEngineDropdown();
   initializeSearchEngineDialog();
 })();

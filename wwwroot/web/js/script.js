@@ -110,23 +110,13 @@ function applyAllSettings() {
   const bContainer = document.querySelector('.bookmarks-container');
   if (bContainer) bContainer.style.width = `${savedContainerWidth}%`;
 
-  // --- 背景（管理员设定）---
+  // --- 背景（管理员设定，仅纯色）---
   const adminBg = FavsHubSettings.get('selectedBackground');
-  const adminWallpaper = FavsHubSettings.get('wallpaperUrl');
-  const hasUserWallpaper = localStorage.getItem('originalWallpaper');
 
   // 清除所有背景选项 active 状态
   document.querySelectorAll('.settings-bg-option').forEach(opt => opt.classList.remove('active'));
 
-  if (hasUserWallpaper) {
-    // 用户壁纸优先级最高（localStorage 残留，兼容旧数据）
-    const wallpaperOption = document.querySelector(`.wallpaper-option[data-wallpaper-url="${hasUserWallpaper}"]`);
-    if (wallpaperOption) wallpaperOption.classList.add('active');
-  } else if (adminWallpaper) {
-    // 管理员壁纸 URL 生效中（wallpaper.js 已应用壁纸）
-    document.documentElement.className = '';
-  } else if (adminBg) {
-    // 管理员纯色背景
+  if (adminBg) {
     document.documentElement.className = adminBg;
     const activeOption = document.querySelector(`[data-bg="${adminBg}"]`);
     if (activeOption) activeOption.classList.add('active');
@@ -165,7 +155,6 @@ function applyAllSettings() {
   const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
   updateSearchEngineIcon(defaultEngine);
 
-  
 }
 
 /**
@@ -716,9 +705,8 @@ function applyBackgroundColor() {
     }
 }
 
-// 背景初始化由 wallpaper.js（initializeWallpaper）和 DOMContentLoaded 中
+// 背景初始化由 BackgroundManager（wallpaper.js）和 DOMContentLoaded 中
 // 的背景处理逻辑按优先级统一管理，此函数保留供外部按需调用
-// applyBackgroundColor(); // 已在 DOMContentLoaded 中按正确优先级处理
 
 // 添加颜色缓存管理器
 const ColorCache = {
@@ -1026,6 +1014,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // 确保搜索框的动态高度调整功能正常工作
+    function adjustTextareaHeight() {
+      const si = document.querySelector('.search-input');
+      if (!si) return;
+      si.style.height = 'auto';
+      const lh = parseInt(getComputedStyle(si).lineHeight) || 21;
+      si.style.height = Math.min(si.scrollHeight, 3 * lh) + 'px';
+    }
     const searchInput = document.querySelector('.search-input');
     if (searchInput) {
       // 重新初始化搜索框高度
@@ -2023,8 +2018,9 @@ function createBookmarkCard(bookmark, index) {
     isProcessingClick = true;
 
     try {
-      // 通过页面文件名判断环境
-      const isSidePanel = window.location.pathname.endsWith('sidepanel.html');
+      // 通过URL参数判断是否在侧边栏中运行
+      const isSidePanel = window.location.search.includes('context=side_panel') ||
+                         window.location.hash.includes('context=side_panel');
       const isInternalUrl = bookmark.url.startsWith('chrome://') ||
                            bookmark.url.startsWith('chrome-extension://') ||
                            bookmark.url.startsWith('edge://') ||
@@ -5789,7 +5785,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const url = chrome.runtime.getURL(`src/promptpro.html?detail=${promptData.prompt_id}`);
       chrome.tabs.create({ url });
     } else {
-      window.open(`promptpro.html?detail=${promptData.prompt_id}`, '_blank');
+      window.open(`/promptpro/?detail=${promptData.prompt_id}`, '_blank');
     }
   }
 
@@ -6771,4 +6767,5 @@ window.addEventListener('load', function() {
   }, 100);
 });
 });
+
 

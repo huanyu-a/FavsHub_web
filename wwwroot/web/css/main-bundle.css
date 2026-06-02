@@ -4415,32 +4415,14 @@ input:checked+.slider:before {
 @tailwind components;
 @tailwind utilities;
 
-/* ?��???件顶??�添???*/
-html.loading-wallpaper {
-  background: none !important;
-}
-
-html.loading-wallpaper body,
-html.loading-wallpaper main {
-  opacity: 0;
-  z-index: 2;
-}
-
 body,
 main {
   opacity: 1;
   transition: opacity 0.3s ease-out;
-  will-change: background-image;
   background-color: transparent !important;
 }
 
-/* 修改?��??��????�景渐�?�类�?增�?�特�????*/
-html:not(.loading-wallpaper)[class*="gradient-background"] {
-  transition: background 0.3s ease-out;
-  z-index: 1;
-}
-
-/* 确�?�主容器?????�景?��式�?��??�?*/
+/* 确�?�主容器?????�景?��式?��式�?��??�?*/
 main.flex-1 {
   background-color: transparent !important;
   z-index: 1;
@@ -4545,38 +4527,13 @@ main.flex-1 {
   background: transparent !important;
 }
 
-/* 暗色模式 - 图标区域 */
-[data-theme="dark"] body:not(.has-wallpaper) {
+/* 暗色模式 - 背景 */
+[data-theme="dark"] body {
   background-color: #0B1120;
 }
 
-[data-theme="dark"] body:not(.has-wallpaper)[class*="gradient-background"] {
+[data-theme="dark"] body[class*="gradient-background"] {
   background-color: #0B1120 !important;
-}
-
-[data-theme="dark"] body.has-wallpaper {
-  background-color: transparent !important;
-  background-image: var(--wallpaper-image) !important;
-  background-size: cover !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
-}
-
-/* 暗色模式 - 图标区域 */
-[data-theme="dark"] .wallpaper-option {
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  background-color: rgba(30, 41, 59, 0.6);
-}
-
-[data-theme="dark"] .wallpaper-option:hover {
-  border-color: rgba(16, 185, 129, 0.5);
-  background-color: rgba(30, 41, 59, 0.8);
-}
-
-[data-theme="dark"] .wallpaper-option.active {
-  border-color: #10B981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
 }
 
 [data-theme="dark"] body {
@@ -5063,66 +5020,6 @@ main.flex-1 {
   transition: opacity 0.5s ease-out;
 }
 
-.wallpaper-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  max-height: 340px;
-  overflow-y: auto;
-  padding: 10px 0;
-  /* margin-bottom: 16px; */
-  scrollbar-width: thin;
-  scrollbar-gutter: stable;
-}
-
-.wallpaper-option {
-    border: 2px solid #242424;
-    width: 70px;
-    height: 70px;
-    background-size: cover;
-    cursor: pointer;
-    transition: border-color 0.3s;
-    flex: 0 0 auto;
-    border-radius: 8px;
-}
-
-.wallpaper-option:hover {
-  border-color: #10b981;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.wallpaper-option.active {
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
-}
-
-/* ??�色模�?��????? */
-[data-theme="dark"] .wallpaper-option {
-  border-color: #404040;
-}
-
-[data-theme="dark"] .wallpaper-option:hover {
-  border-color: #10b981;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .wallpaper-option.active {
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
-}
-
-.wallpaper-loading {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    z-index: 1000;
-}
-
 body, main {
     transition: none;
 }
@@ -5130,11 +5027,6 @@ body, main {
 main {
     min-height: 100vh;
     position: relative;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-    will-change: background-image;
 }
 
 .page-loading {
@@ -5144,53 +5036,6 @@ main {
 
 .page-loaded {
     opacity: 1;
-}
-
-.wallpaper-actions {  
-    margin-top: 12px;
-    gap: 12px;
-    align-items: center;
-}
-
-.wallpaper-actions button,
-.wallpaper-actions label {
-  height: 40px;
-  width: 180px;
-  padding: 0 10px;
-  font-size: 13px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #374151;
-}
-
-.wallpaper-actions button:hover,
-.wallpaper-actions label:hover {
-  background-color: #e5e7eb;
-  color: #10b981;
-}
-
-.wallpaper-actions .material-icons {
-  font-size: 18px;
-  margin-right: 4px;
-}
-
-/* ??�色模�?��????? */
-[data-theme="dark"] .wallpaper-actions button,
-[data-theme="dark"] .wallpaper-actions label {
-  background-color: #404040;
-  border-color: #4b5563;
-  color: #ffffff;
-}
-
-[data-theme="dark"] .wallpaper-actions button:hover,
-[data-theme="dark"] .wallpaper-actions label:hover {
-  background-color: #4b5563;
 }
 
 .settings-background-options {
@@ -5215,25 +5060,6 @@ main {
   border-color: #10b981;
 }
 
-
-.upload-wallpaper-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.upload-wallpaper-label:hover {
-  background-color: #e5e7eb;
-}
-
-#upload-wallpaper {
-  display: none;
-}
 
 /* Material Icons 字�?�声??? */
 
@@ -5266,9 +5092,6 @@ main {
 }
 
 /* 当�?��??纸时，移?��??�色??�景 */
-[data-theme="dark"] body.has-wallpaper {
-  background-color: transparent !important;
-}
 
 /* 暗色模式下main元素背景色 - 防止滚动时出现白条 */
 [data-theme="dark"] main.bg-gray-50 {
@@ -5281,10 +5104,6 @@ main {
 }
 
 /* ??��?�模式�?��??�?纸容?��?���? */
-[data-theme="dark"] .wallpaper-option {
-  border: 2px solid #404040;
-  background-color: #242424;
-}
 
 /* ??��?�模式�?��????�景颜色??�项?���? */
 [data-theme="dark"] .settings-bg-option {
@@ -5302,13 +5121,7 @@ main {
   color: #ffffff !important;
 }
 
-.wallpaper-options::-webkit-scrollbar {
-    width: 8px;
-}
 
-.wallpaper-options::-webkit-scrollbar-track {\n  background: rgba(15, 23, 42, 0.3);
-  margin: 4px 0;
-}
 
 ::-webkit-scrollbar-thumb {
   background-color: rgba(156, 163, 175, 0.5);
@@ -6000,103 +5813,6 @@ body .default-folders-tabs.sidebar-expanded {
 }
 
 /* �?应�??纸样�? */
-.bing-wallpapers-section {
-    margin-bottom: 16px;
-    max-width: 800px;
-    padding-right: 10px;
-}
-
-.bing-wallpapers-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-    aspect-ratio: 16/9;
-}
-
-.bing-wallpaper-item {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    aspect-ratio: 16/9;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.bing-wallpaper-item:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.bing-wallpaper-item:hover .bing-wallpaper-info {
-    opacity: 1;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
-}
-
-.bing-wallpaper-thumbnail {
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
-    transition: transform 0.2s ease;
-}
-
-.bing-wallpaper-item:hover .bing-wallpaper-thumbnail {
-    transform: scale(1.05);
-}
-
-.bing-wallpaper-info {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 8px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-    color: white;
-}
-
-.bing-wallpaper-title {
-    font-size: 11px;
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.2;
-}
-
-.bing-wallpaper-date {
-    font-size: 10px;
-    opacity: 0.8;
-}
-
-/* ??��?�模式样�? */
-[data-theme="dark"] .bing-wallpapers-title,
-[data-theme="dark"] .wallpaper-preset-title {
-    color: var(--text-color-dark);
-}
-
-[data-theme="dark"] .bing-wallpaper-item {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .bing-wallpaper-item:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* �?应�??纸�??�?活状????���?*/
-.bing-wallpaper-item.active {
-    border: 2px solid var(--primary-color, #10b981);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* ??��?�模式�?��??�?活状????���?*/
-[data-theme="dark"] .bing-wallpaper-item.active {
-    border-color: var(--primary-color, #10b981);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-/* ?��增�??书签???�??���?*/
 .folder-group {
   margin-bottom: 2rem;
   padding: 1.5rem;
@@ -7982,18 +7698,7 @@ aside .settings-update-tip .tip-arrow {
 }
 
 /* 设置界面上传标签 */
-[data-theme="dark"] .upload-wallpaper-label {
-  background-color: rgba(51, 65, 85, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #E2E8F0;
-  transition: all 0.2s ease;
-}
 
-[data-theme="dark"] .upload-wallpaper-label:hover {
-  background-color: rgba(71, 85, 105, 0.8);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #FFFFFF;
-}
 
 /* 设置界面开关样式 */
 [data-theme="dark"] .switch .slider {
@@ -8006,22 +7711,6 @@ aside .settings-update-tip .tip-arrow {
 
 [data-theme="dark"] .switch .slider:before {
   background-color: #FFFFFF;
-}
-
-/* 设置界面壁纸选项 */
-[data-theme="dark"] .wallpaper-option {
-  border-color: rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
-
-[data-theme="dark"] .wallpaper-option:hover {
-  border-color: rgba(16, 185, 129, 0.5);
-  transform: scale(1.05);
-}
-
-[data-theme="dark"] .wallpaper-option.active {
-  border-color: #10B981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
 }
 
 /* 设置界面背景颜色选项 */
@@ -8165,5 +7854,3 @@ aside .settings-update-tip .tip-arrow {
   background: rgba(255, 255, 255, 0.1) !important;
   color: #F1F5F9 !important;
 }
-
-

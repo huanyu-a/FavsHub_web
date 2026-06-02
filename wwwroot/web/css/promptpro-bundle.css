@@ -1839,12 +1839,12 @@ body {
 */
 @font-face {
   font-family: "remixicon";
-  src: url('fonts/remixicon.eot?t=1690730386070'); /* IE9*/
-  src: url('fonts/remixicon.eot?t=1690730386070#iefix') format('embedded-opentype'), /* IE6-IE8 */
-  url("fonts/remixicon.woff2?t=1690730386070") format("woff2"),
-  url("fonts/remixicon.woff?t=1690730386070") format("woff"),
-  url('fonts/remixicon.ttf?t=1690730386070') format('truetype'), /* chrome, firefox, opera, Safari, Android, iOS 4.2+*/
-  url('fonts/remixicon.svg?t=1690730386070#remixicon') format('svg'); /* iOS 4.1- */
+  src: url('../fonts/remixicon.eot?t=1690730386070'); /* IE9*/
+  src: url('../fonts/remixicon.eot?t=1690730386070#iefix') format('embedded-opentype'), /* IE6-IE8 */
+  url("../fonts/remixicon.woff2?t=1690730386070") format("woff2"),
+  url("../fonts/remixicon.woff?t=1690730386070") format("woff"),
+  url('../fonts/remixicon.ttf?t=1690730386070') format('truetype'), /* chrome, firefox, opera, Safari, Android, iOS 4.2+*/
+  url('../fonts/remixicon.svg?t=1690730386070#remixicon') format('svg'); /* iOS 4.1- */
   font-display: swap;
 }
 

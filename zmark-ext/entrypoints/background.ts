@@ -185,12 +185,41 @@ export default defineBackground(() => {
 
   rebuildContextMenus();
 
+  // ===== 侧边栏配置 =====
+  async function setupSidePanel() {
+    if (!(browser.sidePanel && browser.sidePanel.setOptions)) return;
+    const baseUrl = await baseUrlStorage.getValue();
+    if (baseUrl?.trim()) {
+      const sidePanelUrl = baseUrl.replace(/\/+$/, '') + '/?context=side_panel';
+      browser.sidePanel.setOptions({
+        path: sidePanelUrl,
+        enabled: true,
+      }).catch(() => {});
+    } else {
+      // baseUrl 未设置时，确保侧边栏可用（使用 manifest 默认路径）
+      browser.sidePanel.setOptions({ enabled: true }).catch(() => {});
+    }
+  }
+
+  // 启动时配置侧边栏
+  setupSidePanel();
+  // baseUrl 变化时重新配置
+  baseUrlStorage.watch(() => setupSidePanel());
+
   tokenStorage.watch(() => {
     rebuildContextMenus();
   });
 
   browser.runtime.onInstalled.addListener(() => {
     rebuildContextMenus();
+    setupSidePanel();
+  });
+
+  // ===== 快捷键打开侧边栏 =====
+  browser.commands.onCommand.addListener((command) => {
+    if (command === 'open_side_panel') {
+      browser.sidePanel.open().catch(() => {});
+    }
   });
 
   browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -231,6 +260,43 @@ export default defineBackground(() => {
         sendResponse({ connected: true });
         return true;
 
+      case 'open_side_panel':
+        browser.sidePanel.open({ windowId: _sender.tab?.windowId })
+          .then(() => sendResponse({ success: true }))
+          .catch((err: any) => {
+            // 回退：尝试不带 windowId 打开
+            browser.sidePanel.open()
+              .then(() => sendResponse({ success: true }))
+              .catch(() => sendResponse({ success: false, error: err?.message }));
+          });
+        return true;
+
+      case 'navigateHome': {
+        const goHome = async () => {
+          const baseUrl = await baseUrlStorage.getValue();
+          if (baseUrl?.trim() && browser.sidePanel.setOptions) {
+            const homeUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'context=side_panel';
+            await browser.sidePanel.setOptions({ path: homeUrl });
+          }
+        };
+        goHome()
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
+        return true;
+      }
+
+      case 'openUrlInSidePanel': {
+        const url = message.url;
+        if (url && browser.sidePanel.setOptions) {
+          browser.sidePanel.setOptions({ path: url })
+            .then(() => sendResponse({ success: true }))
+            .catch(() => sendResponse({ success: false }));
+        } else {
+          sendResponse({ success: false });
+        }
+        return true;
+      }
+
       case 'openHistory':
         browser.tabs.create({ url: 'chrome://history' })
           .then(() => sendResponse({ success: true }))
@@ -251,6 +317,12 @@ export default defineBackground(() => {
 
       case 'openExtensions':
         browser.tabs.create({ url: 'chrome://extensions' })
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
+        return true;
+
+      case 'openTab':
+        browser.tabs.create({ url: message.url })
           .then(() => sendResponse({ success: true }))
           .catch(() => sendResponse({ success: false }));
         return true;

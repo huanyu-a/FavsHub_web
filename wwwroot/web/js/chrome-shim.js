@@ -552,5 +552,82 @@ if (!_authExcludePaths.some(p => window.location.pathname.endsWith(p))) {
     // 未登录会跳转到 login.html
     throw new Error('未登录');
   }
+  // 异步刷新用户信息（含 nickname），确保 localStorage 中有最新数据
+  if (!localStorage.getItem('favshub_user')) {
+    apiFetch('/auth/me').then(data => {
+      if (data && data.user) {
+        localStorage.setItem('favshub_user', JSON.stringify(data.user));
+      }
+    }).catch(() => {});
+  }
 }
+
+// ===== HTML 转义工具（原 escape-html.js） =====
+/**
+ * HTML 转义工具 — 防止 XSS 攻击
+ * 将用户输入中的特殊字符替换为 HTML 实体，安全插入 DOM
+ */
+function escapeHtml(str) {
+  if (str == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+// 挂载到全局，供所有模块使用
+window.escapeHtml = escapeHtml;
+
+// ===== 国际化支持（原 localization.js） =====
+// 获取用户首选语言
+function getUserLanguage() {
+  try {
+    if (chrome.i18n && typeof chrome.i18n.getUILanguage === 'function') {
+      return chrome.i18n.getUILanguage();
+    }
+  } catch (e) {}
+  return navigator.language || 'zh-CN';
+}
+
+window.getLocalizedMessage = function(messageName) {
+  const userLang = getUserLanguage();
+  let message = '';
+  try {
+    if (chrome.i18n && typeof chrome.i18n.getMessage === 'function') {
+      message = chrome.i18n.getMessage(messageName);
+    }
+  } catch (e) {}
+
+  // 如果没有找到消息，直接返回消息名称
+  if (!message) {
+    return messageName;
+  }
+
+  return message;
+};
+
+window.updateUILanguage = function() {
+  const userLang = getUserLanguage();
+
+  // 处理常规的 data-i18n 属性
+  document.querySelectorAll('[data-i18n]').forEach((element) => {
+    const messageName = element.getAttribute('data-i18n');
+    const localizedMessage = window.getLocalizedMessage(messageName);
+    element.textContent = localizedMessage;
+  });
+
+  // 处理 placeholder
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+    const messageName = element.getAttribute('data-i18n-placeholder');
+    element.placeholder = window.getLocalizedMessage(messageName);
+  });
+
+  // 处理 title
+  document.querySelectorAll('[data-i18n-title]').forEach((element) => {
+    const messageName = element.getAttribute('data-i18n-title');
+    element.title = window.getLocalizedMessage(messageName);
+  });
+};
+
+// 在文档加载完成后自动更新 UI 语言
+document.addEventListener('DOMContentLoaded', window.updateUILanguage);
 

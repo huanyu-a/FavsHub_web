@@ -111,6 +111,18 @@
         "message": "启用悬浮球",
         "description": "启用悬浮球选项"
     },
+    "promptPro": {
+        "message": "提示词管理",
+        "description": "悬浮球菜单中提示词管理入口"
+    },
+    "adminPanel": {
+        "message": "管理后台",
+        "description": "悬浮球菜单中管理员后台入口"
+    },
+    "openSidebar": {
+        "message": "打开侧边栏",
+        "description": "悬浮球菜单中打开侧边栏入口"
+    },
     "languageSettingsTitle": {
         "message": "语言 / Language",
         "description": "语言设置标题"
@@ -319,18 +331,6 @@
         "message": "背景设置",
         "description": "背景设置标题"
     },
-    "resetWallpaper": {
-        "message": "恢复默认背景",
-        "description": "重置壁纸按钮文本"
-    },
-    "uploadWallpaper": {
-        "message": "上传壁纸",
-        "description": "上传壁纸按钮文本"
-    },
-    "wallpaperResetSuccess": {
-        "message": "背景已重置为默认",
-        "description": "重置壁纸成功提示"
-    },
     "solidBackgroundTitle": {
         "message": "纯色背景",
         "description": "纯色背景设置标题"
@@ -359,22 +359,8 @@
         "message": "存储空间不足，请清理后重试",
         "description": "存储空间不足提示"
     },
-    "wallpaperSetError": {
-        "message": "设置壁纸失败，请重试",
-        "description": "设置壁纸失败提示"
-    },
-    "wallpaperUploadError": {
-        "message": "上传壁纸失败，请重试"
-    },
-    "wallpapersUploadSuccess": {
-        "message": "壁纸上传成功"
-    },
     "noValidImagesFound": {
         "message": "未找到有效的图片文件"
-    },
-    "uploadedWallpaperBadge": {
-        "message": "本地图片",
-        "description": "用户上传的壁纸标识"
     },
     "aboutTab": {
         "message": "关于",
@@ -409,7 +395,7 @@
         "description": "反馈链接文本"
     },
     "settingsUpdateTip": {
-        "message": "你可以在这里设置背景颜色、壁纸、悬浮球、推荐网站、链接打开方式、清理失效书签...",
+        "message": "你可以在这里设置背景颜色、悬浮球、推荐网站、链接打开方式、清理失效书签...",
         "description": "设置更新提示"
     },
     "deleteSuccess": {
@@ -888,14 +874,6 @@
     "bookmarkCardHeightValue": {
         "message": "$1 像素",
         "description": "书签卡片高度值"
-    },
-    "presetWallpaperTitle": {
-        "message": "预设壁纸",
-        "description": "预设壁纸设置标题"
-    },
-    "bingWallpapersTitle": {
-        "message": "必应壁纸",
-        "description": "必应壁纸标题"
     },
     "categoryLabel": {
         "message": "分类",

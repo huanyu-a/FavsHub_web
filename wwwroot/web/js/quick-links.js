@@ -365,8 +365,9 @@ document.addEventListener('DOMContentLoaded', function () {
         event.preventDefault();
         
         try {
-          // 通过页面文件名判断环境
-          const isSidePanel = window.location.pathname.endsWith('sidepanel.html');
+          // 通过URL参数判断是否在侧边栏中运行
+          const isSidePanel = window.location.search.includes('context=side_panel') ||
+                             window.location.hash.includes('context=side_panel');
 
           console.log('[Quick Link Click] Starting...', {
             url: site.url,

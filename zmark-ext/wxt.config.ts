@@ -10,6 +10,9 @@ export default defineConfig({
   manifest: {
     permissions: ['clipboardRead', 'storage', 'tabs', 'contextMenus', 'notifications', 'bookmarks', 'sidePanel', 'commands', 'favicon', 'history', 'downloads', 'management', 'scripting'],
     host_permissions: ['http://*/*', 'https://*/*'],
+    side_panel: {
+      default_path: 'popup.html',
+    },
     commands: {
       open_side_panel: {
         suggested_key: { default: 'Alt+B', mac: 'Command+B' },

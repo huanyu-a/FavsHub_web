@@ -8,7 +8,7 @@ const router = Router();
 
 // 注册
 router.post('/register', (req, res) => {
-  const { username, password, email } = req.body;
+  const { username, password, email, nickname } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: '用户名和密码不能为空' });
   }
@@ -32,13 +32,13 @@ router.post('/register', (req, res) => {
   const isAdmin = userCount === 0 ? 1 : 0;
 
   const hash = bcrypt.hashSync(password, 10);
-  const result = db.prepare('INSERT INTO users (username, email, password_hash, is_admin) VALUES (?, ?, ?, ?)').run(username, email || null, hash, isAdmin);
+  const result = db.prepare('INSERT INTO users (username, email, password_hash, is_admin, nickname) VALUES (?, ?, ?, ?, ?)').run(username, email || null, hash, isAdmin, nickname || '');
 
   // 初始化用户设置
   db.prepare('INSERT INTO settings (user_id, data) VALUES (?, ?)').run(result.lastInsertRowid, '{}');
 
   const token = jwt.sign({ id: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '30d' });
-  res.json({ token, user: { id: result.lastInsertRowid, username, email } });
+  res.json({ token, user: { id: result.lastInsertRowid, username, email, nickname: nickname || '' } });
 });
 
 // 登录
@@ -54,12 +54,12 @@ router.post('/login', (req, res) => {
   }
 
   const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-  res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
+  res.json({ token, user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname } });
 });
 
 // 获取当前用户
 router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, username, email, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, username, email, nickname, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: '用户不存在' });
   res.json({ user });
 });

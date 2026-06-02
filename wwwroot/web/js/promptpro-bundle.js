@@ -1,6 +1,6 @@
 /**
  * PromptPro 提示词管理系统 - 核心功能模块
- * 功能：IndexedDB 数据存储 | 业务逻辑处理 | 全文检索过滤
+ * 功能：业务逻辑处理 | 全文检索过滤
  */
 
 const STORAGE_KEYS = {
@@ -11,11 +11,8 @@ const STORAGE_KEYS = {
   VERSIONS: 'versions'
 };
 
-const BACKUP_CONFIG_STORE = 'backup_config';
-
 class PromptProDB {
   static _initialized = false;
-  static _migrated = false;
 
   // 直接调 API
   static async _fetch(path, options = {}) {
@@ -31,46 +28,6 @@ class PromptProDB {
   static async init() {
     if (this._initialized) return;
     this._initialized = true;
-
-    if (!localStorage.getItem('prompt_migrated_to_server')) {
-      await this._migrateFromIndexedDB();
-    }
-  }
-
-  static async _migrateFromIndexedDB() {
-    try {
-      const idb = await new Promise((resolve, reject) => {
-        const req = indexedDB.open('PromptProDB');
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-        req.onblocked = () => reject(new Error('blocked'));
-      });
-      const storeNames = Array.from(idb.objectStoreNames);
-      if (!storeNames.includes('prompts')) { idb.close(); return; }
-      const data = { userId: 1 };
-      for (const name of storeNames) {
-        try {
-          const items = await new Promise((resolve) => {
-            const tx = idb.transaction(name, 'readonly');
-            const req = tx.objectStore(name).getAll();
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => resolve([]);
-          });
-          data[name === 'tag_relations' ? 'tagRelations' : name] = items;
-        } catch {}
-      }
-      idb.close();
-      if (!data.prompts || !data.prompts.length) {
-        localStorage.setItem('prompt_migrated_to_server', '1');
-        return;
-      }
-      await this._fetch('/admin/sync-prompts', { method: 'POST', body: JSON.stringify(data) });
-      localStorage.setItem('prompt_migrated_to_server', '1');
-      console.log('[PromptDB] 已迁移 ' + data.prompts.length + ' 条提示词到服务端');
-    } catch (e) {
-      console.warn('[PromptDB] 迁移失败:', e.message);
-      localStorage.setItem('prompt_migrated_to_server', '1');
-    }
   }
 
   static async getBackupConfig(key) {
@@ -1139,3 +1096,465 @@ window.PromptProDB = PromptProDB;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+// ===== PromptPro 集成脚本（原 promptpro-utils.js） =====
+/**
+ * PromptPro 提示词管理系统 - 集成脚本
+ * 直接打开 /promptpro/ 页面
+ */
+
+(function() {
+  'use strict';
+
+  // 打开 PromptPro 提示词管理页面
+  function showPromptPro() {
+    window.open('/promptpro/', '_blank');
+  }
+
+  // 绑定事件 - 侧边栏入口
+  const promptproItem = document.querySelector('#promptpro-entry .promptpro-item');
+
+  if (promptproItem) {
+    promptproItem.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showPromptPro();
+    });
+  }
+
+  // 也支持直接点击链接
+  const promptproLink = document.getElementById('promptpro-link');
+  if (promptproLink) {
+    promptproLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      showPromptPro();
+    });
+  }
+
+  // 暴露全局函数（供其他脚本调用）
+  window.showPromptPro = showPromptPro;
+
+})();
+
+// ===== PromptPro Export =====
+
+/**
+ * PromptPro 导出/导入功能
+ * 使用与自动备份相同的文件格式和备份文件夹
+ */
+
+function showToast(message, type = 'success') {
+  const existing = document.querySelector('.toast-message');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast-message';
+  toast.style.cssText = `position:fixed;top:20px;right:20px;padding:12px 24px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;transition:opacity 0.3s;${type === 'error' ? 'background:#ef4444' : 'background:#10b981'}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 导出按钮 — 写入自动备份文件夹
+  const exportBtn = document.getElementById('exportDataBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      try {
+        const filename = await backupManager.performBackup(true);
+        showToast(`已导出：${filename}`);
+      } catch (err) {
+        if (err.message === 'NO_FOLDER') {
+          showToast('请先在主页设置中选择备份文件夹', 'error');
+        } else if (err.message === 'NO_PERMISSION') {
+          showToast('没有文件夹写入权限，请重新选择', 'error');
+        } else if (err.message === 'NO_CHANGE') {
+          showToast('数据无变化，不需新增记录文件');
+        } else {
+          showToast('导出失败：' + (err.message || '请重试'), 'error');
+        }
+      }
+    });
+  }
+
+  // 导入按钮
+  const importBtn = document.getElementById('importDataBtn');
+  const importInput = document.getElementById('importFileInput');
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => importInput.click());
+
+    importInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const json = JSON.parse(event.target.result);
+          if (!confirm('确定要导入数据吗？当前数据将被覆盖。')) return;
+
+          const success = await PromptProDB.importData(json);
+          if (success) {
+            showToast('数据已导入，正在刷新...');
+            setTimeout(() => location.reload(), 500);
+          } else {
+            showToast('导入失败，请重试', 'error');
+          }
+        } catch (err) {
+          console.error('[Import] 导入失败:', err);
+          showToast('导入失败，请重试', 'error');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+  }
+});
+
+// ===== PromptPro Backup Setup =====
+
+async function checkBackupSetup() {
+    try {
+        const folderName = await backupManager.getFolderName();
+        if (folderName) return;
+
+        const modal = document.getElementById('backupSetupModal');
+        if (!modal) return;  // DOM 元素不存在时静默退出
+        const selectBtn = document.getElementById('setupBackupFolderBtn');
+        const skipBtn = document.getElementById('skipBackupSetupBtn');
+        const confirmBtn = document.getElementById('confirmBackupSetupBtn');
+        const folderNameEl = document.getElementById('setupFolderName');
+        let selectedName = null;
+
+        modal.classList.add('active');
+
+        selectBtn.addEventListener('click', async () => {
+            try {
+                const name = await backupManager.selectFolder();
+                if (name) {
+                    selectedName = name;
+                    folderNameEl.textContent = name;
+                    folderNameEl.style.color = 'var(--text-primary, #1e293b)';
+                    confirmBtn.disabled = false;
+                }
+            } catch (err) {
+                console.error('选择文件夹失败:', err);
+            }
+        });
+
+        skipBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+
+        confirmBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            if (selectedName) {
+                showToast(`备份目录已设置：${selectedName}`);
+            }
+        });
+    } catch (err) {
+        console.error('检查备份目录失败:', err);
+    }
+}
+
+function showToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-success';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkBackupSetup);
+} else {
+    checkBackupSetup();
+}
+
+// ===== PromptPro 搜索集成（原 promptpro-search.js） =====
+/**
+ * PromptPro 提示词搜索集成
+ * 在主项目搜索框中增加对提示词的搜索功能
+ */
+
+class PromptProSearch {
+  constructor() {
+    this.prompts = [];
+    this.initialized = false;
+  }
+
+  // 初始化并加载提示词
+  async init() {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      this.prompts = await this.loadPrompts();
+      this.initialized = true;
+    } catch (error) {
+      console.error('[PromptPro Search] 初始化失败:', error);
+    }
+  }
+
+  // 加载所有提示词（从服务端 API）
+  async loadPrompts() {
+    try {
+      const prompts = await window.PromptProDB.getAll();
+
+      // 同时加载文件夹和标签信息
+      const related = await this.loadRelatedData();
+      this.folders = related.folders;
+      this.tags = related.tags;
+
+      // 关联文件夹名（标签已内嵌在提示词数据中）
+      this.prompts = (prompts || []).map(prompt => {
+        const folder = this.folders.find(f => f.folder_id === prompt.folder_id);
+        return {
+          ...prompt,
+          folder_name: folder ? folder.folder_name : '',
+          tags: prompt.tags || []
+        };
+      });
+
+      return this.prompts;
+    } catch (e) {
+      console.warn('[PromptPro Search] 加载提示词失败:', e);
+      return [];
+    }
+  }
+
+  // 加载关联数据（从服务端 API）
+  async loadRelatedData() {
+    try {
+      const token = localStorage.getItem('favshub_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      const [foldersRes, tagsRes] = await Promise.all([
+        fetch('/api/prompts/folders/all', { headers }).then(r => r.json()),
+        fetch('/api/tags', { headers }).then(r => r.json())
+      ]);
+
+      return {
+        folders: foldersRes.data || [],
+        tags: tagsRes.data || []
+      };
+    } catch (e) {
+      console.warn('[PromptPro Search] 加载关联数据失败:', e);
+      return { folders: [], tags: [] };
+    }
+  }
+
+  // 搜索提示词（支持多关键词模糊匹配）
+  search(query) {
+    if (!query || !this.initialized) {
+      return [];
+    }
+
+    // 分词：按空格、中文标点、英文标点分隔
+    const keywords = query
+      .trim()
+      .split(/[\s　 -⁯　-〿＀-￯,.!?;:，。！？；：、]+/)
+      .filter(k => k.length > 0);
+
+    if (keywords.length === 0) return [];
+
+    const results = this.prompts
+      .map(prompt => {
+        const score = this.calculateScore(prompt, keywords);
+        return score > 0 ? { ...prompt, _score: score } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b._score - a._score);
+
+    return results;
+  }
+
+  // 计算匹配分数（与 promptpro-storage.js 保持一致）
+  calculateScore(prompt, keywords) {
+    const title = (prompt.title || '').toLowerCase();
+    const desc = (prompt.description || '').toLowerCase();
+    const content = (prompt.content || '').toLowerCase();
+    const folder = (prompt.folder_name || '').toLowerCase();
+    const tagNames = (prompt.tags || []).map(t => (t.tag_name || '').toLowerCase());
+
+    let totalScore = 0;
+    let titleMatchedCount = 0;
+    let tagMatchedCount = 0;
+    let descMatchedCount = 0;
+    let folderMatchedCount = 0;
+    let contentMatchedCount = 0;
+
+    for (const keyword of keywords) {
+      // 标题匹配（权重最高）
+      if (title.includes(keyword)) {
+        if (title === keyword) totalScore += 10000;
+        else if (title.startsWith(keyword)) totalScore += 8000;
+        else totalScore += 5000;
+        titleMatchedCount++;
+      }
+
+      // 标签匹配
+      if (tagNames.some(tag => tag.includes(keyword))) {
+        totalScore += 2000;
+        tagMatchedCount++;
+      }
+
+      // 描述匹配
+      if (desc.includes(keyword)) {
+        if (desc.startsWith(keyword)) totalScore += 1500;
+        else totalScore += 1000;
+        descMatchedCount++;
+      }
+
+      // 文件夹匹配
+      if (folder.includes(keyword)) {
+        totalScore += 800;
+        folderMatchedCount++;
+      }
+
+      // 内容匹配（权重最低）
+      if (content.includes(keyword)) {
+        totalScore += 300;
+        contentMatchedCount++;
+      }
+    }
+
+    // 标题中包含所有关键词时，给予极高奖励（精确匹配）
+    if (titleMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 5000;
+    }
+
+    // 标签中包含所有关键词时，给予高奖励
+    if (tagMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 3000;
+    }
+
+    // 描述中包含所有关键词时，给予中等奖励
+    if (descMatchedCount === keywords.length && keywords.length > 0) {
+      totalScore += keywords.length * 1500;
+    }
+
+    // 跨字段匹配奖励（标题+标签、标题+描述等）
+    const fieldsMatched = [
+      titleMatchedCount > 0,
+      tagMatchedCount > 0,
+      descMatchedCount > 0,
+      folderMatchedCount > 0
+    ].filter(Boolean).length;
+
+    if (fieldsMatched >= 2 && keywords.length > 1) {
+      totalScore += fieldsMatched * 1000;
+    }
+
+    return totalScore;
+  }
+
+  // 渲染搜索结果
+  renderResults(results) {
+    if (!results || results.length === 0) return '';
+
+    return results.map(prompt => {
+      const tagsHtml = (prompt.tags || []).slice(0, 2).map(tag =>
+        `<span class="prompt-search-tag">${this.escapeHtml(tag.tag_name)}</span>`
+      ).join('');
+
+      return `
+        <div class="prompt-search-result" data-prompt-id="${prompt.prompt_id}">
+          <div class="prompt-search-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </div>
+          <div class="prompt-search-content">
+            <div class="prompt-search-title">${this.escapeHtml(prompt.title)}</div>
+            ${prompt.description ? `<div class="prompt-search-desc">${this.escapeHtml(prompt.description)}</div>` : ''}
+            <div class="prompt-search-meta">
+              ${prompt.folder_name ? `<span class="prompt-search-folder">${this.escapeHtml(prompt.folder_name)}</span>` : ''}
+              ${tagsHtml}
+            </div>
+          </div>
+          <div class="prompt-search-action">
+            <button class="prompt-search-open-btn" title="打开编辑">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 转义 HTML
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // 获取最近使用的提示词
+  getRecentPrompts(limit = 10) {
+    if (!this.prompts || this.prompts.length === 0) {
+      return [];
+    }
+
+    // 按更新时间排序，返回最近的提示词
+    return [...this.prompts]
+      .sort((a, b) => {
+        const timeA = a.updated_at || a.created_at || 0;
+        const timeB = b.updated_at || b.created_at || 0;
+        return timeB - timeA;
+      })
+      .slice(0, limit);
+  }
+
+  // 打开提示词编辑
+  openPromptEdit(promptId) {
+    const prompt = this.prompts.find(p => p.prompt_id === promptId);
+    if (!prompt) return;
+
+    window.open(`/promptpro/?edit=${promptId}`, '_blank');
+  }
+
+  // 在新标签页打开 PromptPro 并编辑提示词
+  openPromptProInNewTab(promptId) {
+    window.open(`/promptpro/?edit=${promptId}`, '_blank');
+  }
+}
+
+// 全局实例
+window.promptProSearch = new PromptProSearch();
+
+// 初始化 - 使用多种方式确保可靠执行
+function initPromptProSearch() {
+  if (window.promptProSearch.initialized) return;
+  window.promptProSearch.init().catch(err => {
+    console.error('[PromptPro Search] 初始化失败:', err);
+  });
+}
+
+// 如果 DOMContentLoaded 已经触发，立即初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPromptProSearch);
+} else {
+  // DOM 已经加载完成
+  initPromptProSearch();
+}
+
+// 也支持在 window load 时初始化（双重保险）
+if (!window.promptProSearch.initialized) {
+  window.addEventListener('load', () => {
+    if (!window.promptProSearch.initialized) {
+      initPromptProSearch();
+    }
+  });
+}
