@@ -555,10 +555,18 @@ function updateThemeIcon(isDark) {
 
 // 初始化左侧导航栏 - 加载书签树
 function initSidebarNavigation() {
-  chrome.bookmarks.getTree(function (nodes) {
-    bookmarkTreeNodes = nodes;
-    displayBookmarkCategories(bookmarkTreeNodes[0].children, 0, null, '1');
-  });
+  try {
+    chrome.bookmarks.getTree(function (nodes) {
+      try {
+        bookmarkTreeNodes = nodes;
+        displayBookmarkCategories(bookmarkTreeNodes[0].children, 0, null, '1');
+      } catch (err) {
+        console.error('[initSidebarNavigation] Error in getTree callback:', err);
+      }
+    });
+  } catch (err) {
+    console.error('[initSidebarNavigation] Error:', err);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -1060,21 +1068,30 @@ const bookmarksCache = {
 };
 
 function updateBookmarkCards() {
-  const bookmarksList = document.getElementById('bookmarks-list');
-  const defaultBookmarkId = localStorage.getItem('defaultBookmarkId');
-  const parentId = defaultBookmarkId || bookmarksList.dataset.parentId || '1';
+  try {
+    const bookmarksList = document.getElementById('bookmarks-list');
+    if (!bookmarksList) return;
+    const defaultBookmarkId = localStorage.getItem('defaultBookmarkId');
+    const parentId = defaultBookmarkId || bookmarksList.dataset.parentId || '1';
 
-  // 获取完整的书签树，以便显示所有分组
-  chrome.bookmarks.getTree(function (tree) {
-    displayBookmarks(tree);
+    // 获取完整的书签树，以便显示所有分组
+    chrome.bookmarks.getTree(function (tree) {
+      try {
+        displayBookmarks(tree);
 
-    // 在显示书签后更新默认书签指示器
-    updateDefaultBookmarkIndicator();
-    updateSidebarDefaultBookmarkIndicator();
+        // 在显示书签后更新默认书签指示器
+        updateDefaultBookmarkIndicator();
+        updateSidebarDefaultBookmarkIndicator();
 
-    // 更新 bookmarks-list 的 data-parent-id
-    bookmarksList.dataset.parentId = parentId;
-  });
+        // 更新 bookmarks-list 的 data-parent-id
+        bookmarksList.dataset.parentId = parentId;
+      } catch (err) {
+        console.error('[updateBookmarkCards] Error in getTree callback:', err);
+      }
+    });
+  } catch (err) {
+    console.error('[updateBookmarkCards] Error:', err);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -1151,32 +1168,41 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   // 分页渲染函数
   function renderBookmarksPage(cachedData, pageIndex, pageSize = 100) {
-    const startIndex = pageIndex * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, cachedData.totalCount);
-    
-    const bookmarksList = document.getElementById('bookmarks-list');
-    const bookmarksContainer = document.querySelector('.bookmarks-container');
-    
-    // 使用 DocumentFragment 优化 DOM 操作
-    const fragment = document.createDocumentFragment();
-    
-    // 获取当前页的书签
-    const pageBookmarks = cachedData.bookmarks.slice(startIndex, endIndex);
-    
-    // 渲染书签
-    pageBookmarks.forEach((bookmark, index) => {
-      const bookmarkElement = bookmark.url ? 
-        createBookmarkCard(bookmark, startIndex + index) : 
-        createFolderCard(bookmark, startIndex + index);
-      fragment.appendChild(bookmarkElement);
-    });
-    
-    // 更新 DOM
-    bookmarksList.innerHTML = '';
-    bookmarksList.appendChild(fragment);
+    try {
+      const startIndex = pageIndex * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, cachedData.totalCount);
 
-    // 重新初始化拖拽排序
-    initBookmarkSortable();
+      const bookmarksList = document.getElementById('bookmarks-list');
+      const bookmarksContainer = document.querySelector('.bookmarks-container');
+      if (!bookmarksList) return;
+
+      // 使用 DocumentFragment 优化 DOM 操作
+      const fragment = document.createDocumentFragment();
+
+      // 获取当前页的书签
+      const pageBookmarks = cachedData.bookmarks.slice(startIndex, endIndex);
+
+      // 渲染书签
+      pageBookmarks.forEach((bookmark, index) => {
+        try {
+          const bookmarkElement = bookmark.url ?
+            createBookmarkCard(bookmark, startIndex + index) :
+            createFolderCard(bookmark, startIndex + index);
+          fragment.appendChild(bookmarkElement);
+        } catch (cardErr) {
+          // 跳过单个损坏的书签卡片
+        }
+      });
+
+      // 更新 DOM
+      bookmarksList.innerHTML = '';
+      bookmarksList.appendChild(fragment);
+
+      // 重新初始化拖拽排序
+      initBookmarkSortable();
+    } catch (err) {
+      console.error('[renderBookmarksPage] Error:', err);
+    }
   }
 
   // 同步书签顺序
@@ -1466,63 +1492,73 @@ function scrollToFolderGroup(element) {
 
 function updateBookmarksDisplay(parentId, movedItemId, newIndex) {
   return new Promise((resolve, reject) => {
-    // 滚动到指定文件夹的锚点定位功能
-    const folderGroup = document.getElementById(`folder-group-${parentId}`);
-    if (folderGroup) {
-      // 使用平滑滚动到指定的文件夹分组
-      scrollToFolderGroup(folderGroup);
+    try {
+      // 滚动到指定文件夹的锚点定位功能
+      const folderGroup = document.getElementById(`folder-group-${parentId}`);
+      if (folderGroup) {
+        // 使用平滑滚动到指定的文件夹分组
+        scrollToFolderGroup(folderGroup);
 
-      // 添加视觉效果以突出显示目标分组
-      folderGroup.style.transform = 'scale(1.02)';
-      folderGroup.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
+        // 添加视觉效果以突出显示目标分组
+        folderGroup.style.transform = 'scale(1.02)';
+        folderGroup.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
 
-      // 1秒后恢复原始样式
-      setTimeout(() => {
-        if (folderGroup) {
-          folderGroup.style.transform = '';
-          folderGroup.style.boxShadow = '';
-        }
-      }, 1000);
+        // 1秒后恢复原始样式
+        setTimeout(() => {
+          if (folderGroup) {
+            folderGroup.style.transform = '';
+            folderGroup.style.boxShadow = '';
+          }
+        }, 1000);
 
-      resolve();
-      return;
-    }
-
-    // 如果没有找到目标分组，仍然获取书签树并显示所有分组
-    chrome.bookmarks.getTree(function (tree) {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
+        resolve();
         return;
       }
 
-      // 显示所有书签文件夹（更新 displayBookmarks 以接收整个树结构）
-      displayBookmarks(tree);
+      // 如果没有找到目标分组，仍然获取书签树并显示所有分组
+      chrome.bookmarks.getTree(function (tree) {
+        try {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+            return;
+          }
 
-      // 更新文件夹名称
-      updateFolderName(parentId);
+          // 显示所有书签文件夹（更新 displayBookmarks 以接收整个树结构）
+          displayBookmarks(tree);
 
-      // 滚动到指定的分组
-      setTimeout(() => {
-        const targetGroup = document.getElementById(`folder-group-${parentId}`);
-        if (targetGroup) {
-          scrollToFolderGroup(targetGroup);
+          // 更新文件夹名称
+          updateFolderName(parentId);
 
-          // 添加视觉效果以突出显示目标分组
-          targetGroup.style.transform = 'scale(1.02)';
-          targetGroup.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
-
-          // 1秒后恢复原始样式
+          // 滚动到指定的分组
           setTimeout(() => {
+            const targetGroup = document.getElementById(`folder-group-${parentId}`);
             if (targetGroup) {
-              targetGroup.style.transform = '';
-              targetGroup.style.boxShadow = '';
-            }
-          }, 1000);
-        }
-      }, 300); // 延迟以确保DOM已更新
+              scrollToFolderGroup(targetGroup);
 
-      resolve();
-    });
+              // 添加视觉效果以突出显示目标分组
+              targetGroup.style.transform = 'scale(1.02)';
+              targetGroup.style.boxShadow = '0 10px 25px rgba(16, 185, 129, 0.3)';
+
+              // 1秒后恢复原始样式
+              setTimeout(() => {
+                if (targetGroup) {
+                  targetGroup.style.transform = '';
+                  targetGroup.style.boxShadow = '';
+                }
+              }, 1000);
+            }
+          }, 300); // 延迟以确保DOM已更新
+
+          resolve();
+        } catch (innerErr) {
+          console.error('[updateBookmarksDisplay] Error in getTree callback:', innerErr);
+          resolve(); // 仍然 resolve 以避免 Promise 卡住
+        }
+      });
+    } catch (err) {
+      console.error('[updateBookmarksDisplay] Error:', err);
+      resolve(); // 仍然 resolve 以避免 Promise 卡住
+    }
   });
 }
 
@@ -1659,110 +1695,124 @@ function navigateToPath(path) {
 }
 
 async function displayBookmarks(bookmarkTreeNodes) {
-  const bookmarksList = document.getElementById('bookmarks-list');
-  const bookmarksContainer = document.querySelector('.bookmarks-container');
-  if (!bookmarksList) {
-    return;
-  }
+  try {
+    const bookmarksList = document.getElementById('bookmarks-list');
+    const bookmarksContainer = document.querySelector('.bookmarks-container');
+    if (!bookmarksList) {
+      return;
+    }
 
-  // 先移除 loaded 类
-  bookmarksContainer.classList.remove('loaded');
+    // 先移除 loaded 类
+    if (bookmarksContainer) bookmarksContainer.classList.remove('loaded');
 
-  const fragment = document.createDocumentFragment();
+    const fragment = document.createDocumentFragment();
 
-  // 获取根级节点（书签栏、其他书签等）
-  const rootNodes = bookmarkTreeNodes[0]?.children || [];
+    // 获取根级节点（书签栏、其他书签等）
+    const rootNodes = bookmarkTreeNodes[0]?.children || [];
 
-  // 这个函数将实现扁平化的垂直流式布局
-  async function createFlatStructure() {
-    // 遍历所有根节点
-    for (const rootNode of rootNodes) {
-      if (rootNode.url) continue;
+    // 这个函数将实现扁平化的垂直流式布局
+    async function createFlatStructure() {
+      // 遍历所有根节点
+      for (const rootNode of rootNodes) {
+        if (rootNode.url) continue;
 
-      if (rootNode.id === 'recommended') {
-        // "常用推荐"分组：未分类书签
-        const directBookmarks = rootNode.children.filter(child => child.url && child.title);
-        directBookmarks.sort((a, b) => a.index - b.index);
+        if (rootNode.id === 'recommended') {
+          // "常用推荐"分组：未分类书签
+          const directBookmarks = rootNode.children.filter(child => child.url && child.title);
+          directBookmarks.sort((a, b) => a.index - b.index);
 
-        if (directBookmarks.length > 0) {
-          const recommendedGroup = document.createElement('div');
-          recommendedGroup.className = 'folder-group flat-layout';
-          recommendedGroup.id = 'folder-group-recommended';
+          if (directBookmarks.length > 0) {
+            const recommendedGroup = document.createElement('div');
+            recommendedGroup.className = 'folder-group flat-layout';
+            recommendedGroup.id = 'folder-group-recommended';
 
-          const recommendedTitle = document.createElement('h3');
-          recommendedTitle.className = 'folder-group-title';
-          recommendedTitle.textContent = '常用推荐';
-          recommendedGroup.appendChild(recommendedTitle);
+            const recommendedTitle = document.createElement('h3');
+            recommendedTitle.className = 'folder-group-title';
+            recommendedTitle.textContent = '常用推荐';
+            recommendedGroup.appendChild(recommendedTitle);
 
-          const recommendedGrid = document.createElement('div');
-          recommendedGrid.className = 'folder-bookmarks-grid';
+            const recommendedGrid = document.createElement('div');
+            recommendedGrid.className = 'folder-bookmarks-grid';
 
-          directBookmarks.forEach((bookmark) => {
-            const card = createBookmarkCard(bookmark, bookmark.index || 0);
-            recommendedGrid.appendChild(card);
-          });
+            directBookmarks.forEach((bookmark) => {
+              try {
+                const card = createBookmarkCard(bookmark, bookmark.index || 0);
+                recommendedGrid.appendChild(card);
+              } catch (cardErr) {
+                // 跳过单个损坏的书签卡片，继续渲染其他
+              }
+            });
 
-          recommendedGroup.appendChild(recommendedGrid);
-          fragment.appendChild(recommendedGroup);
+            recommendedGroup.appendChild(recommendedGrid);
+            fragment.appendChild(recommendedGroup);
+          }
+        } else {
+          // 文件夹 → 按文件夹名显示
+          await processFolder(rootNode, fragment);
         }
-      } else {
-        // 文件夹 → 按文件夹名显示
-        await processFolder(rootNode, fragment);
       }
     }
-  }
 
-  // 递归处理文件夹，但在主布局中是扁平化的
-  async function processFolder(folder, parentElement) {
-    if (folder.url) return; // 如果是书签，跳过
+    // 递归处理文件夹，但在主布局中是扁平化的
+    async function processFolder(folder, parentElement) {
+      if (folder.url) return; // 如果是书签，跳过
 
-    // 创建文件夹分组
-    const folderGroup = document.createElement('div');
-    folderGroup.className = 'folder-group flat-layout';
-    folderGroup.id = `folder-group-${folder.id}`;
+      // 创建文件夹分组
+      const folderGroup = document.createElement('div');
+      folderGroup.className = 'folder-group flat-layout';
+      folderGroup.id = `folder-group-${folder.id}`;
 
-    // 创建分组标题
-    const groupTitle = document.createElement('h3');
-    groupTitle.className = 'folder-group-title';
-    groupTitle.textContent = folder.title;
-    folderGroup.appendChild(groupTitle);
+      // 创建分组标题
+      const groupTitle = document.createElement('h3');
+      groupTitle.className = 'folder-group-title';
+      groupTitle.textContent = folder.title;
+      folderGroup.appendChild(groupTitle);
 
-    // 获取此文件夹下的所有直接书签
-    const folderBookmarks = folder.children.filter(child => child.url && child.title);
-    folderBookmarks.sort((a, b) => a.index - b.index);
+      // 获取此文件夹下的所有直接书签
+      const folderBookmarks = (folder.children || []).filter(child => child.url && child.title);
+      folderBookmarks.sort((a, b) => a.index - b.index);
 
-    const bookmarksGrid = document.createElement('div');
-    bookmarksGrid.className = 'folder-bookmarks-grid';
+      const bookmarksGrid = document.createElement('div');
+      bookmarksGrid.className = 'folder-bookmarks-grid';
 
-    folderBookmarks.forEach((bookmark) => {
-      const card = createBookmarkCard(bookmark, bookmark.index || 0);
-      bookmarksGrid.appendChild(card);
-    });
+      folderBookmarks.forEach((bookmark) => {
+        try {
+          const card = createBookmarkCard(bookmark, bookmark.index || 0);
+          bookmarksGrid.appendChild(card);
+        } catch (cardErr) {
+          // 跳过单个损坏的书签卡片，继续渲染其他
+        }
+      });
 
-    folderGroup.appendChild(bookmarksGrid);
-    parentElement.appendChild(folderGroup);
+      folderGroup.appendChild(bookmarksGrid);
+      parentElement.appendChild(folderGroup);
 
-    // 递归处理子文件夹，使它们也扁平化显示
-    const subFolders = folder.children.filter(child => !child.url);
-    for (const subFolder of subFolders) {
-      await processFolder(subFolder, parentElement);
+      // 递归处理子文件夹，使它们也扁平化显示
+      const subFolders = (folder.children || []).filter(child => !child.url);
+      for (const subFolder of subFolders) {
+        await processFolder(subFolder, parentElement);
+      }
     }
-  }
 
-  // 执行扁平化布局创建
-  await createFlatStructure();
+    // 执行扁平化布局创建
+    await createFlatStructure();
 
-  bookmarksList.innerHTML = '';
-  bookmarksList.appendChild(fragment);
+    bookmarksList.innerHTML = '';
+    bookmarksList.appendChild(fragment);
 
-  // 使用 requestAnimationFrame 确保在下一帧添加 loaded 类
-  requestAnimationFrame(() => {
+    // 使用 requestAnimationFrame 确保在下一帧添加 loaded 类
     requestAnimationFrame(() => {
-      bookmarksContainer.classList.add('loaded');
+      requestAnimationFrame(() => {
+        if (bookmarksContainer) bookmarksContainer.classList.add('loaded');
+      });
     });
-  });
 
-  setupSortable();
+    setupSortable();
+  } catch (err) {
+    console.error('[displayBookmarks] Error:', err);
+    const bookmarksContainer = document.querySelector('.bookmarks-container');
+    if (bookmarksContainer) bookmarksContainer.classList.add('loaded');
+  }
 }
 
 function getColors(img) {
@@ -3059,110 +3109,119 @@ function highlightBookmark(itemId) {
 
 // 修改 displayBookmarkCategories 函数，添加清理逻辑
 function displayBookmarkCategories(bookmarkNodes, level, parentUl, parentId) {
-  const categoriesList = parentUl || document.getElementById('categories-list');
+  try {
+    const categoriesList = parentUl || document.getElementById('categories-list');
+    if (!categoriesList) return;
 
-  // 如果是根级调用，先清空现有内容
-  if (!parentUl) {
-    categoriesList.innerHTML = '';
-  }
-
-  if (parentId === '1') {
-    categoriesList.style.display = 'block';
-  }
-
-  // 需要默认展开的特定ID（1: 收藏夹栏, 2: 其他收藏夹）
-  const defaultExpandedIds = ['1', '2'];
-  
-  bookmarkNodes.forEach(function (bookmark) {
-    if (bookmark.children && bookmark.children.length > 0) {
-      let li = document.createElement('li');
-      li.className = 'cursor-pointer p-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item';
-      li.style.paddingLeft = `${(level * 20) + 8}px`;
-      li.dataset.title = bookmark.title;
-      li.dataset.id = bookmark.id;
-
-      let span = document.createElement('span');
-      span.textContent = bookmark.title;
-
-      // remixicon 文件夹图标，基于名称哈希选图标
-      const iconList = ['ri-folder-line','ri-folder-2-line','ri-folder-3-line','ri-folder-4-line','ri-bookmark-line','ri-star-line'];
-      function hashStr(s) { let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h)+s.charCodeAt(i); return Math.abs(h); }
-      const folderIcon = document.createElement('i');
-      folderIcon.className = iconList[hashStr(bookmark.title) % iconList.length];
-      folderIcon.style.cssText = 'font-size:16px;color:#667eea;margin-right:8px;flex-shrink:0;width:20px;text-align:center;';
-      li.insertBefore(folderIcon, li.firstChild);
-
-      // 检查是否有子文件夹（用于决定是否显示箭头图标）
-      // 对于特定ID的文件夹，只要有一级子文件夹就应该显示箭头图标
-      // 对于其他文件夹，只有当有孙子级文件夹时才显示箭头图标
-      const hasSubfolders = defaultExpandedIds.includes(bookmark.id)
-        ? bookmark.children.some(child => !child.url)  // 有一级子文件夹
-        : bookmark.children.some(child => child.children);  // 有孙子级文件夹
-      
-      let arrowIcon;
-      if (hasSubfolders) {
-        arrowIcon = document.createElement('span');
-        arrowIcon.className = 'material-icons ml-auto';
-        // 只有特定ID的一级导航默认展开，显示向下箭头
-        if (defaultExpandedIds.includes(bookmark.id)) {
-          arrowIcon.innerHTML = ICONS.expand_less;
-        } else {
-          arrowIcon.innerHTML = ICONS.chevron_right;
-        }
-        li.appendChild(arrowIcon);
-      }
-
-      let sublist = document.createElement('ul');
-      sublist.className = 'pl-4 space-y-2';
-      // 只有特定ID的一级导航默认展开
-      if (defaultExpandedIds.includes(bookmark.id)) {
-        sublist.style.display = 'block';
-      } else {
-        sublist.style.display = 'none';
-      }
-
-      li.addEventListener('click', function (event) {
-        event.stopPropagation();
-        if (hasSubfolders) {
-          let isExpanded = sublist.style.display === 'block';
-          sublist.style.display = isExpanded ? 'none' : 'block';
-          if (arrowIcon) {
-            arrowIcon.innerHTML = isExpanded ? ICONS.chevron_right : ICONS.expand_less;
-          }
-        }
-
-        document.querySelectorAll('#categories-list li').forEach(function (item) {
-          item.classList.remove('bg-emerald-500');
-        });
-        li.classList.add('bg-emerald-500');
-
-        const folderId = bookmark.id;
-        // 先尝试直接滚动到目标元素
-        let target = document.getElementById(`folder-group-${folderId}`);
-        if (!target && (folderId === '1' || folderId === '2')) {
-          target = document.getElementById(`folder-group-${folderId}-recommended`);
-        }
-        if (target) {
-          scrollToFolderGroup(target);
-        } else {
-          // 元素不存在时触发渲染后再滚动
-          updateBookmarksDisplay(folderId).then(() => {
-            const el = document.getElementById(`folder-group-${folderId}`) || document.getElementById(`folder-group-${folderId}-recommended`);
-            if (el) scrollToFolderGroup(el);
-          });
-        }
-      });
-
-      li.appendChild(span);
-      categoriesList.appendChild(li);
-      categoriesList.appendChild(sublist);
-
-      displayBookmarkCategories(bookmark.children, level + 1, sublist, bookmark.id);
+    // 如果是根级调用，先清空现有内容
+    if (!parentUl) {
+      categoriesList.innerHTML = '';
     }
-  });
 
-  if (!parentUl) {
-    setupSortable();
+    if (parentId === '1') {
+      categoriesList.style.display = 'block';
+    }
+
+    // 需要默认展开的特定ID（1: 收藏夹栏, 2: 其他收藏夹）
+    const defaultExpandedIds = ['1', '2'];
+
+    bookmarkNodes.forEach(function (bookmark) {
+      try {
+        if (bookmark.children && bookmark.children.length > 0) {
+          let li = document.createElement('li');
+          li.className = 'cursor-pointer p-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item';
+          li.style.paddingLeft = `${(level * 20) + 8}px`;
+          li.dataset.title = bookmark.title;
+          li.dataset.id = bookmark.id;
+
+          let span = document.createElement('span');
+          span.textContent = bookmark.title;
+
+          // remixicon 文件夹图标，基于名称哈希选图标
+          const iconList = ['ri-folder-line','ri-folder-2-line','ri-folder-3-line','ri-folder-4-line','ri-bookmark-line','ri-star-line'];
+          function hashStr(s) { let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h)+s.charCodeAt(i); return Math.abs(h); }
+          const folderIcon = document.createElement('i');
+          folderIcon.className = iconList[hashStr(bookmark.title) % iconList.length];
+          folderIcon.style.cssText = 'font-size:16px;color:#667eea;margin-right:8px;flex-shrink:0;width:20px;text-align:center;';
+          li.insertBefore(folderIcon, li.firstChild);
+
+          // 检查是否有子文件夹（用于决定是否显示箭头图标）
+          // 对于特定ID的文件夹，只要有一级子文件夹就应该显示箭头图标
+          // 对于其他文件夹，只有当有孙子级文件夹时才显示箭头图标
+          const hasSubfolders = defaultExpandedIds.includes(bookmark.id)
+            ? bookmark.children.some(child => !child.url)  // 有一级子文件夹
+            : bookmark.children.some(child => child.children);  // 有孙子级文件夹
+
+          let arrowIcon;
+          if (hasSubfolders) {
+            arrowIcon = document.createElement('span');
+            arrowIcon.className = 'material-icons ml-auto';
+            // 只有特定ID的一级导航默认展开，显示向下箭头
+            if (defaultExpandedIds.includes(bookmark.id)) {
+              arrowIcon.innerHTML = ICONS.expand_less;
+            } else {
+              arrowIcon.innerHTML = ICONS.chevron_right;
+            }
+            li.appendChild(arrowIcon);
+          }
+
+          let sublist = document.createElement('ul');
+          sublist.className = 'pl-4 space-y-2';
+          // 只有特定ID的一级导航默认展开
+          if (defaultExpandedIds.includes(bookmark.id)) {
+            sublist.style.display = 'block';
+          } else {
+            sublist.style.display = 'none';
+          }
+
+          li.addEventListener('click', function (event) {
+            event.stopPropagation();
+            if (hasSubfolders) {
+              let isExpanded = sublist.style.display === 'block';
+              sublist.style.display = isExpanded ? 'none' : 'block';
+              if (arrowIcon) {
+                arrowIcon.innerHTML = isExpanded ? ICONS.chevron_right : ICONS.expand_less;
+              }
+            }
+
+            document.querySelectorAll('#categories-list li').forEach(function (item) {
+              item.classList.remove('bg-emerald-500');
+            });
+            li.classList.add('bg-emerald-500');
+
+            const folderId = bookmark.id;
+            // 先尝试直接滚动到目标元素
+            let target = document.getElementById(`folder-group-${folderId}`);
+            if (!target && (folderId === '1' || folderId === '2')) {
+              target = document.getElementById(`folder-group-${folderId}-recommended`);
+            }
+            if (target) {
+              scrollToFolderGroup(target);
+            } else {
+              // 元素不存在时触发渲染后再滚动
+              updateBookmarksDisplay(folderId).then(() => {
+                const el = document.getElementById(`folder-group-${folderId}`) || document.getElementById(`folder-group-${folderId}-recommended`);
+                if (el) scrollToFolderGroup(el);
+              });
+            }
+          });
+
+          li.appendChild(span);
+          categoriesList.appendChild(li);
+          categoriesList.appendChild(sublist);
+
+          displayBookmarkCategories(bookmark.children, level + 1, sublist, bookmark.id);
+        }
+      } catch (bmErr) {
+        // 跳过单个损坏的书签文件夹节点
+      }
+    });
+
+    if (!parentUl) {
+      setupSortable();
+    }
+  } catch (err) {
+    console.error('[displayBookmarkCategories] Error:', err);
   }
 }
 
@@ -4234,65 +4293,81 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
 
   function updateBookmarksDisplay(parentId, movedItemId, newIndex) {
     return new Promise((resolve, reject) => {
-      // 首先检查缓存
-      const cached = bookmarksCache.get(parentId);
-      if (cached && !movedItemId) {
-        // 如果有缓存且不是移动操作，获取完整的书签树
-        chrome.bookmarks.getTree(function (tree) {
-          displayBookmarks(tree);
+      try {
+        // 首先检查缓存
+        const cached = bookmarksCache.get(parentId);
+        if (cached && !movedItemId) {
+          // 如果有缓存且不是移动操作，获取完整的书签树
+          chrome.bookmarks.getTree(function (tree) {
+            try {
+              displayBookmarks(tree);
 
-          // 滚动到指定的文件夹
-          setTimeout(() => {
-            const folderGroup = document.getElementById(`folder-group-${parentId}`);
-            if (folderGroup) {
-              scrollToFolderGroup(folderGroup);
+              // 滚动到指定的文件夹
+              setTimeout(() => {
+                const folderGroup = document.getElementById(`folder-group-${parentId}`);
+                if (folderGroup) {
+                  scrollToFolderGroup(folderGroup);
+                }
+              }, 300);
+
+              resolve();
+            } catch (err) {
+              console.error('[updateBookmarksDisplay] Error in cached getTree callback:', err);
+              resolve();
             }
-          }, 300);
-
-          resolve();
-        });
-        return;
-      }
-
-      // 如果没有缓存或是移动操作，获取完整的书签树
-      chrome.bookmarks.getTree((tree) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
+          });
           return;
         }
 
-        // 显示所有书签
-        displayBookmarks(tree);
+        // 如果没有缓存或是移动操作，获取完整的书签树
+        chrome.bookmarks.getTree((tree) => {
+          try {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
 
-        // 滚动到指定的文件夹
-        setTimeout(() => {
-          const folderGroup = document.getElementById(`folder-group-${parentId}`);
-          if (folderGroup) {
-            scrollToFolderGroup(folderGroup);
+            // 显示所有书签
+            displayBookmarks(tree);
+
+            // 滚动到指定的文件夹
+            setTimeout(() => {
+              const folderGroup = document.getElementById(`folder-group-${parentId}`);
+              if (folderGroup) {
+                scrollToFolderGroup(folderGroup);
+              }
+            }, 300);
+
+            // 如果是移动操作，突出显示移动的书签
+            if (movedItemId) {
+              highlightBookmark(movedItemId);
+            }
+
+            const bookmarksContainer = document.querySelector('.bookmarks-container');
+            if (bookmarksContainer) {
+              // 先隐藏容器
+              bookmarksContainer.style.opacity = '0';
+              bookmarksContainer.style.transform = 'translateY(20px)';
+
+              // 使用 requestAnimationFrame 来确保 DOM 更新后再显示容器
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  bookmarksContainer.style.opacity = '1';
+                  bookmarksContainer.style.transform = 'translateY(0)';
+                });
+              });
+            }
+
+            resolve();
+          } catch (innerErr) {
+            console.error('[updateBookmarksDisplay] Error in getTree callback:', innerErr);
+            resolve();
           }
-        }, 300);
-
-        // 如果是移动操作，突出显示移动的书签
-        if (movedItemId) {
-          highlightBookmark(movedItemId);
-        }
-
-        const bookmarksContainer = document.querySelector('.bookmarks-container');
-
-        // 先隐藏容器
-        bookmarksContainer.style.opacity = '0';
-        bookmarksContainer.style.transform = 'translateY(20px)';
-
-        // 使用 requestAnimationFrame 来确保 DOM 更新后再显示容器
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            bookmarksContainer.style.opacity = '1';
-            bookmarksContainer.style.transform = 'translateY(0)';
-          });
         });
-
+      } catch (err) {
+        console.error('[updateBookmarksDisplay] Error:', err);
         resolve();
-      });
+      }
     });
   }
 

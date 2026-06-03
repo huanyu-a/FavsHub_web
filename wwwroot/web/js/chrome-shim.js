@@ -470,26 +470,260 @@ const faviconShim = {
 };
 
 // ===== chrome.i18n =====
-// 异步加载语言文件
-const _i18nMessages = {};
-const _i18nReady = (async function loadLocaleMessages() {
-  try {
-    const res = await fetch('/_locales/zh_CN/messages.json');
-    if (res.ok) {
-      const data = await res.json();
-      for (const [key, val] of Object.entries(data)) {
-        _i18nMessages[key] = typeof val === 'object' && val.message ? val.message : val;
-      }
-    }
-  } catch (e) {
-    // 静默失败，getMessage 会回退到返回 key
-  }
-})();
+const _i18nMessages = {
+  extName: "FavsHub·标签导航",
+  extDescription: "FavsHub 是一个基于书签的新标签页应用程序，帮助您高效地组织和访问您的书签。",
+  welcomeMessage: "早上好",
+  searchPlaceholder: "按 Enter 键搜索，或按 Cmd/Ctrl + Enter 键搜索所有搜索引擎",
+  editDialogTitle: "编辑快捷链接",
+  editNameLabel: "名称：",
+  editUrlLabel: "网址：",
+  saveButton: "保存",
+  cancelButton: "取消",
+  confirmDeleteMessage: "您确定要删除 \"$1\" 吗？",
+  confirmDeleteButton: "删除",
+  openInNewTab: "在新标签页中打开",
+  openInNewWindow: "在新窗口中打开",
+  openInIncognito: "在无痕窗口中打开",
+  editQuickLink: "编辑",
+  deleteQuickLink: "删除",
+  copyLink: "复制链接",
+  createQRCode: "创建二维码",
+  extensionsLinkTitle: "扩展",
+  settingsLinkTitle: "设置",
+  settingsTitle: "设置",
+  appearanceTab: "外观",
+  floatingBallTab: "悬浮球",
+  languageTab: "语言",
+  backgroundColorTitle: "背景颜色",
+  floatingBallSettingsTitle: "悬浮球设置",
+  floatingBallDescription: "开启悬浮球后会在页面右上角显示一个可点击的悬浮图标，用于快速访问搜索引擎和书签。",
+  enableFloatingBall: "启用悬浮球",
+  promptPro: "提示词管理",
+  adminPanel: "管理后台",
+  openSidebar: "打开侧边栏",
+  languageSettingsTitle: "语言 / Language",
+  englishOption: "English",
+  chineseOption: "中文（简体）",
+  confirmDeleteBookmark: "您确定要删除书签 \"$1\" 吗？",
+  rename: "重命名",
+  "delete": "删除",
+  setAsHomepage: "设为主页",
+  confirmDeleteFolder: "您确定要删除文件夹 \"$1\" 吗？",
+  categoryDeleted: "分类已删除",
+  searchEngineIconNotFound: "未找到搜索引擎图标",
+  folderDeleted: "文件夹已删除：ID=$1，标题=$2",
+  morningGreeting: "早上好👋",
+  afternoonGreeting: "下午好👋",
+  eveningGreeting: "晚上好👋",
+  linkCopied: "链接已复制到剪贴板",
+  copyLinkFailed: "复制链接失败",
+  invalidBookmark: "无效的书签或URL",
+  download: "下载",
+  copied: "已复制",
+  confirmDeleteTitle: "确认删除",
+  scanQRCode: "扫描二维码",
+  doubaoTab: "豆包",
+  metasoTab: "秘塔搜索",
+  renameFolderTitle: "重命名文件夹",
+  nameLabel: "名称",
+  moreSearchSupportToast: "更多搜索支持即将推出",
+  historyLinkTitle: "历史记录",
+  downloadsLinkTitle: "下载",
+  passwordsLinkTitle: "密码",
+  confirmDeleteQuickLinkMessage: "您确定要删除快捷链接 \"$1\" 吗？，该链接将不会出现在快速链接列表中。",
+  yearProgress: "年进度",
+  searchTips: "本次使用:",
+  baiduTab: "百度",
+  searchEngineUpdateTip: "搜索引擎切换功能已更新",
+  searchEngineUpdateDetail: "点击搜索图标可以设置默认搜索引擎，支持自定义搜索引擎，标签栏用于临时切换当次搜索",
+  googleLabel: "谷歌",
+  bingLabel: "必应",
+  baidumLabel: "百度移动",
+  baiduLabel: "百度",
+  toutiaoLabel: "头条",
+  sougouLabel: "搜狗",
+  "360Label": "360",
+  shenmaLabel: "神马",
+  kimiLabel: "Kimi",
+  doubaoLabel: "豆包",
+  zhidaLabel: "知乎直答",
+  qwenLabel: "千问",
+  iflowLabel: "心流",
+  chatgptLabel: "ChatGPT",
+  feloLabel: "Felo",
+  metasoLabel: "秘塔",
+  backgroundTitle: "背景设置",
+  solidBackgroundTitle: "纯色背景",
+  pleaseUploadImage: "请上传图片文件",
+  imageSizeExceeded: "图片大小超过限制（最大10MB），请选择较小的图片",
+  fileReadError: "读取文件失败，请重试",
+  lowResolutionWarning: "图片分辨率过低，建议使用至少 $1 x $2 的图片以获得最佳效果",
+  imageLoadError: "图片加载失败，请尝试其他图片",
+  storageError: "存储空间不足，请清理后重试",
+  noValidImagesFound: "未找到有效的图片文件",
+  aboutTab: "关于",
+  aboutTitle: "关于 TabMark",
+  aboutDescription: "TabMark 是一个简洁、高效的书签管理扩展，帮助您更好地组织和访问您的网络收藏。",
+  sourceCode: "源代码",
+  contactUs: "联系我们",
+  version: "版本 $1",
+  officialWebsite: "官方网站",
+  feedback: "邮箱",
+  settingsUpdateTip: "你可以在这里设置背景颜色、悬浮球、推荐网站、链接打开方式、清理失效书签...",
+  deleteSuccess: "删除成功",
+  quickLinksTab: "网站推荐",
+  quickLinksSettings: "网站推荐设置",
+  quickLinksDescription: "开启网站推荐后，将在搜索框下方显示您最常访问的网站，方便快速访问。访问新的网站时会自动更新推荐列表。",
+  enableQuickLinks: "启用网站推荐",
+  namePrompt: "我该怎么称呼你：",
+  openAllBookmarks: "打开所有书签",
+  bookmarkCleanupTitle: "书签清理",
+  bookmarkCleanupNotInstalled: "您尚未安装书签清理插件。是否前往 Chrome 商店安装？",
+  newFeatureTitle: "新功能提示",
+  bookmarkCleanupFeature: "新增书签清理功能：点击侧边栏的设置图标，安装书签清理拓展，轻松清理重复和失效的书签，查看你的书签统计画像",
+  bookmarkManagementTab: "书签整理",
+  bookmarkCleanupSettingsTitle: "书签清理与统计",
+  bookmarkCleanupSettingsDescription: "清理重复和失效的书签，查看书签使用统计数据，帮助您更好地管理书签。",
+  openBookmarkCleanup: "打开书签清理工具",
+  floatingBallClickTip: "点击",
+  floatingBallClickDesc: "打开快速搜索",
+  floatingBallAltClickTip: "Alt + 点击",
+  floatingBallAltClickDesc: "打开侧边栏",
+  floatingBallShortcutTip: "Alt/Command + B",
+  floatingBallShortcutDesc: "快捷键打开侧边栏",
+  doNotShowAgain: "不再显示此提示",
+  linkOpeningTab: "链接打开方式",
+  linkOpeningSettingsTitle: "链接打开方式设置",
+  linkOpeningDescription: "设置在主页面中点击书签和快捷链接时的打开方式。",
+  sidePanelLinkOpeningTitle: "侧边栏链接打开方式",
+  sidePanelLinkOpeningDescription: "设置在侧边栏中点击书签和快捷链接时的打开方式",
+  sidePanelOpenInNewTab: "在新标签页中打开",
+  sidePanelOpenInSidepanel: "在侧边栏中打开",
+  sidebarFeaturesFeature: "新增两项功能：\n1. 快捷侧边栏：\n在任意网页按下 Alt/Command + B，即可打开侧边栏，快速访问书签和搜索功能。\n\n2. 链接打开方式：\n在设置中可自定义书签和快捷链接的打开方式，选择是否在新标签页中打开。",
+  layoutTab: "布局设置",
+  layoutSettingsTitle: "布局设置",
+  layoutSettingsDescription: "自定义书签和界面的布局显示方式",
+  bookmarkWidthTitle: "书签宽度设置",
+  previewText: "每行书签按钮数量：",
+  bookmarkHeightTitle: "书签卡片高度",
+  heightPreviewText: "调整书签卡片的高度",
+  addSearchEngine: "添加",
+  searchEnginesTitle: "搜索引擎设置",
+  aiSearchEnginesTitle: "AI 搜索",
+  generalSearchEnginesTitle: "通用搜索",
+  socialSearchEnginesTitle: "社交媒体",
+  customSearchEnginesTitle: "自定义搜索引擎",
+  searchEngineNamePlaceholder: "搜索引擎名称",
+  searchEngineUrlPlaceholder: "搜索 URL (使用 %s 作为搜索词占位符)",
+  searchEngineIconPlaceholder: "图标 URL（可选，留空将自动获取）",
+  addSearchEngineButton: "添加",
+  searchEngineAddSuccess: "搜索引擎添加成功",
+  searchEngineAddError: "添加搜索引擎失败，请重试",
+  searchEngineDeleteConfirm: "确定要删除此搜索引擎吗？",
+  searchEngineNameRequired: "请输入搜索引擎名称",
+  searchEngineUrlRequired: "请输入搜索引擎URL",
+  searchEngineUrlInvalid: "请输入有效的URL，需包含 %s 作为搜索词占位符",
+  semanticscholarLabel: "Semantic",
+  deepseekLabel: "Deepseek",
+  yahooLabel: "雅虎",
+  duckduckgoLabel: "DuckDuckGo",
+  yandexLabel: "Yandex",
+  xiaohongshuLabel: "小红书",
+  jikeLabel: "即刻",
+  zhihuLabel: "知乎",
+  doubanLabel: "豆瓣",
+  bilibiliLabel: "哔哩哔哩",
+  githubLabel: "GitHub",
+  perplexityLabel: "Perplexity",
+  claudeLabel: "Claude",
+  deleteFolderError: "删除文件夹失败，请重试",
+  searchEngineUpdateFeature: "搜索引擎切换功能已更新：\n1. 点击搜索图标设置默认搜索引擎\n2. 支持自定义搜索引擎\n3. 使用标签栏进行临时切换",
+  themeTitle: "主题设置",
+  lightTheme: "浅色",
+  darkTheme: "深色",
+  autoTheme: "跟随系统",
+  addToDefaultFolders: "固定到主页",
+  removeFromDefaultFolders: "取消固定",
+  addedToDefaultFolders: "已将 $1 固定到主页",
+  removedFromDefaultFolders: "已取消固定 $1",
+  maxDefaultFoldersReached: "最多只能固定8个文件夹",
+  interfaceElementsTitle: "界面元素显示",
+  showSearchBox: "显示搜索框",
+  showWelcomeMessage: "显示欢迎语",
+  showFooter: "显示页脚",
+  quickAccessLinksTitle: "快捷访问链接",
+  showHistoryLink: "显示历史记录",
+  showDownloadsLink: "显示下载记录",
+  showPasswordsLink: "显示密码管理",
+  showExtensionsLink: "显示扩展管理",
+  searchTab: "搜索设置",
+  searchSettingsTitle: "搜索设置",
+  searchSettingsDescription: "自定义搜索建议的显示内容和行为",
+  searchSuggestionsTitle: "搜索建议设置",
+  showHistorySuggestions: "显示历史记录建议",
+  showBookmarkSuggestions: "显示书签建议",
+  showPromptSuggestions: "显示提示词建议",
+  containerWidthTitle: "书签容器宽度",
+  containerWidthDescription: "调整书签容器在页面中的宽度比例",
+  donateTab: "赞赏",
+  donateTitle: "支持 TabMark 开发",
+  donateDescription: "如果您觉得 TabMark 有用，请考虑支持它的持续开发。您的贡献将帮助我们改进扩展并添加新功能。",
+  wechatDonateTitle: "微信支付",
+  paypalDonateTitle: "PayPal",
+  scanQRCodeToDonate: "扫描二维码赞赏",
+  donateListLink: "查看赞赏列表",
+  donateWithPaypal: "使用 PayPal 捐赠",
+  thankYouForSupport: "感谢您的支持！",
+  bookmarksPerRow: "$1 个/行",
+  customTabFeature: "新增自定义标签页功能：\n1. 现在您可以自定义主页显示的内容，在设置中的「布局设置」选项卡下\n2. 可以选择隐藏或显示搜索框、欢迎语和页脚\n3. 可以自定义快捷访问链接的显示\n4. 调整书签容器宽度，获得最适合您的布局\n5. 在「搜索设置」中可以选择是否显示历史记录和书签建议\n6. 新增「赞赏」选项，如果您喜欢这个扩展，可以通过微信赞赏支持开发",
+  grokLabel: "Grok",
+  searchBoxDisplayTitle: "搜索框显示",
+  shortcutsTab: "快捷键",
+  wechatGroup: "微信群",
+  feedbacks: "反馈建议",
+  shortcutsSettingsTitle: "快捷键设置",
+  shortcutsSettingsDescription: "自定义快捷键设置",
+  sidebarShortcutName: "侧边栏快捷键",
+  configureShortcuts: "配置快捷键",
+  shortcutValue: "默认",
+  shortcutsFeature: "新增功能：\n1. 侧边栏快捷键自定义：现在您可以在Chrome扩展快捷键设置中自定义打开侧边栏的快捷键\n2. 在设置 > 快捷键中可以快速跳转到Chrome快捷键设置页面\n3. 双向控制：按下相同的快捷键可以打开或关闭侧边栏，更加便捷\n\n自定义标签页功能：\n1. 现在您可以自定义主页显示的内容，在设置中的「布局设置」选项卡下\n2. 可以选择隐藏或显示搜索框、欢迎语和页脚\n3. 可以自定义快捷访问链接的显示\n4. 调整书签容器宽度，获得最适合您的布局\n5. 在「搜索设置」中可以选择是否显示历史记录和书签建议\n6. 新增「赞赏」选项，如果您喜欢这个扩展，可以通过微信赞赏支持开发",
+  searchResultsOpeningTitle: "搜索结果打开方式",
+  openSearchInNewTab: "在新标签页中打开搜索结果",
+  searchSuggestionsFeature: "1.245版本更新：\n1. 修复全部搜索功能：现在使用Cmd/Ctrl+Enter搜索时会包含默认搜索引擎\n2. 新增搜索结果打开方式设置：可以选择在新标签页或当前页面打开搜索结果\n3. 新增书签卡片高度自定义：可以根据个人喜好调整书签卡片的高度\n4. 新增侧边栏链接打开方式自定义，可选择在侧边栏中打开链接\n5. 修复了多个UI界面问题，提升用户体验",
+  bookmarkCardHeightTitle: "书签卡片高度",
+  bookmarkCardHeightValue: "$1 像素",
+  categoryLabel: "分类",
+  backupTab: "数据备份",
+  backupTitle: "自动备份 PromptPro 数据",
+  backupDescription: "选择本地文件夹，自动备份 PromptPro 的提示词、文件夹、标签和版本历史。",
+  selectBackupFolder: "选择文件夹",
+  enableAutoBackup: "每日自动备份",
+  manualBackupTitle: "手动备份",
+  backupNow: "立即备份",
+  neverBackedUp: "上次备份：未备份",
+  backupFolderNotSelected: "未选择",
+  backupSuccess: "备份成功：$1",
+  backupFailed: "备份失败，请重试",
+  folderSelected: "已选择：$1",
+  baiduPanTitle: "百度网盘云端备份",
+  baiduPanDescription: "将 PromptPro 数据备份到百度网盘，需要自行注册百度开放平台应用。",
+  baiduPanConnect: "连接百度网盘",
+  baiduPanDisconnect: "断开连接",
+  baiduPanAutoBackup: "云端自动备份",
+  baiduPanUploadNow: "立即上传",
+  baiduPanCloudHistory: "云端备份记录",
+  baiduPanNoHistory: "暂无云端备份记录",
+  baiduPanConnected: "已连接",
+  baiduPanDisconnected: "未连接",
+  baiduPanTokenExpired: "登录已过期，请重新连接",
+  baiduPanUploadSuccess: "云端备份成功：$1",
+  baiduPanUploadFailed: "云端备份失败：$1"
+};
 
 const i18nShim = {
   getMessage: function(key, substitutions) {
     let msg = _i18nMessages[key] || key;
-    // 处理 $1, $2 等占位符
     if (substitutions && Array.isArray(substitutions)) {
       substitutions.forEach((val, i) => {
         msg = msg.replace(`$${i + 1}`, val);
@@ -575,57 +809,8 @@ function escapeHtml(str) {
 // 挂载到全局，供所有模块使用
 window.escapeHtml = escapeHtml;
 
-// ===== 国际化支持（原 localization.js） =====
-// 获取用户首选语言
-function getUserLanguage() {
-  try {
-    if (chrome.i18n && typeof chrome.i18n.getUILanguage === 'function') {
-      return chrome.i18n.getUILanguage();
-    }
-  } catch (e) {}
-  return navigator.language || 'zh-CN';
-}
-
+// ===== 国际化支持（已简化为硬编码中文） =====
 window.getLocalizedMessage = function(messageName) {
-  const userLang = getUserLanguage();
-  let message = '';
-  try {
-    if (chrome.i18n && typeof chrome.i18n.getMessage === 'function') {
-      message = chrome.i18n.getMessage(messageName);
-    }
-  } catch (e) {}
-
-  // 如果没有找到消息，直接返回消息名称
-  if (!message) {
-    return messageName;
-  }
-
-  return message;
+  return _i18nMessages[messageName] || messageName;
 };
-
-window.updateUILanguage = function() {
-  const userLang = getUserLanguage();
-
-  // 处理常规的 data-i18n 属性
-  document.querySelectorAll('[data-i18n]').forEach((element) => {
-    const messageName = element.getAttribute('data-i18n');
-    const localizedMessage = window.getLocalizedMessage(messageName);
-    element.textContent = localizedMessage;
-  });
-
-  // 处理 placeholder
-  document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
-    const messageName = element.getAttribute('data-i18n-placeholder');
-    element.placeholder = window.getLocalizedMessage(messageName);
-  });
-
-  // 处理 title
-  document.querySelectorAll('[data-i18n-title]').forEach((element) => {
-    const messageName = element.getAttribute('data-i18n-title');
-    element.title = window.getLocalizedMessage(messageName);
-  });
-};
-
-// 在文档加载完成后自动更新 UI 语言
-document.addEventListener('DOMContentLoaded', window.updateUILanguage);
 

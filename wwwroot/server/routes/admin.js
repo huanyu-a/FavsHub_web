@@ -53,6 +53,29 @@ router.delete('/users/:id', (req, res) => {
   res.json({ success: true, message: `已删除用户 ${user.username} 及其所有数据` });
 });
 
+// 编辑用户
+router.put('/users/:id', (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) return res.status(400).json({ error: '无效的用户 ID' });
+    const { username, email, nickname, is_admin } = req.body;
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    if (username !== undefined) {
+      const existing = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username, userId);
+      if (existing) return res.status(400).json({ error: '用户名已存在' });
+      db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, userId);
+    }
+    if (email !== undefined) db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, userId);
+    if (nickname !== undefined) db.prepare('UPDATE users SET nickname = ? WHERE id = ?').run(nickname, userId);
+    if (is_admin !== undefined) db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(is_admin, userId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Admin] PUT /users error:', err.message);
+    res.status(500).json({ error: '更新用户失败' });
+  }
+});
+
 // 查看指定用户的书签
 router.get('/users/:id/bookmarks', (req, res) => {
   const userId = parseInt(req.params.id);
@@ -477,7 +500,7 @@ function downloadFavicon(url, destPath) {
   });
 }
 
-// 批量下载未本地化的 favicon
+// 批量下载未本地化的 favicon（按 hostname 分组，每个域名只下载一次）
 router.post('/download-favicons', (req, res) => {
   const faviconDir = path.join(__dirname, '..', '..', 'images', 'favicons');
   if (!fs.existsSync(faviconDir)) fs.mkdirSync(faviconDir, { recursive: true });
@@ -485,39 +508,127 @@ router.post('/download-favicons', (req, res) => {
   const bookmarks = db.prepare("SELECT id, url, icon FROM bookmarks WHERE icon NOT LIKE '/images/favicons/%' OR icon IS NULL").all();
   if (!bookmarks.length) return res.json({ success: true, message: '所有书签图标已本地化', count: 0 });
 
+  // 按 hostname 分组
+  const hostGroups = {};
+  for (const bm of bookmarks) {
+    try {
+      const hostname = new URL(bm.url).hostname;
+      if (!hostGroups[hostname]) hostGroups[hostname] = [];
+      hostGroups[hostname].push(bm.id);
+    } catch { /* 无效 URL 跳过 */ }
+  }
+
+  const hostnames = Object.keys(hostGroups);
   let processed = 0;
   let errors = 0;
   const updateStmt = db.prepare('UPDATE bookmarks SET icon = ? WHERE id = ?');
+  const updateByHostname = db.prepare("UPDATE bookmarks SET icon = ? WHERE url LIKE ?");
 
   const processNext = () => {
-    if (processed >= bookmarks.length) {
-      return res.json({ success: true, message: `处理完成`, total: bookmarks.length, errors });
+    if (processed >= hostnames.length) {
+      return res.json({ success: true, message: `处理完成`, domains: hostnames.length, bookmarks: bookmarks.length, errors });
     }
 
-    const bm = bookmarks[processed];
+    const hostname = hostnames[processed];
     processed++;
-    try {
-      const hostname = new URL(bm.url).hostname;
-      const localPath = `/images/favicons/${hostname}.png`;
-      const destPath = path.join(faviconDir, hostname + '.png');
+    const localPath = `/images/favicons/${hostname}.png`;
+    const destPath = path.join(faviconDir, hostname + '.png');
 
-      if (fs.existsSync(destPath)) {
-        updateStmt.run(localPath, bm.id);
-        processNext();
-        return;
-      }
-
-      const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-      downloadFavicon(faviconUrl, destPath)
-        .then(() => { updateStmt.run(localPath, bm.id); processNext(); })
-        .catch(() => { errors++; processNext(); });
-    } catch {
-      errors++;
+    if (fs.existsSync(destPath)) {
+      // 文件已存在，直接更新所有该域名的书签
+      updateByHostname.run(localPath, `%://${hostname}/%`);
       processNext();
+      return;
     }
+
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+    downloadFavicon(faviconUrl, destPath)
+      .then(() => {
+        updateByHostname.run(localPath, `%://${hostname}/%`);
+        processNext();
+      })
+      .catch(() => { errors++; processNext(); });
   };
 
   processNext();
+});
+
+// 重试图标：将 Google favicon 远程 URL 替换为本地路径
+router.post('/retry-failed-favicons', (req, res) => {
+  const faviconDir = path.join(__dirname, '..', '..', 'images', 'favicons');
+  if (!fs.existsSync(faviconDir)) fs.mkdirSync(faviconDir, { recursive: true });
+
+  const bookmarks = db.prepare(`
+    SELECT id, url, icon FROM bookmarks
+    WHERE icon LIKE '%google.com/s2/favicons%' OR icon LIKE '%favicon%'
+  `).all();
+  if (!bookmarks.length) return res.json({ success: true, message: '没有需要重试的图标', count: 0 });
+
+  // 按 hostname 分组
+  const hostGroups = {};
+  for (const bm of bookmarks) {
+    try {
+      const hostname = new URL(bm.url).hostname;
+      if (!hostGroups[hostname]) hostGroups[hostname] = [];
+      hostGroups[hostname].push(bm.id);
+    } catch { /* 无效 URL 跳过 */ }
+  }
+
+  const hostnames = Object.keys(hostGroups);
+  let processed = 0;
+  let errors = 0;
+  const updateByHostname = db.prepare("UPDATE bookmarks SET icon = ? WHERE url LIKE ?");
+
+  const processNext = () => {
+    if (processed >= hostnames.length) {
+      return res.json({ success: true, message: '重试完成', domains: hostnames.length, bookmarks: bookmarks.length, errors });
+    }
+
+    const hostname = hostnames[processed];
+    processed++;
+    const localPath = `/images/favicons/${hostname}.png`;
+    const destPath = path.join(faviconDir, hostname + '.png');
+
+    if (fs.existsSync(destPath)) {
+      updateByHostname.run(localPath, `%://${hostname}/%`);
+      processNext();
+      return;
+    }
+
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+    downloadFavicon(faviconUrl, destPath)
+      .then(() => {
+        updateByHostname.run(localPath, `%://${hostname}/%`);
+        processNext();
+      })
+      .catch(() => { errors++; processNext(); });
+  };
+
+  processNext();
+});
+
+// 强制本地化图标路径（将 Google favicon 远程 URL 替换为本地路径）
+router.post('/force-localize-icons', (req, res) => {
+  const bookmarks = db.prepare(`
+    SELECT id, url, icon FROM bookmarks
+    WHERE icon LIKE '%google.com/s2/favicons%' OR icon LIKE '%favicon%'
+  `).all();
+
+  if (!bookmarks.length) return res.json({ success: true, message: '没有需要本地化的图标', count: 0 });
+
+  const updateStmt = db.prepare('UPDATE bookmarks SET icon = ? WHERE id = ?');
+  let updated = 0;
+
+  for (const bm of bookmarks) {
+    try {
+      const hostname = new URL(bm.url).hostname;
+      const localPath = `/images/favicons/${hostname}.png`;
+      updateStmt.run(localPath, bm.id);
+      updated++;
+    } catch { /* 无效 URL 跳过 */ }
+  }
+
+  res.json({ success: true, message: `已更新 ${updated} 个书签的图标路径`, count: updated });
 });
 
 // 单个书签 favicon 下载

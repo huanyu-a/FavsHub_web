@@ -257,6 +257,8 @@
               <div style="display:flex;gap:8px;">
                 <button class="btn btn-primary btn-sm" onclick="loadBookmarks()">刷新</button>
                 <button class="btn btn-ghost btn-sm" onclick="downloadAllFavicons()">下载图标</button>
+                <button class="btn btn-ghost btn-sm" onclick="retryFailedFavicons()">重试失败图标</button>
+                <button class="btn btn-ghost btn-sm" onclick="forceLocalizeIcons()">强制本地化</button>
               </div>
             </div>
             <table>
@@ -817,10 +819,50 @@
     </div>
   </div>
 
+  <!-- 用户编辑弹窗 -->
+  <div class="modal-overlay" id="edit-user-modal">
+    <div class="modal" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 id="user-modal-title">编辑用户</h3>
+        <button class="modal-close" onclick="closeUserEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-user-id">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">用户名</label>
+          <input type="text" id="edit-user-username" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">邮箱</label>
+          <input type="email" id="edit-user-email" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">昵称</label>
+          <input type="text" id="edit-user-nickname" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="edit-user-admin"> 管理员
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="closeUserEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveUserEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="../js/utils.js?v=1"></script>
   <script src="../js/chrome-shim.js?v=11"></script>
   <script src="/js/api.js?v=6"></script>
   <script>
+    // 全局错误捕获
+    window.onerror = function(msg, src, line, col, err) {
+      console.error('[Admin Error]', msg, src, 'line ' + line);
+      return false;
+    };
+
     // 权限检查
     if (!api.isLoggedIn()) {
       window.location.href = '/login.html?redirect=/admin/';
@@ -855,6 +897,45 @@
       }
     }
 
+    // === 数据属性事件分发器（替代 onclick 中的 JSON.stringify） ===
+    function handleUserAction(action, id) {
+      const row = event.target.closest('tr');
+      const username = row?.dataset?.username;
+      if (action === 'viewBookmarks') viewBookmarks(id, username);
+      else if (action === 'viewPrompts') viewPrompts(id, username);
+      else if (action === 'deleteUser') deleteUser(id, username);
+    }
+
+    function handleFolderAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'editFolder') editFolder(id, row.dataset.folderName, row.dataset.parentId === 'null' ? null : parseInt(row.dataset.parentId), row.dataset.userId);
+      else if (action === 'deleteFolder') deleteFolder(id, row.dataset.folderName);
+    }
+
+    function handlePromptFolderAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'editPromptFolder') editPromptFolder(id);
+      else if (action === 'deletePromptFolder') deletePromptFolder(id, row.dataset.folderName);
+    }
+
+    function handlePromptAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'viewPromptHistory') viewPromptHistory(id, row.dataset.promptTitle);
+      else if (action === 'deletePrompt') deletePrompt(id, row.dataset.promptTitle);
+    }
+
+    function handleTagAction(action) {
+      const row = event.target.closest('tr');
+      const name = row?.dataset?.tagName;
+      if (action === 'editPromptTag') editPromptTag(name);
+      else if (action === 'deletePromptTag') deletePromptTag(name);
+    }
+
+    function handleEngineAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'deleteEngine') deleteEngine(id, row.dataset.engineName);
+    }
+
     // 加载用户列表
     let adminUsers = [];
     async function loadUsers() {
@@ -867,7 +948,7 @@
           return;
         }
         tbody.innerHTML = data.users.map(u => `
-          <tr>
+          <tr data-username="${escapeAttr(u.username)}">
             <td>${u.id}</td>
             <td>${escapeHtml(u.username)} ${adminUsers.includes(u.username) ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
             <td>${escapeHtml(u.nickname || '-')}</td>
@@ -876,9 +957,10 @@
             <td>${u.prompt_count}</td>
             <td>${new Date(u.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='viewBookmarks(${u.id}, ${JSON.stringify(u.username)})'>书签</button>
-              <button class="btn btn-ghost btn-sm" onclick='viewPrompts(${u.id}, ${JSON.stringify(u.username)})'>Prompt</button>
-              ${!adminUsers.includes(u.username) ? `<button class="btn btn-danger btn-sm" onclick='deleteUser(${u.id}, ${JSON.stringify(u.username)})'>删除</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewBookmarks', ${u.id})">书签</button>
+              <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewPrompts', ${u.id})">Prompt</button>
+              <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || "")}', '${escapeAttr(u.nickname || "")}', ${adminUsers.includes(u.username) ? 1 : 0})">编辑</button>
+              ${!adminUsers.includes(u.username) ? `<button class="btn btn-danger btn-sm" onclick="handleUserAction('deleteUser', ${u.id})">删除</button>` : ''}
             </td>
           </tr>
         `).join('');
@@ -952,6 +1034,41 @@
         alert('删除失败: ' + err.message);
       }
     }
+
+    // === 用户编辑 ===
+    function editUser(id, username, email, nickname, isAdmin) {
+      document.getElementById('edit-user-id').value = id;
+      document.getElementById('edit-user-username').value = username;
+      document.getElementById('edit-user-email').value = email;
+      document.getElementById('edit-user-nickname').value = nickname;
+      document.getElementById('edit-user-admin').checked = isAdmin;
+      document.getElementById('edit-user-modal').classList.add('active');
+    }
+
+    function closeUserEditModal() {
+      document.getElementById('edit-user-modal').classList.remove('active');
+    }
+
+    async function saveUserEdit() {
+      const id = document.getElementById('edit-user-id').value;
+      const data = {
+        username: document.getElementById('edit-user-username').value.trim(),
+        email: document.getElementById('edit-user-email').value.trim() || null,
+        nickname: document.getElementById('edit-user-nickname').value.trim() || null,
+        is_admin: document.getElementById('edit-user-admin').checked ? 1 : 0
+      };
+      if (!data.username) { alert('用户名不能为空'); return; }
+      try {
+        await api.updateAdminUser(id, data);
+        alert('用户已更新');
+        closeUserEditModal();
+        loadUsers();
+      } catch (err) { alert('更新失败: ' + err.message); }
+    }
+
+    document.getElementById('edit-user-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeUserEditModal();
+    });
 
     function closeModal() {
       document.getElementById('detail-modal').classList.remove('active');
@@ -1168,7 +1285,15 @@
         return;
       }
       tbody.innerHTML = bookmarks.map(b => {
-        const faviconSrc = (!b.icon || b.icon.startsWith('chrome-extension://')) ? `https://www.google.com/s2/favicons?domain=${escapeAttr(new URL(b.url).hostname)}&sz=32` : escapeAttr(b.icon);
+        let faviconSrc = '/images/placeholder-icon.svg';
+        try {
+          if (b.icon && !b.icon.startsWith('chrome-extension://')) {
+            faviconSrc = escapeAttr(b.icon);
+          } else {
+            const hostname = new URL(b.url).hostname;
+            faviconSrc = `https://www.google.com/s2/favicons?domain=${escapeAttr(hostname)}&sz=32`;
+          }
+        } catch (e) { /* malformed URL, keep default favicon */ }
         const favicon = `<img src="${faviconSrc}" style="width:16px;height:16px;border-radius:2px;" onerror="this.style.display='none'">`;
         return `<tr>
           <td>${b.id}</td>
@@ -1239,6 +1364,22 @@
       } catch (err) { alert('下载失败: ' + err.message); }
     }
 
+    async function retryFailedFavicons() {
+      try {
+        const data = await api.retryFailedFavicons();
+        alert(data.message || ('重试完成'));
+        loadBookmarks();
+      } catch (err) { alert('重试失败: ' + err.message); }
+    }
+
+    async function forceLocalizeIcons() {
+      try {
+        const data = await api.forceLocalizeIcons();
+        alert(data.message || ('本地化完成'));
+        loadBookmarks();
+      } catch (err) { alert('本地化失败: ' + err.message); }
+    }
+
     document.getElementById('edit-bookmark-modal')?.addEventListener('click', (e) => {
       if (e.target === e.currentTarget) closeEditModal();
     });
@@ -1274,7 +1415,7 @@
           const pidClass = parentId ? ' fm-child-of-' + parentId : '';
           const icon = node.icon || iconOpts[Math.abs(hashCode(node.name || '')) % iconOpts.length];
           const hasChildren = node.children && node.children.length > 0;
-          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}">
+          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name)}" data-parent-id="${node.parent_id || 'null'}" data-user-id="${node.user_id || ''}">
             <td style="font-weight:500;padding-left:${8 + depth * 20}px;">
               ${hasChildren ? `<i class="ri-arrow-down-s-line fm-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(icon)}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
             </td>
@@ -1283,8 +1424,8 @@
             <td>${node.bookmark_count || 0}</td>
             <td>${new Date(node.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='event.stopPropagation();editFolder(${node.id}, ${JSON.stringify(node.name)}, ${node.parent_id || 'null'}, ${node.user_id})' style="margin-right:4px;">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick='event.stopPropagation();deleteFolder(${node.id}, ${JSON.stringify(node.name)})'>删除</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handleFolderAction('editFolder', ${node.id})" style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handleFolderAction('deleteFolder', ${node.id})">删除</button>
             </td>
           </tr>`;
           if (hasChildren) html += renderNodes(node.children, depth + 1, node.id);
@@ -1507,7 +1648,7 @@
         const pi = posInfo[e.id];
         const isFirst = pi.index === 0;
         const isLast = pi.index === pi.total - 1;
-        html += `<tr>
+        html += `<tr data-engine-name="${escapeAttr(e.name)}">
           <td>${e.id}</td>
           <td style="font-weight:500;">${escapeHtml(e.name)}</td>
           <td>${escapeHtml(e.label || '-')}</td>
@@ -1520,7 +1661,7 @@
           </td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="editEngine(${e.id})" style="margin-right:4px;">编辑</button>
-            <button class="btn btn-danger btn-sm" onclick='deleteEngine(${e.id}, ${JSON.stringify(e.name)})'>删除</button>
+            <button class="btn btn-danger btn-sm" onclick="handleEngineAction('deleteEngine', ${e.id})">删除</button>
           </td>
         </tr>`;
       }
@@ -1848,7 +1989,7 @@
         return;
       }
       tbody.innerHTML = prompts.map(p => `
-        <tr>
+        <tr data-prompt-title="${escapeAttr(p.title)}">
           <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.title)}">${escapeHtml(p.title)}</td>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.description || '')}">${escapeHtml(p.description || '-')}</td>
           <td>${escapeHtml(p.folder_name || '-')}</td>
@@ -1857,8 +1998,8 @@
           <td>v${escapeHtml(p.current_version || '1.0.0')}</td>
           <td>${p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</td>
           <td>
-            <button class="btn btn-ghost btn-sm" onclick='viewPromptHistory(${JSON.stringify(String(p.id))}, ${JSON.stringify(p.title)})' style="margin-right:4px;">历史</button>
-            <button class="btn btn-danger btn-sm" onclick='deletePrompt(${JSON.stringify(String(p.id))}, ${JSON.stringify(p.title)})'>删除</button>
+            <button class="btn btn-ghost btn-sm" onclick="handlePromptAction('viewPromptHistory', '${escapeAttr(String(p.id))}')" style="margin-right:4px;">历史</button>
+            <button class="btn btn-danger btn-sm" onclick="handlePromptAction('deletePrompt', '${escapeAttr(String(p.id))}')">删除</button>
           </td>
         </tr>
       `).join('');
@@ -1928,15 +2069,15 @@
           const fid = 'pf-' + node.id;
           const pidClass = parentId ? ' pf-child-of-' + parentId : '';
           const hasChildren = node.children && node.children.length > 0;
-          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}">
+          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name || '')}">
             <td style="font-weight:500;padding-left:${8+depth*20}px;">
               ${hasChildren ? `<i class="ri-arrow-down-s-line pf-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(node.icon||'ri-folder-line')}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
             </td>
             <td>${escapeHtml(node.username || '-')}</td>
             <td>${node.prompt_count || 0}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='event.stopPropagation();editPromptFolder(${JSON.stringify(String(node.id))},${JSON.stringify(node.name||"")},${JSON.stringify(String(node.parent_id||""))})' style="margin-right:4px;">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick='event.stopPropagation();deletePromptFolder(${JSON.stringify(String(node.id))},${JSON.stringify(node.name||"")})'>删除</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('editPromptFolder', ${node.id})" style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('deletePromptFolder', ${node.id})">删除</button>
             </td>
           </tr>`;
           if (hasChildren) html += renderNodes(node.children, depth+1, node.id);
@@ -1999,14 +2140,14 @@
           return;
         }
         tbody.innerHTML = tagList.map(t => `
-          <tr>
+          <tr data-tag-name="${escapeAttr(t.name)}">
             <td style="font-weight:500;">${escapeHtml(t.name)}</td>
             <td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#667eea;"></span></td>
             <td>${escapeHtml(userMap[t.userId] || '-')}</td>
             <td>${t.count}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='editPromptTag(${JSON.stringify(t.name)})'>编辑</button>
-              <button class="btn btn-danger btn-sm" onclick='deletePromptTag(${JSON.stringify(t.name)})'>删除</button>
+              <button class="btn btn-ghost btn-sm" onclick="handleTagAction('editPromptTag')">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="handleTagAction('deletePromptTag')">删除</button>
             </td>
           </tr>
         `).join('');

@@ -34,7 +34,7 @@
           <a href="#" class="sidebar-brand-card" title="主页">
             <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
             <div class="sidebar-brand-copy">
-              <span class="sidebar-brand-title" data-i18n="extName">FavsHub</span>
+              <span class="sidebar-brand-title">FavsHub</span>
               <span class="sidebar-brand-subtitle">Workspace</span>
             </div>
           </a>
@@ -115,7 +115,7 @@
     </aside>
     <main class="flex-1 bg-gray-50 p-8 overflow-auto flex flex-col">
       <div class="welcome-search-container">
-        <div id="welcome-message" data-i18n="welcomeMessage" style="visibility: hidden;"></div>
+        <div id="welcome-message" style="visibility: hidden;"></div>
       </div>
       <div class="flex justify-between items-center mb-4">
         <div class="search-container">
@@ -126,7 +126,7 @@
                   class="search-engine-icon">
                 <span class="dropdown-indicator">▼</span>
               </div>
-              <textarea class="search-input" data-i18n-placeholder="searchPlaceholder" rows="1" style="width: 100%; resize: none; padding-left: 40px;"></textarea>
+              <textarea class="search-input" placeholder="按 Enter 键搜索，或按 Cmd/Ctrl + Enter 键搜索所有搜索引擎" rows="1" style="width: 100%; resize: none; padding-left: 40px;"></textarea>
             </div>
             <div class="search-suggestions-wrapper">
               <div class="line-container" id="line-container">
@@ -135,7 +135,7 @@
               <div class="category-tabs" id="category-tabs"></div>
               <ul id="search-suggestions" class="search-suggestions"></ul>
               <div id="tabs-container" class="tabs">
-                <span data-i18n="searchTips" class="search-tips">本次使用</span>
+                <span class="search-tips">本次使用</span>
               </div>
             </div>
           </form>
@@ -164,17 +164,17 @@
       <div id="edit-dialog" class="modal">
         <div class="modal-content">
           <span class="close-button">&times;</span>
-          <h2 data-i18n="editDialogTitle"></h2>
+          <h2>编辑快捷链接</h2>
           <form id="edit-form">
-            <label for="edit-name" data-i18n="editNameLabel"></label>
+            <label for="edit-name">名称：</label>
             <input type="text" id="edit-name" name="name" required>
-            <label for="edit-url" data-i18n="editUrlLabel"></label>
+            <label for="edit-url">网址：</label>
             <input type="url" id="edit-url" name="url" required>
-            <label for="edit-category" data-i18n="categoryLabel"></label>
+            <label for="edit-category">分类</label>
             <select id="edit-category" name="category"></select>
             <div class="form-buttons">
-              <button type="button" class="cancel-button" data-i18n="cancelButton"></button>
-              <button type="submit" data-i18n="saveButton"></button>
+              <button type="button" class="cancel-button">取消</button>
+              <button type="submit">保存</button>
             </div>
           </form>
         </div>
@@ -183,13 +183,13 @@
       <div id="edit-category-dialog" class="modal">
         <div class="modal-content">
           <span class="close-category-button">&times;</span>
-          <h2 data-i18n="renameFolderTitle"></h2>
+          <h2>重命名文件夹</h2>
           <form id="edit-category-form">
-            <label for="edit-category-name" data-i18n="nameLabel">名称</label>
+            <label for="edit-category-name">名称</label>
             <input type="text" id="edit-category-name" name="name" required>
             <div class="form-buttons">
-              <button type="button" class="cancel-category-button" data-i18n="cancelButton">取消</button>
-              <button type="submit" data-i18n="saveButton">保存</button>
+              <button type="button" class="cancel-category-button">取消</button>
+              <button type="submit">保存</button>
             </div>
           </form>
         </div>
@@ -207,19 +207,19 @@
     &lt;
   </button>
   <div id="more-button-toast" class="toast">
-    <p data-i18n="moreSearchSupportToast">更多搜索支持正在开发中...</p>
+    <p>更多搜索支持即将推出</p>
   </div>
 
   <script src="vendor/Sortable.min.js"></script>
   <script src="vendor/qrcode.min.js"></script>
   <div id="confirm-dialog" class="modal">
     <div class="modal-content">
-      <h2 id="confirm-dialog-title" data-i18n="confirmDeleteTitle">确认删除</h2>
+      <h2 id="confirm-dialog-title">确认删除</h2>
       <p id="confirm-dialog-message"></p>
       <p id="confirm-delete-quick-link-message"></p> <!-- 新增的元素 -->
       <div class="buttons">
-        <button id="cancel-delete-button" class="cancel-button" data-i18n="cancelButton">取消</button>
-        <button id="confirm-delete-button" class="delete-button" data-i18n="confirmDeleteButton">删除</button>
+        <button id="cancel-delete-button" class="cancel-button">取消</button>
+        <button id="confirm-delete-button" class="delete-button">删除</button>
       </div>
     </div>
   </div>
@@ -228,23 +228,23 @@
   <div id="search-engines-dialog" class="modal">
     <div class="modal-content">
       <span class="close-button settings-modal-close">&times;</span>
-      <h2 data-i18n="searchEnginesTitle" class="search-engines-title">__MSG_searchEnginesTitle__</h2>
+      <h2 class="search-engines-title">搜索引擎设置</h2>
       <div class="search-engines-container">
         <!-- 搜索引擎 -->
         <div class="search-engine-category">
-          <h3 class="category-title" data-i18n="generalSearchEnginesTitle">__MSG_generalSearchEnginesTitle__</h3>
+          <h3 class="category-title">通用搜索</h3>
           <div class="search-engine-grid" id="search-engines"></div>
         </div>
 
         <!-- AI 搜索引擎 -->
         <div class="search-engine-category">
-          <h3 class="category-title" data-i18n="aiSearchEnginesTitle">__MSG_aiSearchEnginesTitle__</h3>
+          <h3 class="category-title">AI 搜索</h3>
           <div class="search-engine-grid" id="ai-search-engines"></div>
         </div>
 
         <!-- 社交媒体 -->
         <div class="search-engine-category">
-          <h3 class="category-title" data-i18n="socialSearchEnginesTitle">__MSG_socialSearchEnginesTitle__</h3>
+          <h3 class="category-title">社交媒体</h3>
           <div class="search-engine-grid" id="social-media-engines"></div>
         </div>
 
@@ -263,7 +263,7 @@
         </div>
       </div>
       <div class="preview-text" style="margin-top: 16px;">
-        <span data-i18n="previewText">每行书签按钮数量：</span>
+        <span>每行书签按钮数量：</span>
         <span id="global-width-preview-count"></span>
       </div>
     </div>

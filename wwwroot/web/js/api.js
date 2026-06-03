@@ -229,6 +229,10 @@ class FavsHubAPI {
     return this.request(`/admin/users/${id}`, { method: 'DELETE' });
   }
 
+  updateAdminUser(id, data) {
+    return this.request(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   getAdminUserBookmarks(id) {
     return this.request(`/admin/users/${id}/bookmarks`);
   }
@@ -288,6 +292,14 @@ class FavsHubAPI {
 
   downloadAllFavicons() {
     return this.request('/admin/download-favicons', { method: 'POST' });
+  }
+
+  retryFailedFavicons() {
+    return this.request('/admin/retry-failed-favicons', { method: 'POST' });
+  }
+
+  forceLocalizeIcons() {
+    return this.request('/admin/force-localize-icons', { method: 'POST' });
   }
 
   downloadBookmarkFavicon(id) {
