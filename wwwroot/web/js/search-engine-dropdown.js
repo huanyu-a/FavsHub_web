@@ -84,7 +84,9 @@ const SearchEngineManager = {
       if (engine) return engine;
     }
     const allEngines = this.getAllEngines();
-    return allEngines[0] || null;
+    // 优先使用后台设置的默认引擎
+    const defaultEngine = allEngines.find(e => e.is_default);
+    return defaultEngine || allEngines[0] || null;
   },
 
   setDefaultEngine(engineName) {

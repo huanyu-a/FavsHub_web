@@ -210,6 +210,7 @@ router.post('/search-engines', (req, res) => {
   const { name, label, url, icon, category, is_default } = req.body;
   if (!name || !url) return res.status(400).json({ error: '名称和 URL 不能为空' });
 
+  if (is_default) db.prepare('UPDATE search_engines SET is_default = 0').run();
   const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM search_engines').get();
   const result = db.prepare('INSERT INTO search_engines (name, label, url, icon, category, sort_order, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     name, label || name, url, icon || '', category || 'SEARCH', (maxOrder?.m || 0) + 1, is_default ? 1 : 0
@@ -233,7 +234,10 @@ router.put('/search-engines/:id', (req, res) => {
   if (icon !== undefined) db.prepare('UPDATE search_engines SET icon = ? WHERE id = ?').run(icon, engineId);
   if (category !== undefined) db.prepare('UPDATE search_engines SET category = ? WHERE id = ?').run(category, engineId);
   if (sort_order !== undefined) db.prepare('UPDATE search_engines SET sort_order = ? WHERE id = ?').run(sort_order, engineId);
-  if (is_default !== undefined) db.prepare('UPDATE search_engines SET is_default = ? WHERE id = ?').run(is_default ? 1 : 0, engineId);
+  if (is_default !== undefined) {
+    if (is_default) db.prepare('UPDATE search_engines SET is_default = 0 WHERE id != ?').run(engineId);
+    db.prepare('UPDATE search_engines SET is_default = ? WHERE id = ?').run(is_default ? 1 : 0, engineId);
+  }
 
   const updated = db.prepare('SELECT * FROM search_engines WHERE id = ?').get(engineId);
   res.json({ engine: updated });
