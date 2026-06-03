@@ -817,6 +817,7 @@
     </div>
   </div>
 
+  <script src="../js/utils.js?v=1"></script>
   <script src="../js/chrome-shim.js?v=11"></script>
   <script src="/js/api.js?v=6"></script>
   <script>
@@ -868,21 +869,21 @@
         tbody.innerHTML = data.users.map(u => `
           <tr>
             <td>${u.id}</td>
-            <td>${u.username} ${adminUsers.includes(u.username) ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
-            <td>${u.nickname || '-'}</td>
-            <td>${u.email || '-'}</td>
+            <td>${escapeHtml(u.username)} ${adminUsers.includes(u.username) ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
+            <td>${escapeHtml(u.nickname || '-')}</td>
+            <td>${escapeHtml(u.email || '-')}</td>
             <td>${u.bookmark_count}</td>
             <td>${u.prompt_count}</td>
             <td>${new Date(u.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='viewBookmarks(${u.id}, "${u.username.replace(/"/g,"&quot;")}")'>书签</button>
-              <button class="btn btn-ghost btn-sm" onclick='viewPrompts(${u.id}, "${u.username.replace(/"/g,"&quot;")}")'>Prompt</button>
-              ${!adminUsers.includes(u.username) ? `<button class="btn btn-danger btn-sm" onclick='deleteUser(${u.id}, "${u.username.replace(/"/g,"&quot;")}")'>删除</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick='viewBookmarks(${u.id}, ${JSON.stringify(u.username)})'>书签</button>
+              <button class="btn btn-ghost btn-sm" onclick='viewPrompts(${u.id}, ${JSON.stringify(u.username)})'>Prompt</button>
+              ${!adminUsers.includes(u.username) ? `<button class="btn btn-danger btn-sm" onclick='deleteUser(${u.id}, ${JSON.stringify(u.username)})'>删除</button>` : ''}
             </td>
           </tr>
         `).join('');
       } catch (err) {
-        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -899,9 +900,9 @@
               <thead><tr><th>标题</th><th>URL</th><th>文件夹</th></tr></thead>
               <tbody>${data.bookmarks.map(b => `
                 <tr>
-                  <td>${b.title}</td>
-                  <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${b.url}" target="_blank" style="color:#667eea;">${b.url}</a></td>
-                  <td>${b.folder_name || '-'}</td>
+                  <td>${escapeHtml(b.title)}</td>
+                  <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeAttr(sanitizeUrl(b.url))}" target="_blank" style="color:#667eea;">${escapeHtml(b.url)}</a></td>
+                  <td>${escapeHtml(b.folder_name || '-')}</td>
                 </tr>
               `).join('')}</tbody>
             </table>`;
@@ -925,10 +926,10 @@
               <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>版本</th></tr></thead>
               <tbody>${data.prompts.map(p => `
                 <tr>
-                  <td>${p.title}</td>
-                  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.description || '-'}</td>
-                  <td>${p.folder_name || '-'}</td>
-                  <td>v${p.current_version}</td>
+                  <td>${escapeHtml(p.title)}</td>
+                  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.description || '-')}</td>
+                  <td>${escapeHtml(p.folder_name || '-')}</td>
+                  <td>v${escapeHtml(p.current_version)}</td>
                 </tr>
               `).join('')}</tbody>
             </table>`;
@@ -967,12 +968,12 @@
         const list = document.getElementById('config-list');
         list.innerHTML = Object.entries(data).map(([k, v]) => `
           <div class="config-item">
-            <span class="config-key">${k}</span>
-            <span class="config-value">${Array.isArray(v) ? v.join(', ') || '未设置' : v}</span>
+            <span class="config-key">${escapeHtml(k)}</span>
+            <span class="config-value">${escapeHtml(Array.isArray(v) ? v.join(', ') || '未设置' : v)}</span>
           </div>
         `).join('');
       } catch (err) {
-        document.getElementById('config-list').innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
+        document.getElementById('config-list').innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -998,7 +999,7 @@
         updateEditFolderSelect();
         applyFilter();
       } catch (err) {
-        document.getElementById('bookmarks-table-body').innerHTML = `<tr><td colspan="7" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('bookmarks-table-body').innerHTML = `<tr><td colspan="7" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1022,7 +1023,7 @@
       l1.innerHTML = '<option value="">全部文件夹</option>';
       for (const node of tree) {
         const count = allBookmarks.filter(b => b.folder_id == node.id).length + countFolderBookmarks(node);
-        l1.innerHTML += `<option value="${node.id}">${node.name} (${count})</option>`;
+        l1.innerHTML += `<option value="${node.id}">${escapeHtml(node.name)} (${count})</option>`;
       }
       // 默认重置二级下拉
       document.getElementById('filter-level2').innerHTML = '<option value="">全部子文件夹</option>';
@@ -1067,7 +1068,7 @@
       const l2 = document.getElementById('filter-level2');
       for (const node of nodes) {
         const count = allBookmarks.filter(b => b.folder_id == node.id).length;
-        l2.innerHTML += `<option value="${node.id}">${prefix}${node.name} (${count})</option>`;
+        l2.innerHTML += `<option value="${node.id}">${prefix}${escapeHtml(node.name)} (${count})</option>`;
         if (node.children.length) {
           renderLevel2Options(node.children, prefix + '　');
         }
@@ -1085,7 +1086,7 @@
       el.innerHTML = '<option value="">无文件夹</option>';
       function renderOpts(nodes, depth) {
         for (const node of nodes) {
-          el.innerHTML += `<option value="${node.id}">${'　'.repeat(depth)}${node.name}</option>`;
+          el.innerHTML += `<option value="${node.id}">${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
           if (node.children.length) renderOpts(node.children, depth + 1);
         }
       }
@@ -1132,10 +1133,10 @@
       // 更新标题
       if (l2Val) {
         const f = allFolders.find(f => f.id == parseInt(l2Val));
-        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${f.name}` : '全部书签';
+        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${escapeHtml(f.name)}` : '全部书签';
       } else if (l1Val) {
         const f = allFolders.find(f => f.id == parseInt(l1Val));
-        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${f.name}` : '全部书签';
+        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${escapeHtml(f.name)}` : '全部书签';
       } else {
         document.getElementById('filter-title').textContent = '全部书签';
       }
@@ -1167,15 +1168,15 @@
         return;
       }
       tbody.innerHTML = bookmarks.map(b => {
-        const faviconSrc = (!b.icon || b.icon.startsWith('chrome-extension://')) ? `https://www.google.com/s2/favicons?domain=${new URL(b.url).hostname}&sz=32` : b.icon;
+        const faviconSrc = (!b.icon || b.icon.startsWith('chrome-extension://')) ? `https://www.google.com/s2/favicons?domain=${escapeAttr(new URL(b.url).hostname)}&sz=32` : escapeAttr(b.icon);
         const favicon = `<img src="${faviconSrc}" style="width:16px;height:16px;border-radius:2px;" onerror="this.style.display='none'">`;
         return `<tr>
           <td>${b.id}</td>
           <td style="text-align:center;">${favicon}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.title}</td>
-          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${b.url}" target="_blank" style="color:#667eea;">${b.url}</a></td>
-          <td>${b.folder_name || '-'}</td>
-          <td>${b.username || '-'}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(b.title)}</td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeAttr(sanitizeUrl(b.url))}" target="_blank" style="color:#667eea;">${escapeHtml(b.url)}</a></td>
+          <td>${escapeHtml(b.folder_name || '-')}</td>
+          <td>${escapeHtml(b.username || '-')}</td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="editBookmark(${b.id})" style="margin-right:4px;">编辑</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBookmark(${b.id})">删除</button>
@@ -1250,7 +1251,7 @@
         renderFoldersTable(allFolders);
         updateEditFolderSelect();
       } catch (err) {
-        document.getElementById('folders-table-body').innerHTML = `<tr><td colspan="6" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('folders-table-body').innerHTML = `<tr><td colspan="6" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1275,15 +1276,15 @@
           const hasChildren = node.children && node.children.length > 0;
           html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}">
             <td style="font-weight:500;padding-left:${8 + depth * 20}px;">
-              ${hasChildren ? `<i class="ri-arrow-down-s-line fm-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${icon}" style="color:#667eea;margin-right:6px;"></i>${node.name}
+              ${hasChildren ? `<i class="ri-arrow-down-s-line fm-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(icon)}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
             </td>
-            <td>${node.parent_id ? (folderMap[node.parent_id] || '-') : '-'}</td>
-            <td>${node.username || '-'}</td>
+            <td>${escapeHtml(node.parent_id ? (folderMap[node.parent_id] || '-') : '-')}</td>
+            <td>${escapeHtml(node.username || '-')}</td>
             <td>${node.bookmark_count || 0}</td>
             <td>${new Date(node.created_at).toLocaleDateString()}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick='event.stopPropagation();editFolder(${node.id}, "${node.name.replace(/"/g,'&quot;').replace(/'/g,"\\'")}", ${node.parent_id || 'null'}, ${node.user_id})' style="margin-right:4px;">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick='event.stopPropagation();deleteFolder(${node.id}, "${node.name.replace(/"/g,'&quot;').replace(/'/g,"\\'")}")'>删除</button>
+              <button class="btn btn-ghost btn-sm" onclick='event.stopPropagation();editFolder(${node.id}, ${JSON.stringify(node.name)}, ${node.parent_id || 'null'}, ${node.user_id})' style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick='event.stopPropagation();deleteFolder(${node.id}, ${JSON.stringify(node.name)})'>删除</button>
             </td>
           </tr>`;
           if (hasChildren) html += renderNodes(node.children, depth + 1, node.id);
@@ -1334,7 +1335,7 @@
       function buildOptions(nodes, depth) {
         for (const node of nodes) {
           if (node.id !== folderId) {
-            options += `<option value="${node.id}" ${node.id === parentId ? 'selected' : ''}>${'　'.repeat(depth)}${node.name}</option>`;
+            options += `<option value="${node.id}" ${node.id === parentId ? 'selected' : ''}>${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
             if (node.children.length) buildOptions(node.children, depth + 1);
           }
         }
@@ -1470,7 +1471,7 @@
         allEngines = data.engines || [];
         renderEnginesTable(allEngines);
       } catch (err) {
-        document.getElementById('engines-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('engines-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1501,17 +1502,17 @@
         const cat = ENGINE_CATEGORY_MAP[e.category] || e.category;
         if (cat !== currentCat) {
           currentCat = cat;
-          html += `<tr style="background:#f0f7ff;"><td colspan="8" style="font-weight:600;font-size:13px;color:#667eea;padding:8px 16px;">${cat}</td></tr>`;
+          html += `<tr style="background:#f0f7ff;"><td colspan="8" style="font-weight:600;font-size:13px;color:#667eea;padding:8px 16px;">${escapeHtml(cat)}</td></tr>`;
         }
         const pi = posInfo[e.id];
         const isFirst = pi.index === 0;
         const isLast = pi.index === pi.total - 1;
         html += `<tr>
           <td>${e.id}</td>
-          <td style="font-weight:500;">${e.name}</td>
-          <td>${e.label || '-'}</td>
-          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.url}</td>
-          <td>${cat}</td>
+          <td style="font-weight:500;">${escapeHtml(e.name)}</td>
+          <td>${escapeHtml(e.label || '-')}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.url)}</td>
+          <td>${escapeHtml(cat)}</td>
           <td>${e.is_default ? '✓' : '-'}</td>
           <td style="white-space:nowrap;">
             <button class="btn btn-ghost btn-sm" onclick="moveEngine(${e.id},'up')" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} title="上移">↑</button>
@@ -1519,7 +1520,7 @@
           </td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="editEngine(${e.id})" style="margin-right:4px;">编辑</button>
-            <button class="btn btn-danger btn-sm" onclick='deleteEngine(${e.id}, "${e.name.replace(/"/g,'&quot;').replace(/'/g,"\\'")}")'>删除</button>
+            <button class="btn btn-danger btn-sm" onclick='deleteEngine(${e.id}, ${JSON.stringify(e.name)})'>删除</button>
           </td>
         </tr>`;
       }
@@ -1791,7 +1792,7 @@
         renderPromptsTable(prompts);
         updatePromptStats();
       } catch (err) {
-        document.getElementById('prompts-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('prompts-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1824,11 +1825,11 @@
           totalVersions += versions.length;
           versions.slice(0, 3).forEach(v => {
             html += `<tr>
-              <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${prompts[i].title}</td>
-              <td>v${v.version_number}</td>
-              <td>${userMap[prompts[i].user_id] || prompts[i].username || '-'}</td>
+              <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(prompts[i].title)}</td>
+              <td>v${escapeHtml(v.version_number)}</td>
+              <td>${escapeHtml(userMap[prompts[i].user_id] || prompts[i].username || '-')}</td>
               <td style="font-size:11px;">${v.created_at ? new Date(v.created_at).toLocaleString() : '-'}</td>
-              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${(v.content || '').substring(0, 60)}</td>
+              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${escapeHtml((v.content || '').substring(0, 60))}</td>
             </tr>`;
           });
         }
@@ -1836,7 +1837,7 @@
         document.getElementById('prompts-versions-count').textContent = totalVersions;
         document.getElementById('prompt-history-table-body').innerHTML = html || '<tr><td colspan="5" class="empty-state">暂无历史记录</td></tr>';
       } catch (err) {
-        document.getElementById('prompt-history-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('prompt-history-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1848,16 +1849,16 @@
       }
       tbody.innerHTML = prompts.map(p => `
         <tr>
-          <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.title.replace(/"/g, '&quot;')}">${p.title}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(p.description || '').replace(/"/g, '&quot;')}">${p.description || '-'}</td>
-          <td>${p.folder_name || '-'}</td>
-          <td>${p.tags && p.tags.length ? p.tags.map(t => `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin:1px;">${t}</span>`).join('') : '-'}</td>
-          <td>${p.username || '-'}</td>
-          <td>v${p.current_version || '1.0.0'}</td>
+          <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.title)}">${escapeHtml(p.title)}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.description || '')}">${escapeHtml(p.description || '-')}</td>
+          <td>${escapeHtml(p.folder_name || '-')}</td>
+          <td>${p.tags && p.tags.length ? p.tags.map(t => `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin:1px;">${escapeHtml(t)}</span>`).join('') : '-'}</td>
+          <td>${escapeHtml(p.username || '-')}</td>
+          <td>v${escapeHtml(p.current_version || '1.0.0')}</td>
           <td>${p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</td>
           <td>
-            <button class="btn btn-ghost btn-sm" onclick='viewPromptHistory("${p.id}", "${p.title.replace(/"/g, '&quot;')}")' style="margin-right:4px;">历史</button>
-            <button class="btn btn-danger btn-sm" onclick='deletePrompt("${p.id}", "${p.title.replace(/"/g, '&quot;')}")'>删除</button>
+            <button class="btn btn-ghost btn-sm" onclick='viewPromptHistory(${JSON.stringify(String(p.id))}, ${JSON.stringify(p.title)})' style="margin-right:4px;">历史</button>
+            <button class="btn btn-danger btn-sm" onclick='deletePrompt(${JSON.stringify(String(p.id))}, ${JSON.stringify(p.title)})'>删除</button>
           </td>
         </tr>
       `).join('');
@@ -1881,12 +1882,12 @@
               <tr>
                 <td>v${v.version_number}</td>
                 <td>${new Date(v.created_at).toLocaleString()}</td>
-                <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.content?.substring(0, 100) || '-'}</td>
+                <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.content?.substring(0, 100) || '-')}</td>
               </tr>
             `).join('')}</tbody>
           </table>`;
       } catch (err) {
-        document.getElementById('history-modal-body').innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
+        document.getElementById('history-modal-body').innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -1910,7 +1911,7 @@
         document.getElementById('prompts-folders-count').textContent = allPromptFolders.length;
         renderPromptFoldersTable(allPromptFolders);
       } catch (err) {
-        document.getElementById('prompt-folders-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('prompt-folders-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1929,13 +1930,13 @@
           const hasChildren = node.children && node.children.length > 0;
           html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}">
             <td style="font-weight:500;padding-left:${8+depth*20}px;">
-              ${hasChildren ? `<i class="ri-arrow-down-s-line pf-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${node.icon||'ri-folder-line'}" style="color:#667eea;margin-right:6px;"></i>${node.name}
+              ${hasChildren ? `<i class="ri-arrow-down-s-line pf-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(node.icon||'ri-folder-line')}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
             </td>
-            <td>${node.username || '-'}</td>
+            <td>${escapeHtml(node.username || '-')}</td>
             <td>${node.prompt_count || 0}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editPromptFolder('${node.id}','${(node.name||'').replace(/'/g,"\\'")}','${node.parent_id||''}')" style="margin-right:4px;">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deletePromptFolder('${node.id}','${(node.name||'').replace(/'/g,"\\'")}')">删除</button>
+              <button class="btn btn-ghost btn-sm" onclick='event.stopPropagation();editPromptFolder(${JSON.stringify(String(node.id))},${JSON.stringify(node.name||"")},${JSON.stringify(String(node.parent_id||""))})' style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick='event.stopPropagation();deletePromptFolder(${JSON.stringify(String(node.id))},${JSON.stringify(node.name||"")})'>删除</button>
             </td>
           </tr>`;
           if (hasChildren) html += renderNodes(node.children, depth+1, node.id);
@@ -1999,18 +2000,18 @@
         }
         tbody.innerHTML = tagList.map(t => `
           <tr>
-            <td style="font-weight:500;">${t.name}</td>
+            <td style="font-weight:500;">${escapeHtml(t.name)}</td>
             <td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#667eea;"></span></td>
-            <td>${userMap[t.userId] || '-'}</td>
+            <td>${escapeHtml(userMap[t.userId] || '-')}</td>
             <td>${t.count}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick="editPromptTag('${t.name.replace(/'/g,"\\'")}')">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick="deletePromptTag('${t.name.replace(/'/g,"\\'")}')">删除</button>
+              <button class="btn btn-ghost btn-sm" onclick='editPromptTag(${JSON.stringify(t.name)})'>编辑</button>
+              <button class="btn btn-danger btn-sm" onclick='deletePromptTag(${JSON.stringify(t.name)})'>删除</button>
             </td>
           </tr>
         `).join('');
       } catch (err) {
-        document.getElementById('prompt-tags-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${err.message}</td></tr>`;
+        document.getElementById('prompt-tags-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -2032,7 +2033,7 @@
       function buildOpts(nodes, depth) {
         for (const node of nodes) {
           const sel = folder?.parent_id == node.id ? ' selected' : '';
-          options += `<option value="${node.id}"${sel}>${'　'.repeat(depth)}${node.name}</option>`;
+          options += `<option value="${node.id}"${sel}>${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
           if (node.children?.length) buildOpts(node.children, depth + 1);
         }
       }

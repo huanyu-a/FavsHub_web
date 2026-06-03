@@ -115,8 +115,8 @@ function createSearchEngineOption(engine, isAddButton = false) {
   } else {
     option.innerHTML = `
       <div class="search-engine-option-content">
-        <img src="${engine.icon}" alt="${getLocalizedMessage(engine.label)}" class="search-engine-option-icon">
-        <span class="search-engine-option-label">${getLocalizedMessage(engine.label)}</span>
+        <img src="${escapeAttr(sanitizeUrl(engine.icon))}" alt="${escapeAttr(getLocalizedMessage(engine.label))}" class="search-engine-option-icon">
+        <span class="search-engine-option-label">${escapeHtml(getLocalizedMessage(engine.label))}</span>
       </div>
     `;
     option.onclick = () => handleSearchEngineSelection(engine);

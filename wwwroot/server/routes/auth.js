@@ -1,8 +1,7 @@
 const { Router } = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { authMiddleware, JWT_SECRET } = require('../middleware/auth');
+const { authMiddleware, signToken } = require('../middleware/auth');
 
 const router = Router();
 
@@ -37,7 +36,7 @@ router.post('/register', (req, res) => {
   // 初始化用户设置
   db.prepare('INSERT INTO settings (user_id, data) VALUES (?, ?)').run(result.lastInsertRowid, '{}');
 
-  const token = jwt.sign({ id: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '30d' });
+  const token = signToken({ id: result.lastInsertRowid, username });
   res.json({ token, user: { id: result.lastInsertRowid, username, email, nickname: nickname || '' } });
 });
 
@@ -53,7 +52,7 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: '用户名或密码错误' });
   }
 
-  const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+  const token = signToken({ id: user.id, username: user.username });
   res.json({ token, user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname } });
 });
 

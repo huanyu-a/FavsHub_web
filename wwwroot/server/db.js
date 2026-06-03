@@ -191,6 +191,25 @@ try {
   console.error('[DB] 创建唯一索引失败:', err.message);
 }
 
+// 性能索引：加速按 user_id 查询
+try {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_bookmarks_folder_id ON bookmarks(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_prompts_folder_id ON prompts(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags(user_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_tags_prompt_id ON prompt_tags(prompt_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_tags_tag_id ON prompt_tags(tag_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
+    CREATE INDEX IF NOT EXISTS idx_prompt_folders_user_id ON prompt_folders(user_id);
+  `);
+} catch (err) {
+  console.error('[DB] 创建性能索引失败:', err.message);
+}
+
 // 迁移：确保系统用户存在（id=0），用于存储全局默认设置
 db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (0, ?, ?)').run('_system', '');
 

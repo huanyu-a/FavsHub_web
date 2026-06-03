@@ -470,21 +470,19 @@ const faviconShim = {
 };
 
 // ===== chrome.i18n =====
-// 预加载语言文件
+// 异步加载语言文件
 const _i18nMessages = {};
-(function loadLocaleMessages() {
+const _i18nReady = (async function loadLocaleMessages() {
   try {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', '/_locales/zh_CN/messages.json', false); // 同步加载
-    xhr.send();
-    if (xhr.status === 200) {
-      const data = JSON.parse(xhr.responseText);
+    const res = await fetch('/_locales/zh_CN/messages.json');
+    if (res.ok) {
+      const data = await res.json();
       for (const [key, val] of Object.entries(data)) {
         _i18nMessages[key] = typeof val === 'object' && val.message ? val.message : val;
       }
     }
   } catch (e) {
-    
+    // 静默失败，getMessage 会回退到返回 key
   }
 })();
 

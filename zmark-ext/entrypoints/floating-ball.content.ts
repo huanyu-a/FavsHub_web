@@ -1,5 +1,27 @@
 import { enableFloatingBallStorage, baseUrlStorage, tokenStorage } from '@/utils/storage';
 
+/** Escape HTML special characters to prevent XSS */
+function escapeHtml(str: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return str.replace(/[&<>"']/g, (c) => map[c]);
+}
+
+/** Validate that a URL uses http or https protocol only */
+function isSafeUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export default defineContentScript({
   matches: ['<all_urls>'],
   run_at: 'document_idle',
@@ -7,6 +29,10 @@ export default defineContentScript({
     const baseUrl = await baseUrlStorage.getValue();
     if (!baseUrl?.trim()) return;
     const serverUrl = baseUrl.replace(/\/+$/, '');
+
+    // ---- Cleanup: remove stale instance if script was re-injected ----
+    const existing = document.getElementById('favshub-ext');
+    if (existing) existing.remove();
 
     // ---- 搜索引擎识别 ----
     function getCurrentSearchEngine(): string {
@@ -62,14 +88,17 @@ export default defineContentScript({
         const sel = eng.name.toLowerCase() === defaultEngine ? ' class="selected"' : '';
         let iconSrc = '';
         if (eng.icon) {
-          if (eng.icon.startsWith('http')) iconSrc = eng.icon;
+          if (eng.icon.startsWith('http') && isSafeUrl(eng.icon)) iconSrc = eng.icon;
           else if (eng.icon.startsWith('/')) iconSrc = serverUrl + eng.icon;
           else iconSrc = `${serverUrl}/images/${eng.icon}`;
         }
+        const safeLabel = escapeHtml(eng.label || eng.name || '');
+        const safeName = escapeHtml(eng.name || '');
+        const safeUrl = isSafeUrl(eng.url) ? escapeHtml(eng.url) : '';
         const iconHtml = iconSrc
-          ? `<img src="${iconSrc}" alt="${eng.label}" class="search-icon">`
-          : `<span class="search-icon-placeholder">${eng.label?.charAt(0) || '?'}</span>`;
-        return `<li data-url="${eng.url}" data-name="${eng.name}"${sel}>${iconHtml}<span>${eng.label || eng.name}</span></li>`;
+          ? `<img src="${escapeHtml(iconSrc)}" alt="${safeLabel}" class="search-icon">`
+          : `<span class="search-icon-placeholder">${safeLabel.charAt(0) || '?'}</span>`;
+        return `<li data-url="${safeUrl}" data-name="${safeName}"${sel}>${iconHtml}<span>${safeLabel}</span></li>`;
       }).join('');
     }
 
@@ -85,12 +114,16 @@ export default defineContentScript({
         const bookmarks = json.bookmarks || json.data || [];
         if (!Array.isArray(bookmarks) || !bookmarks.length) return '';
         return bookmarks.slice(0, 20).map((b: any) => {
+          const safeUrl = isSafeUrl(b.url) ? escapeHtml(b.url) : '';
+          if (!safeUrl) return '';
           let faviconUrl = b.icon || '';
           if (faviconUrl && !faviconUrl.startsWith('http')) faviconUrl = serverUrl + faviconUrl;
-          return `<li class="bookmark-item" data-url="${b.url}">
-            <a href="${b.url}" target="_blank" class="bookmark-link">
-              ${faviconUrl ? `<img src="${faviconUrl}" alt="" class="bookmark-icon" onerror="this.style.display='none'">` : ''}
-              <span class="bookmark-title">${b.title || b.url}</span>
+          if (faviconUrl && !isSafeUrl(faviconUrl)) faviconUrl = '';
+          const safeTitle = escapeHtml(b.title || b.url || '');
+          return `<li class="bookmark-item" data-url="${safeUrl}">
+            <a href="${safeUrl}" target="_blank" class="bookmark-link">
+              ${faviconUrl ? `<img src="${escapeHtml(faviconUrl)}" alt="" class="bookmark-icon" onerror="this.style.display='none'">` : ''}
+              <span class="bookmark-title">${safeTitle}</span>
             </a>
           </li>`;
         }).join('');
@@ -271,7 +304,7 @@ export default defineContentScript({
       item.addEventListener('click', () => {
         const text = getSearchText();
         const url = (item as HTMLElement).getAttribute('data-url');
-        if (url && text) {
+        if (url && text && isSafeUrl(url)) {
           window.open(url + encodeURIComponent(text), '_blank');
           searchSwitcher.querySelectorAll('li').forEach((li) => li.classList.remove('selected'));
           item.classList.add('selected');
@@ -282,7 +315,7 @@ export default defineContentScript({
     // 书签点击
     searchSwitcher.addEventListener('click', (e) => {
       const link = (e.target as HTMLElement).closest('a.bookmark-link') as HTMLAnchorElement;
-      if (link) { e.preventDefault(); window.open(link.href, '_blank'); }
+      if (link && isSafeUrl(link.href)) { e.preventDefault(); window.open(link.href, '_blank'); }
     });
 
     // 关闭 tooltip
@@ -305,6 +338,11 @@ export default defineContentScript({
       if (msg?.action === 'updateFloatingBall') {
         extensionContainer.style.display = msg.enabled ? 'block' : 'none';
       }
+    });
+
+    // ---- Cleanup on script invalidation/disconnect ----
+    ctx.onInvalidated(() => {
+      extensionContainer.remove();
     });
   },
 });

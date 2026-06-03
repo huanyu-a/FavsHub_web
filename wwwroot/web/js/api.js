@@ -41,7 +41,20 @@ class FavsHubAPI {
     const headers = { 'Content-Type': 'application/json', ...options.headers };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
-    const res = await fetch(url, { ...options, headers });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let res;
+    try {
+      res = await fetch(url, { ...options, headers, signal: controller.signal });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('请求超时，请检查网络连接');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     let data;
     try {
       data = await res.json();

@@ -685,8 +685,8 @@ class BaiduPanSettingsManager {
       return `
         <div class="backup-record-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color, #eee); font-size: 13px;">
           <div style="flex: 1; min-width: 0;">
-            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary, #333);" title="${record.filename}">${record.filename}</div>
-            <div style="color: var(--text-secondary, #888); font-size: 12px; margin-top: 2px;">${record.timeFormatted}${sizeStr ? ' · ' + sizeStr : ''}</div>
+            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary, #333);" title="${escapeAttr(record.filename)}">${escapeHtml(record.filename)}</div>
+            <div style="color: var(--text-secondary, #888); font-size: 12px; margin-top: 2px;">${escapeHtml(record.timeFormatted)}${sizeStr ? ' · ' + escapeHtml(sizeStr) : ''}</div>
           </div>
           <div style="display: flex; gap: 4px; flex-shrink: 0;">
             <button class="baidu-pan-download-btn" data-index="${index}" title="下载" style="background: none; border: none; cursor: pointer; color: var(--text-secondary, #999); padding: 4px 8px; font-size: 14px;">&#x2B07;</button>

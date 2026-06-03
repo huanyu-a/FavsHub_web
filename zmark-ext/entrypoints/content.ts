@@ -23,13 +23,13 @@ export default defineContentScript({
           type: 'favshub-ext-response',
           requestId,
           payload: response || { success: true }
-        }, '*');
+        }, window.origin);
       } catch (err) {
         window.postMessage({
           type: 'favshub-ext-response',
           requestId,
           payload: { success: false, error: String(err) }
-        }, '*');
+        }, window.origin);
       }
     });
   },

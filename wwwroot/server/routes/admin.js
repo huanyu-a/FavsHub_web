@@ -31,6 +31,7 @@ router.get('/users', (req, res) => {
 // 删除用户及其所有数据
 router.delete('/users/:id', (req, res) => {
   const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: '无效的用户 ID' });
   const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: '用户不存在' });
 
@@ -55,6 +56,7 @@ router.delete('/users/:id', (req, res) => {
 // 查看指定用户的书签
 router.get('/users/:id/bookmarks', (req, res) => {
   const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: '无效的用户 ID' });
   const bookmarks = db.prepare(`
     SELECT b.*, f.name as folder_name FROM bookmarks b
     LEFT JOIN folders f ON b.folder_id = f.id
@@ -66,6 +68,7 @@ router.get('/users/:id/bookmarks', (req, res) => {
 // 查看指定用户的 Prompt
 router.get('/users/:id/prompts', (req, res) => {
   const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: '无效的用户 ID' });
   const prompts = db.prepare(`
     SELECT p.*, pf.name as folder_name FROM prompts p
     LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
@@ -99,6 +102,7 @@ router.get('/bookmarks', (req, res) => {
 // 删除书签（管理员）
 router.delete('/bookmarks/:id', (req, res) => {
   const bookmarkId = parseInt(req.params.id);
+  if (isNaN(bookmarkId)) return res.status(400).json({ error: '无效的书签 ID' });
   const bookmark = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(bookmarkId);
   if (!bookmark) return res.status(404).json({ error: '书签不存在' });
 
@@ -109,6 +113,7 @@ router.delete('/bookmarks/:id', (req, res) => {
 // 更新书签（管理员）
 router.put('/bookmarks/:id', (req, res) => {
   const bookmarkId = parseInt(req.params.id);
+  if (isNaN(bookmarkId)) return res.status(400).json({ error: '无效的书签 ID' });
   const { title, url, folder_id } = req.body;
   const bookmark = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(bookmarkId);
   if (!bookmark) return res.status(404).json({ error: '书签不存在' });
@@ -158,6 +163,7 @@ router.post('/folders', (req, res) => {
 // 更新文件夹（管理员）
 router.put('/folders/:id', (req, res) => {
   const folderId = parseInt(req.params.id);
+  if (isNaN(folderId)) return res.status(400).json({ error: '无效的文件夹 ID' });
   const { name, icon, parent_id } = req.body;
   const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId);
   if (!folder) return res.status(404).json({ error: '文件夹不存在' });
@@ -177,6 +183,7 @@ router.put('/folders/:id', (req, res) => {
 // 删除文件夹（管理员）
 router.delete('/folders/:id', (req, res) => {
   const folderId = parseInt(req.params.id);
+  if (isNaN(folderId)) return res.status(400).json({ error: '无效的文件夹 ID' });
   const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId);
   if (!folder) return res.status(404).json({ error: '文件夹不存在' });
 
@@ -215,6 +222,7 @@ router.post('/search-engines', (req, res) => {
 // 更新搜索引擎
 router.put('/search-engines/:id', (req, res) => {
   const engineId = parseInt(req.params.id);
+  if (isNaN(engineId)) return res.status(400).json({ error: '无效的搜索引擎 ID' });
   const { name, label, url, icon, category, sort_order, is_default } = req.body;
   const engine = db.prepare('SELECT id FROM search_engines WHERE id = ?').get(engineId);
   if (!engine) return res.status(404).json({ error: '搜索引擎不存在' });
@@ -234,6 +242,7 @@ router.put('/search-engines/:id', (req, res) => {
 // 删除搜索引擎
 router.delete('/search-engines/:id', (req, res) => {
   const engineId = parseInt(req.params.id);
+  if (isNaN(engineId)) return res.status(400).json({ error: '无效的搜索引擎 ID' });
   const engine = db.prepare('SELECT id FROM search_engines WHERE id = ?').get(engineId);
   if (!engine) return res.status(404).json({ error: '搜索引擎不存在' });
 
@@ -251,19 +260,37 @@ router.get('/prompts', (req, res) => {
     ORDER BY p.updated_at DESC
   `).all();
 
-  // 附加标签
-  const tagStmt = db.prepare(`
-    SELECT t.name FROM tags t JOIN prompt_tags pt ON t.id = pt.tag_id WHERE pt.prompt_id = ?
-  `);
-  for (const p of prompts) {
-    p.tags = tagStmt.all(p.id).map(t => t.name);
+  // 附加标签（批量查询，避免 N+1）
+  if (prompts.length > 0) {
+    const promptIds = prompts.map(p => p.id);
+    const placeholders = promptIds.map(() => '?').join(',');
+    const allTags = db.prepare(`
+      SELECT pt.prompt_id, t.name FROM tags t
+      JOIN prompt_tags pt ON t.id = pt.tag_id
+      WHERE pt.prompt_id IN (${placeholders})
+    `).all(...promptIds);
+
+    const tagsByPromptId = {};
+    for (const tag of allTags) {
+      if (!tagsByPromptId[tag.prompt_id]) tagsByPromptId[tag.prompt_id] = [];
+      tagsByPromptId[tag.prompt_id].push(tag.name);
+    }
+
+    for (const p of prompts) {
+      p.tags = tagsByPromptId[p.id] || [];
+    }
+  } else {
+    for (const p of prompts) {
+      p.tags = [];
+    }
   }
 
   res.json({ prompts });
 });
 
 router.delete('/prompts/:id', (req, res) => {
-  const promptId = req.params.id;
+  const promptId = parseInt(req.params.id);
+  if (isNaN(promptId)) return res.status(400).json({ error: '无效的提示词 ID' });
   const prompt = db.prepare('SELECT id FROM prompts WHERE id = ?').get(promptId);
   if (!prompt) return res.status(404).json({ error: '提示词不存在' });
 
@@ -278,10 +305,12 @@ router.delete('/prompts/:id', (req, res) => {
 
 // 提示词版本历史（管理员）
 router.get('/prompts/:id/versions', (req, res) => {
+  const promptId = parseInt(req.params.id);
+  if (isNaN(promptId)) return res.status(400).json({ error: '无效的提示词 ID' });
   const versions = db.prepare(`
     SELECT pv.* FROM prompt_versions pv
     WHERE pv.prompt_id = ? ORDER BY pv.created_at DESC
-  `).all(req.params.id);
+  `).all(promptId);
   res.json({ versions });
 });
 
@@ -298,7 +327,8 @@ router.get('/prompt-folders', (req, res) => {
 });
 
 router.delete('/prompt-folders/:id', (req, res) => {
-  const folderId = req.params.id;
+  const folderId = parseInt(req.params.id);
+  if (isNaN(folderId)) return res.status(400).json({ error: '无效的文件夹 ID' });
   const folder = db.prepare('SELECT id FROM prompt_folders WHERE id = ?').get(folderId);
   if (!folder) return res.status(404).json({ error: '提示词文件夹不存在' });
 
@@ -488,7 +518,9 @@ router.post('/download-favicons', (req, res) => {
 
 // 单个书签 favicon 下载
 router.post('/download-favicon/:id', (req, res) => {
-  const bookmark = db.prepare('SELECT id, url FROM bookmarks WHERE id = ?').get(parseInt(req.params.id));
+  const bookmarkId = parseInt(req.params.id);
+  if (isNaN(bookmarkId)) return res.status(400).json({ error: '无效的书签 ID' });
+  const bookmark = db.prepare('SELECT id, url FROM bookmarks WHERE id = ?').get(bookmarkId);
   if (!bookmark) return res.status(404).json({ error: '书签不存在' });
 
   const faviconDir = path.join(__dirname, '..', '..', 'images', 'favicons');
@@ -684,7 +716,8 @@ router.post('/sync-prompts', (req, res) => {
     tx();
     res.json({ success: true, message: `已导入 ${importedCount} 条提示词`, count: importedCount });
   } catch (err) {
-    res.status(500).json({ error: '导入失败: ' + err.message });
+    console.error('[Admin] 提示词导入失败:', err.message);
+    res.status(500).json({ error: '导入失败，请检查数据格式是否正确' });
   } finally {
     db.pragma('foreign_keys = ON');
   }

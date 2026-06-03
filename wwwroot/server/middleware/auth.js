@@ -58,4 +58,14 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = { authMiddleware, JWT_SECRET };
+/**
+ * 签发 JWT token
+ * @param {object} payload - 令牌载荷（如 { id, username }）
+ * @param {string} [expiresIn='30d'] - 过期时间
+ * @returns {string} JWT token
+ */
+function signToken(payload, expiresIn = '30d') {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+}
+
+module.exports = { authMiddleware, signToken };

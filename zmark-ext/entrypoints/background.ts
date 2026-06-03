@@ -288,6 +288,17 @@ export default defineBackground(() => {
       case 'openUrlInSidePanel': {
         const url = message.url;
         if (url && browser.sidePanel.setOptions) {
+          // Validate URL protocol - only allow http/https
+          try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+              sendResponse({ success: false, error: 'Invalid URL protocol' });
+              return true;
+            }
+          } catch {
+            sendResponse({ success: false, error: 'Invalid URL' });
+            return true;
+          }
           browser.sidePanel.setOptions({ path: url })
             .then(() => sendResponse({ success: true }))
             .catch(() => sendResponse({ success: false }));
@@ -321,11 +332,26 @@ export default defineBackground(() => {
           .catch(() => sendResponse({ success: false }));
         return true;
 
-      case 'openTab':
-        browser.tabs.create({ url: message.url })
+      case 'openTab': {
+        // Validate URL protocol - only allow http/https
+        const tabUrl = message.url;
+        if (tabUrl) {
+          try {
+            const parsed = new URL(tabUrl);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+              sendResponse({ success: false, error: 'Invalid URL protocol' });
+              return true;
+            }
+          } catch {
+            sendResponse({ success: false, error: 'Invalid URL' });
+            return true;
+          }
+        }
+        browser.tabs.create({ url: tabUrl })
           .then(() => sendResponse({ success: true }))
           .catch(() => sendResponse({ success: false }));
         return true;
+      }
 
       case 'searchHistory': {
         const { text, maxResults, startTime } = message;
