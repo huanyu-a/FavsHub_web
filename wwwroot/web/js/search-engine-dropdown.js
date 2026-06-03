@@ -39,9 +39,10 @@ const SearchEngineManager = {
     const stored = FavsHubSettings.get('enabledSearchEngines');
     if (stored && stored.length) return stored;
     const allEngines = _serverEngines || [];
-    const defaultEngines = allEngines.slice(0, 8);
-    this.saveEnabledEngines(defaultEngines);
-    return defaultEngines;
+    // 仅使用后台标记为默认的引擎
+    const defaults = allEngines.filter(e => e.is_default);
+    this.saveEnabledEngines(defaults);
+    return defaults;
   },
 
   saveEnabledEngines(engines) {

@@ -71,7 +71,7 @@ app.get('/api/bing-wallpaper', (req, res) => {
 // 公开接口：获取搜索引擎列表
 app.get('/api/search-engines', (req, res) => {
   const db = require('./db');
-  const engines = db.prepare('SELECT * FROM search_engines ORDER BY category, sort_order, id').all();
+  const engines = db.prepare("SELECT * FROM search_engines ORDER BY CASE category WHEN 'SEARCH' THEN 1 WHEN 'AI' THEN 2 WHEN 'SOCIAL' THEN 3 ELSE 4 END, sort_order, id").all();
   res.json({ engines });
 });
 

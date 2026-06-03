@@ -1,5 +1,14 @@
 ﻿let bookmarkTreeNodes = [];
-let defaultSearchEngine = 'google';
+let defaultSearchEngine = '';
+
+// 获取默认搜索引擎名称（优先后台is_default，其次用户选择，最后google）
+function _getDefaultEngineName() {
+  if (typeof SearchEngineManager !== 'undefined') {
+    const eng = SearchEngineManager.getDefaultEngine();
+    if (eng) return eng.name;
+  }
+  return FavsHubSettings.get('selectedSearchEngine') || 'google';
+}
 let contextMenu = null;
 let currentBookmark = null;
 
@@ -152,7 +161,7 @@ function applyAllSettings() {
   toggleVis('#extensions-link', FavsHubSettings.get('showExtensionsLink') !== false);
 
   // --- 搜索引擎图标 ---
-  const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
+  const defaultEngine = _getDefaultEngineName();
   updateSearchEngineIcon(defaultEngine);
 
 }
@@ -572,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   replaceIconsWithSvg();
 
   // 更新搜索引图标
-  updateSearchEngineIcon(defaultSearchEngine);
+  updateSearchEngineIcon(_getDefaultEngineName());
 
   const searchEngineIcon = document.getElementById('search-engine-icon');
   if (searchEngineIcon && searchEngineIcon.src === '') {      
@@ -1076,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   contextMenu = createContextMenu();
   
   const searchEngineIcon = document.getElementById('search-engine-icon');
-  const defaultSearchEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
+  const _defEngine = _getDefaultEngineName();
   let deletedBookmark = null;
   let deletedCategory = null; // 添加这行
   let deleteTimeout = null;
@@ -1084,13 +1093,13 @@ document.addEventListener('DOMContentLoaded', async function () {
   // 调用 updateBookmarkCards
   updateBookmarkCards();
   
-  updateSearchEngineIcon(defaultSearchEngine);
+  updateSearchEngineIcon(_defEngine);
 
-  if (searchEngineIcon.src === '') {      
+  if (searchEngineIcon.src === '') {
     searchEngineIcon.src = '/images/placeholder-icon.svg';
   }
   setTimeout(() => {
-    updateSearchEngineIcon(defaultSearchEngine);
+    updateSearchEngineIcon(_defEngine);
   }, 0);
 
   // 修改 updateSearchEngineIcon 函数
@@ -4289,7 +4298,7 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
 
   const tabsContainer = document.getElementById('tabs-container');
   const tabs = document.querySelectorAll('.tab');
-  const defaultSearchEngine = FavsHubSettings.get('selectedSearchEngine') || 'Google';
+  const defaultSearchEngine = _getDefaultEngineName();
 
   // 在文件的适当位置（可能在 DOMContentLoaded 事件监听器内）添加这个标志
   let isChangingSearchEngine = false;
@@ -4534,7 +4543,7 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     // 同步获取所需数据（轻量操作）
     const activeTab = document.querySelector('.tab.active');
     const currentEngine = activeTab ? activeTab.getAttribute('data-engine') : defaultSearchEngine;
-    const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
+    const defaultEngine = _getDefaultEngineName();
     const openInNewTab = FavsHubSettings.get('openSearchInNewTab') !== false;
     const url = getSearchUrl(currentEngine, query);
 
@@ -4569,7 +4578,7 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
 
   // 新增恢复默认搜索引擎的函数
   function restoreDefaultSearchEngine() {
-    const defaultEngine = FavsHubSettings.get('selectedSearchEngine') || 'google';
+    const defaultEngine = _getDefaultEngineName();
 
     // 更新标签状态
     const tabs = document.querySelectorAll('.tab');
