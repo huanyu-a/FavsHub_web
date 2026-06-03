@@ -3,7 +3,7 @@ import { containerTypeFromTitle } from '@/utils/container-sync';
 export interface FlatBookmark {
   title: string;
   url: string;
-  folder_path?: string;  // "收藏夹栏/自媒体/子文件夹" — 首段为容器名
+  folder_path?: string;  // "自媒体/子文件夹" — 已去掉容器名前缀
   container?: string;     // "bar"|"other"|"mobile"|"" — 下载时路由用
   icon?: string;
   sort_order: number;
@@ -12,7 +12,7 @@ export interface FlatBookmark {
 
 /**
  * 将浏览器书签树扁平化。
- * folder_path 格式：容器名/文件夹/子文件夹，首段一定是容器名（如"收藏夹栏"）。
+ * folder_path 格式：文件夹/子文件夹（不含容器名，顶级容器的子文件夹提升为顶级）。
  * 服务端 ensureFolderPath 按 / 分割递归创建文件夹。
  */
 export function flattenBookmarks(
@@ -32,19 +32,19 @@ export function flattenBookmarks(
 
     for (const node of container.children) {
       if (node.url) {
-        // 容器下直接的未分类书签 → folder_path = 容器名
+        // 容器下直接的未分类书签 → folder_path = null
         result.push({
           title: node.title || node.url,
           url: node.url,
-          folder_path: containerName,
+          folder_path: undefined,
           container: containerType,
           icon: iconFn(node.url),
           sort_order: index++,
           browserId: node.id,
         });
       } else if (node.children) {
-        // 文件夹 → folder_path = 容器名/文件夹名/...
-        walkChildren(node.children, `${containerName}/${node.title}`, containerType);
+        // 文件夹 → folder_path = 文件夹名/...（去掉容器名前缀）
+        walkChildren(node.children, node.title, containerType);
       }
     }
   }

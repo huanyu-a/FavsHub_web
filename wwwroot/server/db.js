@@ -184,11 +184,22 @@ ensureColumn('bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEX
 ensureColumn('folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER');
 ensureColumn('users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''");
 
-// 唯一索引：支持增量合并的 upsert 操作
+// 唯一索引：支持增量合并的 upsert 操作（以 url 为基准去重）
 try {
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_url_folder ON bookmarks(user_id, url, COALESCE(folder_id, -1))');
+  db.exec('DROP INDEX IF EXISTS idx_bookmarks_user_url_folder');
+} catch (err) { /* 旧索引可能不存在 */ }
+try {
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_url ON bookmarks(user_id, url)');
 } catch (err) {
-  console.error('[DB] 创建唯一索引失败:', err.message);
+  // 可能存在旧数据中的重复 URL，先清理再建索引
+  console.warn('[DB] URL 去重索引创建失败，正在清理重复书签...', err.message);
+  db.exec(`
+    DELETE FROM bookmarks WHERE rowid NOT IN (
+      SELECT MIN(rowid) FROM bookmarks GROUP BY user_id, url
+    )
+  `);
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_user_url ON bookmarks(user_id, url)');
+  console.log('[DB] 重复书签清理完成');
 }
 
 // 性能索引：加速按 user_id 查询

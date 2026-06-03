@@ -125,15 +125,16 @@ router.put('/bookmarks', (req, res) => {
     const upsertBookmark = db.prepare(`
       INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, container, source, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'browser', ?, ?)
-      ON CONFLICT(user_id, url, COALESCE(folder_id, -1)) DO UPDATE SET
+      ON CONFLICT(user_id, url) DO UPDATE SET
         title = excluded.title,
+        folder_id = excluded.folder_id,
         icon = COALESCE(excluded.icon, bookmarks.icon),
         sort_order = excluded.sort_order,
         container = excluded.container,
         source = 'browser',
         updated_at = excluded.updated_at
     `);
-    const checkExisting = db.prepare('SELECT id FROM bookmarks WHERE user_id = ? AND url = ? AND (folder_id = ? OR (folder_id IS NULL AND ? IS NULL))');
+    const checkExisting = db.prepare('SELECT id FROM bookmarks WHERE user_id = ? AND url = ?');
 
     const folderCache = new Map();
     let foldersCreated = 0;
@@ -155,14 +156,13 @@ router.put('/bookmarks', (req, res) => {
 
     const tx = db.transaction(() => {
       // 阶段 1 + 2：文件夹解析 + 书签 Upsert
-      const incomingKeys = new Set();
+      const incomingUrls = new Set();
       for (const bm of bookmarks) {
         const folderId = ensureFolderPath(bm.folder_path || bm.folder || null);
         const container = bm.container || '';
-        const key = `${bm.url}::${folderId}`;
-        incomingKeys.add(key);
+        incomingUrls.add(bm.url);
 
-        const existing = checkExisting.get(userId, bm.url, folderId, folderId);
+        const existing = checkExisting.get(userId, bm.url);
         upsertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, container, now, now);
         if (existing) updated++; else added++;
       }
@@ -172,13 +172,12 @@ router.put('/bookmarks', (req, res) => {
         const containerList = [...syncedContainers];
         const placeholders = containerList.map(() => '?').join(',');
         const serverBookmarks = db.prepare(
-          `SELECT id, url, folder_id FROM bookmarks WHERE user_id = ? AND container IN (${placeholders})`
+          `SELECT id, url FROM bookmarks WHERE user_id = ? AND container IN (${placeholders})`
         ).all(userId, ...containerList);
 
         const deleteBookmark = db.prepare('DELETE FROM bookmarks WHERE id = ?');
         for (const sb of serverBookmarks) {
-          const key = `${sb.url}::${sb.folder_id}`;
-          if (!incomingKeys.has(key)) {
+          if (!incomingUrls.has(sb.url)) {
             deleteBookmark.run(sb.id);
             deleted++;
           }
