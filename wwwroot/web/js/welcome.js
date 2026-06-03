@@ -14,10 +14,12 @@ const WelcomeManager = {
 
         if (showWelcome === false) {
             welcomeElement.style.display = 'none';
+            welcomeElement.style.visibility = 'hidden';
             return;
         }
 
         welcomeElement.style.display = '';
+        welcomeElement.style.visibility = 'visible';
         this.updateWelcomeMessage();
         this.scheduleNextUpdate();
     },
@@ -37,7 +39,7 @@ const WelcomeManager = {
             greeting = window.getLocalizedMessage('eveningGreeting');
         }
 
-        // 优先从已登录用户的 nickname 获取，次选 FavsHubSettings
+        // 优先从已登录用户的 nickname 获取，最后 FavsHubSettings
         let userName = '';
         try {
           const userInfo = JSON.parse(localStorage.getItem('favshub_user') || '{}');

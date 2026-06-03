@@ -1383,10 +1383,10 @@ aside .settings-icon {
 }
 
 .sidebar-theme-btn {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 9px;
+  border-radius: 8px;
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.06));
   color: #0f172a;
   transition: all 0.2s ease;
@@ -1441,11 +1441,11 @@ aside .settings-icon {
 }
 
 .sidebar-toolbar {
-  padding: 0.35rem 0;
+  padding: 0.3rem 0;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.45rem;
+  gap: 0.35rem;
   flex-wrap: nowrap;
   border: none;
   background: transparent;
@@ -1460,16 +1460,16 @@ aside .settings-icon {
 
 .sidebar-toolbar-icon,
 .sidebar-theme-btn {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
   margin: 0;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 500;
   border: 1px solid rgba(15, 23, 42, 0.04);
   text-decoration: none;
@@ -1488,8 +1488,8 @@ aside .settings-icon {
 
 .sidebar-toolbar-icon svg,
 .sidebar-theme-btn svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
 }
 
@@ -1788,11 +1788,6 @@ main {
   transform: translateY(0);
 }
 
-/* 确�?? tab ???容�?��?�被??��??*/
-.tab {
-  flex-shrink: 0;
-}
-
 .tab {
   cursor: pointer;
   padding: 2px 6px;
@@ -1838,23 +1833,6 @@ main {
   font-size: 24px;
 }
 
-#toggle-view {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
-  border-radius: 0.375rem;
-  padding: 0.25rem 0.5rem;
-  cursor: pointer;
-  z-index: 1000;
-}
-
-/* Hover effect for toggle view button */
-#toggle-view:hover {
-  background-color: #e2e8f0;
-}
-
 footer {
 
   text-align: center;
@@ -1870,10 +1848,6 @@ footer.bg-white.text-center.p-4.border-t.border-gray-200.mt-4 {
 p.text-sm {
     color: #717882;
 }
-.website_url:hover {
-  color: #0acf83; /* Match the color with the left-side bookmarks */
-}
-
 img.w-6.h-6.mr-2 {
   width: 18px;
   margin-right: 8px;
@@ -2044,7 +2018,6 @@ img.w-6.h-6.mr-2 {
 #welcome-message {
   font-size: 24px;
   font-weight: 600;
-  cursor: pointer;
   margin: 0;
   display: flex;
   align-items: center;
@@ -2239,36 +2212,6 @@ img.w-6.h-6.mr-2 {
   font-size: 16px;
   line-height: 1;
 }
-
-.suggestion-url {
-  font-size: 0.8em;
-  color: #717882;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
-}
-
-/* 移除之�?��??.suggestion-content::after */
-
-/* �???��??�?�??��以添??�U??个固定宽度�?? dash ???�? */
-.suggestion-dash {
-  margin: 0 4px;
-  color: #717882;
-  flex-shrink: 0;
-}
-
-
-
-.suggestion-url {
-  font-size: 0.8em;
-  color: #717882;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
-}
-
 
 /* �???��??�?�??��以添??�U??个固定宽度�?? dash ???�? */
 .suggestion-dash {
@@ -3233,28 +3176,6 @@ input:checked+.slider:before {
   color: #374151;
 }
 
-@keyframes tipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes tipFadeOut {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-}
-
 /* ?��页面高度�?小时?????��?��?��???�� */
 @media screen and (max-height: 600px) {
   .links-icons {
@@ -3453,35 +3374,6 @@ input:checked+.slider:before {
 
 [data-theme="dark"] .settings-update-tip .tip-arrow {
   background: #1f2937;
-}
-
-@keyframes tipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* 淡出?��?�� */
-.tip-fade-out {
-  animation: tipFadeOut 0.3s ease-out forwards;
-}
-
-@keyframes tipFadeOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateX(10px);
-  }
 }
 
 .twitter-icon {
@@ -4059,10 +3951,6 @@ input:checked+.slider:before {
   color: #374151;
   font-weight: 600;
 }
-.custom-checkbox {
-  margin-right: 12px;
-}
-
 /* ?��定�?��?�索引�?�样�?*/
 .custom-engine-container {
   display: flex;
@@ -4077,17 +3965,6 @@ input:checked+.slider:before {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
   margin-bottom: 16px; /* 添�?��?��?�间�? */
-}
-
-.custom-engine-form {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 12px;
-  background-color: #f8f9fa;
-  padding: 16px;
-  border-radius: 8px;
 }
 
 .custom-input {
@@ -4252,80 +4129,6 @@ input:checked+.slider:before {
   cursor: not-allowed;
 }
 
-/* ??��??滚动?��?���?*/
-.global-range-slider {
-  position: fixed;
-  display: none;
-  z-index: 1003;
-  background-color: rgba(254, 254, 254, 0.9);
-  padding: 0px;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
-}
-
-.global-range-slider #floating-width-settings-global {
-  min-width: 300px;
-}
-
-.global-range-slider .slider-container {
-  margin-bottom: 16px;
-}
-
-.global-range-slider input[type="range"] {
-  width: 100%;
-  height: 4px;
-  background: #e5e7eb;
-  border-radius: 2px;
-  outline: none;
-  -webkit-appearance: none;
-}
-
-.global-range-slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  background: #10b981;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.global-range-slider input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.1);
-}
-
-.global-range-slider .value-display {
-  white-space: nowrap;
-  font-size: 75%;
-  color: #4a5568;
-}
-
-.global-range-slider .preview-text {
-  margin-top: 16px;
-  font-size: 75%;
-  color: #4a5568;
-}
-
-.global-range-slider .preview-text span:last-child {
-  color: #10b981;
-  font-weight: 500;
-}
-
-/* ??�色模�?��????? */
-[data-theme="dark"] .global-range-slider {
-  background: #1f2937;
-}
-
-[data-theme="dark"] .global-range-slider input[type="range"] {
-  background: #4b5563;
-}
-
-[data-theme="dark"] .global-range-slider .value-display,
-[data-theme="dark"] .global-range-slider .preview-text {
-  color: #e5e7eb;
-}
-
 .search-engine-update-tip,
 .settings-update-tip {
     opacity: 0;
@@ -4411,10 +4214,6 @@ input:checked+.slider:before {
   animation: bounce 2s infinite;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 body,
 main {
   opacity: 1;
@@ -4449,11 +4248,6 @@ main.flex-1 {
     color: #333;
     /* �??��???字�?�色 */
 }
-/* 确�?��????��??侧边??��??容样式�?��?�影??? */
-#categories-list {
-    /* 保�?��????��??类�?��?�表?���?*/
-}
-
 /* ??��?��????��???���?*/
 /* ... */
 
@@ -4924,13 +4718,6 @@ main.flex-1 {
   color: #FFFFFF;
 }
 
-/* 暗色模式 - 图标区域 */
-[data-theme="dark"] .settings-modal-content {
-  background-color: rgba(30, 41, 59, 0.98);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #E5E7EB;
-}
-
 [data-theme="dark"] .settings-modal-title {
   color: #FFFFFF;
 }
@@ -5365,7 +5152,8 @@ body .default-folders-tabs.sidebar-expanded {
   width: 8px;
 }
 
-.interface-elements-settings::-webkit-scrollbar-track {\n  background: rgba(15, 23, 42, 0.3);
+.interface-elements-settings::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
   border: none;
   cursor: pointer;
   font-size: 14px;
@@ -5417,8 +5205,6 @@ body .default-folders-tabs.sidebar-expanded {
 
 [data-theme="dark"] .settings-sidebar-close:hover {
   color: #FFFFFF;
-}
-  color: #ffffff;
 }
 [data-theme="dark"] .settings-sidebar-header {
   border-bottom: 1px solid #404040;
@@ -6368,33 +6154,6 @@ body.is-sorting-bookmarks .card:hover {
   left: 0;
   z-index: 1000;
   background: white;
-}
-
-/* 返�?��?�钮?���? */
-.back-to-links {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 1002;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.back-to-links:hover {
-  background: #f5f5f5;
-}
-
-.back-to-links .material-icons {
-  font-size: 24px;
-  color: #666;
 }
 
 /* �??�� Side Panel 中�??主容?��?���?*/

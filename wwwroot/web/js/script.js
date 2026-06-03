@@ -18,7 +18,6 @@ let itemToDelete = null;
 // Define and initialize the variables
 let bookmarkFolderContextMenu = null;
 let currentBookmarkFolder = null;
-let lastStorageWrite = 0;
 let pendingWrite = null;
 let sidebarSortableInstances = [];
 const STORAGE_WRITE_INTERVAL = 1000; // 1秒的节流间隔
@@ -50,14 +49,6 @@ async function detectExtension() {
     _extConnected = false;
   }
   return _extConnected;
-}
-
-// Web 模式下显示书签容器
-function updateContainerHeight() {
-  const container = document.querySelector('.bookmarks-container');
-  if (!container) return;
-  // 仅负责显示容器，高度由内容自适应
-  container.classList.add('loaded');
 }
 
 // 从 FavsHubSettings 读取并在 DOM 中应用书签布局设置
@@ -695,32 +686,6 @@ function createContextMenu() {
   return menu;
 }
 
-// 在文件顶部添加这个函数
-function applyBackgroundColor() {
-    const savedBg = FavsHubSettings.get('selectedBackground');
-    if (savedBg) {
-        const useDefaultBackground = FavsHubSettings.get('useDefaultBackground');
-        
-        if (String(useDefaultBackground) !== 'true') {
-            document.querySelectorAll('.settings-bg-option').forEach(option => {
-                option.classList.remove('active');
-            });
-            return;
-        }
-        
-        document.documentElement.className = savedBg;
-        
-        // 使用 WelcomeManager 更新欢迎消息颜色
-        const welcomeElement = document.getElementById('welcome-message');
-        if (welcomeElement && window.WelcomeManager) {
-            window.WelcomeManager.adjustTextColor(welcomeElement);
-        }
-    }
-}
-
-// 背景初始化由 BackgroundManager（wallpaper.js）和 DOMContentLoaded 中
-// 的背景处理逻辑按优先级统一管理，此函数保留供外部按需调用
-
 // 添加颜色缓存管理器
 const ColorCache = {
   data: new Map(),
@@ -834,12 +799,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// 同样，将这个函数也移到全作用域
-function setDefaultIcon(iconElement) {
-  iconElement.src = '/images/default-search-icon.png';
-  iconElement.alt = 'Default Search Engine';
-}
-
 // 3. 合并 DOMContentLoaded 事件监听器
 document.addEventListener('DOMContentLoaded', async function() {
   // 等待用户设置从后端加载完成（确保 search engine、openSearchInNewTab 等配置可用）
@@ -945,12 +904,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       searchInput.addEventListener('input', adjustTextareaHeight);
     }
 
-    // 文件夹切换功能已删除
-    // const defaultFoldersTabs = document.querySelector('.default-folders-tabs');
-    // if (defaultFoldersTabs) {
-    //   defaultFoldersTabs.style.bottom = '20px';
-    // }
-
     // 添加一个延迟检查，确保页脚真的被隐藏了
     setTimeout(() => {
       const footerCheck = document.querySelector('footer');
@@ -984,30 +937,25 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   // 快捷访问链接：检测扩展并绑定点击事件
   detectExtension().then(extConnected => {
-    if (!extConnected) {
-      // Web 模式：隐藏需要扩展的链接
-      ['#history-link', '#downloads-link', '#passwords-link', '#extensions-link'].forEach(sel => {
-        const el = document.querySelector(sel);
-        if (el) el.style.display = 'none';
-      });
-      return;
-    }
     // 扩展模式：绑定点击事件
-    const linkActions = {
-      '#history-link': 'openHistory',
-      '#downloads-link': 'openDownloads',
-      '#passwords-link': 'openPasswords',
-      '#extensions-link': 'openExtensions',
-    };
-    Object.entries(linkActions).forEach(([sel, action]) => {
-      const el = document.querySelector(sel);
-      if (el) {
-        el.addEventListener('click', (e) => {
-          e.preventDefault();
-          sendExtensionMessage(action);
-        });
-      }
-    });
+    if (extConnected) {
+      const linkActions = {
+        '#history-link': 'openHistory',
+        '#downloads-link': 'openDownloads',
+        '#passwords-link': 'openPasswords',
+        '#extensions-link': 'openExtensions',
+      };
+      Object.entries(linkActions).forEach(([sel, action]) => {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.addEventListener('click', (e) => {
+            e.preventDefault();
+            sendExtensionMessage(action);
+          });
+        }
+      });
+    }
+    // 无论是否连接扩展，图标始终可见
   });
 });
 
@@ -1355,19 +1303,6 @@ function getDraggedFolderSublist(folderElement) {
   if (!folderElement) return null;
   const sublist = folderElement.nextElementSibling;
   return sublist && sublist.tagName === 'UL' ? sublist : null;
-}
-
-function openCategory(category) {
-  if (category && category.classList.contains('folder-item')) {
-    document.querySelectorAll('#categories-list li').forEach(function (item) {
-      item.classList.remove('bg-emerald-500');
-    });
-    category.classList.add('bg-emerald-500');
-
-    if (category.dataset.id) {
-      updateBookmarksDisplay(category.dataset.id);
-    }
-  }
 }
 
 // 移除所有 defaultBookmarkId 相关的代码
@@ -1854,27 +1789,6 @@ function getColors(img) {
     : primaryColor.map(c => Math.min(255, c + 20)); // 如果只有一种颜色，创建一个稍微亮的次要颜色
 
   return { primary: primaryColor, secondary: secondaryColor };
-}
-
-
-
-// 修改现有的颜色处理函数
-function updateBookmarkColors(bookmark, img, card) {
-  img.onload = function () {
-    const colors = getColors(img);
-    applyColors(card, colors);
-    // 使用新的缓存系统
-    ColorCache.set(bookmark.id, bookmark.url, colors);
-  };
-
-  img.onerror = function () {
-    const defaultColors = {
-      primary: [200, 200, 200],
-      secondary: [220, 220, 220]
-    };
-    applyColors(card, defaultColors);
-    ColorCache.set(bookmark.id, bookmark.url, defaultColors);
-  };
 }
 
 // 修改创建书签卡片时的颜色处理
@@ -3225,40 +3139,6 @@ function displayBookmarkCategories(bookmarkNodes, level, parentUl, parentId) {
   }
 }
 
-// 添加一个获取文件夹内书签数量的函数
-function getFolderBookmarkCount(folderId) {
-  return new Promise((resolve) => {
-    let count = 0;
-
-    function countBookmarks(bookmarkNodes) {
-      bookmarkNodes.forEach(node => {
-        if (node.url) {
-          count++;
-        }
-        if (node.children) {
-          countBookmarks(node.children);
-        }
-      });
-    }
-
-    chrome.bookmarks.getChildren(folderId, (children) => {
-      if (chrome.runtime.lastError) {
-        resolve(0);
-        return;
-      }
-      countBookmarks(children);
-      resolve(count);
-    });
-  });
-}
-// 新增辅助函数
-async function isDefaultFolder(folderId) {
-  if (!folderId) return false;
-
-  const data = FavsHubSettings.get('defaultFolders') || [];
-  const defaultFolders = Array.isArray(data.defaultFolders) ? data.defaultFolders : (data.defaultFolders?.items || []);
-  return defaultFolders.some(folder => folder.id === folderId);
-}
 // 创建文件夹上下文菜单
 function createBookmarkFolderContextMenu() {
 
@@ -3834,14 +3714,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   updateBookmarkCards();
 
-  // 注释掉这个重复的createContextMenu函数定义，使用全局已经定义的函数
-  /* function createContextMenu() {
-    const menu = document.createElement('div');
-    menu.className = 'custom-context-menu';
-    document.body.appendChild(menu);
-    // ... 其余函数内容 ...
-  } */
-
   document.addEventListener('click', function () {
     // 延迟处理点击事件，让菜单项的点击事件先执行
     setTimeout(() => {
@@ -3946,42 +3818,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
         bookmarkElement.style.animation = 'highlight 1s';
       }
     }, 100); // 给予一些 DOM 更新
-  }
-
-  function getFavicon(url, callback) {
-    // 使用统一的 favicon 获取函数（自动适配扩展/Web 环境）
-    const faviconUrl = window.getFaviconUrl ? window.getFaviconUrl(url, 32) : '';
-    if (faviconUrl) {
-      const img = new Image();
-      img.onload = function () {
-        callback(faviconUrl);
-      };
-      img.onerror = function () {
-        callback('');
-      };
-      img.src = faviconUrl;
-    } else {
-      callback('');
-    }
-  }
-
-  function fetchFaviconOnline(domain, callback) {
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-    const img = new Image();
-    img.onload = function () {
-      cacheFavicon(domain, faviconUrl);
-      callback(faviconUrl);
-    };
-    img.onerror = function () {
-      callback('');
-    };
-    img.src = faviconUrl;
-  }
-
-  function cacheFavicon(domain, faviconUrl) {
-    const data = {};
-    data[domain] = faviconUrl;
-    chrome.storage.local.set(data);
   }
 
   let currentCategory = null;
@@ -4291,86 +4127,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     }
   };
 
-  function updateBookmarksDisplay(parentId, movedItemId, newIndex) {
-    return new Promise((resolve, reject) => {
-      try {
-        // 首先检查缓存
-        const cached = bookmarksCache.get(parentId);
-        if (cached && !movedItemId) {
-          // 如果有缓存且不是移动操作，获取完整的书签树
-          chrome.bookmarks.getTree(function (tree) {
-            try {
-              displayBookmarks(tree);
-
-              // 滚动到指定的文件夹
-              setTimeout(() => {
-                const folderGroup = document.getElementById(`folder-group-${parentId}`);
-                if (folderGroup) {
-                  scrollToFolderGroup(folderGroup);
-                }
-              }, 300);
-
-              resolve();
-            } catch (err) {
-              console.error('[updateBookmarksDisplay] Error in cached getTree callback:', err);
-              resolve();
-            }
-          });
-          return;
-        }
-
-        // 如果没有缓存或是移动操作，获取完整的书签树
-        chrome.bookmarks.getTree((tree) => {
-          try {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-              return;
-            }
-
-            // 显示所有书签
-            displayBookmarks(tree);
-
-            // 滚动到指定的文件夹
-            setTimeout(() => {
-              const folderGroup = document.getElementById(`folder-group-${parentId}`);
-              if (folderGroup) {
-                scrollToFolderGroup(folderGroup);
-              }
-            }, 300);
-
-            // 如果是移动操作，突出显示移动的书签
-            if (movedItemId) {
-              highlightBookmark(movedItemId);
-            }
-
-            const bookmarksContainer = document.querySelector('.bookmarks-container');
-            if (bookmarksContainer) {
-              // 先隐藏容器
-              bookmarksContainer.style.opacity = '0';
-              bookmarksContainer.style.transform = 'translateY(20px)';
-
-              // 使用 requestAnimationFrame 来确保 DOM 更新后再显示容器
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  bookmarksContainer.style.opacity = '1';
-                  bookmarksContainer.style.transform = 'translateY(0)';
-                });
-              });
-            }
-
-            resolve();
-          } catch (innerErr) {
-            console.error('[updateBookmarksDisplay] Error in getTree callback:', innerErr);
-            resolve();
-          }
-        });
-      } catch (err) {
-        console.error('[updateBookmarksDisplay] Error:', err);
-        resolve();
-      }
-    });
-  }
-
   const tabsContainer = document.getElementById('tabs-container');
   const tabs = document.querySelectorAll('.tab');
   const defaultSearchEngine = _getDefaultEngineName();
@@ -4558,19 +4314,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
 
 
 
-  function updateSubmitButtonState() {
-    if (searchInput.value.trim() === '') {
-      tabsContainer.style.display = 'none';
-    } else {
-      // 只有当搜索建议列表不为空时才显示 tabs-container
-      if (searchSuggestions.children.length > 0) {
-        tabsContainer.style.display = 'flex';
-      } else {
-        tabsContainer.style.display = 'none';
-      }
-    }
-  }
-
   let isSearching = false;
   let searchQueue = [];
 
@@ -4590,23 +4333,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     performSearch(searchInput.value.trim());
   });
 
-  function queueSearch() {
-    const query = searchInput.value.trim();
-    if (query === '') {
-      return;
-    }
-    searchQueue.push(query);
-    processSearchQueue();
-  }
-
-  function processSearchQueue() {
-    if (isSearching || searchQueue.length === 0) {
-      return;
-    }
-    
-    const query = searchQueue.shift();
-    debouncedPerformSearch(query);
-  }
   // 修改 performSearch 函数
   function performSearch(query) {
     if (!query || typeof query !== 'string' || query.trim() === '') {
@@ -4748,36 +4474,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     bookmarkRelevanceBoost: 1.2
   };
 
-  // 计算模糊匹配分数
-  function calculateFuzzyMatch(query, text) {
-    if (query.length === 0 || text.length === 0) return 0;
-    if (query === text) return 1;
-
-    const maxLength = Math.max(query.length, text.length);
-    const distance = levenshteinDistance(query, text);
-    return (maxLength - distance) / maxLength;
-  }
-
-  // Levenshtein 距离计算
-  function levenshteinDistance(a, b) {
-    const matrix = Array(b.length + 1).fill().map(() => Array(a.length + 1).fill(0));
-
-    for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
-    for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
-
-    for (let j = 1; j <= b.length; j++) {
-      for (let i = 1; i <= a.length; i++) {
-        const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
-        matrix[j][i] = Math.min(
-          matrix[j][i - 1] + 1,                   // 删除
-          matrix[j - 1][i] + 1,                   // 插入
-          matrix[j - 1][i - 1] + substitutionCost // 替换
-        );
-      }
-    }
-    return matrix[b.length][a.length];
-  }
-
   function updateSidebarDefaultBookmarkIndicator() {
     const defaultBookmarkId = localStorage.getItem('defaultBookmarkId');
     selectSidebarFolder(defaultBookmarkId);
@@ -4837,31 +4533,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     
     const query = searchQueue.shift();
     debouncedPerformSearch(query);
-  }
-
-  function setDefaultSearchEngine(engine) {
-    defaultSearchEngine = engine;
-    FavsHubSettings.set('selectedSearchEngine', engine);
-  }
-
-
-
-  // 添加这个函数定义
-  async function getBingSuggestions(query) {
-    try {
-      const response = await fetch(`https://api.bing.com/osjson.aspx?query=${encodeURIComponent(query)}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data[1].map(suggestion => ({
-        text: suggestion,
-        type: 'bing_suggestion',
-        relevance: 1
-      }));
-    } catch (error) {
-      return []; // 返回空数组，以便在出错时程序可以继续运行
-    }
   }
 
   function searchHistory(query, maxResults = 200) {
@@ -5159,26 +4830,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     const maxLength = Math.max(query.length, text.length);
     const distance = levenshteinDistance(query, text);
     return (maxLength - distance) / maxLength;
-  }
-
-  // Levenshtein 距离计算
-  function levenshteinDistance(a, b) {
-    const matrix = Array(b.length + 1).fill().map(() => Array(a.length + 1).fill(0));
-
-    for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
-    for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
-
-    for (let i = 1; i <= b.length; i++) {
-      for (let j = 1; j <= a.length; j++) {
-        const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
-        matrix[j][i] = Math.min(
-          matrix[j][i - 1] + 1,                   // 删除
-          matrix[j - 1][i] + 1,                   // 插入
-          matrix[j - 1][i - 1] + substitutionCost // 替换
-        );
-      }
-    }
-    return matrix[b.length][a.length];
   }
 
   // Levenshtein 距离函数（如果之前没有定义的话）
@@ -5488,17 +5139,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     }
   }, 200);  // 限制为每200毫秒最多执行一次
 
-  function showNoMoreSuggestions() {
-    const existingNoMore = searchSuggestions.querySelector('.no-more-suggestions');
-    if (!existingNoMore) {
-      const noMoreElement = document.createElement('li');
-      noMoreElement.className = 'no-more-suggestions';
-      noMoreElement.style.height = '38px'; // 设置一个固定高度，与他建议项保持一致
-      noMoreElement.style.visibility = 'hidden'; // 使元素不可见，但保留空间
-      searchSuggestions.appendChild(noMoreElement);
-    }
-  }
-
   // 修改创建建议元素的函数
   function createSuggestionElement(suggestion) {
     const li = document.createElement('li');
@@ -5626,28 +5266,6 @@ function updateBookmarkCardColors(bookmarkCard, newUrl, img) {
     } else {
       callback('');
     }
-  }
-
-  // 在线获取 favicon 作为备用
-  function fetchFaviconOnline(url, callback) {
-    const domain = new URL(url).hostname;
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-    const img = new Image();
-    img.onload = function () {
-      cacheFavicon(domain, faviconUrl);
-      callback(faviconUrl);
-    };
-    img.onerror = function () {
-      callback('');
-    };
-    img.src = faviconUrl;
-  }
-
-  // Add this function to cache favicons
-  function cacheFavicon(domain, faviconUrl) {
-    const data = {};
-    data[domain] = faviconUrl;
-    chrome.storage.local.set(data);
   }
 
   async function showDefaultSuggestions() {
@@ -6015,9 +5633,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
         FavsHubSettings.set('lastViewedFolder', null);
 
-        // 文件夹切换功能已删除
-        // await initDefaultFoldersTabs();
-
         // 立即更新UI
 
         // 如果是新添加的默认文件夹，自动切换到该文件夹
@@ -6036,20 +5651,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
   }
 
-
-
-
-
-  // 文件夹切换功能已删除
-  // 监听默认文件夹变化
-  // document.addEventListener('defaultFoldersChanged', async (event) => {
-  //   await initDefaultFoldersTabs();
-  // });
-
-  // 在文档加载完成后初始化 - 文件夹切换功能已删除
-  // document.addEventListener('DOMContentLoaded', async () => {
-  //   await initDefaultFoldersTabs();
-  // });
 
 
 
@@ -6074,22 +5675,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // 延迟一小段时间执行，确保其他初始化完成
   setTimeout(setVersionNumber, 100);
 });
-
-// 文件夹切换功能已删除
-// function updateDefaultFoldersTabsVisibility() { ... }
-
-// 监听侧边栏状态变化 - 文件夹切换功能已删除
-// document.addEventListener('DOMContentLoaded', () => {
-//   const sidebarContainer = document.getElementById('sidebar-container');
-//   if (sidebarContainer) {
-//     const observer = new MutationObserver(updateDefaultFoldersTabsVisibility);
-//     observer.observe(sidebarContainer, { attributes: true, attributeFilter: ['class'] });
-//   }
-//   updateDefaultFoldersTabsVisibility();
-// });
-
-// 在标签更新时调用 - 文件夹切换功能已删除
-// document.addEventListener('defaultFoldersChanged', updateDefaultFoldersTabsVisibility);
 
 // 在适当位置添加或修改
 function openSettingsModal() {

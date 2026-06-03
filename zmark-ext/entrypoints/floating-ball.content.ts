@@ -208,13 +208,13 @@ export default defineContentScript({
 
       #favshub-ext #floating-button {
         position: fixed; width: 40px; height: 40px; top: 20%; right: 0;
-        background-color: #ffffff; border-radius: 20px 0 0 20px;
+        border-radius: 20px 0 0 20px;
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer; z-index: 2147483647; font-size: 16px; color: #374151;
+        cursor: pointer; z-index: 2147483647; font-size: 16px;
         user-select: none; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
         transition: width 0.2s;
       }
-      #favshub-ext #floating-button:hover { width: 60px; background-color: #e2e8f0; }
+      #favshub-ext #floating-button:hover { width: 60px; }
       #favshub-ext .floating-button-icon { width: 24px; height: 24px; margin: 0 0 0 4px !important; flex-shrink: 0; }
 
       #favshub-ext #search-switcher { height: 100%; display: flex; flex-direction: column; align-items: flex-start; width: 100%; background-color: #ffffff; overflow: auto; padding: 20px 0 0 0; }
@@ -272,8 +272,8 @@ export default defineContentScript({
 
       @media (prefers-color-scheme: dark) {
         #favshub-ext #sidebar-container, #favshub-ext #search-switcher { background-color: #1e1e2e; }
-        #favshub-ext #floating-button { background-color: #333; color: #e0e0e0; }
-        #favshub-ext #floating-button:hover { background-color: #444; }
+        #favshub-ext #floating-button { }
+        #favshub-ext #floating-button:hover { }
         #favshub-ext #search-switcher ul li, #favshub-ext .bookmark-title { color: #e0e0e0 !important; }
         #favshub-ext #search-switcher ul li:hover { background-color: rgba(255,255,255,0.1); color: #4285f4 !important; }
         #favshub-ext .bookmark-item:hover { background-color: rgba(255,255,255,0.1); }

@@ -36,13 +36,26 @@ async function loadServerEngines() {
 // 存储管理相关函数
 const SearchEngineManager = {
   getEnabledEngines() {
-    const stored = FavsHubSettings.get('enabledSearchEngines');
-    if (stored && stored.length) return stored;
     const allEngines = _serverEngines || [];
-    // 仅使用后台标记为默认的引擎
-    const defaults = allEngines.filter(e => e.is_default);
-    this.saveEnabledEngines(defaults);
-    return defaults;
+    const serverDefaults = allEngines.filter(e => e.is_default);
+    const stored = FavsHubSettings.get('enabledSearchEngines');
+    if (stored && stored.length) {
+      // 合并：确保存储列表中包含所有服务端标记为默认的引擎
+      const storedNames = new Set(stored.map(e => e.name));
+      let merged = stored.slice();
+      let changed = false;
+      for (const def of serverDefaults) {
+        if (!storedNames.has(def.name)) {
+          merged.push(def);
+          changed = true;
+        }
+      }
+      if (changed) this.saveEnabledEngines(merged);
+      return merged;
+    }
+    // 首次加载：使用所有服务端默认引擎
+    this.saveEnabledEngines(serverDefaults);
+    return serverDefaults;
   },
 
   saveEnabledEngines(engines) {

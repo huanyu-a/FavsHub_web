@@ -798,13 +798,20 @@ if (!_authExcludePaths.some(p => window.location.pathname.endsWith(p))) {
     throw new Error('未登录');
   }
   // 异步刷新用户信息（含 nickname），确保 localStorage 中有最新数据
-  if (!localStorage.getItem('favshub_user')) {
-    apiFetch('/auth/me').then(data => {
-      if (data && data.user) {
-        localStorage.setItem('favshub_user', JSON.stringify(data.user));
-      }
-    }).catch(() => {});
-  }
+  try {
+    var _storedUser = JSON.parse(localStorage.getItem('favshub_user') || 'null');
+    if (!_storedUser || _storedUser.nickname === undefined) {
+      apiFetch('/auth/me').then(data => {
+        if (data && data.user) {
+          localStorage.setItem('favshub_user', JSON.stringify(data.user));
+          // 通知前端更新侧边栏用户信息
+          if (typeof window.updateAuthUI === 'function') {
+            window.updateAuthUI();
+          }
+        }
+      }).catch(() => {});
+    }
+  } catch (_) {}
 }
 
 // ===== HTML 转义工具（原 escape-html.js） =====

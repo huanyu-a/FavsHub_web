@@ -74,11 +74,12 @@ class PromptProDB {
       }
       if (storeName === 'folders') {
         const id = data.folder_id || data.id;
+        const payload = { name: data.folder_name || data.name, parent_id: data.parent_id || null, icon: data.icon || '' };
         if (this._isNew.has(id)) {
           this._isNew.delete(id);
-          return this._fetch('/prompts/folders', { method: 'POST', body: JSON.stringify({ name: data.folder_name || data.name }) });
+          return this._fetch('/prompts/folders', { method: 'POST', body: JSON.stringify(payload) });
         }
-        return this._fetch('/prompts/folders/' + id, { method: 'PUT', body: JSON.stringify({ name: data.folder_name || data.name }) });
+        return this._fetch('/prompts/folders/' + id, { method: 'PUT', body: JSON.stringify(payload) });
       }
       if (storeName === 'tags') {
         const id = data.tag_id || data.id;
@@ -272,7 +273,7 @@ class PromptProDB {
   static async createFolder(data) {
     const id = this.generateUUID();
     this._isNew.add(id);
-    await this.put(STORAGE_KEYS.FOLDERS, { folder_id: id, folder_name: data.folder_name, created_at: Date.now(), updated_at: Date.now() });
+    await this.put(STORAGE_KEYS.FOLDERS, { folder_id: id, folder_name: data.folder_name, parent_id: data.parent_id || null, icon: data.icon || '', created_at: Date.now(), updated_at: Date.now() });
     return { folder_id: id };
   }
 
@@ -382,7 +383,7 @@ window.PromptProDB = PromptProDB;
 (function() {
   'use strict';
 
-  const state = { prompts: [], folders: [], tags: [], stats: {}, currentView: 'prompts', currentPrompt: null, selectedFolder: '', selectedTags: [], keyword: '', formTags: [], editingPromptId: null, foldersExpanded: true };
+  const state = { prompts: [], folders: [], tags: [], stats: {}, currentView: 'prompts', currentPrompt: null, selectedFolder: '', selectedTags: [], keyword: '', formTags: [], editingPromptId: null, foldersExpanded: true, expandedFolders: new Set() };
 
   function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
@@ -400,6 +401,28 @@ window.PromptProDB = PromptProDB;
 
   function formatTimestamp(ts) { if (!ts) return '未知'; return new Date(ts).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
   function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+  function buildFolderTree(folders) {
+    const map = {};
+    const roots = [];
+    folders.forEach(f => { map[f.folder_id] = { ...f, children: [] }; });
+    folders.forEach(f => {
+      if (f.parent_id && map[f.parent_id]) {
+        map[f.parent_id].children.push(map[f.folder_id]);
+      } else {
+        roots.push(map[f.folder_id]);
+      }
+    });
+    return roots;
+  }
+
+  function countAllDescendantPrompts(node) {
+    let count = node.prompt_count || 0;
+    for (const child of node.children) {
+      count += countAllDescendantPrompts(child);
+    }
+    return count;
+  }
   async function loadAll() {
     // 先加载统计数据，确保渲染时数据已就绪
     await loadStats();
@@ -430,8 +453,9 @@ window.PromptProDB = PromptProDB;
     const list = document.getElementById('categories-list');
     if (!list) return;
 
-    const arrowIcon = state.foldersExpanded ? ICONS.expand_less : ICONS.chevron_right;
-    const folderClass = state.foldersExpanded ? 'folder-item' : 'folder-item folder-collapsed';
+    const tree = buildFolderTree(state.folders);
+    const isAllExpanded = state.foldersExpanded;
+    const allArrowIcon = isAllExpanded ? ICONS.expand_less : ICONS.chevron_right;
 
     let html = '';
     // "全部" item - 带折叠展开功能
@@ -439,18 +463,48 @@ window.PromptProDB = PromptProDB;
       <span class="material-icons mr-2">${ICONS.apps}</span>
       <span>全部</span>
       <span class="item-count">${state.stats.total_prompts || 0}</span>
-      <span class="material-icons ml-auto folder-arrow">${arrowIcon}</span>
+      <span class="material-icons ml-auto folder-arrow">${allArrowIcon}</span>
     </li>`;
 
-    // Folder items - 根据折叠状态显示/隐藏
-    state.folders.forEach(folder => {
-      html += `<li class="${state.selectedFolder === folder.folder_id ? folderClass + ' bg-emerald-500' : folderClass}" data-folder="${folder.folder_id}">
-        <span class="material-icons mr-2">${ICONS.folder}</span>
-        <span>${escapeHtml(folder.folder_name)}</span>
-        <span class="item-count">${folder.prompt_count || 0}</span>
-        <button class="item-delete" data-folder-id="${folder.folder_id}" title="删除文件夹"><i class="ri-close-line"></i></button>
-      </li>`;
-    });
+    // Recursive render tree nodes
+    function renderTreeNodes(nodes, depth) {
+      for (const node of nodes) {
+        const isExpanded = state.expandedFolders.has(node.folder_id);
+        const hasChildren = node.children && node.children.length > 0;
+        const totalCount = countAllDescendantPrompts(node);
+        const isSelected = state.selectedFolder === node.folder_id;
+        const itemClass = isSelected ? 'folder-item bg-emerald-500' : 'folder-item';
+        const paddingLeft = depth * 24;
+
+        // When "全部" is collapsed, hide all sub-items
+        if (!isAllExpanded && depth > 0) {
+          html += `<li class="folder-item folder-collapsed" data-folder="${node.folder_id}" data-depth="${depth}" style="padding-left:${paddingLeft}px;">
+            <span class="material-icons mr-2">${ICONS.folder}</span>
+            <span>${escapeHtml(node.folder_name)}</span>
+            <span class="item-count">${totalCount}</span>
+            <button class="item-delete" data-folder-id="${node.folder_id}" title="删除文件夹"><i class="ri-close-line"></i></button>
+          </li>`;
+        } else {
+          const arrowHtml = hasChildren
+            ? `<span class="material-icons folder-arrow" data-toggle-folder="${node.folder_id}">${isExpanded ? ICONS.expand_less : ICONS.chevron_right}</span>`
+            : '';
+          html += `<li class="${itemClass}" data-folder="${node.folder_id}" data-depth="${depth}" style="padding-left:${paddingLeft}px;">
+            <span class="material-icons mr-2">${ICONS.folder}</span>
+            <span>${escapeHtml(node.folder_name)}</span>
+            ${arrowHtml}
+            <span class="item-count">${totalCount}</span>
+            <button class="item-delete" data-folder-id="${node.folder_id}" title="删除文件夹"><i class="ri-close-line"></i></button>
+          </li>`;
+
+          // Render children if expanded
+          if (hasChildren && isExpanded) {
+            renderTreeNodes(node.children, depth + 1);
+          }
+        }
+      }
+    }
+
+    renderTreeNodes(tree, 0);
 
     list.innerHTML = html;
 
@@ -465,10 +519,37 @@ window.PromptProDB = PromptProDB;
       });
     }
 
-    // Bind folder click events
-    list.querySelectorAll('.folder-item[data-folder]:not([data-toggle])').forEach(item => {
+    // Bind expand/collapse arrow clicks
+    list.querySelectorAll('[data-toggle-folder]').forEach(arrow => {
+      arrow.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const folderId = arrow.dataset.toggleFolder;
+        if (state.expandedFolders.has(folderId)) {
+          state.expandedFolders.delete(folderId);
+        } else {
+          state.expandedFolders.add(folderId);
+        }
+        renderFolders();
+      });
+    });
+
+    // Bind folder click events - clicking row toggles expand/collapse for folders with children
+    list.querySelectorAll('.folder-item[data-folder]:not([data-toggle]):not([data-toggle-folder])').forEach(item => {
       item.addEventListener('click', (e) => {
-        if (!e.target.closest('.item-delete')) selectFolder(item.dataset.folder);
+        if (e.target.closest('.item-delete')) return;
+        const folderId = item.dataset.folder;
+        // Check if this folder has children
+        const hasChildren = state.folders.some(f => f.parent_id === folderId);
+        if (hasChildren) {
+          if (state.expandedFolders.has(folderId)) {
+            state.expandedFolders.delete(folderId);
+          } else {
+            state.expandedFolders.add(folderId);
+          }
+          renderFolders();
+        } else {
+          selectFolder(folderId);
+        }
       });
     });
 
@@ -481,6 +562,7 @@ window.PromptProDB = PromptProDB;
           await PromptProDB.deleteFolder(folder.folder_id);
           showToast('文件夹已删除');
           if (state.selectedFolder === folder.folder_id) state.selectedFolder = '';
+          state.expandedFolders.delete(folder.folder_id);
           await loadAll();
         }
       });
@@ -568,6 +650,23 @@ window.PromptProDB = PromptProDB;
   }
 
   function clearFilters() { state.selectedFolder = ''; state.selectedTags = []; state.keyword = ''; const searchInput = document.getElementById('searchInput'); if (searchInput) searchInput.value = ''; renderFolders(); renderTags(); updateFilterBar(); loadPrompts(); }
+
+  function updateView() {
+    const toolbar = document.querySelector('.main-toolbar');
+    const filterBar = document.getElementById('filterBar');
+    const promptsContainer = document.querySelector('.prompts-container');
+
+    // Update nav active states
+    document.querySelectorAll('.sidebar-hub-link').forEach(link => {
+      link.classList.remove('active');
+    });
+    const ppLink = document.querySelector('[data-page="promptpro"]');
+    if (ppLink) ppLink.classList.add('active');
+
+    if (toolbar) toolbar.style.display = '';
+    if (filterBar) updateFilterBar();
+    if (promptsContainer) promptsContainer.style.display = '';
+  }
 
   function renderPromptGrid(promptsToRender) {
     const grid = document.getElementById('promptsGrid');
@@ -937,7 +1036,30 @@ window.PromptProDB = PromptProDB;
     });
   }
 
-  function openFolderModal() { const modal = document.getElementById('folderModal'); if (modal) { document.getElementById('folderModalTitle').textContent = '编辑文件夹'; document.getElementById('folderNameInput').value = ''; modal.classList.add('active'); } }
+  function openFolderModal() {
+    const modal = document.getElementById('folderModal');
+    if (!modal) return;
+    document.getElementById('folderModalTitle').textContent = '新建文件夹';
+    document.getElementById('folderNameInput').value = '';
+
+    // Populate parent folder dropdown
+    const parentSelect = document.getElementById('folderParentSelect');
+    if (parentSelect) {
+      const tree = buildFolderTree(state.folders);
+      let options = '<option value="">无（根级文件夹）</option>';
+      function renderOpts(nodes, depth) {
+        for (const node of nodes) {
+          options += `<option value="${node.folder_id}">${'　'.repeat(depth)}${escapeHtml(node.folder_name)}</option>`;
+          if (node.children && node.children.length) renderOpts(node.children, depth + 1);
+        }
+      }
+      renderOpts(tree, 0);
+      parentSelect.innerHTML = options;
+      parentSelect.value = '';
+    }
+
+    modal.classList.add('active');
+  }
   function closeFolderModal() { const modal = document.getElementById('folderModal'); if (modal) modal.classList.remove('active'); }
   function openTagModal() { const modal = document.getElementById('tagModal'); if (modal) { document.getElementById('tagModalTitle').textContent = '新建标签'; document.getElementById('tagNameInput').value = ''; modal.classList.add('active'); } }
   function closeTagModal() { const modal = document.getElementById('tagModal'); if (modal) modal.classList.remove('active'); }
@@ -954,7 +1076,7 @@ window.PromptProDB = PromptProDB;
     const addFolderBtn = document.getElementById('addFolderBtn');
     if (addFolderBtn) addFolderBtn.addEventListener('click', () => openFolderModal());
     const saveFolderBtn = document.getElementById('saveFolderBtn');
-    if (saveFolderBtn) { saveFolderBtn.addEventListener('click', async () => { const name = document.getElementById('folderNameInput')?.value.trim(); if (!name) { showToast('请输入文件夹名称', 'error'); return; } await PromptProDB.createFolder({ folder_name: name }); showToast('文件夹创建成功'); closeFolderModal(); await loadAll(); }); }
+    if (saveFolderBtn) { saveFolderBtn.addEventListener('click', async () => { const name = document.getElementById('folderNameInput')?.value.trim(); if (!name) { showToast('请输入文件夹名称', 'error'); return; } const parentId = document.getElementById('folderParentSelect')?.value || null; await PromptProDB.createFolder({ folder_name: name, parent_id: parentId }); showToast('文件夹创建成功'); closeFolderModal(); await loadAll(); }); }
     const closeFolderModalBtn = document.getElementById('closeFolderModal');
     if (closeFolderModalBtn) closeFolderModalBtn.addEventListener('click', closeFolderModal);
     const cancelFolderBtn = document.getElementById('cancelFolderBtn');
@@ -992,6 +1114,7 @@ window.PromptProDB = PromptProDB;
     initFormTagSelector();
     document.querySelectorAll('.modal').forEach(modal => { modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); }); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.modal.active').forEach(modal => modal.classList.remove('active')); });
+
   }
 
   function isPromptProPage() {

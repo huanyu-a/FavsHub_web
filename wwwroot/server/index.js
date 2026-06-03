@@ -96,6 +96,49 @@ app.get('/api/search-engines', (req, res) => {
   res.json({ engines });
 });
 
+// TDK 中间件：从 settings 读取 TDK 注入 HTML（promptpro 使用独立 TDK 字段）
+app.use((req, res, next) => {
+  // 匹配：/ 、/*.html 、/xxx/ （目录索引路径）
+  const isHtml = req.path.endsWith('.html');
+  const isRoot = req.path === '/';
+  const isDirIndex = !isHtml && !isRoot && req.path.endsWith('/');
+  if (!isHtml && !isRoot && !isDirIndex) return next();
+
+  const fs = require('fs');
+  let relativePath = req.path;
+  if (isRoot) relativePath = '/index.html';
+  else if (isDirIndex) relativePath = req.path + 'index.html';
+  const filePath = path.join(__dirname, '..', 'web', relativePath);
+  if (!fs.existsSync(filePath)) return next();
+  let html = fs.readFileSync(filePath, 'utf8');
+  try {
+    const db = require('./db');
+    const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
+    if (row && row.data) {
+      const data = JSON.parse(row.data);
+      const isPromptPro = req.path.startsWith('/promptpro');
+      const title = isPromptPro ? (data.promptproTitle || data.siteTitle) : data.siteTitle;
+      const description = isPromptPro ? (data.promptproDescription || data.siteDescription) : data.siteDescription;
+      const keywords = isPromptPro ? (data.promptproKeywords || data.siteKeywords) : data.siteKeywords;
+      if (title) html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      // 先移除已有的 meta 标签，再注入到 </title> 下方（防止重复）
+      let metaTags = '';
+      if (description) {
+        html = html.replace(/<meta\s+name="description"[^>]*>\s*\n?/gi, '');
+        metaTags += `\n  <meta name="description" content="${description}">`;
+      }
+      if (keywords) {
+        html = html.replace(/<meta\s+name="keywords"[^>]*>\s*\n?/gi, '');
+        metaTags += `\n  <meta name="keywords" content="${keywords}">`;
+      }
+      if (metaTags) {
+        html = html.replace('</title>', `</title>${metaTags}`);
+      }
+    }
+  } catch {}
+  res.type('html').send(html);
+});
+
 // 静态文件：网页端 + 资源目录（JS/CSS 禁用浏览器缓存，确保始终加载最新版）
 app.use(express.static(path.join(__dirname, '..', 'web'), {
   setHeaders: (res, filePath) => {

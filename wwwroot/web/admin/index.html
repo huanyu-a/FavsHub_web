@@ -344,6 +344,7 @@
           <button class="prompt-tab" data-tab="folders" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">文件夹管理</button>
           <button class="prompt-tab" data-tab="tags" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">标签管理</button>
           <button class="prompt-tab" data-tab="history" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">历史记录</button>
+          <button class="prompt-tab" data-tab="tdk" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">TDK 设置</button>
         </div>
         <!-- 提示词列表 -->
         <div id="prompt-sub-prompts" class="prompt-sub-page">
@@ -373,8 +374,8 @@
               <button class="btn btn-ghost btn-sm" onclick="loadPromptFolders()">刷新</button>
             </div>
             <table>
-              <thead><tr><th>名称</th><th>用户</th><th>提示词数</th><th>操作</th></tr></thead>
-              <tbody id="prompt-folders-table-body"><tr><td colspan="4" class="empty-state">加载中...</td></tr></tbody>
+              <thead><tr><th>名称</th><th>父文件夹</th><th>用户</th><th>提示词数</th><th>操作</th></tr></thead>
+              <tbody id="prompt-folders-table-body"><tr><td colspan="5" class="empty-state">加载中...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -403,6 +404,28 @@
               <thead><tr><th>提示词</th><th>版本号</th><th>用户</th><th>创建时间</th><th>预览</th></tr></thead>
               <tbody id="prompt-history-table-body"><tr><td colspan="6" class="empty-state">加载中...</td></tr></tbody>
             </table>
+          </div>
+        </div>
+        <!-- TDK 设置 -->
+        <div id="prompt-sub-tdk" class="prompt-sub-page" style="display:none;">
+          <div class="card">
+            <div class="card-header"><h3>提示词页面 TDK 设置</h3></div>
+            <div style="padding: 20px;">
+              <div style="margin-bottom: 16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面标题（Title）</label>
+                <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面描述（Description）</label>
+                <textarea id="promptpro-site-description" rows="3" placeholder="AI提示词管理平台" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;"></textarea>
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面关键词（Keywords）</label>
+                <textarea id="promptpro-site-keywords" rows="2" placeholder="提示词,AI,prompt" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;"></textarea>
+                <small style="color:#94a3b8;">多个关键词用英文逗号分隔</small>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="savePromptProTDK()">保存</button>
+            </div>
           </div>
         </div>
       </div>
@@ -530,6 +553,22 @@
         <div class="card">
           <div class="config-list" id="config-list">
             <div class="empty-state">加载中...</div>
+          </div>
+        </div>
+        <div class="setting-card" style="margin-top:24px;">
+          <h3>网站 TDK 设置</h3>
+          <p style="font-size:13px;color:#888;margin-bottom:16px;">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。修改后将在 HTML 页面中自动注入 meta 标签。</p>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+            <label style="margin-bottom:4px;">网站标题 (Title)</label>
+            <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+            <label style="margin-bottom:4px;">网站描述 (Description)</label>
+            <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+            <label style="margin-bottom:4px;">网站关键词 (Keywords)</label>
+            <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
           </div>
         </div>
       </div>
@@ -953,6 +992,7 @@
         // 切换到页面时自动加载数据
         if (link.dataset.page === 'prompts') loadPrompts();
         if (link.dataset.page === 'settings') loadSettings();
+        if (link.dataset.page === 'config') loadSettings();
         if (link.dataset.page === 'backup') { loadBackupSchedule(); loadBackupFiles(); loadBaiduAppKey(); }
       });
     });
@@ -2184,10 +2224,16 @@
       }
     }
 
+    function getParentFolderName(parentId, allFolders) {
+      if (!parentId) return '-';
+      const parent = allFolders.find(f => f.id === parentId);
+      return parent ? parent.name : '-';
+    }
+
     function renderPromptFoldersTable(folders) {
       const tbody = document.getElementById('prompt-folders-table-body');
       if (!folders.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="ri-folder-line"></i>暂无提示词文件夹</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="ri-folder-line"></i>暂无提示词文件夹</td></tr>';
         return;
       }
       const tree = buildFolderTree(folders);
@@ -2197,10 +2243,11 @@
           const fid = 'pf-' + node.id;
           const pidClass = parentId ? ' pf-child-of-' + parentId : '';
           const hasChildren = node.children && node.children.length > 0;
-          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name || '')}">
+          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name || '')}" data-parent-id="${node.parent_id || ''}">
             <td style="font-weight:500;padding-left:${8+depth*20}px;">
               ${hasChildren ? `<i class="ri-arrow-down-s-line pf-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(node.icon||'ri-folder-line')}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
             </td>
+            <td>${escapeHtml(getParentFolderName(node.parent_id, folders))}</td>
             <td>${escapeHtml(node.username || '-')}</td>
             <td>${node.prompt_count || 0}</td>
             <td>
@@ -2411,6 +2458,12 @@
         document.getElementById('admin-show-downloads-link').checked = s.showDownloadsLink !== false;
         document.getElementById('admin-show-passwords-link').checked = s.showPasswordsLink !== false;
         document.getElementById('admin-show-extensions-link').checked = s.showExtensionsLink !== false;
+        document.getElementById('admin-site-title').value = s.siteTitle || '';
+        document.getElementById('admin-site-description').value = s.siteDescription || '';
+        document.getElementById('admin-site-keywords').value = s.siteKeywords || '';
+        document.getElementById('promptpro-site-title').value = s.promptproTitle || '';
+        document.getElementById('promptpro-site-description').value = s.promptproDescription || '';
+        document.getElementById('promptpro-site-keywords').value = s.promptproKeywords || '';
       } catch (err) {
       } finally {
         _settingsLoaded = true;
@@ -2445,7 +2498,10 @@
         showHistoryLink: document.getElementById('admin-show-history-link').checked,
         showDownloadsLink: document.getElementById('admin-show-downloads-link').checked,
         showPasswordsLink: document.getElementById('admin-show-passwords-link').checked,
-        showExtensionsLink: document.getElementById('admin-show-extensions-link').checked
+        showExtensionsLink: document.getElementById('admin-show-extensions-link').checked,
+        siteTitle: document.getElementById('admin-site-title').value.trim(),
+        siteDescription: document.getElementById('admin-site-description').value.trim(),
+        siteKeywords: document.getElementById('admin-site-keywords').value.trim()
       };
       document.getElementById('admin-card-width-val').textContent = s.bookmarkWidth;
       document.getElementById('admin-card-height-val').textContent = s.bookmarkCardHeight;
@@ -2462,6 +2518,18 @@
       t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#10b981;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999;';
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2000);
+    }
+
+    async function savePromptProTDK() {
+      const data = {
+        promptproTitle: document.getElementById('promptpro-site-title').value.trim(),
+        promptproDescription: document.getElementById('promptpro-site-description').value.trim(),
+        promptproKeywords: document.getElementById('promptpro-site-keywords').value.trim()
+      };
+      try {
+        await api.updateAdminDefaultSettings(data);
+        showToast('提示词页面 TDK 已保存');
+      } catch (err) { alert('保存失败: ' + err.message); }
     }
 
   </script>
