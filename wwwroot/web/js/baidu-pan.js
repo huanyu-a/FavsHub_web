@@ -149,15 +149,32 @@ class BaiduPanBackupManager {
     return `https://${chrome.runtime.id}.chromiumapp.org/`;
   }
 
+  // 检测是否在 Chrome 扩展环境中运行
+  _isExtension() {
+    return typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chrome.runtime.id !== 'favshub-web';
+  }
+
   async startOAuth() {
     const appKey = await getAppKey();
     if (!appKey) {
       console.error('[百度网盘] 百度网盘功能未配置，请设置 BAIDU_APP_KEY 环境变量');
       return;
     }
-    // 中继页面需要知道扩展 ID 才能跳转回 chromiumapp.org
-    const extId = chrome.runtime.id;
-    const redirectUri = RELAY_URL + '?ext_id=' + encodeURIComponent(extId);
+
+    let redirectUri;
+    let useRelay = false;
+
+    if (this._isExtension()) {
+      // Chrome 扩展环境：使用中继页面 → chromiumapp.org
+      const extId = chrome.runtime.id;
+      redirectUri = RELAY_URL + '?ext_id=' + encodeURIComponent(extId);
+      useRelay = true;
+    } else {
+      // Web 管理后台环境：使用管理后台页面作为回调
+      redirectUri = window.location.origin + '/admin/';
+      useRelay = false;
+    }
+
     const authUrl = new URL('https://openapi.baidu.com/oauth/2.0/authorize');
     authUrl.searchParams.set('response_type', 'token');
     authUrl.searchParams.set('client_id', appKey);
@@ -180,10 +197,23 @@ class BaiduPanBackupManager {
       responseUrl = await this._oauthViaPopup(authUrl.toString(), redirectUri);
     }
 
+    if (!responseUrl) throw new Error('AUTH_FAILED');
+
     // 中继页面将 token 以 query params 形式传回 chromiumapp.org
+    // Web 环境下 token 在 URL hash 中（#access_token=...&expires_in=...）
     const url = new URL(responseUrl);
-    const accessToken = url.searchParams.get('access_token');
-    const expiresIn = parseInt(url.searchParams.get('expires_in'), 10);
+    let accessToken, expiresIn;
+
+    // 尝试从 query params 获取（扩展环境 / relay 重定向）
+    accessToken = url.searchParams.get('access_token');
+    expiresIn = parseInt(url.searchParams.get('expires_in'), 10);
+
+    // 尝试从 hash 获取（Web 环境 direct redirect）
+    if (!accessToken && url.hash) {
+      const hashParams = new URLSearchParams(url.hash.substring(1));
+      accessToken = hashParams.get('access_token');
+      expiresIn = parseInt(hashParams.get('expires_in'), 10);
+    }
 
     if (!accessToken) throw new Error('AUTH_FAILED');
 
@@ -488,6 +518,8 @@ window.baiduPanBackupManager = new BaiduPanBackupManager();
 class BaiduPanSettingsManager {
   constructor() {
     this.manager = baiduPanBackupManager;
+    this.statusEl = document.getElementById('baidu-pan-status-text');
+    if (!this.statusEl) return; // Elements don't exist on this page
   }
 
   async init() {

@@ -20,7 +20,7 @@ router.get('/stats', (req, res) => {
 // 用户列表（含书签/Prompt 数量）
 router.get('/users', (req, res) => {
   const users = db.prepare(`
-    SELECT u.id, u.username, u.nickname, u.email, u.created_at,
+    SELECT u.id, u.username, u.nickname, u.email, u.is_admin, u.created_at,
       (SELECT COUNT(*) FROM bookmarks WHERE user_id = u.id) as bookmark_count,
       (SELECT COUNT(*) FROM prompts WHERE user_id = u.id) as prompt_count
     FROM users u ORDER BY u.created_at DESC
@@ -316,8 +316,8 @@ router.get('/prompts', (req, res) => {
 });
 
 router.delete('/prompts/:id', (req, res) => {
-  const promptId = parseInt(req.params.id);
-  if (isNaN(promptId)) return res.status(400).json({ error: '无效的提示词 ID' });
+  const promptId = req.params.id;
+  if (!promptId) return res.status(400).json({ error: '无效的提示词 ID' });
   const prompt = db.prepare('SELECT id FROM prompts WHERE id = ?').get(promptId);
   if (!prompt) return res.status(404).json({ error: '提示词不存在' });
 
@@ -332,8 +332,8 @@ router.delete('/prompts/:id', (req, res) => {
 
 // 提示词版本历史（管理员）
 router.get('/prompts/:id/versions', (req, res) => {
-  const promptId = parseInt(req.params.id);
-  if (isNaN(promptId)) return res.status(400).json({ error: '无效的提示词 ID' });
+  const promptId = req.params.id;
+  if (!promptId) return res.status(400).json({ error: '无效的提示词 ID' });
   const versions = db.prepare(`
     SELECT pv.* FROM prompt_versions pv
     WHERE pv.prompt_id = ? ORDER BY pv.created_at DESC
@@ -354,8 +354,8 @@ router.get('/prompt-folders', (req, res) => {
 });
 
 router.delete('/prompt-folders/:id', (req, res) => {
-  const folderId = parseInt(req.params.id);
-  if (isNaN(folderId)) return res.status(400).json({ error: '无效的文件夹 ID' });
+  const folderId = req.params.id;
+  if (!folderId) return res.status(400).json({ error: '无效的文件夹 ID' });
   const folder = db.prepare('SELECT id FROM prompt_folders WHERE id = ?').get(folderId);
   if (!folder) return res.status(404).json({ error: '提示词文件夹不存在' });
 
@@ -365,6 +365,51 @@ router.delete('/prompt-folders/:id', (req, res) => {
   });
   tx();
   res.json({ success: true, message: '已删除提示词文件夹' });
+});
+
+// 创建提示词文件夹（管理员）
+router.post('/prompt-folders', (req, res) => {
+  try {
+    const { name, user_id, parent_id, icon } = req.body;
+    if (!name) return res.status(400).json({ error: '文件夹名称不能为空' });
+    if (!user_id) return res.status(400).json({ error: '必须指定用户 ID' });
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    if (parent_id) {
+      const parent = db.prepare('SELECT id FROM prompt_folders WHERE id = ? AND user_id = ?').get(parent_id, user_id);
+      if (!parent) return res.status(404).json({ error: '父文件夹不存在' });
+    }
+    const now = Date.now();
+    const id = now.toString() + Math.random().toString(36).slice(2, 6);
+    db.prepare('INSERT INTO prompt_folders (id, user_id, name, parent_id, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, user_id, name, parent_id || null, icon || '', now, now);
+    const folder = db.prepare('SELECT * FROM prompt_folders WHERE id = ?').get(id);
+    res.json({ folder });
+  } catch (err) {
+    console.error('[Admin] POST /prompt-folders error:', err.message);
+    res.status(500).json({ error: '创建文件夹失败' });
+  }
+});
+
+// 更新提示词文件夹（管理员）
+router.put('/prompt-folders/:id', (req, res) => {
+  try {
+    const folderId = req.params.id;
+    const folder = db.prepare('SELECT * FROM prompt_folders WHERE id = ?').get(folderId);
+    if (!folder) return res.status(404).json({ error: '文件夹不存在' });
+    const { name, parent_id, icon } = req.body;
+    if (name !== undefined) db.prepare('UPDATE prompt_folders SET name = ? WHERE id = ?').run(name, folderId);
+    if (icon !== undefined) db.prepare('UPDATE prompt_folders SET icon = ? WHERE id = ?').run(icon, folderId);
+    if (parent_id !== undefined) {
+      if (parent_id === folderId) return res.status(400).json({ error: '不能将文件夹设为自己的子文件夹' });
+      db.prepare('UPDATE prompt_folders SET parent_id = ? WHERE id = ?').run(parent_id || null, folderId);
+    }
+    db.prepare('UPDATE prompt_folders SET updated_at = ? WHERE id = ?').run(Date.now(), folderId);
+    const updated = db.prepare('SELECT * FROM prompt_folders WHERE id = ?').get(folderId);
+    res.json({ folder: updated });
+  } catch (err) {
+    console.error('[Admin] PUT /prompt-folders error:', err.message);
+    res.status(500).json({ error: '更新文件夹失败' });
+  }
 });
 
 // === 百度网盘全库备份 ===

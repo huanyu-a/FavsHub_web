@@ -41,13 +41,33 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/admin', require('./routes/admin'));
 
-// 公开接口：获取百度 OAuth AppKey（不暴露在源码中）
+// 公开接口：获取百度 OAuth AppKey（从数据库 settings 读取）
 app.get('/api/config/baidu-app-key', (req, res) => {
-  const appKey = process.env.BAIDU_APP_KEY;
-  if (!appKey) {
-    return res.status(404).json({ error: '百度网盘功能未配置' });
+  const db = require('./db');
+  const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
+  let appKey = '';
+  if (row && row.data) {
+    try { appKey = JSON.parse(row.data).baiduAppKey || ''; } catch {}
   }
+  if (!appKey) return res.status(404).json({ error: '百度网盘功能未配置' });
   res.json({ appKey });
+});
+
+// 管理员：保存百度 AppKey
+app.put('/api/config/baidu-app-key', (req, res) => {
+  const { authMiddleware } = require('./middleware/auth');
+  authMiddleware(req, res, () => {
+    const db = require('./db');
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !user.is_admin) return res.status(403).json({ error: '需要管理员权限' });
+    const { appKey } = req.body;
+    const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
+    let data = {};
+    if (row && row.data) { try { data = JSON.parse(row.data); } catch {} }
+    data.baiduAppKey = appKey || '';
+    db.prepare("INSERT OR REPLACE INTO settings (user_id, data) VALUES (0, ?)").run(JSON.stringify(data));
+    res.json({ success: true });
+  });
 });
 
 // Bing 壁纸代理（绕过浏览器 CORS 限制）

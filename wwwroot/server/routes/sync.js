@@ -128,7 +128,7 @@ router.put('/bookmarks', (req, res) => {
       ON CONFLICT(user_id, url) DO UPDATE SET
         title = excluded.title,
         folder_id = excluded.folder_id,
-        icon = COALESCE(excluded.icon, bookmarks.icon),
+        icon = bookmarks.icon,
         sort_order = excluded.sort_order,
         container = excluded.container,
         source = 'browser',

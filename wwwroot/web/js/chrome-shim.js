@@ -351,20 +351,33 @@ const identityShim = {
     return window.location.origin + '/oauth-callback.html';
   },
   launchWebAuthFlow: function(options, callback) {
-    // 在网页端直接打开 OAuth 窗口
     const width = 600, height = 700;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
     const popup = window.open(options.url, 'oauth', `width=${width},height=${height},left=${left},top=${top}`);
 
-    const timer = setInterval(() => {
-      try {
-        if (popup.closed) {
-          clearInterval(timer);
-          callback(null);
+    if (typeof callback === 'function') {
+      const timer = setInterval(() => {
+        try { if (popup.closed) { clearInterval(timer); callback(null); } } catch (e) {}
+      }, 500);
+    } else {
+      // Web 环境：popup 回调到同源管理后台，通过 postMessage 接收 token
+      return new Promise((resolve, reject) => {
+        if (!popup) { reject(new Error('AUTH_FAILED')); return; }
+        function onMessage(e) {
+          if (e.data && e.data.type === 'baidu-oauth-callback' && e.data.accessToken) {
+            window.removeEventListener('message', onMessage);
+            clearTimeout(timeout);
+            resolve('http://oauth?access_token=' + e.data.accessToken + '&expires_in=' + (e.data.expiresIn || ''));
+          }
         }
-      } catch (e) {}
-    }, 500);
+        window.addEventListener('message', onMessage);
+        const timeout = setTimeout(() => {
+          window.removeEventListener('message', onMessage);
+          reject(new Error('AUTH_FAILED'));
+        }, 300000);
+      });
+    }
   }
 };
 

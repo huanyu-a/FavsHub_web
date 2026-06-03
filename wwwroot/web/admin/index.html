@@ -150,6 +150,11 @@
     .value-display { white-space: nowrap; font-size: 14px; color: #4a5568; min-width: 48px; text-align: right; font-weight: 500; }
     .preview-text { margin-top: 12px; font-size: 13px; color: #4a5568; }
     .preview-text span:last-child { color: #10b981; font-weight: 500; }
+
+    .pagination { display:flex; align-items:center; justify-content:center; gap:4px; padding:16px; }
+    .pagination button { padding:6px 12px; border:1px solid #ddd; background:#fff; border-radius:6px; cursor:pointer; font-size:13px; }
+    .pagination button.active { background:#667eea; color:#fff; border-color:#667eea; }
+    .pagination button:disabled { opacity:0.4; cursor:not-allowed; }
   </style>
 </head>
 <body>
@@ -249,6 +254,8 @@
               <span style="font-size:13px;color:#666;white-space:nowrap;">分类筛选：</span>
               <select id="filter-level1" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:160px;" onchange="onLevel1Change()"><option value="">全部文件夹</option></select>
               <select id="filter-level2" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:160px;" onchange="onLevel2Change()"><option value="">全部子文件夹</option></select>
+              <input type="text" id="filter-title-search" placeholder="搜索标题..." style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:140px;" oninput="applyFilter()">
+              <input type="text" id="filter-url-search" placeholder="搜索URL..." style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:140px;" oninput="applyFilter()">
               <span id="filter-result-info" style="font-size:13px;color:#999;"></span>
             </div>
           </div>
@@ -265,6 +272,7 @@
               <thead><tr><th style="width:50px;">ID</th><th style="width:40px;">图标</th><th>标题</th><th style="width:280px;">URL</th><th style="width:100px;">文件夹</th><th style="width:80px;">用户</th><th style="width:120px;">操作</th></tr></thead>
               <tbody id="bookmarks-table-body"><tr><td colspan="7" class="empty-state">加载中...</td></tr></tbody>
             </table>
+            <div id="bookmarks-pagination" class="pagination"></div>
           </div>
         </div>
         <!-- 文件夹管理 -->
@@ -273,7 +281,7 @@
             <div class="card-header" style="justify-content:flex-start;align-items:center;gap:8px;">
               <h3>文件夹管理</h3>
               <button class="btn btn-primary btn-sm" onclick="createFolder()">新建文件夹</button>
-              <button class="btn btn-ghost btn-sm" id="toggle-folders-btn" onclick="toggleAllFolders()">全部展开</button>
+              <button class="btn btn-ghost btn-sm" id="toggle-folders-btn" onclick="toggleAllFolders()">全部收缩</button>
               <button class="btn btn-ghost btn-sm" onclick="loadFolders()">刷新</button>
             </div>
             <table>
@@ -342,7 +350,9 @@
           <div class="card">
             <div class="card-header"><h3>提示词列表</h3>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-primary btn-sm" onclick="syncPromptsFromBrowser()">同步提示词</button>
+                <button class="btn btn-ghost btn-sm" onclick="exportPromptsJSON()">导出JSON</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-prompts-file').click()">导入JSON</button>
+                <input type="file" id="import-prompts-file" accept=".json" style="display:none;" onchange="importPromptsJSON(event)">
                 <button class="btn btn-ghost btn-sm" onclick="loadPrompts()">刷新</button>
               </div>
             </div>
@@ -350,6 +360,7 @@
               <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody id="prompts-table-body"><tr><td colspan="8" class="empty-state">加载中...</td></tr></tbody>
             </table>
+            <div id="prompts-pagination" class="pagination"></div>
           </div>
         </div>
         <!-- 文件夹管理 -->
@@ -358,7 +369,7 @@
             <div class="card-header" style="justify-content:flex-start;align-items:center;gap:8px;">
               <h3>提示词文件夹</h3>
               <button class="btn btn-primary btn-sm" onclick="createPromptFolder()">新建文件夹</button>
-              <button class="btn btn-ghost btn-sm" id="pf-toggle-btn" onclick="toggleAllPromptFolders()">全部展开</button>
+              <button class="btn btn-ghost btn-sm" id="pf-toggle-btn" onclick="toggleAllPromptFolders()">全部收缩</button>
               <button class="btn btn-ghost btn-sm" onclick="loadPromptFolders()">刷新</button>
             </div>
             <table>
@@ -464,41 +475,48 @@
         </div>
 
         <div class="card" style="margin-top: 24px;">
-          <div class="card-header">
-            <h3>自动备份历史</h3>
-            <button class="btn btn-ghost btn-sm" onclick="loadBackupFiles()">刷新</button>
+          <div class="card-header"><h3>百度网盘云端备份</h3></div>
+          <div style="padding: 20px;">
+            <div style="margin-bottom: 16px;">
+              <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">百度开放平台 AppKey</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="baidu-app-key-input" placeholder="请输入百度开放平台 AppKey" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <button class="btn btn-primary btn-sm" onclick="saveBaiduAppKey()">保存</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <span id="baidu-pan-status-text" style="font-size: 13px; color: #888;">检查连接状态...</span>
+              <button class="btn btn-primary btn-sm" id="baidu-pan-connect-btn" style="display:none;">连接百度网盘</button>
+              <button class="btn btn-ghost btn-sm" id="baidu-pan-disconnect-btn" style="display:none;">断开连接</button>
+            </div>
+            <div id="baidu-pan-connected" style="display:none; margin-top: 16px;">
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;"><input type="checkbox" id="enable-baidu-auto-backup"> 云端自动备份</label>
+                <button class="btn btn-primary btn-sm" id="baidu-manual-backup-btn">立即上传</button>
+                <span id="baidu-last-backup-time" style="font-size:12px;color:#888;"></span>
+              </div>
+              <div style="margin-top: 12px;">
+                <h4 style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">云端备份记录</h4>
+                <div id="baidu-backup-history-list" style="max-height:200px;overflow-y:auto;"></div>
+              </div>
+            </div>
           </div>
-          <table>
-            <thead><tr><th>文件名</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
-            <tbody id="backup-files-table">
-              <tr><td colspan="4" class="empty-state">加载中...</td></tr>
-            </tbody>
-          </table>
         </div>
 
         <div class="card" style="margin-top: 24px;">
           <div class="card-header">
-            <h3>百度网盘云端备份（全库）</h3>
+            <h3>自动备份历史</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="loadBackupFiles()">刷新</button>
+            </div>
           </div>
-          <div style="padding: 20px;">
-            <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
-              将完整数据库备份到百度网盘。需要先连接百度网盘账号，备份文件将自动上传到百度网盘。
-            </p>
-            <div id="baidu-pan-status" style="margin-bottom: 12px;">
-              <span id="baidu-pan-status-text" style="font-size: 13px; color: #888;">未连接</span>
-            </div>
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <button id="baidu-pan-connect-btn" class="btn btn-primary" onclick="connectBaiduPan()">
-                <i class="ri-link" style="margin-right: 4px;"></i> 连接百度网盘
-              </button>
-              <button id="baidu-pan-backup-btn" class="btn btn-primary" onclick="backupToBaiduPan()" style="display:none;">
-                <i class="ri-upload-cloud-line" style="margin-right: 4px;"></i> 上传全库备份到百度网盘
-              </button>
-              <span id="baidu-backup-status" style="color: #888; font-size: 13px;"></span>
-            </div>
-            <p style="margin-top: 16px; font-size: 12px; color: #999;">
-              云端备份文件为完整的 SQLite 数据库文件，可直接用于数据恢复。
-            </p>
+          <div id="backup-history-content">
+            <table>
+              <thead><tr><th>文件名</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
+              <tbody id="backup-files-table">
+                <tr><td colspan="4" class="empty-state">加载中...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -853,6 +871,7 @@
     </div>
   </div>
 
+  <script defer src="../js/baidu-pan.js"></script>
   <script src="../js/utils.js?v=1"></script>
   <script src="../js/chrome-shim.js?v=11"></script>
   <script src="/js/api.js?v=6"></script>
@@ -863,10 +882,65 @@
       return false;
     };
 
+    // 百度网盘 OAuth 回调处理：从 URL hash 中提取 access_token
+    (function extractBaiduPanToken() {
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        try {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const expiresIn = parseInt(hashParams.get('expires_in'), 10);
+          if (accessToken) {
+            const config = {
+              accessToken: accessToken,
+              expiresAt: Date.now() + (expiresIn || 2592000) * 1000
+            };
+            localStorage.setItem('fh_local_baiduPanConfig', JSON.stringify(config));
+            // 如果是弹窗打开的，传回 token 并关闭
+            if (window.opener) {
+              window.opener.postMessage({ type: 'baidu-oauth-callback', accessToken: accessToken, expiresIn: expiresIn }, '*');
+              window.close();
+              return;
+            }
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        } catch (e) {
+          console.warn('[Admin] 百度网盘 token 提取失败:', e.message);
+        }
+      }
+    })();
+
     // 权限检查
     if (!api.isLoggedIn()) {
       window.location.href = '/login.html?redirect=/admin/';
     }
+
+    // 百度 AppKey 管理
+    async function saveBaiduAppKey() {
+      const appKey = document.getElementById('baidu-app-key-input').value.trim();
+      if (!appKey) { alert('请输入 AppKey'); return; }
+      try {
+        const res = await api.request('/config/baidu-app-key', { method: 'PUT', body: JSON.stringify({ appKey }) });
+        alert('AppKey 已保存');
+      } catch (e) { alert('保存失败: ' + e.message); }
+    }
+    async function loadBaiduAppKey() {
+      try {
+        const res = await fetch('/api/config/baidu-app-key');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('baidu-app-key-input').value = data.appKey || '';
+        }
+      } catch {}
+    }
+
+    // 初始化百度网盘设置管理器
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.baiduPanSettingsManager) {
+        window.baiduPanSettingsManager.init().catch(err => {
+          console.warn('[Admin] 百度网盘初始化失败:', err.message);
+        });
+      }
+    });
 
     // 页面切换
     document.querySelectorAll('.sidebar-nav a').forEach(link => {
@@ -876,8 +950,10 @@
         link.classList.add('active');
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById('page-' + link.dataset.page).classList.add('active');
-        // 切换到设置页时自动加载
+        // 切换到页面时自动加载数据
+        if (link.dataset.page === 'prompts') loadPrompts();
         if (link.dataset.page === 'settings') loadSettings();
+        if (link.dataset.page === 'backup') { loadBackupSchedule(); loadBackupFiles(); loadBaiduAppKey(); }
       });
     });
 
@@ -937,11 +1013,9 @@
     }
 
     // 加载用户列表
-    let adminUsers = [];
     async function loadUsers() {
       try {
         const data = await api.getAdminUsers();
-        adminUsers = data.adminUsers || [];
         const tbody = document.getElementById('users-table-body');
         if (!data.users.length) {
           tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-user-line"></i>暂无用户</td></tr>';
@@ -950,7 +1024,7 @@
         tbody.innerHTML = data.users.map(u => `
           <tr data-username="${escapeAttr(u.username)}">
             <td>${u.id}</td>
-            <td>${escapeHtml(u.username)} ${adminUsers.includes(u.username) ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
+            <td>${escapeHtml(u.username)} ${u.is_admin ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
             <td>${escapeHtml(u.nickname || '-')}</td>
             <td>${escapeHtml(u.email || '-')}</td>
             <td>${u.bookmark_count}</td>
@@ -959,8 +1033,8 @@
             <td>
               <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewBookmarks', ${u.id})">书签</button>
               <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewPrompts', ${u.id})">Prompt</button>
-              <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || "")}', '${escapeAttr(u.nickname || "")}', ${adminUsers.includes(u.username) ? 1 : 0})">编辑</button>
-              ${!adminUsers.includes(u.username) ? `<button class="btn btn-danger btn-sm" onclick="handleUserAction('deleteUser', ${u.id})">删除</button>` : ''}
+              <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || "")}', '${escapeAttr(u.nickname || "")}', ${u.is_admin ? 1 : 0})">编辑</button>
+              ${!u.is_admin ? `<button class="btn btn-danger btn-sm" onclick="handleUserAction('deleteUser', ${u.id})">删除</button>` : ''}
             </td>
           </tr>
         `).join('');
@@ -1094,6 +1168,13 @@
       }
     }
 
+    // === 书签管理（两级下拉联动筛选） ===
+    let allBookmarks = [];
+    let allFolders = [];
+    const PAGE_SIZE = 20;
+    let bookmarkPage = 1;
+    let promptsPage = 1;
+
     // 初始化（先加载文件夹再加载书签，避免 allFolders 未就绪）
     loadStats();
     loadUsers();
@@ -1104,9 +1185,23 @@
     loadBackupInfo();
     loadConfig();
 
-    // === 书签管理（两级下拉联动筛选） ===
-    let allBookmarks = [];
-    let allFolders = [];
+    function renderPagination(containerId, currentPage, totalItems, onPageChange) {
+      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      if (totalPages <= 1) { document.getElementById(containerId).innerHTML = ''; return; }
+      let html = `<button ${currentPage<=1?'disabled':''} onclick="${onPageChange}(1)">首页</button>`;
+      html += `<button ${currentPage<=1?'disabled':''} onclick="${onPageChange}(${currentPage-1})">上一页</button>`;
+      const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+      const end = Math.min(totalPages, start + 4);
+      for (let i = start; i <= end; i++) {
+        html += `<button class="${i===currentPage?'active':''}" onclick="${onPageChange}(${i})">${i}</button>`;
+      }
+      html += `<button ${currentPage>=totalPages?'disabled':''} onclick="${onPageChange}(${currentPage+1})">下一页</button>`;
+      html += `<button ${currentPage>=totalPages?'disabled':''} onclick="${onPageChange}(${totalPages})">尾页</button>`;
+      document.getElementById(containerId).innerHTML = html;
+    }
+
+    function goBookmarkPage(p) { bookmarkPage = p; applyFilter._pageNav = true; applyFilter(); }
+    function goPromptsPage(p) { promptsPage = p; loadPrompts._pageNav = true; loadPrompts(); }
 
     async function loadBookmarks() {
       try {
@@ -1211,6 +1306,10 @@
     }
 
     function applyFilter() {
+      // 非分页触发时重置到第1页
+      if (!applyFilter._pageNav) bookmarkPage = 1;
+      applyFilter._pageNav = false;
+
       const l1Val = document.getElementById('filter-level1').value;
       const l2Val = document.getElementById('filter-level2').value;
       const info = document.getElementById('filter-result-info');
@@ -1241,10 +1340,30 @@
         filtered = allBookmarks;
       }
 
-      renderBookmarksTable(filtered);
-      // 更新结果数量
+      // 标题和URL搜索筛选（多词 AND 逻辑）
+      const titleQuery = (document.getElementById('filter-title-search')?.value || '').toLowerCase().trim();
+      const urlQuery = (document.getElementById('filter-url-search')?.value || '').toLowerCase().trim();
+      if (titleQuery) {
+        const terms = titleQuery.split(/\s+/).filter(t => t);
+        filtered = filtered.filter(b => {
+          const title = (b.title || '').toLowerCase();
+          return terms.every(term => title.includes(term));
+        });
+      }
+      if (urlQuery) {
+        const terms = urlQuery.split(/\s+/).filter(t => t);
+        filtered = filtered.filter(b => {
+          const url = (b.url || '').toLowerCase();
+          return terms.every(term => url.includes(term));
+        });
+      }
+
+      // 分页渲染
       const total = allBookmarks.length;
       const shown = filtered.length;
+      renderBookmarksTable(filtered);
+      renderPagination('bookmarks-pagination', bookmarkPage, shown, 'goBookmarkPage');
+      // 更新结果数量
       info.textContent = total === shown ? `共 ${total} 条` : `显示 ${shown} / ${total} 条`;
 
       // 更新标题
@@ -1282,9 +1401,16 @@
       const tbody = document.getElementById('bookmarks-table-body');
       if (!bookmarks.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="ri-bookmark-line"></i>暂无书签</td></tr>';
+        document.getElementById('bookmarks-pagination').innerHTML = '';
         return;
       }
-      tbody.innerHTML = bookmarks.map(b => {
+      // 分页
+      const totalPages = Math.ceil(bookmarks.length / PAGE_SIZE);
+      if (bookmarkPage > totalPages) bookmarkPage = totalPages;
+      if (bookmarkPage < 1) bookmarkPage = 1;
+      const start = (bookmarkPage - 1) * PAGE_SIZE;
+      const pageData = bookmarks.slice(start, start + PAGE_SIZE);
+      tbody.innerHTML = pageData.map(b => {
         let faviconSrc = '/images/placeholder-icon.svg';
         try {
           if (b.icon && !b.icon.startsWith('chrome-extension://')) {
@@ -1546,9 +1672,16 @@
       try {
         if (isPrompt) {
           if (id === 'new') {
-            await api.request('/prompts/folders', { method: 'POST', body: JSON.stringify({ name, parent_id: parentId||null, icon }) });
+            let userId = null;
+            try { const u = JSON.parse(localStorage.getItem('favshub_user')); userId = u?.id; } catch {}
+            if (!userId) {
+              const userData = await api.getAdminUsers().catch(() => ({ users: [] }));
+              userId = userData.users?.[0]?.id;
+            }
+            if (!userId) { alert('无法获取用户信息，请重新登录'); return; }
+            await api.createAdminPromptFolder({ name, user_id: userId, parent_id: parentId || null, icon });
           } else {
-            await api.request('/prompts/folders/' + id, { method: 'PUT', body: JSON.stringify({ name, parent_id: parentId||null, icon }) });
+            await api.updateAdminPromptFolder(id, { name, parent_id: parentId || null, icon });
           }
           loadPromptFolders();
           loadPrompts();
@@ -1821,7 +1954,7 @@
         document.getElementById('backup-enabled').checked = data.enabled;
         document.getElementById('backup-hour').value = data.hour;
         document.getElementById('backup-minute').value = data.minute;
-        document.getElementById('backup-keep').value = data.keepDays;
+        document.getElementById('backup-keep').value = data.keepCopies;
       } catch (e) { }
     }
 
@@ -1849,53 +1982,6 @@
           <td><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
         </tr>`).join('');
       } catch (e) { }
-    }
-
-    // === 百度网盘备份 ===
-    let baiduPanConnected = false;
-
-    function connectBaiduPan() {
-      // 百度网盘 OAuth 授权
-      const width = 600, height = 700;
-      const left = (screen.width - width) / 2;
-      const top = (screen.height - height) / 2;
-      const oauthUrl = '/api/baidu/oauth/authorize?redirect=' + encodeURIComponent(window.location.href);
-      window.open(oauthUrl, 'baidu-oauth', `width=${width},height=${height},left=${left},top=${top}`);
-    }
-
-    async function backupToBaiduPan() {
-      const btn = document.getElementById('baidu-pan-backup-btn');
-      const status = document.getElementById('baidu-backup-status');
-      btn.disabled = true;
-      btn.textContent = '上传中...';
-      status.textContent = '';
-      try {
-        // 先导出数据库备份，再上传到百度网盘
-        const resp = await api.request('/admin/backup-to-baidu', { method: 'POST' });
-        status.textContent = resp.message || '备份上传成功';
-        status.style.color = '#10b981';
-      } catch (err) {
-        status.textContent = '上传失败: ' + err.message;
-        status.style.color = '#e74c3c';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '上传全库备份到百度网盘';
-      }
-    }
-
-    function updateBaiduPanUI() {
-      chrome.storage?.local?.get(['baidu_pan_token'], (result) => {
-        baiduPanConnected = !!result?.baidu_pan_token;
-        document.getElementById('baidu-pan-status-text').textContent = baiduPanConnected ? '已连接' : '未连接';
-        document.getElementById('baidu-pan-status-text').style.color = baiduPanConnected ? '#10b981' : '#888';
-        document.getElementById('baidu-pan-connect-btn').style.display = baiduPanConnected ? 'none' : '';
-        document.getElementById('baidu-pan-backup-btn').style.display = baiduPanConnected ? '' : 'none';
-      });
-    }
-
-    // 页面加载时检查百度网盘连接状态
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      updateBaiduPanUI();
     }
 
     // === 书签子标签页切换 ===
@@ -1926,6 +2012,8 @@
 
     // === 提示词管理 ===
     async function loadPrompts() {
+      if (!loadPrompts._pageNav) promptsPage = 1;
+      loadPrompts._pageNav = false;
       try {
         const data = await api.getAdminPrompts();
         const prompts = data.prompts || [];
@@ -1986,9 +2074,16 @@
       const tbody = document.getElementById('prompts-table-body');
       if (!prompts.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-chat-quote-line"></i>暂无提示词</td></tr>';
+        document.getElementById('prompts-pagination').innerHTML = '';
         return;
       }
-      tbody.innerHTML = prompts.map(p => `
+      // 分页
+      const totalPages = Math.ceil(prompts.length / PAGE_SIZE);
+      if (promptsPage > totalPages) promptsPage = totalPages;
+      if (promptsPage < 1) promptsPage = 1;
+      const start = (promptsPage - 1) * PAGE_SIZE;
+      const pageData = prompts.slice(start, start + PAGE_SIZE);
+      tbody.innerHTML = pageData.map(p => `
         <tr data-prompt-title="${escapeAttr(p.title)}">
           <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.title)}">${escapeHtml(p.title)}</td>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.description || '')}">${escapeHtml(p.description || '-')}</td>
@@ -2003,6 +2098,7 @@
           </td>
         </tr>
       `).join('');
+      renderPagination('prompts-pagination', promptsPage, prompts.length, 'goPromptsPage');
     }
 
     async function viewPromptHistory(promptId, title) {
@@ -2045,6 +2141,38 @@
       } catch (err) { alert('删除失败: ' + err.message); }
     }
 
+    async function exportPromptsJSON() {
+      try {
+        const data = await api.getAdminPrompts();
+        const prompts = data.prompts || [];
+        if (!prompts.length) { alert('没有可导出的提示词'); return; }
+        const blob = new Blob([JSON.stringify(prompts, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favshub-prompts-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) { alert('导出失败: ' + err.message); }
+    }
+
+    async function importPromptsJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const prompts = JSON.parse(text);
+        if (!Array.isArray(prompts) || !prompts.length) { alert('JSON 文件中没有提示词数据'); return; }
+        if (!confirm(`将导入 ${prompts.length} 条提示词，确认继续？`)) return;
+        await api.syncPrompts(1, { prompts, folders: [], tags: [], tagRelations: [], versions: [] });
+        alert(`成功导入 ${prompts.length} 条提示词`);
+        loadPrompts();
+        loadPromptFolders();
+        loadStats();
+      } catch (err) { alert('导入失败: ' + err.message); }
+      event.target.value = '';
+    }
+
     async function loadPromptFolders() {
       try {
         const data = await api.getAdminPromptFolders();
@@ -2076,8 +2204,8 @@
             <td>${escapeHtml(node.username || '-')}</td>
             <td>${node.prompt_count || 0}</td>
             <td>
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('editPromptFolder', ${node.id})" style="margin-right:4px;">编辑</button>
-              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('deletePromptFolder', ${node.id})">删除</button>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('editPromptFolder', '${node.id}')" style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('deletePromptFolder', '${node.id}')">删除</button>
             </td>
           </tr>`;
           if (hasChildren) html += renderNodes(node.children, depth+1, node.id);
@@ -2217,48 +2345,6 @@
         loadPromptFolders();
         loadPrompts();
       } catch (err) { alert('删除失败: ' + err.message); }
-    }
-
-    // === 从浏览器 IndexedDB 同步提示词 ===
-    async function syncPromptsFromBrowser() {
-      if (!confirm('将从浏览器 PromptProDB 读取提示词数据并同步到服务器。确认继续？')) return;
-      try {
-        // 打开浏览器 IndexedDB
-        const db = await new Promise((resolve, reject) => {
-          const req = indexedDB.open('PromptProDB');
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-          req.onblocked = () => reject(new Error('数据库被阻塞'));
-        });
-
-        const STORES = ['prompts', 'folders', 'tags', 'tag_relations', 'versions'];
-        const data = { userId: 1 };
-
-        for (const store of STORES) {
-          if (!db.objectStoreNames.contains(store)) continue;
-          const tx = db.transaction(store, 'readonly');
-          const all = await new Promise((resolve) => {
-            const req = tx.objectStore(store).getAll();
-            req.onsuccess = () => resolve(req.result);
-          });
-          const key = store === 'tag_relations' ? 'tagRelations' : store;
-          data[key] = all;
-        }
-        db.close();
-
-        if (!data.prompts || !data.prompts.length) {
-          alert('浏览器中没有提示词数据');
-          return;
-        }
-
-        await api.syncPrompts(data.userId, data);
-        alert(`成功同步 ${data.prompts.length} 条提示词到服务器`);
-        loadPrompts();
-        loadPromptFolders();
-        loadStats();
-      } catch (err) {
-        alert('同步失败: ' + (err.message || String(err)));
-      }
     }
 
     // === 用户设置管理 ===

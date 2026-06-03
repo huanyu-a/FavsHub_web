@@ -371,6 +371,14 @@ class FavsHubAPI {
   deleteAdminPromptFolder(id) {
     return this.request(`/admin/prompt-folders/${id}`, { method: 'DELETE' });
   }
+
+  createAdminPromptFolder(data) {
+    return this.request('/admin/prompt-folders', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  updateAdminPromptFolder(id, data) {
+    return this.request(`/admin/prompt-folders/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
 }
 
 window.api = new FavsHubAPI();

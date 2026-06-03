@@ -3123,7 +3123,7 @@ function displayBookmarkCategories(bookmarkNodes, level, parentUl, parentId) {
     }
 
     // 需要默认展开的特定ID（1: 收藏夹栏, 2: 其他收藏夹）
-    const defaultExpandedIds = ['1', '2'];
+    const defaultExpandedIds = [];
 
     bookmarkNodes.forEach(function (bookmark) {
       try {
