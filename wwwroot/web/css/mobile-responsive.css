@@ -407,214 +407,73 @@
     left: 0;
     right: 0;
     z-index: 10003;
-    max-height: 75vh;
+    max-height: 80vh;
     background: #fff;
-    border-radius: 16px 16px 0 0;
-    display: flex;
+    border-radius: 20px 20px 0 0;
+    display: none;
     flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .mobile-search-bottomsheet.active {
-    transform: translateY(0);
-  }
-
-  .mobile-search-sheet-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    flex-shrink: 0;
   }
 
-  .mobile-search-sheet-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1e293b;
-  }
-
+  /* Floating close button - high z-index to stay above all content */
   .mobile-search-sheet-close {
-    width: 32px;
-    height: 32px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
     border: none;
-    background: transparent;
-    color: #94a3b8;
+    background: rgba(0, 0, 0, 0.08);
+    color: #374151;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    z-index: 99999;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-search-sheet-close:active {
-    background: rgba(0, 0, 0, 0.06);
+    background: rgba(0, 0, 0, 0.15);
+    transform: scale(0.95);
   }
 
   .mobile-search-sheet-close svg {
     width: 20px;
     height: 20px;
+    pointer-events: none;
   }
 
   .mobile-search-sheet-body {
     flex: 1;
     overflow-y: auto;
-    padding: 12px 16px;
+    padding: 16px;
   }
 
-  /* Override search form styles inside bottom sheet */
-  .mobile-search-sheet-body .search-form {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border-radius: 0 !important;
-  }
-
-  /* Search input wrapper (icon + textarea) */
-  .mobile-search-sheet-body .search-form > div:first-child {
-    background: #f1f3f4 !important;
-    border-radius: 14px !important;
-    padding: 10px 12px 10px 0 !important;
-    border: 1.5px solid transparent;
-    transition: border-color 0.2s, background 0.2s;
-  }
-
-  .mobile-search-sheet-body .search-form > div:first-child:focus-within {
-    border-color: #1a73e8;
-    background: #fff !important;
-  }
-
-  .mobile-search-sheet-body .search-icon-container {
-    left: 6px !important;
-    padding: 8px !important;
-  }
-
-  .mobile-search-sheet-body .search-engine-icon {
-    width: 18px !important;
-    height: 18px !important;
-  }
-
-  .mobile-search-sheet-body .search-input {
-    font-size: 15px !important;
-    padding-left: 44px !important;
-    min-height: 20px;
-  }
-
-  .mobile-search-sheet-body .dropdown-indicator {
-    font-size: 8px !important;
-  }
-
-  /* Suggestions wrapper: reset to static flow */
+  /* Only override: suggestions wrapper should flow inside bottom sheet, not absolute */
   .mobile-search-sheet-body .search-suggestions-wrapper {
     position: static !important;
     box-shadow: none !important;
-    border-radius: 0 !important;
-    margin-top: 8px;
-    display: none;
-    background: transparent !important;
   }
 
-  .mobile-search-sheet-body .search-form.focused-with-suggestions > .search-suggestions-wrapper {
-    display: block !important;
+  /* Search form width should fill the bottom sheet */
+  .mobile-search-sheet-body .search-form {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
-  .mobile-search-sheet-body .search-form.focused-with-suggestions {
-    border-radius: 0 !important;
-  }
-
-  /* Suggestions list */
-  .mobile-search-sheet-body .search-suggestions {
-    max-height: 35vh;
-    border-radius: 8px;
-  }
-
-  .mobile-search-sheet-body .search-suggestions li {
-    margin: 2px 4px !important;
-    padding: 10px 12px !important;
-    font-size: 14px;
-  }
-
-  /* Category tabs (bookmark/prompt filter) */
-  .mobile-search-sheet-body .category-tabs {
-    padding: 6px 0 4px !important;
-    gap: 6px !important;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .mobile-search-sheet-body .category-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Tabs container (quick-access bookmarks) */
-  .mobile-search-sheet-body #tabs-container {
-    padding: 8px 0 !important;
-    background: transparent !important;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .mobile-search-sheet-body #tabs-container::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mobile-search-sheet-body #tabs-container .tab {
-    font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 16px;
-    flex-shrink: 0;
-  }
-
-  .mobile-search-sheet-body .search-tips {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-right: 6px;
-  }
-
-  /* Line container / hr */
-  .mobile-search-sheet-body #line-container {
-    margin: 4px 0;
-  }
-
-  .mobile-search-sheet-body .custom-hr {
-    border-top-color: rgba(0, 0, 0, 0.06);
-  }
-
-  /* PromptPro: simple search input in popup */
-  .mobile-promptpro-search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.04);
-    border-radius: 12px;
-    padding: 10px 14px;
-  }
-
-  .mobile-promptpro-search svg {
-    width: 18px;
-    height: 18px;
-    color: #94a3b8;
-    flex-shrink: 0;
-  }
-
-  .mobile-promptpro-search input {
-    flex: 1;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 15px;
-    color: #1e293b;
-    font-family: inherit;
-  }
-
-  .mobile-promptpro-search input::placeholder {
-    color: #94a3b8;
+  /* PromptPro search-box should also fill the bottom sheet */
+  .mobile-search-sheet-body .search-box {
+    width: 100% !important;
+    display: flex !important;
   }
 
 }
@@ -747,45 +606,13 @@
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
 }
 
-[data-theme="dark"] .mobile-search-sheet-header {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-[data-theme="dark"] .mobile-search-sheet-title {
-  color: #f1f5f9;
-}
-
 [data-theme="dark"] .mobile-search-sheet-close {
-  color: #64748b;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .mobile-search-sheet-close:active {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .mobile-search-sheet-body .search-form > div:first-child {
-  background: rgba(255, 255, 255, 0.08) !important;
-}
-
-[data-theme="dark"] .mobile-search-sheet-body .search-form > div:first-child:focus-within {
-  border-color: #60a5fa;
-  background: rgba(255, 255, 255, 0.04) !important;
-}
-
-[data-theme="dark"] .mobile-search-sheet-body .search-suggestions-wrapper {
-  background: transparent !important;
-}
-
-[data-theme="dark"] .mobile-search-sheet-body .custom-hr {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .mobile-promptpro-search {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-[data-theme="dark"] .mobile-promptpro-search input {
-  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 
