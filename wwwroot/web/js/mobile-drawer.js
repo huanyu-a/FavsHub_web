@@ -32,7 +32,24 @@
       header.appendChild(brandClone);
     }
 
-    // Right: hamburger button
+    // Right: action buttons (PromptPro only) + hamburger
+    var actionsWrap = document.createElement('div');
+    actionsWrap.className = 'mobile-header-actions';
+
+    // On PromptPro page, move favorite & create buttons to header
+    if (window.location.pathname.indexOf('/promptpro/') !== -1) {
+      var favBtn = document.querySelector('.btn-favorite');
+      var createBtn = document.querySelector('.main-toolbar .btn-primary');
+      if (favBtn) {
+        favBtn.classList.add('mobile-header-action');
+        actionsWrap.appendChild(favBtn);
+      }
+      if (createBtn) {
+        createBtn.classList.add('mobile-header-action');
+        actionsWrap.appendChild(createBtn);
+      }
+    }
+
     var hamburger = document.createElement('button');
     hamburger.className = 'mobile-hamburger-btn';
     hamburger.setAttribute('aria-label', 'Toggle menu');
@@ -43,7 +60,8 @@
       '<line x1="3" y1="6" x2="21" y2="6"/>' +
       '<line x1="3" y1="12" x2="21" y2="12"/>' +
       '<line x1="3" y1="18" x2="21" y2="18"/></svg>';
-    header.appendChild(hamburger);
+    actionsWrap.appendChild(hamburger);
+    header.appendChild(actionsWrap);
 
     document.body.appendChild(header);
 
