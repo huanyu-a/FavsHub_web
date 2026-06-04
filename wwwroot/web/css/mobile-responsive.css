@@ -62,7 +62,7 @@
     left: 0;
     right: 0;
     z-index: 9999;
-    height: 48px;
+    height: 56px;
     padding: 0 12px;
     background: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(16px);
@@ -303,7 +303,7 @@
   }
 
   .mobile-header-bar {
-    height: 44px;
+    height: 50px;
     padding: 0 10px;
   }
 
