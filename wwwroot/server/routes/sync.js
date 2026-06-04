@@ -5,6 +5,9 @@ const { authMiddleware } = require('../middleware/auth');
 const router = Router();
 router.use(authMiddleware);
 
+// 单次同步书签上限，防止超大载荷阻塞事件循环影响其他用户
+const MAX_BOOKMARKS_PER_SYNC = 20000;
+
 // 共享的文件夹路径解析函数
 // folderCache: Map 缓存，findFolder/createFolder: prepared statements
 // userId: 用户 ID，now: 时间戳，onCreated: 创建文件夹时的回调
@@ -43,6 +46,9 @@ router.post('/bookmarks', (req, res) => {
   try {
     const { bookmarks } = req.body;
     if (!Array.isArray(bookmarks)) return res.status(400).json({ error: 'bookmarks 必须是数组' });
+    if (bookmarks.length > MAX_BOOKMARKS_PER_SYNC) {
+      return res.status(400).json({ error: `单次同步上限 ${MAX_BOOKMARKS_PER_SYNC} 条，当前 ${bookmarks.length} 条` });
+    }
     // 防止意外清空：拒绝空数组（客户端可传 force: true 确认清空）
     if (bookmarks.length === 0 && !req.body.force) {
       return res.status(400).json({ error: 'bookmarks 不能为空数组，如需清空所有书签请传 force: true' });
@@ -113,6 +119,9 @@ router.put('/bookmarks', (req, res) => {
   try {
     const { bookmarks } = req.body;
     if (!Array.isArray(bookmarks)) return res.status(400).json({ error: 'bookmarks 必须是数组' });
+    if (bookmarks.length > MAX_BOOKMARKS_PER_SYNC) {
+      return res.status(400).json({ error: `单次同步上限 ${MAX_BOOKMARKS_PER_SYNC} 条，当前 ${bookmarks.length} 条` });
+    }
     if (bookmarks.length === 0 && !req.body.force) {
       return res.status(400).json({ error: 'bookmarks 不能为空数组，如需清空所有书签请传 force: true' });
     }

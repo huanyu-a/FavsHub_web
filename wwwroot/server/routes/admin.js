@@ -498,13 +498,18 @@ router.get('/backup/info', (req, res) => {
 
 // 检查 IP 是否为内网/保留地址（防止 SSRF）
 function isPrivateIP(hostname) {
+  // 标准化：去除 IPv4-mapped IPv6 前缀（如 ::ffff:127.0.0.1 → 127.0.0.1）
+  let h = hostname.toLowerCase();
+  if (h.startsWith('::ffff:')) {
+    h = h.slice(7);
+  }
   // IPv4 内网地址
   const privateIPv4 = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.)/;
-  if (privateIPv4.test(hostname)) return true;
+  if (privateIPv4.test(h)) return true;
   // IPv6 本地地址
-  if (hostname === '::1' || hostname === '::' || hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')) return true;
+  if (h === '::1' || h === '::' || h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')) return true;
   // 常见云元数据地址
-  if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') return true;
+  if (h === '169.254.169.254' || h === 'metadata.google.internal') return true;
   return false;
 }
 

@@ -7,11 +7,12 @@ const DB_PATH = path.join(__dirname, 'data', 'favshub.db');
 const fs = require('fs');
 fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 
-const db = new Database(DB_PATH);
+const db = new Database(DB_PATH, { timeout: 10000 });
 
 // 启用 WAL 模式提升并发性能
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 // 初始化 Schema
 db.exec(`
