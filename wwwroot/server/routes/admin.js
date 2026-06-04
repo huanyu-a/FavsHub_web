@@ -52,6 +52,7 @@ router.get('/users', (req, res) => {
 router.delete('/users/:id', (req, res) => {
   const userId = parseInt(req.params.id);
   if (isNaN(userId)) return res.status(400).json({ error: '无效的用户 ID' });
+  if (userId === 0) return res.status(400).json({ error: '不能删除系统用户' });
   const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ error: '用户不存在' });
 

@@ -308,10 +308,52 @@
     grid-template-columns: 1fr !important;
   }
 
-  /* Hide back-to-top progress ring on mobile to save space */
+  /* Back-to-top: arrow only, theme color, always visible */
   #back-to-top-container {
+    bottom: 56px !important;
+    right: 8px !important;
+  }
+
+  #back-to-top {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Hide progress ring, keep only arrow */
+  #back-to-top::before,
+  #back-to-top::after {
     display: none !important;
   }
+
+  #back-to-top svg {
+    width: 26px !important;
+    height: 26px !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    display: block !important;
+    stroke: #667eea !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25)) !important;
+  }
+
+  [data-theme="dark"] #back-to-top svg {
+    stroke: #818cf8 !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)) !important;
+  }
+
+  /* Always show icon, never swap to percent text */
+  #back-to-top.show.show-percent svg { display: block !important; }
+  #back-to-top.show.show-percent #scroll-percent { display: none !important; }
 
   /* Bottom padding for bottom nav */
   main.flex-1 {

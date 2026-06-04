@@ -165,6 +165,56 @@
     .pagination button { padding:6px 12px; border:1px solid #ddd; background:#fff; border-radius:6px; cursor:pointer; font-size:13px; }
     .pagination button.active { background:#667eea; color:#fff; border-color:#667eea; }
     .pagination button:disabled { opacity:0.4; cursor:not-allowed; }
+
+    /* === 移动端适配 === */
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+      .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 100; padding: 0; }
+      .sidebar-logo { padding: 10px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+      .sidebar-logo h1 { font-size: 18px; }
+      .sidebar-logo span { display: none; }
+      .sidebar-logo .hamburger { display: flex; margin-left: auto; }
+      .sidebar-nav { display: none; padding: 8px 0; }
+      .sidebar.open .sidebar-nav { display: block; }
+      .sidebar-nav a { padding: 12px 16px; }
+      .sidebar-footer { display: none; }
+      .main { flex: 1; padding: 16px; height: auto; overflow-y: visible; }
+      .page-header { margin-bottom: 16px; }
+      .page-header h2 { font-size: 18px; }
+      .stats-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+      .stat-card { padding: 14px; }
+      .stat-card .value { font-size: 22px; }
+      .card-header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+      .card-header h3 { font-size: 14px; }
+
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+
+      .btn { padding: 8px 16px; font-size: 14px; }
+      .btn-sm { padding: 6px 12px; font-size: 13px; }
+      .modal { width: 95%; max-height: 90vh; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 14px 16px; }
+      .setting-card { padding: 14px; }
+      .setting-option { padding: 10px; }
+      .config-list { padding: 14px; }
+      .config-item { padding: 10px 0; flex-wrap: wrap; gap: 4px; }
+      .config-key { font-size: 13px; }
+      .config-value { font-size: 13px; word-break: break-all; }
+    }
+    @media (max-width: 480px) {
+      .main { padding: 12px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; }
+      .stat-card .value { font-size: 20px; }
+      .stat-card .label { font-size: 12px; }
+      .page-header h2 { font-size: 16px; }
+    }
+
+    /* 汉堡按钮 */
+    .hamburger { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; background: none; cursor: pointer; color: rgba(255,255,255,0.8); border-radius: 8px; }
+    .hamburger:active { background: rgba(255,255,255,0.1); }
+    .hamburger svg { width: 22px; height: 22px; }
   </style>
 </head>
 <body>
@@ -173,6 +223,9 @@
       <div class="sidebar-logo">
         <h1>FavsHub</h1>
         <span>管理后台</span>
+        <button class="hamburger" aria-label="菜单">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
       </div>
       <nav class="sidebar-nav">
         <a href="#" class="active" data-page="overview"><i class="ri-dashboard-line"></i> 数据概览</a>
@@ -466,15 +519,15 @@
             <p style="font-size:13px;color:#888;margin-bottom:16px;">设置提示词页面的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。留空则使用网站 TDK 设置。</p>
             <div class="setting-row" style="flex-direction:column;align-items:stretch;">
               <label style="margin-bottom:4px;">页面标题 (Title)</label>
-              <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
             </div>
             <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
               <label style="margin-bottom:4px;">页面描述 (Description)</label>
-              <input type="text" id="promptpro-site-description" placeholder="AI提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              <input type="text" id="promptpro-site-description" placeholder="AI提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
             </div>
             <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
               <label style="margin-bottom:4px;">页面关键词 (Keywords)</label>
-              <input type="text" id="promptpro-site-keywords" placeholder="提示词,AI,prompt" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              <input type="text" id="promptpro-site-keywords" placeholder="提示词,AI,prompt" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
               <small style="color:#94a3b8;margin-top:4px;">多个关键词用英文逗号分隔</small>
             </div>
           </div>
@@ -618,15 +671,15 @@
               <p style="font-size:13px;color:#888;margin-bottom:16px;">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
               <div class="setting-row" style="flex-direction:column;align-items:stretch;">
                 <label style="margin-bottom:4px;">网站标题 (Title)</label>
-                <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+                <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
               </div>
               <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
                 <label style="margin-bottom:4px;">网站描述 (Description)</label>
-                <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+                <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
               </div>
               <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
                 <label style="margin-bottom:4px;">网站关键词 (Keywords)</label>
-                <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+                <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
               </div>
             </div>
           </div>
@@ -1053,12 +1106,19 @@
         link.classList.add('active');
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById('page-' + link.dataset.page).classList.add('active');
+        // 移动端：切换页面后自动收起侧边栏
+        if (window.innerWidth <= 768) document.querySelector('.sidebar').classList.remove('open');
         // 切换到页面时自动加载数据
         if (link.dataset.page === 'prompts') { loadPrompts(); loadSettings(); }
         if (link.dataset.page === 'settings') loadSettings();
         if (link.dataset.page === 'config') loadSettings();
         if (link.dataset.page === 'backup') { loadBackupSchedule(); loadBackupFiles(); loadBaiduAppKey(); }
       });
+    });
+
+    // 移动端：点击汉堡按钮展开/收起导航
+    document.querySelector('.hamburger').addEventListener('click', () => {
+      document.querySelector('.sidebar').classList.toggle('open');
     });
 
     // 加载统计数据
@@ -1134,14 +1194,14 @@
         }
         tbody.innerHTML = data.users.map(u => `
           <tr data-username="${escapeAttr(u.username)}">
-            <td>${u.id}</td>
-            <td>${escapeHtml(u.username)} ${u.is_admin ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
-            <td>${escapeHtml(u.nickname || '-')}</td>
-            <td>${escapeHtml(u.email || '-')}</td>
-            <td>${u.bookmark_count}</td>
-            <td>${u.prompt_count}</td>
-            <td>${new Date(u.created_at).toLocaleDateString()}</td>
-            <td>
+            <td data-label="ID">${u.id}</td>
+            <td data-label="用户">${escapeHtml(u.username)} ${u.is_admin ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
+            <td data-label="昵称">${escapeHtml(u.nickname || '-')}</td>
+            <td data-label="邮箱">${escapeHtml(u.email || '-')}</td>
+            <td data-label="书签">${u.bookmark_count}</td>
+            <td data-label="Prompt">${u.prompt_count}</td>
+            <td data-label="注册时间">${new Date(u.created_at).toLocaleDateString()}</td>
+            <td data-label="操作">
               <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewBookmarks', ${u.id})">书签</button>
               <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewPrompts', ${u.id})">Prompt</button>
               <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || "")}', '${escapeAttr(u.nickname || "")}', ${u.is_admin ? 1 : 0})">编辑</button>
@@ -2088,11 +2148,11 @@
           return;
         }
         tbody.innerHTML = data.files.map(f => `<tr>
-          <td>${f.name}</td>
-          <td>${f.type === 'manual' ? '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;">手动</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:12px;">自动</span>'}</td>
-          <td>${f.sizeFormatted}</td>
-          <td>${new Date(f.time).toLocaleString()}</td>
-          <td><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
+          <td data-label="文件名">${f.name}</td>
+          <td data-label="类型">${f.type === 'manual' ? '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;">手动</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:12px;">自动</span>'}</td>
+          <td data-label="大小">${f.sizeFormatted}</td>
+          <td data-label="时间">${new Date(f.time).toLocaleString()}</td>
+          <td data-label="操作"><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
         </tr>`).join('');
       } catch (e) { }
     }
@@ -2501,14 +2561,14 @@
       showExtensionsLink: true
     };
 
-    // TDK 字段配置：id = 前端 input id，key = settings 表中的 key，fallback = 回退字段 key
+    // TDK 字段配置：站点级与提示词级独立，互不回退
     const TDK_FIELDS = [
-      { id: 'admin-site-title',          key: 'siteTitle',          fallback: null },
-      { id: 'admin-site-description',    key: 'siteDescription',    fallback: null },
-      { id: 'admin-site-keywords',       key: 'siteKeywords',       fallback: null },
-      { id: 'promptpro-site-title',      key: 'promptproTitle',     fallback: 'siteTitle' },
-      { id: 'promptpro-site-description', key: 'promptproDescription', fallback: 'siteDescription' },
-      { id: 'promptpro-site-keywords',   key: 'promptproKeywords',  fallback: 'siteKeywords' },
+      { id: 'admin-site-title',          key: 'siteTitle' },
+      { id: 'admin-site-description',    key: 'siteDescription' },
+      { id: 'admin-site-keywords',       key: 'siteKeywords' },
+      { id: 'promptpro-site-title',      key: 'promptproTitle' },
+      { id: 'promptpro-site-description', key: 'promptproDescription' },
+      { id: 'promptpro-site-keywords',   key: 'promptproKeywords' },
     ];
 
     // 通用设置字段配置
@@ -2566,9 +2626,9 @@
         document.querySelectorAll('.settings-bg-option').forEach(el => {
           el.classList.toggle('active', el.dataset.bg === (s.solidBackground || ''));
         });
-        // TDK 字段：通过配置驱动加载，页面级字段为空时回退到站点级
+        // TDK 字段：独立加载，不互相回退
         for (const f of TDK_FIELDS) {
-          document.getElementById(f.id).value = s[f.key] || (f.fallback ? s[f.fallback] : '') || '';
+          document.getElementById(f.id).value = s[f.key] || '';
         }
       } catch (err) {
       } finally {

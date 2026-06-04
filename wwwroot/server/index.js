@@ -96,20 +96,19 @@ app.get('/api/search-engines', (req, res) => {
   res.json({ engines });
 });
 
-// TDK 配置：每组页面的 TDK 字段定义（field = settings 表中的 key，fallback = 回退到站点级字段）
+// TDK 配置：每组页面的 TDK 字段定义，站点级与提示词级独立
 const TDK_GROUPS = {
   _default: { title: 'siteTitle', description: 'siteDescription', keywords: 'siteKeywords' },
   promptpro: { title: 'promptproTitle', description: 'promptproDescription', keywords: 'promptproKeywords' },
 };
 
-// 解析指定页面组的 TDK 值（页面级优先，回退到站点级）
+// 解析指定页面组的 TDK 值（各组独立，不互相回退）
 function resolveTDK(data, group) {
-  const site = TDK_GROUPS._default;
-  const page = group || site;
+  const page = group || TDK_GROUPS._default;
   return {
-    title: (page === site ? null : data[page.title]) || data[site.title] || '',
-    description: (page === site ? null : data[page.description]) || data[site.description] || '',
-    keywords: (page === site ? null : data[page.keywords]) || data[site.keywords] || '',
+    title: data[page.title] || '',
+    description: data[page.description] || '',
+    keywords: data[page.keywords] || '',
   };
 }
 
@@ -180,6 +179,24 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: '服务器内部错误' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`FavsHub server running at http://localhost:${PORT}`);
 });
+
+// 优雅关闭：checkpoint WAL 并关闭数据库连接，防止数据丢失
+function gracefulShutdown(signal) {
+  console.log(`[Server] 收到 ${signal}，正在关闭...`);
+  server.close(() => {
+    try {
+      const db = require('./db');
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.close();
+      console.log('[Server] 数据库已安全关闭');
+    } catch (e) { console.error('[Server] 关闭数据库失败:', e.message); }
+    process.exit(0);
+  });
+  // 5秒后强制退出
+  setTimeout(() => { console.log('[Server] 强制退出'); process.exit(1); }, 5000);
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

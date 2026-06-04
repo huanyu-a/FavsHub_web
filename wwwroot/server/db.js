@@ -223,7 +223,11 @@ try {
 }
 
 // 迁移：确保系统用户存在（id=0），用于存储全局默认设置
-db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash) VALUES (0, ?, ?)').run('_system', '');
+db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin) VALUES (0, ?, ?, 1)').run('_system', '');
+db.prepare('UPDATE users SET is_admin = 1 WHERE id = 0').run();
+
+// 迁移：确保系统默认设置行存在（user_id=0）
+db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}');
 
 // 迁移：如果没有任何管理员，将第一个用户设为管理员
 const adminCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get().c;
