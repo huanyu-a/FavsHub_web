@@ -1,15 +1,14 @@
 /**
  * FavsHub Mobile Bottom Navigation
- * 4 tabs: 首页/提示词(互换) | 搜索聚合 | 主题切换 | 管理后台
+ * 4 tabs: 首页/提示词(互换) | 搜索 | 主题切换 | 管理后台
  *
- * 搜索聚合：
- *   - 首页：滚动到顶部并聚焦搜索框（复用完整搜索引擎功能）
- *   - 提示词页：跳回首页并携带搜索参数，首页自动触发搜索
+ * 搜索功能：
+ *   - 首页：将原搜索表单迁移到底部弹窗中（保留完整搜索引擎功能）
+ *   - 提示词页：在弹窗中显示简单搜索输入框，过滤提示词
  */
 (function () {
   'use strict';
 
-  var MOBILE_BP = 768;
   var isPromptPro = window.location.pathname.indexOf('/promptpro/') !== -1;
 
   /* ---- SVG Icons ---- */
@@ -18,10 +17,15 @@
     sparkles: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
     theme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
-    admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>'
+    admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
   };
 
   function qs(sel, ctx) { return (ctx || document).querySelector(sel); }
+
+  var popupOpen = false;
+  var backdrop, sheet;
+  var formRelocated = false;
 
   function setup() {
     /* ---- Build bottom nav ---- */
@@ -35,7 +39,7 @@
       nav.appendChild(createTab(icons.sparkles, '提示词', '/promptpro/', false));
     }
 
-    // 2. 搜索聚合
+    // 2. 搜索
     var searchTab = createTab(icons.search, '搜索', null, false);
     nav.appendChild(searchTab);
 
@@ -49,41 +53,50 @@
 
     document.body.appendChild(nav);
 
-    /* ---- Search tab: reuse homepage search ---- */
+    /* ---- Build search bottom sheet ---- */
+    backdrop = document.createElement('div');
+    backdrop.className = 'mobile-search-backdrop';
+    document.body.appendChild(backdrop);
+
+    sheet = document.createElement('div');
+    sheet.className = 'mobile-search-bottomsheet';
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'mobile-search-sheet-header';
+
+    var title = document.createElement('span');
+    title.className = 'mobile-search-sheet-title';
+    title.textContent = '搜索';
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'mobile-search-sheet-close';
+    closeBtn.type = 'button';
+    closeBtn.innerHTML = icons.close;
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'mobile-search-sheet-body';
+
+    sheet.appendChild(header);
+    sheet.appendChild(body);
+    document.body.appendChild(sheet);
+
+    /* ---- Search tab click ---- */
     searchTab.addEventListener('click', function (e) {
       e.preventDefault();
-      if (isPromptPro) {
-        // On promptpro page: go to homepage with search focus
-        window.location.href = '/index.html?focus_search=1';
-      } else {
-        // On homepage: scroll to top and focus the search input
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        setTimeout(function () {
-          var mainInput = qs('.search-input');
-          if (mainInput) {
-            mainInput.focus();
-            mainInput.click();
-          }
-        }, 300);
-      }
+      openSearchPopup(body);
     });
 
-    /* ---- Homepage: auto-focus search if redirected from promptpro ---- */
-    if (!isPromptPro) {
-      var params = new URLSearchParams(window.location.search);
-      if (params.get('focus_search') === '1') {
-        // Clean up URL
-        window.history.replaceState({}, '', '/index.html');
-        // Wait for page to be ready, then focus search
-        setTimeout(function () {
-          var mainInput = qs('.search-input');
-          if (mainInput) {
-            mainInput.focus();
-            mainInput.click();
-          }
-        }, 500);
-      }
-    }
+    /* ---- Close handlers ---- */
+    closeBtn.addEventListener('click', closeSearchPopup);
+    backdrop.addEventListener('click', closeSearchPopup);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && popupOpen) closeSearchPopup();
+    });
 
     /* ---- Theme toggle ---- */
     themeTab.addEventListener('click', function (e) {
@@ -94,6 +107,88 @@
       document.documentElement.setAttribute('data-theme', newTheme);
       document.body.setAttribute('data-theme', newTheme);
       if (typeof updateThemeIcon === 'function') updateThemeIcon(newTheme === 'dark');
+    });
+  }
+
+  /**
+   * Open the search bottom sheet popup.
+   * On homepage: moves the existing search form into the popup (preserves engine switching, suggestions, etc.)
+   * On PromptPro: creates a simple search input that filters prompts.
+   */
+  function openSearchPopup(body) {
+    if (!popupOpen) {
+      if (isPromptPro) {
+        setupPromptProSearch(body);
+      } else {
+        setupHomepageSearch(body);
+      }
+    }
+
+    popupOpen = true;
+    sheet.classList.add('active');
+    backdrop.classList.add('active');
+
+    // Auto-focus the input
+    setTimeout(function () {
+      var input = qs('.search-input', sheet) || qs('input', sheet);
+      if (input) input.focus();
+    }, 350);
+  }
+
+  function closeSearchPopup() {
+    popupOpen = false;
+    sheet.classList.remove('active');
+    backdrop.classList.remove('active');
+  }
+
+  /**
+   * Homepage: move the existing search form into the popup body.
+   * The form retains all its event listeners and functionality
+   * (engine switching, search suggestions, bookmark/prompt search, etc.)
+   */
+  function setupHomepageSearch(body) {
+    if (formRelocated) return;
+    var form = qs('.search-form');
+    if (form) {
+      body.appendChild(form);
+      formRelocated = true;
+    }
+  }
+
+  /**
+   * PromptPro: create a simple search input in the popup.
+   * Typing filters the prompt list on the page.
+   */
+  function setupPromptProSearch(body) {
+    var wrap = document.createElement('div');
+    wrap.className = 'mobile-promptpro-search';
+    wrap.innerHTML = icons.search;
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = '搜索提示词...';
+
+    wrap.appendChild(input);
+    body.appendChild(wrap);
+
+    // Sync with the native PromptPro search input
+    var nativeInput = document.getElementById('searchInput');
+    input.addEventListener('input', function () {
+      if (nativeInput) {
+        nativeInput.value = input.value;
+        nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    // On Enter, also trigger native search and close popup
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (nativeInput) {
+          nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        closeSearchPopup();
+      }
     });
   }
 

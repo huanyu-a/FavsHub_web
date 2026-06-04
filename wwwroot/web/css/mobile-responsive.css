@@ -192,29 +192,17 @@
     padding: 60px 1rem 1rem !important;
   }
 
-  /* ========== Homepage specifics ========== */
-  .welcome-search-container {
-    padding-top: 0 !important;
-  }
-
+  /* ========== Homepage: hide welcome + search on mobile ========== */
   #welcome-message {
-    font-size: 20px !important;
-    padding: 0.25rem 0 !important;
+    display: none !important;
   }
 
-  .flex.justify-between.items-center.mb-4 {
-    width: 100% !important;
-    padding: 0 !important;
-    margin-bottom: 0.75rem !important;
+  .welcome-search-container {
+    display: none !important;
   }
 
   .search-container {
-    width: 100% !important;
-  }
-
-  .search-form {
-    width: 100% !important;
-    max-width: 100% !important;
+    display: none !important;
   }
 
   .bookmarks-container {
@@ -249,9 +237,7 @@
 
   /* ========== PromptPro specifics ========== */
   .search-box {
-    width: 100% !important;
-    flex-shrink: 1 !important;
-    min-width: 0 !important;
+    display: none !important;
   }
 
   .main-toolbar {
@@ -396,6 +382,148 @@
     line-height: 1;
   }
 
+  /* ========== Search Bottom Sheet Popup ========== */
+  .mobile-search-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10002;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-search-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-search-bottomsheet {
+    position: fixed;
+    bottom: 56px;
+    left: 0;
+    right: 0;
+    z-index: 10003;
+    max-height: 75vh;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-search-bottomsheet.active {
+    transform: translateY(0);
+  }
+
+  .mobile-search-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+  }
+
+  .mobile-search-sheet-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .mobile-search-sheet-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .mobile-search-sheet-close:active {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .mobile-search-sheet-close svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mobile-search-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+
+  /* Override search form styles inside bottom sheet */
+  .mobile-search-sheet-body .search-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+
+  .mobile-search-sheet-body .search-form > div:first-child {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .mobile-search-sheet-body .search-suggestions-wrapper {
+    position: static !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin-top: 4px;
+  }
+
+  .mobile-search-sheet-body .search-suggestions {
+    max-height: 40vh;
+  }
+
+  /* PromptPro: simple search input in popup */
+  .mobile-promptpro-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+
+  .mobile-promptpro-search svg {
+    width: 18px;
+    height: 18px;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+
+  .mobile-promptpro-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 15px;
+    color: #1e293b;
+    font-family: inherit;
+  }
+
+  .mobile-promptpro-search input::placeholder {
+    color: #94a3b8;
+  }
+
 }
 
 /* ========== Phone tweaks (≤480px) ========== */
@@ -430,19 +558,6 @@
     height: 20px;
   }
 
-  #welcome-message {
-    font-size: 18px !important;
-  }
-
-  .search-form {
-    min-height: 44px !important;
-    padding: 10px 14px 10px 8px !important;
-  }
-
-  .search-input {
-    font-size: 14px !important;
-  }
-
   .bookmarks-container {
     padding: 0.5rem !important;
     margin: 0.5rem auto !important;
@@ -450,14 +565,6 @@
   }
 
   /* PromptPro */
-  .search-box {
-    padding: 0.45rem 0.65rem !important;
-  }
-
-  .search-box input {
-    font-size: 13px;
-  }
-
   .main-toolbar .btn-primary,
   .btn-favorite {
     font-size: 12px;
@@ -540,6 +647,39 @@
 [data-theme="dark"] .mobile-nav-tab.active,
 [data-theme="dark"] .mobile-nav-tab:active {
   color: #34d399;
+}
+
+[data-theme="dark"] .mobile-search-bottomsheet {
+  background: #1e293b;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .mobile-search-sheet-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-search-sheet-title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .mobile-search-sheet-close {
+  color: #64748b;
+}
+
+[data-theme="dark"] .mobile-search-sheet-close:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .mobile-search-sheet-body .search-form > div:first-child {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-promptpro-search {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-promptpro-search input {
+  color: #e2e8f0;
 }
 
 
