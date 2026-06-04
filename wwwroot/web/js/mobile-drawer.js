@@ -20,7 +20,20 @@
     overlay.className = 'mobile-sidebar-overlay';
     document.body.appendChild(overlay);
 
-    /* ---- Create hamburger button ---- */
+    /* ---- Create mobile header bar ---- */
+    var header = document.createElement('div');
+    header.className = 'mobile-header-bar';
+
+    // Left: brand logo
+    var brand = document.createElement('a');
+    brand.className = 'mobile-header-brand';
+    brand.href = window.location.pathname.indexOf('/promptpro/') !== -1 ? '/index.html' : '#';
+    brand.innerHTML =
+      '<img src="/images/logo.svg" alt="Logo" class="mobile-header-logo">' +
+      '<span class="mobile-header-title">FavsHub</span>';
+    header.appendChild(brand);
+
+    // Right: hamburger button
     var hamburger = document.createElement('button');
     hamburger.className = 'mobile-hamburger-btn';
     hamburger.setAttribute('aria-label', 'Toggle menu');
@@ -31,7 +44,9 @@
       '<line x1="3" y1="6" x2="21" y2="6"/>' +
       '<line x1="3" y1="12" x2="21" y2="12"/>' +
       '<line x1="3" y1="18" x2="21" y2="18"/></svg>';
-    document.body.appendChild(hamburger);
+    header.appendChild(hamburger);
+
+    document.body.appendChild(header);
 
     /* ---- Helpers ---- */
     function isOpen() {

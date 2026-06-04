@@ -52,37 +52,70 @@
     opacity: 1;
   }
 
-  /* --- Hamburger button --- */
+  /* --- Mobile header bar (logo left + hamburger right) --- */
+  .mobile-header-bar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    height: 48px;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .mobile-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .mobile-header-logo {
+    width: 30px;
+    height: 30px;
+    padding: 5px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(59, 130, 246, 0.12));
+  }
+
+  .mobile-header-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+  }
+
   .mobile-hamburger-btn {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 9999;
-    width: 40px;
-    height: 40px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
     color: #374151;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     padding: 0;
-    transition: background 0.2s, box-shadow 0.2s;
+    transition: background 0.2s;
   }
 
   .mobile-hamburger-btn:active {
-    background: rgba(240, 240, 240, 0.95);
+    background: rgba(0, 0, 0, 0.06);
     transform: scale(0.95);
   }
 
   .mobile-hamburger-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     pointer-events: none;
   }
 
@@ -271,17 +304,25 @@
     padding: 52px 0.75rem 0.75rem !important;
   }
 
-  .mobile-hamburger-btn {
-    top: 10px;
-    left: 10px;
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+  .mobile-header-bar {
+    height: 44px;
+    padding: 0 10px;
+  }
+
+  .mobile-header-logo {
+    width: 26px;
+    height: 26px;
+    padding: 4px;
+    border-radius: 6px;
+  }
+
+  .mobile-header-title {
+    font-size: 14px;
   }
 
   .mobile-hamburger-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
   }
 
   #welcome-message {
@@ -361,14 +402,21 @@
 }
 
 /* ========== Dark mode overrides ========== */
+[data-theme="dark"] .mobile-header-bar {
+  background: rgba(15, 23, 42, 0.3);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-header-title {
+  color: #f1f5f9;
+}
+
 [data-theme="dark"] .mobile-hamburger-btn {
-  background: rgba(30, 41, 59, 0.92);
-  border-color: rgba(255, 255, 255, 0.08);
   color: #e2e8f0;
 }
 
 [data-theme="dark"] .mobile-hamburger-btn:active {
-  background: rgba(51, 65, 85, 0.95);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .mobile-sidebar-overlay {
