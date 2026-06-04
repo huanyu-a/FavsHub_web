@@ -5,9 +5,10 @@ const { authMiddleware } = require('../middleware/auth');
 const router = Router();
 router.use(authMiddleware);
 
-// 获取设置（仅返回管理员设定的系统默认值，不再有用户个人设置）
+// 获取设置（系统默认 + 用户偏好合并，用户偏好优先）
 router.get('/', (req, res) => {
   try {
+    // 系统默认设置（user_id=0，管理员设定）
     const sysRow = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
     let sysData = {};
     if (sysRow && sysRow.data) {
@@ -15,14 +16,26 @@ router.get('/', (req, res) => {
         console.warn('[Settings] 系统默认设置 JSON 解析失败:', e.message);
       }
     }
-    res.json({ data: sysData });
+
+    // 用户个人偏好（per-user，仅该用户可见）
+    const userRow = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(req.user.id);
+    let userData = {};
+    if (userRow && userRow.data) {
+      try { userData = JSON.parse(userRow.data); } catch (e) {
+        console.warn('[Settings] 用户设置 JSON 解析失败:', e.message);
+      }
+    }
+
+    // 合并：系统默认 + 用户偏好（用户偏好覆盖系统默认）
+    const merged = { ...sysData, ...userData };
+    res.json({ data: merged });
   } catch (err) {
     console.error('[Settings] 获取设置失败:', err);
     res.status(500).json({ error: '获取设置失败' });
   }
 });
 
-// 更新设置（前端写入用户设置，合并到 user_id=0 的系统默认设置）
+// 更新设置（仅写入当前用户的偏好行，不影响系统默认值）
 router.put('/', (req, res) => {
   try {
     const { data } = req.body;
@@ -30,12 +43,13 @@ router.put('/', (req, res) => {
       return res.status(400).json({ error: 'data 必须是对象' });
     }
 
-    const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
+    // 读取该用户已有的设置并合并
+    const row = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(req.user.id);
     const existing = row ? JSON.parse(row.data) : {};
     const merged = { ...existing, ...data };
 
-    db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}');
-    db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged));
+    db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (?, ?)').run(req.user.id, '{}');
+    db.prepare('UPDATE settings SET data = ? WHERE user_id = ?').run(JSON.stringify(merged), req.user.id);
 
     res.json({ data: merged });
   } catch (err) {

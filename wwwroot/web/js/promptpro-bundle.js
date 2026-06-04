@@ -441,7 +441,7 @@ window.PromptProDB = PromptProDB;
 
   function applyLocalFilters() {
     let filtered = [...state.prompts];
-    if (state.selectedTags.length > 0) filtered = filtered.filter(p => p.tagIds && p.tagIds.some(id => state.selectedTags.includes(id)));
+    if (state.selectedTags.length > 0) filtered = filtered.filter(p => p.tagIds && state.selectedTags.every(id => p.tagIds.includes(id)));
     renderPromptGrid(filtered);
   }
 

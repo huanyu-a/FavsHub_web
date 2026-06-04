@@ -44,6 +44,16 @@
     .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
     .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
     .card-header h3 { font-size: 16px; }
+    .backup-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+    .backup-grid .card-full { grid-column: 1 / -1; }
+    @media (max-width: 1024px) { .backup-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .backup-grid { grid-template-columns: 1fr; } }
+
+    .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 24px; }
+    @media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; } }
+
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .config-grid { grid-template-columns: 1fr; } }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
     td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
@@ -88,7 +98,7 @@
     .page.active { display: block; }
 
     /* 设置表单 */
-    .setting-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 16px; }
+    .setting-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; }
     .setting-card h3 { font-size: 16px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
     .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
     .setting-row label { font-size: 14px; color: #555; flex: 1; }
@@ -186,22 +196,65 @@
           <h2>数据概览</h2>
           <p>系统运行状态一览</p>
         </div>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="label">注册用户</div>
-            <div class="value blue" id="stat-users">-</div>
+
+        <div class="config-grid">
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">系统</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">搜索引擎</div>
+                <div class="value" id="stat-engines">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="label">数据库大小</div>
+                <div class="value" id="stat-db-size">-</div>
+              </div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="label">书签总数</div>
-            <div class="value green" id="stat-bookmarks">-</div>
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">书签</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">书签总数</div>
+                <div class="value green" id="stat-bookmarks">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">今日新增 <span id="stat-today-bookmarks">-</span></div>
+              </div>
+              <div class="stat-card">
+                <div class="label">文件夹数</div>
+                <div class="value purple" id="stat-folders">-</div>
+              </div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="label">文件夹数</div>
-            <div class="value purple" id="stat-folders">-</div>
+        </div>
+
+        <div class="config-grid" style="margin-top:24px;">
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">提示词</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">Prompt 数</div>
+                <div class="value orange" id="stat-prompts">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">今日新增 <span id="stat-today-prompts">-</span></div>
+              </div>
+              <div class="stat-card">
+                <div class="label">文件夹</div>
+                <div class="value" id="stat-prompt-folders">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="label">标签</div>
+                <div class="value" id="stat-tags">-</div>
+              </div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="label">Prompt 数</div>
-            <div class="value orange" id="stat-prompts">-</div>
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">用户</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">注册用户</div>
+                <div class="value blue" id="stat-users">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">管理员 <span id="stat-admins">-</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -408,23 +461,21 @@
         </div>
         <!-- TDK 设置 -->
         <div id="prompt-sub-tdk" class="prompt-sub-page" style="display:none;">
-          <div class="card">
-            <div class="card-header"><h3>提示词页面 TDK 设置</h3></div>
-            <div style="padding: 20px;">
-              <div style="margin-bottom: 16px;">
-                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面标题（Title）</label>
-                <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
-              </div>
-              <div style="margin-bottom: 16px;">
-                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面描述（Description）</label>
-                <textarea id="promptpro-site-description" rows="3" placeholder="AI提示词管理平台" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;"></textarea>
-              </div>
-              <div style="margin-bottom: 16px;">
-                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:4px;">页面关键词（Keywords）</label>
-                <textarea id="promptpro-site-keywords" rows="2" placeholder="提示词,AI,prompt" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;"></textarea>
-                <small style="color:#94a3b8;">多个关键词用英文逗号分隔</small>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="savePromptProTDK()">保存</button>
+          <div class="setting-card" style="margin-top:24px;">
+            <h3>提示词页面 TDK 设置</h3>
+            <p style="font-size:13px;color:#888;margin-bottom:16px;">设置提示词页面的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。留空则使用网站 TDK 设置。</p>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+              <label style="margin-bottom:4px;">页面标题 (Title)</label>
+              <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+            </div>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+              <label style="margin-bottom:4px;">页面描述 (Description)</label>
+              <input type="text" id="promptpro-site-description" placeholder="AI提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+            </div>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+              <label style="margin-bottom:4px;">页面关键词 (Keywords)</label>
+              <input type="text" id="promptpro-site-keywords" placeholder="提示词,AI,prompt" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              <small style="color:#94a3b8;margin-top:4px;">多个关键词用英文逗号分隔</small>
             </div>
           </div>
         </div>
@@ -454,94 +505,98 @@
             <div class="value orange" id="backup-prompts">-</div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <h3>数据库备份</h3>
-          </div>
-          <div style="padding: 20px;">
-            <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
-              点击下方按钮下载 SQLite 数据库文件的完整备份。备份文件可用于灾难恢复或数据迁移。
-            </p>
-            <div style="display: flex; gap: 12px; align-items: center;">
-              <button class="btn btn-primary" onclick="downloadBackup()">
-                <i class="ri-download-line" style="margin-right: 4px;"></i> 下载数据库备份
-              </button>
-              <span id="backup-last-modified" style="color: #888; font-size: 13px;"></span>
+
+        <div class="backup-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>数据库备份</h3>
             </div>
-            <div style="margin-top: 20px; padding: 16px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
-              <p style="margin: 0; font-size: 13px; color: #856404;">
-                <i class="ri-information-line" style="margin-right: 4px;"></i>
-                备份期间数据库不会被锁定，可以在正常使用时进行备份。
+            <div style="padding: 20px;">
+              <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
+                点击下方按钮下载 SQLite 数据库文件的完整备份。备份文件可用于灾难恢复或数据迁移。
               </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top: 24px;">
-          <div class="card-header">
-            <h3>定时自动备份</h3>
-          </div>
-          <div style="padding: 20px;">
-            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
-              <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
-                <input type="checkbox" id="backup-enabled" onchange="saveBackupSchedule()"> 启用每日定时备份
-              </label>
-              <label style="font-size:14px;">时间:
-                <input type="number" id="backup-hour" min="0" max="23" value="3" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()"> :
-                <input type="number" id="backup-minute" min="0" max="59" value="0" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
-              </label>
-              <label style="font-size:14px;">保留份数:
-                <input type="number" id="backup-keep" min="1" max="30" value="7" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top: 24px;">
-          <div class="card-header"><h3>百度网盘云端备份</h3></div>
-          <div style="padding: 20px;">
-            <div style="margin-bottom: 16px;">
-              <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">百度开放平台 AppKey</label>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="baidu-app-key-input" placeholder="请输入百度开放平台 AppKey" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-                <button class="btn btn-primary btn-sm" onclick="saveBaiduAppKey()">保存</button>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="downloadBackup()">
+                  <i class="ri-download-line" style="margin-right: 4px;"></i> 下载数据库备份
+                </button>
+                <span id="backup-last-modified" style="color: #888; font-size: 13px;"></span>
               </div>
-            </div>
-            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-              <span id="baidu-pan-status-text" style="font-size: 13px; color: #888;">检查连接状态...</span>
-              <button class="btn btn-primary btn-sm" id="baidu-pan-connect-btn" style="display:none;">连接百度网盘</button>
-              <button class="btn btn-ghost btn-sm" id="baidu-pan-disconnect-btn" style="display:none;">断开连接</button>
-            </div>
-            <div id="baidu-pan-connected" style="display:none; margin-top: 16px;">
-              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:14px;"><input type="checkbox" id="enable-baidu-auto-backup"> 云端自动备份</label>
-                <button class="btn btn-primary btn-sm" id="baidu-manual-backup-btn">立即上传</button>
-                <span id="baidu-last-backup-time" style="font-size:12px;color:#888;"></span>
-              </div>
-              <div style="margin-top: 12px;">
-                <h4 style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">云端备份记录</h4>
-                <div id="baidu-backup-history-list" style="max-height:200px;overflow-y:auto;"></div>
+              <div style="margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
+                <p style="margin: 0; font-size: 13px; color: #856404;">
+                  <i class="ri-information-line" style="margin-right: 4px;"></i>
+                  备份期间数据库不会被锁定，可以在正常使用时进行备份。
+                </p>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="card" style="margin-top: 24px;">
-          <div class="card-header">
-            <h3>自动备份历史</h3>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-ghost btn-sm" onclick="loadBackupFiles()">刷新</button>
+          <div class="card">
+            <div class="card-header">
+              <h3>定时自动备份</h3>
+              <button class="btn btn-primary btn-sm" id="manual-backup-btn" onclick="manualBackup()">手动备份</button>
+            </div>
+            <div style="padding: 20px;">
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                  <input type="checkbox" id="backup-enabled" onchange="saveBackupSchedule()"> 启用每日定时备份
+                </label>
+                <label style="font-size:14px;">时间:
+                  <input type="number" id="backup-hour" min="0" max="23" value="3" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()"> :
+                  <input type="number" id="backup-minute" min="0" max="59" value="0" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
+                </label>
+                <label style="font-size:14px;">保留份数:
+                  <input type="number" id="backup-keep" min="1" max="30" value="7" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
+                </label>
+              </div>
             </div>
           </div>
-          <div id="backup-history-content">
-            <table>
-              <thead><tr><th>文件名</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
-              <tbody id="backup-files-table">
-                <tr><td colspan="4" class="empty-state">加载中...</td></tr>
-              </tbody>
-            </table>
+
+          <div class="card">
+            <div class="card-header"><h3>百度网盘云端备份</h3></div>
+            <div style="padding: 20px;">
+              <div style="margin-bottom: 16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">百度开放平台 AppKey</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" id="baidu-app-key-input" placeholder="请输入百度开放平台 AppKey" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                  <button class="btn btn-primary btn-sm" onclick="saveBaiduAppKey()">保存</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <span id="baidu-pan-status-text" style="font-size: 13px; color: #888;">检查连接状态...</span>
+                <button class="btn btn-primary btn-sm" id="baidu-pan-connect-btn" style="display:none;">连接百度网盘</button>
+                <button class="btn btn-ghost btn-sm" id="baidu-pan-disconnect-btn" style="display:none;">断开连接</button>
+              </div>
+              <div id="baidu-pan-connected" style="display:none; margin-top: 16px;">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:14px;"><input type="checkbox" id="enable-baidu-auto-backup"> 云端自动备份</label>
+                  <button class="btn btn-primary btn-sm" id="baidu-manual-backup-btn">立即上传</button>
+                  <span id="baidu-last-backup-time" style="font-size:12px;color:#888;"></span>
+                </div>
+                <div style="margin-top: 12px;">
+                  <h4 style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">云端备份记录</h4>
+                  <div id="baidu-backup-history-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <div class="card card-full">
+            <div class="card-header">
+              <h3>备份历史</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="loadBackupFiles()">刷新</button>
+              </div>
+            </div>
+            <div id="backup-history-content">
+              <table>
+                <thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
+                <tbody id="backup-files-table">
+                  <tr><td colspan="5" class="empty-state">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- /backup-grid -->
       </div>
 
       <!-- 系统配置 -->
@@ -550,27 +605,32 @@
           <h2>系统配置</h2>
           <p>当前服务器运行配置</p>
         </div>
-        <div class="card">
-          <div class="config-list" id="config-list">
-            <div class="empty-state">加载中...</div>
+        <div class="config-grid">
+          <div class="card">
+            <div class="card-header"><h3>服务器信息</h3></div>
+            <div class="config-list" id="config-list">
+              <div class="empty-state">加载中...</div>
+            </div>
           </div>
-        </div>
-        <div class="setting-card" style="margin-top:24px;">
-          <h3>网站 TDK 设置</h3>
-          <p style="font-size:13px;color:#888;margin-bottom:16px;">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。修改后将在 HTML 页面中自动注入 meta 标签。</p>
-          <div class="setting-row" style="flex-direction:column;align-items:stretch;">
-            <label style="margin-bottom:4px;">网站标题 (Title)</label>
-            <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+          <div class="card">
+            <div class="card-header"><h3>网站 TDK 设置</h3></div>
+            <div style="padding: 20px;">
+              <p style="font-size:13px;color:#888;margin-bottom:16px;">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                <label style="margin-bottom:4px;">网站标题 (Title)</label>
+                <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              </div>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+                <label style="margin-bottom:4px;">网站描述 (Description)</label>
+                <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              </div>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+                <label style="margin-bottom:4px;">网站关键词 (Keywords)</label>
+                <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
+              </div>
+            </div>
           </div>
-          <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
-            <label style="margin-bottom:4px;">网站描述 (Description)</label>
-            <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
-          </div>
-          <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
-            <label style="margin-bottom:4px;">网站关键词 (Keywords)</label>
-            <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" onchange="saveSettings()">
-          </div>
-        </div>
+        </div><!-- /config-grid -->
       </div>
 
       <!-- 用户设置 -->
@@ -579,6 +639,7 @@
           <h2>全局默认设置</h2>
           <p>全局默认设置，所有用户生效（用户个人设置优先于全局默认）</p>
         </div>
+        <div class="settings-grid">
         <div class="setting-card">
           <h3>主题与外观</h3>
           <div class="setting-row">
@@ -667,6 +728,7 @@
             </label>
           </div>
         </div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
         <div class="setting-card">
           <h3>搜索设置</h3>
           <div class="setting-option">
@@ -734,6 +796,8 @@
           </div>
           </div>
         </div>
+        </div><!-- /search+layout -->
+        </div><!-- /settings-grid -->
       </div>
     </div>
   </div>
@@ -990,7 +1054,7 @@
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById('page-' + link.dataset.page).classList.add('active');
         // 切换到页面时自动加载数据
-        if (link.dataset.page === 'prompts') loadPrompts();
+        if (link.dataset.page === 'prompts') { loadPrompts(); loadSettings(); }
         if (link.dataset.page === 'settings') loadSettings();
         if (link.dataset.page === 'config') loadSettings();
         if (link.dataset.page === 'backup') { loadBackupSchedule(); loadBackupFiles(); loadBaiduAppKey(); }
@@ -1002,9 +1066,16 @@
       try {
         const data = await api.getAdminStats();
         document.getElementById('stat-users').textContent = data.users;
+        document.getElementById('stat-admins').textContent = data.adminUsers;
         document.getElementById('stat-bookmarks').textContent = data.bookmarks;
+        document.getElementById('stat-today-bookmarks').textContent = data.todayBookmarks;
         document.getElementById('stat-folders').textContent = data.folders;
         document.getElementById('stat-prompts').textContent = data.prompts;
+        document.getElementById('stat-today-prompts').textContent = data.todayPrompts;
+        document.getElementById('stat-prompt-folders').textContent = data.promptFolders;
+        document.getElementById('stat-tags').textContent = data.tags;
+        document.getElementById('stat-engines').textContent = data.searchEngines;
+        document.getElementById('stat-db-size').textContent = data.dbSize > 1024 * 1024 ? (data.dbSize / 1024 / 1024).toFixed(2) + ' MB' : (data.dbSize / 1024).toFixed(1) + ' KB';
       } catch (err) {
         if (err.message.includes('403') || err.message.includes('无管理员权限')) {
           alert('无管理员权限，请使用管理员账号登录');
@@ -2013,15 +2084,29 @@
         const data = await api.getBackupFiles();
         const tbody = document.getElementById('backup-files-table');
         if (!data.files.length) {
-          tbody.innerHTML = '<tr><td colspan="4" class="empty-state">暂无自动备份</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">暂无备份</td></tr>';
           return;
         }
         tbody.innerHTML = data.files.map(f => `<tr>
-          <td>${f.name}</td><td>${f.sizeFormatted}</td>
+          <td>${f.name}</td>
+          <td>${f.type === 'manual' ? '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;">手动</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:12px;">自动</span>'}</td>
+          <td>${f.sizeFormatted}</td>
           <td>${new Date(f.time).toLocaleString()}</td>
           <td><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
         </tr>`).join('');
       } catch (e) { }
+    }
+
+    async function manualBackup() {
+      const btn = document.getElementById('manual-backup-btn');
+      btn.disabled = true;
+      btn.textContent = '备份中...';
+      try {
+        const data = await api.manualBackup();
+        showToast(`手动备份成功: ${data.sizeFormatted}`);
+        loadBackupFiles();
+      } catch (e) { alert('手动备份失败: ' + e.message); }
+      finally { btn.disabled = false; btn.textContent = '手动备份'; }
     }
 
     // === 书签子标签页切换 ===
@@ -2416,6 +2501,42 @@
       showExtensionsLink: true
     };
 
+    // TDK 字段配置：id = 前端 input id，key = settings 表中的 key，fallback = 回退字段 key
+    const TDK_FIELDS = [
+      { id: 'admin-site-title',          key: 'siteTitle',          fallback: null },
+      { id: 'admin-site-description',    key: 'siteDescription',    fallback: null },
+      { id: 'admin-site-keywords',       key: 'siteKeywords',       fallback: null },
+      { id: 'promptpro-site-title',      key: 'promptproTitle',     fallback: 'siteTitle' },
+      { id: 'promptpro-site-description', key: 'promptproDescription', fallback: 'siteDescription' },
+      { id: 'promptpro-site-keywords',   key: 'promptproKeywords',  fallback: 'siteKeywords' },
+    ];
+
+    // 通用设置字段配置
+    // type: 'select' | 'value' | 'checked' | 'range'
+    // checkedDefault: checked 类型在值为 undefined 时的默认状态
+    // rangeDisplay: range 类型的值显示元素 id
+    const SETTING_FIELDS = [
+      { id: 'admin-default-theme',       key: 'theme',                type: 'select',  default: 'light' },
+      { id: 'admin-solid-bg',            key: 'solidBackground',      type: 'value',   default: '' },
+      { id: 'admin-show-search',         key: 'showSearchBox',        type: 'checked', checkedDefault: true },
+      { id: 'admin-show-welcome',        key: 'showWelcomeMessage',   type: 'checked', checkedDefault: true },
+      { id: 'admin-show-footer',         key: 'showFooter',           type: 'checked', checkedDefault: true },
+      { id: 'admin-enable-floating-ball', key: 'enableFloatingBall',  type: 'checked', checkedDefault: false },
+      { id: 'admin-open-in-new-tab',     key: 'openInNewTab',         type: 'checked', checkedDefault: true },
+      { id: 'admin-card-width',          key: 'bookmarkWidth',        type: 'range',   default: 200, rangeDisplay: 'admin-card-width-val' },
+      { id: 'admin-card-height',         key: 'bookmarkCardHeight',   type: 'range',   default: 50,  rangeDisplay: 'admin-card-height-val' },
+      { id: 'admin-container-width',     key: 'bookmarkContainerWidth', type: 'range', default: 85,  rangeDisplay: 'admin-container-width-val' },
+      { id: 'admin-open-new-tab',        key: 'openSearchInNewTab',   type: 'checked', checkedDefault: true },
+      { id: 'admin-search-suggestions',  key: 'showSearchSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-history-suggestions', key: 'showHistorySuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-bookmark-suggestions', key: 'showBookmarkSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-prompt-suggestions', key: 'showPromptSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-history-link',   key: 'showHistoryLink',      type: 'checked', checkedDefault: true },
+      { id: 'admin-show-downloads-link', key: 'showDownloadsLink',    type: 'checked', checkedDefault: true },
+      { id: 'admin-show-passwords-link', key: 'showPasswordsLink',    type: 'checked', checkedDefault: true },
+      { id: 'admin-show-extensions-link', key: 'showExtensionsLink',  type: 'checked', checkedDefault: true },
+    ];
+
     let _settingsLoaded = false;
     let _saveTimer = null;
 
@@ -2432,38 +2553,23 @@
       try {
         const data = await api.getAdminDefaultSettings();
         const s = data.data || {};
-        document.getElementById('admin-default-theme').value = s.theme || 'light';
-        document.getElementById('admin-solid-bg').value = s.solidBackground || '';
-        // 更新背景圆圈选中状态
+        // 通用字段：按配置驱动加载
+        for (const f of SETTING_FIELDS) {
+          const el = document.getElementById(f.id);
+          if (!el) continue;
+          const v = s[f.key];
+          if (f.type === 'checked') el.checked = v !== undefined ? !!v : !!f.checkedDefault;
+          else if (f.type === 'range') { el.value = v || f.default; if (f.rangeDisplay) document.getElementById(f.rangeDisplay).textContent = v || f.default; }
+          else el.value = v || f.default || '';
+        }
+        // 背景选择器：同步圆圈选中状态
         document.querySelectorAll('.settings-bg-option').forEach(el => {
           el.classList.toggle('active', el.dataset.bg === (s.solidBackground || ''));
         });
-        document.getElementById('admin-show-search').checked = s.showSearchBox !== false;
-        document.getElementById('admin-show-welcome').checked = s.showWelcomeMessage !== false;
-        document.getElementById('admin-show-footer').checked = s.showFooter !== false;
-        document.getElementById('admin-enable-floating-ball').checked = s.enableFloatingBall === true;
-        document.getElementById('admin-open-in-new-tab').checked = s.openInNewTab !== false;
-        document.getElementById('admin-card-width').value = s.bookmarkWidth || 200;
-        document.getElementById('admin-card-width-val').textContent = s.bookmarkWidth || 200;
-        document.getElementById('admin-card-height').value = s.bookmarkCardHeight || 50;
-        document.getElementById('admin-card-height-val').textContent = s.bookmarkCardHeight || 50;
-        document.getElementById('admin-container-width').value = s.bookmarkContainerWidth || 85;
-        document.getElementById('admin-container-width-val').textContent = s.bookmarkContainerWidth || 85;
-        document.getElementById('admin-open-new-tab').checked = s.openSearchInNewTab !== false;
-        document.getElementById('admin-search-suggestions').checked = s.showSearchSuggestions !== false;
-        document.getElementById('admin-show-history-suggestions').checked = s.showHistorySuggestions !== false;
-        document.getElementById('admin-show-bookmark-suggestions').checked = s.showBookmarkSuggestions !== false;
-        document.getElementById('admin-show-prompt-suggestions').checked = s.showPromptSuggestions !== false;
-        document.getElementById('admin-show-history-link').checked = s.showHistoryLink !== false;
-        document.getElementById('admin-show-downloads-link').checked = s.showDownloadsLink !== false;
-        document.getElementById('admin-show-passwords-link').checked = s.showPasswordsLink !== false;
-        document.getElementById('admin-show-extensions-link').checked = s.showExtensionsLink !== false;
-        document.getElementById('admin-site-title').value = s.siteTitle || '';
-        document.getElementById('admin-site-description').value = s.siteDescription || '';
-        document.getElementById('admin-site-keywords').value = s.siteKeywords || '';
-        document.getElementById('promptpro-site-title').value = s.promptproTitle || '';
-        document.getElementById('promptpro-site-description').value = s.promptproDescription || '';
-        document.getElementById('promptpro-site-keywords').value = s.promptproKeywords || '';
+        // TDK 字段：通过配置驱动加载，页面级字段为空时回退到站点级
+        for (const f of TDK_FIELDS) {
+          document.getElementById(f.id).value = s[f.key] || (f.fallback ? s[f.fallback] : '') || '';
+        }
       } catch (err) {
       } finally {
         _settingsLoaded = true;
@@ -2479,33 +2585,19 @@
     }
 
     function _doSave() {
-      const s = {
-        theme: document.getElementById('admin-default-theme').value,
-        solidBackground: document.getElementById('admin-solid-bg').value,
-        showSearchBox: document.getElementById('admin-show-search').checked,
-        showWelcomeMessage: document.getElementById('admin-show-welcome').checked,
-        showFooter: document.getElementById('admin-show-footer').checked,
-        enableFloatingBall: document.getElementById('admin-enable-floating-ball').checked,
-        openInNewTab: document.getElementById('admin-open-in-new-tab').checked,
-        bookmarkWidth: parseInt(document.getElementById('admin-card-width').value),
-        bookmarkCardHeight: parseInt(document.getElementById('admin-card-height').value),
-        bookmarkContainerWidth: parseInt(document.getElementById('admin-container-width').value),
-        openSearchInNewTab: document.getElementById('admin-open-new-tab').checked,
-        showSearchSuggestions: document.getElementById('admin-search-suggestions').checked,
-        showHistorySuggestions: document.getElementById('admin-show-history-suggestions').checked,
-        showBookmarkSuggestions: document.getElementById('admin-show-bookmark-suggestions').checked,
-        showPromptSuggestions: document.getElementById('admin-show-prompt-suggestions').checked,
-        showHistoryLink: document.getElementById('admin-show-history-link').checked,
-        showDownloadsLink: document.getElementById('admin-show-downloads-link').checked,
-        showPasswordsLink: document.getElementById('admin-show-passwords-link').checked,
-        showExtensionsLink: document.getElementById('admin-show-extensions-link').checked,
-        siteTitle: document.getElementById('admin-site-title').value.trim(),
-        siteDescription: document.getElementById('admin-site-description').value.trim(),
-        siteKeywords: document.getElementById('admin-site-keywords').value.trim()
-      };
-      document.getElementById('admin-card-width-val').textContent = s.bookmarkWidth;
-      document.getElementById('admin-card-height-val').textContent = s.bookmarkCardHeight;
-      document.getElementById('admin-container-width-val').textContent = s.bookmarkContainerWidth;
+      const s = {};
+      // 通用字段：按配置驱动保存
+      for (const f of SETTING_FIELDS) {
+        const el = document.getElementById(f.id);
+        if (!el) continue;
+        if (f.type === 'checked') s[f.key] = el.checked;
+        else if (f.type === 'range') { s[f.key] = parseInt(el.value); if (f.rangeDisplay) document.getElementById(f.rangeDisplay).textContent = s[f.key]; }
+        else s[f.key] = el.value.trim();
+      }
+      // TDK 字段：通过配置驱动保存
+      for (const f of TDK_FIELDS) {
+        s[f.key] = document.getElementById(f.id).value.trim();
+      }
       api.updateAdminDefaultSettings(s).then(() => {
         showToast('设置已保存');
       }).catch(() => {
@@ -2520,17 +2612,6 @@
       setTimeout(() => t.remove(), 2000);
     }
 
-    async function savePromptProTDK() {
-      const data = {
-        promptproTitle: document.getElementById('promptpro-site-title').value.trim(),
-        promptproDescription: document.getElementById('promptpro-site-description').value.trim(),
-        promptproKeywords: document.getElementById('promptpro-site-keywords').value.trim()
-      };
-      try {
-        await api.updateAdminDefaultSettings(data);
-        showToast('提示词页面 TDK 已保存');
-      } catch (err) { alert('保存失败: ' + err.message); }
-    }
 
   </script>
 </body>

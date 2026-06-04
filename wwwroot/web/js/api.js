@@ -318,6 +318,10 @@ class FavsHubAPI {
     return this.request('/admin/backup-files');
   }
 
+  manualBackup() {
+    return this.request('/admin/manual-backup', { method: 'POST' });
+  }
+
   syncPrompts(userId, data) {
     return this.request('/admin/sync-prompts', { method: 'POST', body: JSON.stringify({ userId, ...data }) });
   }

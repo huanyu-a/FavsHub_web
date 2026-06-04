@@ -5,6 +5,12 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 
+// 生成本地时区的时间戳文件名（YYYY-MM-DDTHH-mm-ss）
+function localTimestamp() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}-${String(d.getSeconds()).padStart(2, '0')}`;
+}
+
 const router = Router();
 router.use(adminMiddleware);
 
@@ -14,7 +20,21 @@ router.get('/stats', (req, res) => {
   const bookmarks = db.prepare('SELECT COUNT(*) as count FROM bookmarks').get().count;
   const folders = db.prepare('SELECT COUNT(*) as count FROM folders').get().count;
   const prompts = db.prepare('SELECT COUNT(*) as count FROM prompts').get().count;
-  res.json({ users, bookmarks, folders, prompts });
+  const tags = db.prepare('SELECT COUNT(*) as count FROM tags').get().count;
+  const promptFolders = db.prepare('SELECT COUNT(*) as count FROM prompt_folders').get().count;
+  const promptVersions = db.prepare('SELECT COUNT(*) as count FROM prompt_versions').get().count;
+  const searchEngines = db.prepare('SELECT COUNT(*) as count FROM search_engines').get().count;
+  const adminUsers = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get().count;
+  const favoritePrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE is_favorite = 1').get().count;
+  // 今日新增（基于毫秒时间戳）
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayTs = todayStart.getTime();
+  const todayBookmarks = db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE created_at >= ?').get(todayTs).count;
+  const todayPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE created_at >= ?').get(todayTs).count;
+  // 数据库大小
+  let dbSize = 0;
+  try { dbSize = fs.statSync(path.join(__dirname, '..', 'data', 'favshub.db')).size; } catch {}
+  res.json({ users, bookmarks, folders, prompts, tags, promptFolders, promptVersions, searchEngines, adminUsers, favoritePrompts, todayBookmarks, todayPrompts, dbSize });
 });
 
 // 用户列表（含书签/Prompt 数量）
@@ -421,7 +441,7 @@ router.post('/backup-to-baidu', (req, res) => {
   // 先执行 checkpoint 确保数据一致性
   db.pragma('wal_checkpoint(TRUNCATE)');
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const timestamp = localTimestamp();
   const filename = `favshub-full-backup-${timestamp}.db`;
 
   try {
@@ -450,7 +470,7 @@ router.get('/backup', (req, res) => {
   // WAL 模式下确保数据写入主文件
   db.pragma('wal_checkpoint(TRUNCATE)');
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const timestamp = localTimestamp();
   const filename = `favshub-backup-${timestamp}.db`;
 
   res.setHeader('Content-Type', 'application/x-sqlite3');
@@ -513,7 +533,8 @@ function isPrivateIP(hostname) {
   return false;
 }
 
-function downloadFavicon(url, destPath) {
+function downloadFavicon(url, destPath, _redirectDepth = 0) {
+  const MAX_REDIRECTS = 3;
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(url);
@@ -525,12 +546,23 @@ function downloadFavicon(url, destPath) {
         return reject(new Error('不允许访问内网地址'));
       }
       const req = https.get(url, { timeout: 10000 }, (response) => {
-        // 处理重定向
+        // 处理重定向（限制最大次数，且每次重新校验 IP）
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          if (_redirectDepth >= MAX_REDIRECTS) {
+            return reject(new Error('重定向次数超限'));
+          }
           const redirectUrl = response.headers.location.startsWith('http')
             ? response.headers.location
             : new URL(response.headers.location, u.origin).href;
-          return downloadFavicon(redirectUrl, destPath).then(resolve).catch(reject);
+          // DNS 解析校验：对重定向目标的 hostname 做预解析 IP 校验
+          const dns = require('dns');
+          const rUrl = new URL(redirectUrl);
+          dns.lookup(rUrl.hostname, (err, address) => {
+            if (err) return reject(new Error('DNS 解析失败: ' + err.message));
+            if (isPrivateIP(address)) return reject(new Error('重定向目标为内网地址'));
+            return downloadFavicon(redirectUrl, destPath, _redirectDepth + 1).then(resolve).catch(reject);
+          });
+          return;
         }
         if (response.statusCode !== 200) {
           return reject(new Error('HTTP ' + response.statusCode));
@@ -708,9 +740,8 @@ router.post('/download-favicon/:id', (req, res) => {
 
 // === 定时备份 ===
 const BACKUP_CONFIG_FILE = path.join(__dirname, '..', 'data', '.backup-config.json');
-let backupSchedule = { enabled: false, hour: 3, minute: 0, keepCopies: 7 };
+let backupSchedule = { enabled: false, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null };
 let backupTimer = null;
-let lastBackupDate = null; // 防止同一天重复备份
 
 // 从系统配置文件读取备份配置（不再绑定到某个管理员用户）
 function loadBackupSchedule() {
@@ -720,9 +751,23 @@ function loadBackupSchedule() {
       backupSchedule = { ...backupSchedule, ...saved };
     }
   } catch { /* 首次启动可能没有配置文件 */ }
+  // 如果 lastBackupDate 未持久化，从已有备份文件推断，防止重启后重复备份
+  if (!backupSchedule.lastBackupDate) {
+    try {
+      const backupDir = path.join(__dirname, '..', 'data', 'backups');
+      if (fs.existsSync(backupDir)) {
+        const files = fs.readdirSync(backupDir).filter(f => f.startsWith('auto-backup-')).sort();
+        if (files.length > 0) {
+          const latest = files[files.length - 1]; // e.g. auto-backup-2026-06-04T02-00-06.db
+          const dateMatch = latest.match(/auto-backup-(\d{4}-\d{2}-\d{2})/);
+          if (dateMatch) backupSchedule.lastBackupDate = dateMatch[1];
+        }
+      }
+    } catch {}
+  }
 }
 
-// 保存备份配置到系统配置文件
+// 保存备份配置到系统配置文件（含 lastBackupDate，防止重启后重复备份）
 function saveBackupSchedule() {
   try {
     fs.writeFileSync(BACKUP_CONFIG_FILE, JSON.stringify(backupSchedule, null, 2), 'utf8');
@@ -735,24 +780,26 @@ function startBackupScheduler() {
 
   backupTimer = setInterval(() => {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    // 用 >= 比较防止 timer 跳秒，并检查是否今日已备份过
+    // 使用本地时间的日期字符串，与 currentMinutes 时区一致
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const targetMinutes = backupSchedule.hour * 60 + backupSchedule.minute;
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    if (currentMinutes >= targetMinutes && lastBackupDate !== todayStr) {
+    if (currentMinutes >= targetMinutes && backupSchedule.lastBackupDate !== todayStr) {
       const dbPath = path.join(__dirname, '..', 'data', 'favshub.db');
       if (!fs.existsSync(dbPath)) return;
       db.pragma('wal_checkpoint(TRUNCATE)');
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const timestamp = localTimestamp();
       const backupDir = path.join(__dirname, '..', 'data', 'backups');
       if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
       const backupPath = path.join(backupDir, `auto-backup-${timestamp}.db`);
       try {
         fs.copyFileSync(dbPath, backupPath);
-        lastBackupDate = todayStr;
+        backupSchedule.lastBackupDate = todayStr;
+        saveBackupSchedule();
+        console.log(`[备份] 自动备份成功: ${backupPath}`);
         // 清理旧备份
         const files = fs.readdirSync(backupDir).filter(f => f.startsWith('auto-backup-')).sort();
         while (files.length > backupSchedule.keepCopies) {
@@ -785,11 +832,31 @@ router.get('/backup-files', (req, res) => {
   const backupDir = path.join(__dirname, '..', 'data', 'backups');
   if (!fs.existsSync(backupDir)) return res.json({ files: [] });
 
-  const files = fs.readdirSync(backupDir).filter(f => f.startsWith('auto-backup-')).sort().reverse().map(f => {
+  const files = fs.readdirSync(backupDir).filter(f => f.startsWith('auto-backup-') || f.startsWith('manual-backup-')).sort().reverse().map(f => {
     const stat = fs.statSync(path.join(backupDir, f));
-    return { name: f, size: stat.size, sizeFormatted: (stat.size / 1024).toFixed(1) + ' KB', time: stat.mtime.toISOString() };
+    return { name: f, size: stat.size, sizeFormatted: (stat.size / 1024).toFixed(1) + ' KB', time: stat.mtime.toISOString(), type: f.startsWith('manual-') ? 'manual' : 'auto' };
   });
   res.json({ files });
+});
+
+// 手动备份
+router.post('/manual-backup', (req, res) => {
+  const dbPath = path.join(__dirname, '..', 'data', 'favshub.db');
+  if (!fs.existsSync(dbPath)) return res.status(404).json({ error: '数据库文件不存在' });
+
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  const timestamp = localTimestamp();
+  const backupDir = path.join(__dirname, '..', 'data', 'backups');
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+  const backupPath = path.join(backupDir, `manual-backup-${timestamp}.db`);
+  try {
+    fs.copyFileSync(dbPath, backupPath);
+    const stat = fs.statSync(backupPath);
+    res.json({ success: true, filename: `manual-backup-${timestamp}.db`, size: stat.size, sizeFormatted: (stat.size / 1024).toFixed(1) + ' KB' });
+  } catch (e) {
+    res.status(500).json({ error: '手动备份失败: ' + e.message });
+  }
 });
 
 // 下载指定备份文件
@@ -797,7 +864,7 @@ router.get('/backup-files/:name', (req, res) => {
   const backupDir = path.join(__dirname, '..', 'data', 'backups');
   // 安全：提取文件名并防止路径遍历
   const safeName = path.basename(req.params.name).replace(/[^a-zA-Z0-9._-]/g, '');
-  if (!safeName || !safeName.startsWith('auto-backup-')) {
+  if (!safeName || (!safeName.startsWith('auto-backup-') && !safeName.startsWith('manual-backup-'))) {
     return res.status(400).json({ error: '无效的备份文件名' });
   }
   const filePath = path.join(backupDir, safeName);

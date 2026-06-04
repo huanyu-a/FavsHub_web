@@ -96,9 +96,25 @@ app.get('/api/search-engines', (req, res) => {
   res.json({ engines });
 });
 
-// TDK 中间件：从 settings 读取 TDK 注入 HTML（promptpro 使用独立 TDK 字段）
+// TDK 配置：每组页面的 TDK 字段定义（field = settings 表中的 key，fallback = 回退到站点级字段）
+const TDK_GROUPS = {
+  _default: { title: 'siteTitle', description: 'siteDescription', keywords: 'siteKeywords' },
+  promptpro: { title: 'promptproTitle', description: 'promptproDescription', keywords: 'promptproKeywords' },
+};
+
+// 解析指定页面组的 TDK 值（页面级优先，回退到站点级）
+function resolveTDK(data, group) {
+  const site = TDK_GROUPS._default;
+  const page = group || site;
+  return {
+    title: (page === site ? null : data[page.title]) || data[site.title] || '',
+    description: (page === site ? null : data[page.description]) || data[site.description] || '',
+    keywords: (page === site ? null : data[page.keywords]) || data[site.keywords] || '',
+  };
+}
+
+// TDK 注入中间件：从 settings 读取 TDK 并注入到 HTML 页面
 app.use((req, res, next) => {
-  // 匹配：/ 、/*.html 、/xxx/ （目录索引路径）
   const isHtml = req.path.endsWith('.html');
   const isRoot = req.path === '/';
   const isDirIndex = !isHtml && !isRoot && req.path.endsWith('/');
@@ -116,12 +132,11 @@ app.use((req, res, next) => {
     const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
     if (row && row.data) {
       const data = JSON.parse(row.data);
-      const isPromptPro = req.path.startsWith('/promptpro');
-      const title = isPromptPro ? (data.promptproTitle || data.siteTitle) : data.siteTitle;
-      const description = isPromptPro ? (data.promptproDescription || data.siteDescription) : data.siteDescription;
-      const keywords = isPromptPro ? (data.promptproKeywords || data.siteKeywords) : data.siteKeywords;
+      // 根据路径匹配 TDK 组（/promptpro/ → promptpro，其他 → 站点级）
+      const groupKey = Object.keys(TDK_GROUPS).find(k => k !== '_default' && req.path.startsWith('/' + k));
+      const { title, description, keywords } = resolveTDK(data, groupKey ? TDK_GROUPS[groupKey] : null);
+
       if (title) html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
-      // 先移除已有的 meta 标签，再注入到 </title> 下方（防止重复）
       let metaTags = '';
       if (description) {
         html = html.replace(/<meta\s+name="description"[^>]*>\s*\n?/gi, '');
