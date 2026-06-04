@@ -160,9 +160,14 @@
     border-radius: 8px !important;
   }
 
-  .bookmarks-container .card,
-  .bookmarks-container .bookmark-card,
   .bookmarks-container .bookmark-folder {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .bookmarks-container .card,
+  .bookmarks-container .bookmark-card {
     flex: 0 0 calc(50% - 0.25rem) !important;
     max-width: calc(50% - 0.25rem) !important;
     width: calc(50% - 0.25rem) !important;

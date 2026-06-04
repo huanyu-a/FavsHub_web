@@ -132,6 +132,14 @@
           el.style.display = 'none';
           continue;
         }
+        // Folder headers span full width
+        if (el.classList.contains('bookmark-folder')) {
+          el.style.setProperty('flex', '0 0 100%', 'important');
+          el.style.setProperty('max-width', '100%', 'important');
+          el.style.setProperty('width', '100%', 'important');
+          continue;
+        }
+        // Bookmark cards get 50% for two-column
         el.style.setProperty('flex', '0 0 calc(50% - 0.25rem)', 'important');
         el.style.setProperty('max-width', 'calc(50% - 0.25rem)', 'important');
         el.style.setProperty('width', 'calc(50% - 0.25rem)', 'important');
