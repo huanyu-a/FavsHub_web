@@ -70,27 +70,25 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   }
 
-  .mobile-header-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    color: inherit;
+  /* Reuse sidebar-brand-card; just scale down for header */
+  .mobile-header-bar .sidebar-brand-card {
+    padding: 0;
+    gap: 0.5rem;
   }
 
-  .mobile-header-logo {
-    width: 30px;
-    height: 30px;
-    padding: 5px;
+  .mobile-header-bar .sidebar-brand-logo {
+    width: 32px;
+    height: 32px;
+    padding: 6px;
     border-radius: 8px;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(59, 130, 246, 0.12));
   }
 
-  .mobile-header-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #0f172a;
-    letter-spacing: -0.01em;
+  .mobile-header-bar .sidebar-brand-title {
+    font-size: 14px;
+  }
+
+  .mobile-header-bar .sidebar-brand-subtitle {
+    font-size: 9px;
   }
 
   .mobile-hamburger-btn {
@@ -309,15 +307,15 @@
     padding: 0 10px;
   }
 
-  .mobile-header-logo {
-    width: 26px;
-    height: 26px;
-    padding: 4px;
+  .mobile-header-bar .sidebar-brand-logo {
+    width: 28px;
+    height: 28px;
+    padding: 5px;
     border-radius: 6px;
   }
 
-  .mobile-header-title {
-    font-size: 14px;
+  .mobile-header-bar .sidebar-brand-title {
+    font-size: 13px;
   }
 
   .mobile-hamburger-btn svg {
@@ -407,7 +405,7 @@
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-[data-theme="dark"] .mobile-header-title {
+[data-theme="dark"] .mobile-header-bar .sidebar-brand-title {
   color: #f1f5f9;
 }
 

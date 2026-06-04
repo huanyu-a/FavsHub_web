@@ -24,14 +24,13 @@
     var header = document.createElement('div');
     header.className = 'mobile-header-bar';
 
-    // Left: brand logo
-    var brand = document.createElement('a');
-    brand.className = 'mobile-header-brand';
-    brand.href = window.location.pathname.indexOf('/promptpro/') !== -1 ? '/index.html' : '#';
-    brand.innerHTML =
-      '<img src="/images/logo.svg" alt="Logo" class="mobile-header-logo">' +
-      '<span class="mobile-header-title">FavsHub</span>';
-    header.appendChild(brand);
+    // Left: clone the existing sidebar brand card
+    var origBrand = sidebar.querySelector('.sidebar-brand-card');
+    if (origBrand) {
+      var brandClone = origBrand.cloneNode(true);
+      brandClone.className = 'sidebar-brand-card mobile-header-brand';
+      header.appendChild(brandClone);
+    }
 
     // Right: hamburger button
     var hamburger = document.createElement('button');
