@@ -70,25 +70,25 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   }
 
-  /* Reuse sidebar-brand-card; just scale down for header */
+  /* Reuse sidebar-brand-card; just scale down slightly for header */
   .mobile-header-bar .sidebar-brand-card {
     padding: 0;
-    gap: 0.5rem;
+    gap: 0.6rem;
   }
 
   .mobile-header-bar .sidebar-brand-logo {
-    width: 32px;
-    height: 32px;
-    padding: 6px;
-    border-radius: 8px;
+    width: 38px;
+    height: 38px;
+    padding: 7px;
+    border-radius: 10px;
   }
 
   .mobile-header-bar .sidebar-brand-title {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .mobile-header-bar .sidebar-brand-subtitle {
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .mobile-hamburger-btn {
@@ -308,14 +308,14 @@
   }
 
   .mobile-header-bar .sidebar-brand-logo {
-    width: 28px;
-    height: 28px;
-    padding: 5px;
-    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    padding: 6px;
+    border-radius: 8px;
   }
 
   .mobile-header-bar .sidebar-brand-title {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .mobile-hamburger-btn svg {
