@@ -109,10 +109,11 @@
   /* Compact buttons in header */
   .mobile-header-actions .btn-favorite,
   .mobile-header-actions .btn-primary {
-    padding: 6px 10px !important;
+    padding: 4px 8px !important;
     font-size: 12px !important;
     border-radius: 8px !important;
     gap: 3px !important;
+    min-height: unset !important;
   }
 
   .mobile-header-actions .btn-favorite span,
@@ -122,7 +123,7 @@
 
   .mobile-header-actions .btn-favorite i,
   .mobile-header-actions .btn-primary i {
-    font-size: 16px !important;
+    font-size: 14px !important;
     margin: 0 !important;
   }
 
