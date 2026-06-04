@@ -4,6 +4,14 @@
    Covers: homepage (index.html) & promptpro page
    ============================================================ */
 
+/* Hide mobile-only elements on desktop */
+@media (min-width: 769px) {
+  .mobile-header-bar,
+  .mobile-sidebar-overlay {
+    display: none !important;
+  }
+}
+
 /* ========== Core: Mobile Drawer ========== */
 @media (max-width: 768px) {
 
