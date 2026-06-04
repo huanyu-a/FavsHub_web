@@ -112,4 +112,77 @@
   } else {
     setup();
   }
+
+  /* ---- Force two-column bookmark layout on mobile via inline styles ---- */
+  function setupBookmarkColumns() {
+    var bc = document.querySelector('.bookmarks-container');
+    if (!bc) return;
+
+    var mql = window.matchMedia('(max-width: ' + MOBILE_BP + 'px)');
+
+    function applyTwoCol() {
+      bc.style.setProperty('display', 'flex', 'important');
+      bc.style.setProperty('flex-direction', 'row', 'important');
+      bc.style.setProperty('flex-wrap', 'wrap', 'important');
+
+      var children = bc.children;
+      for (var i = 0; i < children.length; i++) {
+        var el = children[i];
+        if (el.classList.contains('bookmark-placeholder')) {
+          el.style.display = 'none';
+          continue;
+        }
+        el.style.setProperty('flex', '0 0 calc(50% - 0.25rem)', 'important');
+        el.style.setProperty('max-width', 'calc(50% - 0.25rem)', 'important');
+        el.style.setProperty('width', 'calc(50% - 0.25rem)', 'important');
+      }
+    }
+
+    function removeTwoCol() {
+      bc.style.removeProperty('display');
+      bc.style.removeProperty('flex-direction');
+      bc.style.removeProperty('flex-wrap');
+
+      var children = bc.children;
+      for (var i = 0; i < children.length; i++) {
+        var el = children[i];
+        el.style.removeProperty('flex');
+        el.style.removeProperty('max-width');
+        el.style.removeProperty('width');
+        if (el.classList.contains('bookmark-placeholder')) {
+          el.style.removeProperty('display');
+        }
+      }
+    }
+
+    function handleBP(e) {
+      if (e.matches) {
+        applyTwoCol();
+      } else {
+        removeTwoCol();
+      }
+    }
+
+    // Initial check
+    handleBP(mql);
+
+    // Listen for viewport changes
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handleBP);
+    } else if (mql.addListener) {
+      mql.addListener(handleBP);
+    }
+
+    // Re-apply when new bookmarks are added dynamically
+    var observer = new MutationObserver(function () {
+      if (mql.matches) applyTwoCol();
+    });
+    observer.observe(bc, { childList: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupBookmarkColumns);
+  } else {
+    setupBookmarkColumns();
+  }
 })();
