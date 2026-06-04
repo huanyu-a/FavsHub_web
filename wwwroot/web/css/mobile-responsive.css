@@ -1,0 +1,353 @@
+/* ============================================================
+   FavsHub Mobile Responsive Styles
+   Breakpoints: 768px (tablet/phone), 480px (phone)
+   Covers: homepage (index.html) & promptpro page
+   ============================================================ */
+
+/* ========== Core: Mobile Drawer ========== */
+@media (max-width: 768px) {
+
+  /* --- Sidebar as drawer (both pages) --- */
+  aside.custom-width,
+  aside.sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 85vw !important;
+    z-index: 10001 !important;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  aside.custom-width.mobile-drawer-open,
+  aside.sidebar.mobile-drawer-open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  /* --- Sidebar overlay --- */
+  .mobile-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+  }
+
+  /* --- Hamburger button --- */
+  .mobile-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 9999;
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #374151;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 0;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+
+  .mobile-hamburger-btn:active {
+    background: rgba(240, 240, 240, 0.95);
+    transform: scale(0.95);
+  }
+
+  .mobile-hamburger-btn svg {
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+  }
+
+  /* Hide desktop toggle button */
+  #toggle-sidebar {
+    display: none !important;
+  }
+
+  /* --- Main content reset (both pages) --- */
+  #sidebar-container {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  #sidebar-container.collapsed aside.custom-width,
+  #sidebar-container.collapsed aside.sidebar {
+    display: flex !important;
+    margin-left: 0 !important;
+  }
+
+  main.flex-1 {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 60px 1rem 1rem !important;
+  }
+
+  /* When drawer is open, push main off-screen */
+  #sidebar-container.mobile-drawer-open main.flex-1,
+  #sidebar-container.mobile-drawer-open .main-content {
+    pointer-events: none;
+  }
+
+  /* PromptPro main content */
+  .main-content {
+    width: 100% !important;
+  }
+
+  .main-area {
+    padding: 60px 1rem 1rem !important;
+  }
+
+  /* ========== Homepage specifics ========== */
+  .welcome-search-container {
+    padding-top: 0 !important;
+  }
+
+  #welcome-message {
+    font-size: 20px !important;
+    padding: 0.25rem 0 !important;
+  }
+
+  .flex.justify-between.items-center.mb-4 {
+    width: 100% !important;
+    padding: 0 !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .search-container {
+    width: 100% !important;
+  }
+
+  .search-form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .bookmarks-container {
+    width: 100% !important;
+    padding: 0.75rem !important;
+    margin: 1rem auto !important;
+    border-radius: 8px !important;
+  }
+
+  /* ========== PromptPro specifics ========== */
+  .search-box {
+    width: 100% !important;
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .main-toolbar {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .btn-favorite {
+    flex: 0 0 auto;
+  }
+
+  .main-toolbar .btn-primary {
+    flex: 0 0 auto;
+  }
+
+  .prompts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .filter-bar {
+    flex-wrap: wrap;
+    font-size: 11px;
+  }
+
+  /* Prompt card touch-friendly adjustments */
+  .prompt-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  /* Always show prompt action buttons on touch devices */
+  .prompt-actions {
+    opacity: 1;
+  }
+
+  /* Modal adjustments */
+  .modal-content {
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px !important;
+    max-height: calc(100vh - 24px) !important;
+    overflow-y: auto !important;
+  }
+
+  .modal-large,
+  .modal-xlarge {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .modal-body {
+    padding: 16px !important;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px !important;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hide back-to-top progress ring on mobile to save space */
+  #back-to-top-container {
+    display: none !important;
+  }
+}
+
+/* ========== Phone tweaks (≤480px) ========== */
+@media (max-width: 480px) {
+
+  main.flex-1 {
+    padding: 52px 0.75rem 0.75rem !important;
+  }
+
+  .main-area {
+    padding: 52px 0.75rem 0.75rem !important;
+  }
+
+  .mobile-hamburger-btn {
+    top: 10px;
+    left: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .mobile-hamburger-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  #welcome-message {
+    font-size: 18px !important;
+  }
+
+  .search-form {
+    min-height: 44px !important;
+    padding: 10px 14px 10px 8px !important;
+  }
+
+  .search-input {
+    font-size: 14px !important;
+  }
+
+  .bookmarks-container {
+    padding: 0.5rem !important;
+    margin: 0.5rem auto !important;
+    border-radius: 6px !important;
+  }
+
+  /* PromptPro */
+  .search-box {
+    padding: 0.45rem 0.65rem !important;
+  }
+
+  .search-box input {
+    font-size: 13px;
+  }
+
+  .main-toolbar .btn-primary,
+  .btn-favorite {
+    font-size: 12px;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .prompt-card {
+    padding: 12px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+
+  .prompt-title {
+    font-size: 14px;
+  }
+
+  .prompt-desc {
+    font-size: 12px;
+  }
+
+  .prompt-meta-footer {
+    padding-top: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .modal-content {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .modal-header {
+    padding: 12px 16px !important;
+  }
+
+  .modal-header h2 {
+    font-size: 16px !important;
+  }
+
+  /* Sidebar drawer slightly narrower on phones */
+  aside.custom-width,
+  aside.sidebar {
+    width: 260px !important;
+    min-width: 260px !important;
+  }
+}
+
+/* ========== Dark mode overrides ========== */
+[data-theme="dark"] .mobile-hamburger-btn {
+  background: rgba(30, 41, 59, 0.92);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .mobile-hamburger-btn:active {
+  background: rgba(51, 65, 85, 0.95);
+}
+
+[data-theme="dark"] .mobile-sidebar-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
