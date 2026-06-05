@@ -4,6 +4,14 @@ const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
 
+// 敏感字段黑名单：不应暴露给非管理员用户
+const SENSITIVE_KEYS = ['baiduAppKey'];
+function filterSensitiveKeys(data) {
+  const filtered = { ...data };
+  SENSITIVE_KEYS.forEach(key => delete filtered[key]);
+  return filtered;
+}
+
 // 获取设置（系统默认 + 用户偏好合并，用户偏好优先）
 // 游客：只返回系统默认设置
 // 登录用户：系统默认 + 用户偏好合并
@@ -18,9 +26,9 @@ router.get('/', optionalAuth, (req, res) => {
       }
     }
 
-    // 游客只返回系统默认
+    // 游客只返回系统默认（过滤敏感字段）
     if (!req.user) {
-      return res.json({ data: sysData });
+      return res.json({ data: filterSensitiveKeys(sysData) });
     }
 
     // 用户个人偏好（per-user，仅该用户可见）
@@ -32,8 +40,8 @@ router.get('/', optionalAuth, (req, res) => {
       }
     }
 
-    // 合并：系统默认 + 用户偏好（用户偏好覆盖系统默认）
-    const merged = { ...sysData, ...userData };
+    // 合并：系统默认 + 用户偏好（用户偏好覆盖系统默认，过滤敏感字段）
+    const merged = { ...filterSensitiveKeys(sysData), ...userData };
     res.json({ data: merged });
   } catch (err) {
     console.error('[Settings] 获取设置失败:', err);

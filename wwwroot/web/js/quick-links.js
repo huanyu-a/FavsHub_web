@@ -369,32 +369,20 @@ document.addEventListener('DOMContentLoaded', function () {
           const isSidePanel = window.location.search.includes('context=side_panel') ||
                              window.location.hash.includes('context=side_panel');
 
-          console.log('[Quick Link Click] Starting...', {
-            url: site.url,
-            currentUrl: window.location.href,
-            isSidePanel: isSidePanel
-          });
 
           if (isSidePanel) {
-            console.log('[Quick Link Click] Opening in Side Panel mode');
             // 获取侧边栏模式下的链接打开方式设置
             const openInNewTab = FavsHubSettings.get('sidepanelOpenInNewTab') !== false;
             const openInSidepanel = FavsHubSettings.get('sidepanelOpenInSidepanel') === true;
               
-              console.log('[Quick Link Click] Side Panel settings:', {
-                openInNewTab: openInNewTab,
-                openInSidepanel: openInSidepanel
-              });
               
               if (openInSidepanel) {
                 // 在侧边栏内打开链接
-                console.log('[Quick Link Click] Opening in Side Panel iframe');
                 // 使用 SidePanelManager 加载 URL
                 try {
                   // 检查 SidePanelManager 是否已定义
                   if (typeof SidePanelManager === 'undefined') {
                     // 如果未定义，则创建一个简单的加载函数
-                    console.log('[Quick Link Click] SidePanelManager not defined, using fallback method');
                     const sidePanelContent = document.getElementById('side-panel-content');
                     const sidePanelIframe = document.getElementById('side-panel-iframe');
                     
@@ -420,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function () {
                       // 显示返回按钮
                       backButton.style.display = 'flex';
                     } else {
-                      console.error('[Quick Link Click] Side panel elements not found, falling back to new tab');
                       chrome.tabs.create({
                         url: site.url,
                         active: true
@@ -434,7 +421,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     window.sidePanelManager.loadUrl(site.url);
                   }
                 } catch (error) {
-                  console.error('[Quick Link Click] Error using SidePanelManager:', error);
                   // 出错时回退到在新标签页中打开
                   chrome.tabs.create({
                     url: site.url,
@@ -447,14 +433,11 @@ document.addEventListener('DOMContentLoaded', function () {
                   url: site.url,
                   active: true
                 }).then(tab => {
-                  console.log('[Quick Link Click] Tab created successfully:', tab);
                 }).catch(error => {
-                  console.error('[Quick Link Click] Failed to create tab:', error);
                 });
               }
             });
           } else {
-            console.log('[Quick Link Click] Opening in Main Window mode');
             // 在主页面中根据设置决定打开方式
             if (FavsHubSettings.get('openInNewTab') !== false) {
               window.open(site.url, '_blank');
@@ -463,7 +446,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           }
         } catch (error) {
-          console.error('[Quick Link Click] Error:', error);
         }
       });
 
@@ -516,15 +498,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // 显示上下文菜单
   function showContextMenu(e, site) {
-    console.log('=== Quick Link Context Menu ===');
-    console.log('Event:', e.type);
-    console.log('Site:', site);
     
     e.preventDefault();
     // 移除任何已存在的上下文菜单
     const existingMenu = document.querySelector('.custom-context-menu');
     if (existingMenu) {
-      console.log('Removing existing context menu');
       existingMenu.remove();
     }
 
@@ -669,15 +647,12 @@ document.addEventListener('DOMContentLoaded', function () {
       // 更新 data-url 属性
       linkItem.dataset.url = site.url;
     } else {
-      console.error('Quick link element not found for:', oldUrl);
       generateQuickLinks();
     }
   }
 
   // 确认添加到黑名单
   function addToBlacklistConfirm(site) {
-    console.log('=== Quick Link Delete Confirmation ===');
-    console.log('Quick link to delete:', site);
     
     const confirmDialog = document.getElementById('confirm-dialog');
     const confirmMessage = document.getElementById('confirm-dialog-message');
@@ -685,7 +660,6 @@ document.addEventListener('DOMContentLoaded', function () {
     
     // 保存要删除的快捷链接
     quickLinkToDelete = site;
-    console.log('Set quickLinkToDelete:', quickLinkToDelete);
     
     // 确保两个消息元素都正确显示
     if (confirmMessage) {
@@ -698,27 +672,20 @@ document.addEventListener('DOMContentLoaded', function () {
         "confirmDeleteQuickLinkMessage", 
         `<strong>${site.name}</strong>`
       );
-      console.log('Setting quick link delete message:', confirmDeleteQuickLinkMessage.innerHTML);
     } else {
-      console.error('Quick link delete message element not found');
     }
     
     confirmDialog.style.display = 'block';
     
     // 修改确认按钮处理程序
     document.getElementById('confirm-delete-button').onclick = function() {
-      console.log('=== Quick Link Delete Confirmed ===');
-      console.log('Current quickLinkToDelete:', quickLinkToDelete);
       
       if (quickLinkToDelete) {
         const domain = new URL(quickLinkToDelete.url).hostname;
-        console.log('Deleting domain:', domain);
         
         addToBlacklist(domain).then((added) => {
-          console.log('Domain added to blacklist:', added);
           if (added) {
             if (quickLinkToDelete.fixed) {
-              console.log('Removing fixed shortcut:', quickLinkToDelete);
               const fixedShortcuts = FavsHubSettings.get('fixedShortcuts') || [];
               const updatedShortcuts = fixedShortcuts.filter(s => s.url !== quickLinkToDelete.url);
               FavsHubSettings.set('fixedShortcuts', updatedShortcuts);
@@ -731,18 +698,14 @@ document.addEventListener('DOMContentLoaded', function () {
           // 重置消息显示状态
           if (confirmMessage) confirmMessage.style.display = 'block';
           if (confirmDeleteQuickLinkMessage) confirmDeleteQuickLinkMessage.style.display = 'none';
-          console.log('Clearing quickLinkToDelete state');
           quickLinkToDelete = null;
         });
       } else {
-        console.error('No quick link selected for deletion');
       }
     };
     
     // 修改取消按钮处理程序
     document.getElementById('cancel-delete-button').onclick = function() {
-      console.log('=== Quick Link Delete Cancelled ===');
-      console.log('Clearing quickLinkToDelete:', quickLinkToDelete);
       confirmDialog.style.display = 'none';
       // 重置消息显示状态
       if (confirmMessage) confirmMessage.style.display = 'block';
@@ -767,7 +730,6 @@ document.addEventListener('DOMContentLoaded', function () {
         showToast(chrome.i18n.getMessage("copyLinkFailed"));
       });
     } catch (err) {
-      console.error('Copy failed:', err);
       // 使用本地化消息
       showToast(chrome.i18n.getMessage("copyLinkFailed"));
     }

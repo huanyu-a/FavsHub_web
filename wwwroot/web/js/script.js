@@ -469,6 +469,7 @@ function initEditCategoryCustomSelect() {
 
 // 编辑书签对话框函数
 function openEditDialog(bookmark) {
+  if (typeof isGuest === 'function' && isGuest()) { Utilities.showToast(getLocalizedMessage('loginRequired') || '请先登录'); return; }
   const bookmarkId = bookmark.id;
   const bookmarkTitle = bookmark.title;
   const bookmarkUrl = bookmark.url;
@@ -552,11 +553,9 @@ function initSidebarNavigation() {
         bookmarkTreeNodes = nodes;
         displayBookmarkCategories(bookmarkTreeNodes[0].children, 0, null, '1');
       } catch (err) {
-        console.error('[initSidebarNavigation] Error in getTree callback:', err);
       }
     });
   } catch (err) {
-    console.error('[initSidebarNavigation] Error:', err);
   }
 }
 
@@ -1039,11 +1038,9 @@ function updateBookmarkCards() {
         // 更新 bookmarks-list 的 data-parent-id
         bookmarksList.dataset.parentId = parentId;
       } catch (err) {
-        console.error('[updateBookmarkCards] Error in getTree callback:', err);
       }
     });
   } catch (err) {
-    console.error('[updateBookmarkCards] Error:', err);
   }
 }
 
@@ -1154,7 +1151,6 @@ document.addEventListener('DOMContentLoaded', async function () {
       // 重新初始化拖拽排序
       initBookmarkSortable();
     } catch (err) {
-      console.error('[renderBookmarksPage] Error:', err);
     }
   }
 
@@ -1491,12 +1487,10 @@ function updateBookmarksDisplay(parentId, movedItemId, newIndex) {
 
           resolve();
         } catch (innerErr) {
-          console.error('[updateBookmarksDisplay] Error in getTree callback:', innerErr);
           resolve(); // 仍然 resolve 以避免 Promise 卡住
         }
       });
     } catch (err) {
-      console.error('[updateBookmarksDisplay] Error:', err);
       resolve(); // 仍然 resolve 以避免 Promise 卡住
     }
   });
@@ -1749,7 +1743,6 @@ async function displayBookmarks(bookmarkTreeNodes) {
 
     setupSortable();
   } catch (err) {
-    console.error('[displayBookmarks] Error:', err);
     const bookmarksContainer = document.querySelector('.bookmarks-container');
     if (bookmarksContainer) bookmarksContainer.classList.add('loaded');
   }
@@ -2085,6 +2078,9 @@ const Utilities = (function() {
 
 // 修改 showContextMenu 函数
 function showContextMenu(event, item, type = 'bookmark') {
+  // 游客禁止打开右键菜单
+  if (typeof isGuest === 'function' && isGuest()) { event.preventDefault(); return; }
+
   // 先关闭所有已存在的上下文菜单
   const existingMenus = document.querySelectorAll('.custom-context-menu');
   existingMenus.forEach(menu => {
@@ -2569,6 +2565,7 @@ function handleBookmarkDeletion() {
 }
 
 function deleteBookmark(bookmarkId, bookmarkTitle) {
+  if (typeof isGuest === 'function' && isGuest()) { return; }
   if (!bookmarkId) {
     
     return;
@@ -3144,12 +3141,13 @@ function displayBookmarkCategories(bookmarkNodes, level, parentUl, parentId) {
       setupSortable();
     }
   } catch (err) {
-    console.error('[displayBookmarkCategories] Error:', err);
   }
 }
 
 // 创建文件夹上下文菜单
 function createBookmarkFolderContextMenu() {
+  // 游客禁止文件夹操作
+  if (typeof isGuest === 'function' && isGuest()) { return null; }
 
   // 移除任何已存在的上下文菜单
   const existingMenu = document.querySelector('.bookmark-folder-context-menu');

@@ -1075,7 +1075,6 @@
   <script>
     // 全局错误捕获
     window.onerror = function(msg, src, line, col, err) {
-      console.error('[Admin Error]', msg, src, 'line ' + line);
       return false;
     };
 
@@ -1094,14 +1093,13 @@
             localStorage.setItem('fh_local_baiduPanConfig', JSON.stringify(config));
             // 如果是弹窗打开的，传回 token 并关闭
             if (window.opener) {
-              window.opener.postMessage({ type: 'baidu-oauth-callback', accessToken: accessToken, expiresIn: expiresIn }, '*');
+              window.opener.postMessage({ type: 'baidu-oauth-callback', accessToken: accessToken, expiresIn: expiresIn }, window.location.origin);
               window.close();
               return;
             }
             history.replaceState(null, '', window.location.pathname + window.location.search);
           }
         } catch (e) {
-          console.warn('[Admin] 百度网盘 token 提取失败:', e.message);
         }
       }
     })();
@@ -1133,9 +1131,7 @@
     // 初始化百度网盘设置管理器
     document.addEventListener('DOMContentLoaded', function() {
       if (window.baiduPanSettingsManager) {
-        window.baiduPanSettingsManager.init().catch(err => {
-          console.warn('[Admin] 百度网盘初始化失败:', err.message);
-        });
+        window.baiduPanSettingsManager.init().catch(() => {});
       }
     });
 

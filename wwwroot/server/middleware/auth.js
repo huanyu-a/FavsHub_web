@@ -88,4 +88,13 @@ function signToken(payload, expiresIn = '30d') {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
-module.exports = { authMiddleware, optionalAuth, signToken };
+// 验证 Token：成功返回 payload，失败返回 null
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { authMiddleware, optionalAuth, signToken, verifyToken };

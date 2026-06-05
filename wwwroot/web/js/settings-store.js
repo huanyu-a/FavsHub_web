@@ -70,7 +70,6 @@ const FavsHubSettings = (() => {
         await window.api.updateSettings(_cache);
       }
     } catch (e) {
-      console.warn('[Settings] 后端持久化失败:', e);
     }
   }
 

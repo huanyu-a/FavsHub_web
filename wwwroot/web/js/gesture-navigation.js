@@ -19,7 +19,6 @@ function navigateToParent(currentFolderId, updateDisplay) {
   
   // 只检查导航状态，移除时间锁定检查
   if (isNavigating) {
-    console.log('[Navigation] Skipped - navigation in progress');
     return;
   }
 
@@ -28,14 +27,12 @@ function navigateToParent(currentFolderId, updateDisplay) {
 
   chrome.bookmarks.get(currentFolderId, function(nodes) {
     if (chrome.runtime.lastError) {
-      console.error('[Navigation] Error:', chrome.runtime.lastError);
       isNavigating = false;
       return;
     }
 
     if (nodes && nodes[0] && nodes[0].parentId) {
       const parentId = nodes[0].parentId;
-      console.log('[Navigation] Navigating to parent folder:', parentId);
       
       if (parentId === "0") {
         updateDisplay("1").finally(() => {
@@ -55,7 +52,6 @@ function navigateToParent(currentFolderId, updateDisplay) {
         });
       }
     } else {
-      console.log('[Navigation] Failed to get parent folder info');
       isNavigating = false;
     }
   });

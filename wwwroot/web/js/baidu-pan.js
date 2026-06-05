@@ -157,7 +157,6 @@ class BaiduPanBackupManager {
   async startOAuth() {
     const appKey = await getAppKey();
     if (!appKey) {
-      console.error('[百度网盘] 百度网盘功能未配置，请设置 BAIDU_APP_KEY 环境变量');
       return;
     }
 
@@ -441,7 +440,6 @@ class BaiduPanBackupManager {
 
       return await this.performBackup();
     } catch (err) {
-      console.warn('[BaiduPan] 自动备份:', err.message);
       return null;
     }
   }
@@ -566,7 +564,6 @@ class BaiduPanSettingsManager {
 
   async renderConnectionStatus() {
     const connected = await this.manager.isConnected();
-    console.log('[BaiduPan] renderConnectionStatus - connected:', connected);
 
     if (connected) {
       try {
@@ -620,7 +617,6 @@ class BaiduPanSettingsManager {
         await this.renderCloudBackupHistory();
       }
     } catch (err) {
-      console.warn('[BaiduPan] 自动备份检查:', err.message);
     }
   }
 
@@ -635,7 +631,6 @@ class BaiduPanSettingsManager {
       this._showToast('百度网盘连接成功');
       await this.renderConnectionStatus();
     } catch (err) {
-      console.error('[BaiduPan] 连接失败:', err);
       this._showToast('授权失败，请重试');
     } finally {
       this.connectBtn.disabled = false;
@@ -667,7 +662,6 @@ class BaiduPanSettingsManager {
       } else if (err.message === 'NO_CHANGE') {
         this._showToast('数据无变化，不需上传');
       } else {
-        console.error('[BaiduPan] 上传失败:', err.message, 'errno:', err.errno);
         this._showToast(`云端备份失败：errno=${err.errno || err.message}`);
       }
     } finally {
@@ -697,7 +691,6 @@ class BaiduPanSettingsManager {
 
       this._showToast('下载完成');
     } catch (err) {
-      console.error('[BaiduPan] 下载失败:', err);
       this._showToast(`下载失败：${err.message || '请重试'}`);
     }
   }

@@ -16,7 +16,6 @@ class BackupManager {
       }
       return FavsHubSettings.get('backup_' + key) || null;
     } catch (err) {
-      console.warn(`[Backup] 读取配置 ${key} 失败:`, err);
       return null;
     }
   }
@@ -28,7 +27,6 @@ class BackupManager {
       }
       FavsHubSettings.set('backup_' + key, value);
     } catch (err) {
-      console.warn(`[Backup] 保存配置 ${key} 失败:`, err);
     }
   }
 
@@ -147,7 +145,6 @@ class BackupManager {
 
       return await this.performBackup();
     } catch (err) {
-      console.warn('[Backup] 自动备份:', err.message);
       return null;
     }
   }

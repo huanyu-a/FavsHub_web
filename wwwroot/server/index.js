@@ -31,8 +31,42 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
+// HTML 实体转义：防止 TDK 注入 XSS
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+// 内存速率限制器（轻量实现）
+function createRateLimit({ windowMs = 60000, max = 10 } = {}) {
+  const hits = new Map();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, list] of hits) {
+      const fresh = list.filter(t => now - t < windowMs);
+      fresh.length ? hits.set(key, fresh) : hits.delete(key);
+    }
+  }, windowMs * 2).unref();
+  return (req, res, next) => {
+    const key = req.ip;
+    const now = Date.now();
+    const list = (hits.get(key) || []).filter(t => now - t < windowMs);
+    if (list.length >= max) {
+      return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+    }
+    list.push(now);
+    hits.set(key, list);
+    next();
+  };
+}
+
 // API 路由
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth', createRateLimit({ windowMs: 60000, max: 20 }), require('./routes/auth'));
 app.use('/api/bookmarks', require('./routes/bookmarks'));
 app.use('/api/folders', require('./routes/folders'));
 app.use('/api/prompts', require('./routes/prompts'));
@@ -41,16 +75,19 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/admin', require('./routes/admin'));
 
-// 公开接口：获取百度 OAuth AppKey（从数据库 settings 读取）
+// 获取百度 OAuth AppKey（需登录，从数据库 settings 读取）
 app.get('/api/config/baidu-app-key', (req, res) => {
-  const db = require('./db');
-  const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
-  let appKey = '';
-  if (row && row.data) {
-    try { appKey = JSON.parse(row.data).baiduAppKey || ''; } catch {}
-  }
-  if (!appKey) return res.status(404).json({ error: '百度网盘功能未配置' });
-  res.json({ appKey });
+  const { authMiddleware } = require('./middleware/auth');
+  authMiddleware(req, res, () => {
+    const db = require('./db');
+    const row = db.prepare("SELECT data FROM settings WHERE user_id = 0").get();
+    let appKey = '';
+    if (row && row.data) {
+      try { appKey = JSON.parse(row.data).baiduAppKey || ''; } catch {}
+    }
+    if (!appKey) return res.status(404).json({ error: '百度网盘功能未配置' });
+    res.json({ appKey });
+  });
 });
 
 // 管理员：保存百度 AppKey
@@ -125,6 +162,20 @@ app.use((req, res, next) => {
   else if (isDirIndex) relativePath = req.path + 'index.html';
   const filePath = path.join(__dirname, '..', 'web', relativePath);
   if (!fs.existsSync(filePath)) return next();
+
+  // Admin 页面服务端拦截：未登录直接跳转登录页
+  if (req.path.startsWith('/admin')) {
+    const { verifyToken } = require('./middleware/auth');
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    }
+    if (!token || !verifyToken(token)) {
+      return res.redirect(302, '/login.html?redirect=/admin/');
+    }
+  }
+
   let html = fs.readFileSync(filePath, 'utf8');
   try {
     const db = require('./db');
@@ -135,15 +186,15 @@ app.use((req, res, next) => {
       const groupKey = Object.keys(TDK_GROUPS).find(k => k !== '_default' && req.path.startsWith('/' + k));
       const { title, description, keywords } = resolveTDK(data, groupKey ? TDK_GROUPS[groupKey] : null);
 
-      if (title) html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      if (title) html = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`);
       let metaTags = '';
       if (description) {
         html = html.replace(/<meta\s+name="description"[^>]*>\s*\n?/gi, '');
-        metaTags += `\n  <meta name="description" content="${description}">`;
+        metaTags += `\n  <meta name="description" content="${escapeHtml(description)}">`;
       }
       if (keywords) {
         html = html.replace(/<meta\s+name="keywords"[^>]*>\s*\n?/gi, '');
-        metaTags += `\n  <meta name="keywords" content="${keywords}">`;
+        metaTags += `\n  <meta name="keywords" content="${escapeHtml(keywords)}">`;
       }
       if (metaTags) {
         html = html.replace('</title>', `</title>${metaTags}`);

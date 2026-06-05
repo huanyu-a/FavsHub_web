@@ -56,7 +56,7 @@ class PromptProDB {
       }
       const data = await this._fetch('/prompts');
       return data.prompts || [];
-    } catch (e) { console.warn('[PromptDB] getAll:', storeName, e.message); return []; }
+    } catch (e) { return []; }
   }
 
   static _isNew = new Set(); // 跟踪新建对象ID
@@ -90,7 +90,7 @@ class PromptProDB {
         return null;
       }
       return null;
-    } catch (e) { console.warn('[PromptDB] put:', e.message); throw e; }
+    } catch (e) { throw e; }
   }
 
   static async get(storeName, key) {
@@ -110,7 +110,7 @@ class PromptProDB {
       if (storeName === 'folders') return this._fetch('/prompts/folders/' + key, { method: 'DELETE' });
       if (storeName === 'tags') return this._fetch('/tags/' + key, { method: 'DELETE' });
       return null;
-    } catch (e) { console.warn('[PromptDB] delete:', e.message); throw e; }
+    } catch (e) { throw e; }
   }
 
   static async getByIndex(storeName, indexName, value) {
@@ -339,7 +339,7 @@ class PromptProDB {
       if (payload.tag_relations) for (const r of payload.tag_relations) await this.put(STORAGE_KEYS.TAG_RELATIONS, r);
       if (payload.versions) for (const v of payload.versions) await this.put(STORAGE_KEYS.VERSIONS, v);
       return true;
-    } catch (error) { console.error('[PromptPro] ✗ 导入操作失败 | 错误信息:', error); return false; }
+    } catch (error) { return false; }
   }
 
   static async initSampleData() {
@@ -896,6 +896,7 @@ window.PromptProDB = PromptProDB;
   }
 
   async function openEditModal(prompt = null) {
+    if (typeof isGuest === 'function' && isGuest()) { showToast('请先登录后再编辑', 'error'); return; }
     state.editingPromptId = prompt ? prompt.prompt_id : null;
     state.formTags = [];
     state.currentPrompt = prompt;
@@ -1037,6 +1038,7 @@ window.PromptProDB = PromptProDB;
   }
 
   function openFolderModal() {
+    if (typeof isGuest === 'function' && isGuest()) { showToast('请先登录', 'error'); return; }
     const modal = document.getElementById('folderModal');
     if (!modal) return;
     document.getElementById('folderModalTitle').textContent = '新建文件夹';
@@ -1061,9 +1063,9 @@ window.PromptProDB = PromptProDB;
     modal.classList.add('active');
   }
   function closeFolderModal() { const modal = document.getElementById('folderModal'); if (modal) modal.classList.remove('active'); }
-  function openTagModal() { const modal = document.getElementById('tagModal'); if (modal) { document.getElementById('tagModalTitle').textContent = '新建标签'; document.getElementById('tagNameInput').value = ''; modal.classList.add('active'); } }
+  function openTagModal() { if (typeof isGuest === 'function' && isGuest()) { showToast('请先登录', 'error'); return; } const modal = document.getElementById('tagModal'); if (modal) { document.getElementById('tagModalTitle').textContent = '新建标签'; document.getElementById('tagNameInput').value = ''; modal.classList.add('active'); } }
   function closeTagModal() { const modal = document.getElementById('tagModal'); if (modal) modal.classList.remove('active'); }
-  function openDeleteModal() { const modal = document.getElementById('deleteModal'); if (modal) modal.classList.add('active'); }
+  function openDeleteModal() { if (typeof isGuest === 'function' && isGuest()) { showToast('请先登录', 'error'); return; } const modal = document.getElementById('deleteModal'); if (modal) modal.classList.add('active'); }
   function closeDeleteModal() { const modal = document.getElementById('deleteModal'); if (modal) modal.classList.remove('active'); }
 
   function bindEvents() {
@@ -1144,7 +1146,7 @@ window.PromptProDB = PromptProDB;
       if (loading) loading.style.display = 'none';
       initBackToTop();
       checkUrlParams();
-    } catch (error) { console.error('[PromptPro] 初始化失败:', error); if (loading) loading.innerHTML = `<div style="color: #EF4444;"><i class="ri-error-warning-line" style="font-size: 2rem;"></i><p>初始化失败</p><p style="font-size: 12px;">${error.message}</p></div>`; }
+    } catch (error) { if (loading) loading.innerHTML = `<div style="color: #EF4444;"><i class="ri-error-warning-line" style="font-size: 2rem;"></i><p>初始化失败</p></div>`; }
   }
 
   // 返回顶部按钮 (同时显示百分比和箭头)
@@ -1213,14 +1215,14 @@ window.PromptProDB = PromptProDB;
       try {
         const prompt = await PromptProDB.getPrompt(detailId);
         if (prompt) { setTimeout(() => { showPromptDetail(prompt.prompt_id); window.history.replaceState({}, '', window.location.pathname); }, 500); }
-      } catch (error) { console.error('[PromptPro] 显示操作失败:', error); }
+      } catch (error) { }
     }
 
     if (editId) {
       try {
         const prompt = await PromptProDB.getPrompt(editId);
         if (prompt) { setTimeout(() => { openEditModal(prompt); window.history.replaceState({}, '', window.location.pathname); }, 500); }
-      } catch (error) { console.error('[PromptPro] 显示和编辑操作失败:', error); }
+      } catch (error) { }
     }
   }
 
@@ -1312,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const importBtn = document.getElementById('importDataBtn');
   const importInput = document.getElementById('importFileInput');
   if (importBtn && importInput) {
-    importBtn.addEventListener('click', () => importInput.click());
+    importBtn.addEventListener('click', () => { if (typeof isGuest === 'function' && isGuest()) { showToast('请先登录', 'error'); return; } importInput.click(); });
 
     importInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -1332,7 +1334,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('导入失败，请重试', 'error');
           }
         } catch (err) {
-          console.error('[Import] 导入失败:', err);
           showToast('导入失败，请重试', 'error');
         }
       };
@@ -1369,7 +1370,6 @@ async function checkBackupSetup() {
                     confirmBtn.disabled = false;
                 }
             } catch (err) {
-                console.error('选择文件夹失败:', err);
             }
         });
 
@@ -1384,7 +1384,6 @@ async function checkBackupSetup() {
             }
         });
     } catch (err) {
-        console.error('检查备份目录失败:', err);
     }
 }
 
@@ -1430,7 +1429,6 @@ class PromptProSearch {
       this.prompts = await this.loadPrompts();
       this.initialized = true;
     } catch (error) {
-      console.error('[PromptPro Search] 初始化失败:', error);
     }
   }
 
@@ -1456,7 +1454,6 @@ class PromptProSearch {
 
       return this.prompts;
     } catch (e) {
-      console.warn('[PromptPro Search] 加载提示词失败:', e);
       return [];
     }
   }
@@ -1477,7 +1474,6 @@ class PromptProSearch {
         tags: tagsRes.data || []
       };
     } catch (e) {
-      console.warn('[PromptPro Search] 加载关联数据失败:', e);
       return { folders: [], tags: [] };
     }
   }
@@ -1669,7 +1665,6 @@ window.promptProSearch = new PromptProSearch();
 function initPromptProSearch() {
   if (window.promptProSearch.initialized) return;
   window.promptProSearch.init().catch(err => {
-    console.error('[PromptPro Search] 初始化失败:', err);
   });
 }
 
