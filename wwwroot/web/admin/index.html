@@ -375,8 +375,8 @@
               </div>
             </div>
             <table>
-              <thead><tr><th style="width:50px;">ID</th><th style="width:40px;">图标</th><th>标题</th><th style="width:280px;">URL</th><th style="width:100px;">文件夹</th><th style="width:80px;">用户</th><th style="width:120px;">操作</th></tr></thead>
-              <tbody id="bookmarks-table-body"><tr><td colspan="7" class="empty-state">加载中...</td></tr></tbody>
+              <thead><tr><th style="width:50px;">ID</th><th style="width:40px;">图标</th><th>标题</th><th style="width:280px;">URL</th><th style="width:100px;">文件夹</th><th style="width:80px;">用户</th><th style="width:70px;">可见性</th><th style="width:120px;">操作</th></tr></thead>
+              <tbody id="bookmarks-table-body"><tr><td colspan="8" class="empty-state">加载中...</td></tr></tbody>
             </table>
             <div id="bookmarks-pagination" class="pagination"></div>
           </div>
@@ -464,8 +464,8 @@
               </div>
             </div>
             <table>
-              <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>更新时间</th><th>操作</th></tr></thead>
-              <tbody id="prompts-table-body"><tr><td colspan="8" class="empty-state">加载中...</td></tr></tbody>
+              <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>可见性</th><th>更新时间</th><th>操作</th></tr></thead>
+              <tbody id="prompts-table-body"><tr><td colspan="9" class="empty-state">加载中...</td></tr></tbody>
             </table>
             <div id="prompts-pagination" class="pagination"></div>
           </div>
@@ -985,9 +985,50 @@
           <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">图标 URL (favicon)</label>
           <input type="text" id="edit-bookmark-icon" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="https://www.google.com/s2/favicons?domain=example.com">
         </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+            <input type="checkbox" id="edit-bookmark-login-required"> 登录可见（勾选后仅登录用户可查看）
+          </label>
+        </div>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
           <button class="btn btn-ghost" onclick="closeEditModal()">取消</button>
           <button class="btn btn-primary" onclick="saveBookmarkEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑提示词弹窗 -->
+  <div class="modal-overlay" id="edit-prompt-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>编辑提示词</h3>
+        <button class="modal-close" onclick="closePromptEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-prompt-id">
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">标题</label>
+          <input type="text" id="edit-prompt-title" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="提示词标题">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">描述</label>
+          <input type="text" id="edit-prompt-description" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="提示词描述">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">文件夹</label>
+          <select id="edit-prompt-folder" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            <option value="">无文件夹</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+            <input type="checkbox" id="edit-prompt-login-required"> 登录可见（勾选后仅登录用户可查看）
+          </label>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn btn-ghost" onclick="closePromptEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="savePromptEdit()">保存</button>
         </div>
       </div>
     </div>
@@ -1168,6 +1209,7 @@
     function handlePromptAction(action, id) {
       const row = event.target.closest('tr');
       if (action === 'viewPromptHistory') viewPromptHistory(id, row.dataset.promptTitle);
+      else if (action === 'editPrompt') editPrompt(id);
       else if (action === 'deletePrompt') deletePrompt(id, row.dataset.promptTitle);
     }
 
@@ -1341,6 +1383,7 @@
 
     // === 书签管理（两级下拉联动筛选） ===
     let allBookmarks = [];
+    let allPrompts = [];
     let allFolders = [];
     const PAGE_SIZE = 20;
     let bookmarkPage = 1;
@@ -1382,7 +1425,7 @@
         updateEditFolderSelect();
         applyFilter();
       } catch (err) {
-        document.getElementById('bookmarks-table-body').innerHTML = `<tr><td colspan="7" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+        document.getElementById('bookmarks-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1599,6 +1642,7 @@
           <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeAttr(sanitizeUrl(b.url))}" target="_blank" style="color:#667eea;">${escapeHtml(b.url)}</a></td>
           <td>${escapeHtml(b.folder_name || '-')}</td>
           <td>${escapeHtml(b.username || '-')}</td>
+          <td>${b.login_required ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:11px;">登录</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">公开</span>'}</td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="editBookmark(${b.id})" style="margin-right:4px;">编辑</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBookmark(${b.id})">删除</button>
@@ -1616,6 +1660,7 @@
       document.getElementById('edit-bookmark-title').value = bookmark.title;
       document.getElementById('edit-bookmark-url').value = bookmark.url;
       document.getElementById('edit-bookmark-icon').value = bookmark.icon || '';
+      document.getElementById('edit-bookmark-login-required').checked = !!bookmark.login_required;
 
       const folderSelect = document.getElementById('edit-bookmark-folder');
       folderSelect.value = bookmark.folder_id || '';
@@ -1633,11 +1678,12 @@
       const url = document.getElementById('edit-bookmark-url').value.trim();
       const folderId = document.getElementById('edit-bookmark-folder').value;
       const icon = document.getElementById('edit-bookmark-icon').value.trim();
+      const loginRequired = document.getElementById('edit-bookmark-login-required').checked ? 1 : 0;
 
       if (!title || !url) { alert('标题和 URL 不能为空'); return; }
 
       try {
-        await api.updateAdminBookmark(id, { title, url, folder_id: folderId ? parseInt(folderId) : null, icon: icon || null });
+        await api.updateAdminBookmark(id, { title, url, folder_id: folderId ? parseInt(folderId) : null, icon: icon || null, login_required: loginRequired });
         alert('书签已更新');
         closeEditModal();
         loadBookmarks();
@@ -2202,11 +2248,12 @@
       try {
         const data = await api.getAdminPrompts();
         const prompts = data.prompts || [];
+        allPrompts = prompts;
         document.getElementById('prompts-total').textContent = prompts.length;
         renderPromptsTable(prompts);
         updatePromptStats();
       } catch (err) {
-        document.getElementById('prompts-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+        document.getElementById('prompts-table-body').innerHTML = `<tr><td colspan="9" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -2258,7 +2305,7 @@
     function renderPromptsTable(prompts) {
       const tbody = document.getElementById('prompts-table-body');
       if (!prompts.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-chat-quote-line"></i>暂无提示词</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="ri-chat-quote-line"></i>暂无提示词</td></tr>';
         document.getElementById('prompts-pagination').innerHTML = '';
         return;
       }
@@ -2276,9 +2323,11 @@
           <td>${p.tags && p.tags.length ? p.tags.map(t => `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin:1px;">${escapeHtml(t)}</span>`).join('') : '-'}</td>
           <td>${escapeHtml(p.username || '-')}</td>
           <td>v${escapeHtml(p.current_version || '1.0.0')}</td>
+          <td>${p.login_required ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:11px;">登录</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">公开</span>'}</td>
           <td>${p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</td>
           <td>
             <button class="btn btn-ghost btn-sm" onclick="handlePromptAction('viewPromptHistory', '${escapeAttr(String(p.id))}')" style="margin-right:4px;">历史</button>
+            <button class="btn btn-ghost btn-sm" onclick="handlePromptAction('editPrompt', '${escapeAttr(String(p.id))}')" style="margin-right:4px;">编辑</button>
             <button class="btn btn-danger btn-sm" onclick="handlePromptAction('deletePrompt', '${escapeAttr(String(p.id))}')">删除</button>
           </td>
         </tr>
@@ -2324,6 +2373,48 @@
         loadPrompts();
         loadStats();
       } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    // === 提示词编辑 ===
+    function editPrompt(promptId) {
+      const prompt = allPrompts.find(p => String(p.id) === String(promptId));
+      if (!prompt) return;
+
+      document.getElementById('edit-prompt-id').value = prompt.id;
+      document.getElementById('edit-prompt-title').value = prompt.title || '';
+      document.getElementById('edit-prompt-description').value = prompt.description || '';
+      document.getElementById('edit-prompt-login-required').checked = !!prompt.login_required;
+
+      // 填充文件夹下拉
+      const folderSelect = document.getElementById('edit-prompt-folder');
+      folderSelect.innerHTML = '<option value="">无文件夹</option>';
+      (allPromptFolders || []).forEach(f => {
+        folderSelect.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)}</option>`;
+      });
+      folderSelect.value = prompt.folder_id || '';
+
+      document.getElementById('edit-prompt-modal').classList.add('active');
+    }
+
+    function closePromptEditModal() {
+      document.getElementById('edit-prompt-modal').classList.remove('active');
+    }
+
+    async function savePromptEdit() {
+      const id = document.getElementById('edit-prompt-id').value;
+      const title = document.getElementById('edit-prompt-title').value.trim();
+      const description = document.getElementById('edit-prompt-description').value.trim();
+      const folderId = document.getElementById('edit-prompt-folder').value;
+      const loginRequired = document.getElementById('edit-prompt-login-required').checked ? 1 : 0;
+
+      if (!title) { alert('标题不能为空'); return; }
+
+      try {
+        await api.updateAdminPrompt(id, { title, description, folder_id: folderId ? parseInt(folderId) : null, login_required: loginRequired });
+        alert('提示词已更新');
+        closePromptEditModal();
+        loadPrompts();
+      } catch (err) { alert('更新失败: ' + err.message); }
     }
 
     async function exportPromptsJSON() {

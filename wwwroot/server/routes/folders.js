@@ -1,14 +1,28 @@
 const { Router } = require('express');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
-router.use(authMiddleware);
 
-// 获取文件夹列表
-router.get('/', (req, res) => {
+// 获取文件夹列表（游客：管理员的文件夹；登录用户：自己的 + 管理员的）
+router.get('/', optionalAuth, (req, res) => {
   try {
-    const folders = db.prepare('SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, created_at').all(req.user.id);
+    let folders;
+    if (req.user) {
+      // 登录用户：自己的全部 + 管理员的
+      folders = db.prepare(`
+        SELECT * FROM folders
+        WHERE user_id = ? OR user_id IN (SELECT id FROM users WHERE is_admin = 1)
+        ORDER BY sort_order, created_at
+      `).all(req.user.id);
+    } else {
+      // 游客：只看管理员的文件夹
+      folders = db.prepare(`
+        SELECT * FROM folders
+        WHERE user_id IN (SELECT id FROM users WHERE is_admin = 1)
+        ORDER BY sort_order, created_at
+      `).all();
+    }
     res.json({ folders });
   } catch (err) {
     console.error('[folders] GET / error:', err.message);
@@ -17,7 +31,7 @@ router.get('/', (req, res) => {
 });
 
 // 创建文件夹
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, (req, res) => {
   try {
     const { name, parent_id } = req.body;
     if (!name) return res.status(400).json({ error: '文件夹名称不能为空' });
@@ -34,7 +48,7 @@ router.post('/', (req, res) => {
 });
 
 // 更新文件夹
-router.put('/:id', (req, res) => {
+router.put('/:id', authMiddleware, (req, res) => {
   try {
     const { name, sort_order } = req.body;
     const folder = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
@@ -55,7 +69,7 @@ router.put('/:id', (req, res) => {
 });
 
 // 删除文件夹（子文件夹和书签的 folder_id 置空）
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authMiddleware, (req, res) => {
   try {
     const folder = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!folder) return res.status(404).json({ error: '文件夹不存在' });

@@ -1,12 +1,13 @@
 const { Router } = require('express');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
-router.use(authMiddleware);
 
 // 获取设置（系统默认 + 用户偏好合并，用户偏好优先）
-router.get('/', (req, res) => {
+// 游客：只返回系统默认设置
+// 登录用户：系统默认 + 用户偏好合并
+router.get('/', optionalAuth, (req, res) => {
   try {
     // 系统默认设置（user_id=0，管理员设定）
     const sysRow = db.prepare('SELECT data FROM settings WHERE user_id = 0').get();
@@ -15,6 +16,11 @@ router.get('/', (req, res) => {
       try { sysData = JSON.parse(sysRow.data); } catch (e) {
         console.warn('[Settings] 系统默认设置 JSON 解析失败:', e.message);
       }
+    }
+
+    // 游客只返回系统默认
+    if (!req.user) {
+      return res.json({ data: sysData });
     }
 
     // 用户个人偏好（per-user，仅该用户可见）
@@ -36,7 +42,7 @@ router.get('/', (req, res) => {
 });
 
 // 更新设置（仅写入当前用户的偏好行，不影响系统默认值）
-router.put('/', (req, res) => {
+router.put('/', authMiddleware, (req, res) => {
   try {
     const { data } = req.body;
     if (!data || typeof data !== 'object') {

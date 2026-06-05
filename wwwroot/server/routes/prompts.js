@@ -1,17 +1,30 @@
 const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
-router.use(authMiddleware);
 
 // 获取提示词列表
-router.get('/', (req, res) => {
+// 游客：只看管理员的公开提示词
+// 登录用户：自己的全部 + 管理员的公开
+router.get('/', optionalAuth, (req, res) => {
   try {
     const { folder_id, tag_ids, search, favorites } = req.query;
-    let sql = 'SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE p.user_id = ?';
-    const params = [req.user.id];
+    const userId = req.user ? req.user.id : null;
+
+    // 可见性条件
+    let visibilityClause;
+    const visParams = [];
+    if (userId) {
+      visibilityClause = '(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))';
+      visParams.push(userId);
+    } else {
+      visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))';
+    }
+
+    let sql = `SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE ${visibilityClause}`;
+    const params = [...visParams];
 
     if (folder_id) {
       sql += ' AND p.folder_id = ?';
@@ -77,10 +90,15 @@ router.get('/', (req, res) => {
 
 // 获取单个提示词（含版本历史）
 // 获取/保存提示词的版本历史
-router.get('/versions/:promptId', (req, res) => {
+router.get('/versions/:promptId', optionalAuth, (req, res) => {
   try {
-    // 验证所有权：通过 prompts 表确保当前用户拥有该提示词
-    const prompt = db.prepare('SELECT id FROM prompts WHERE id = ? AND user_id = ?').get(req.params.promptId, req.user.id);
+    const userId = req.user ? req.user.id : null;
+    let prompt;
+    if (userId) {
+      prompt = db.prepare('SELECT id FROM prompts WHERE id = ? AND (user_id = ? OR (login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))').get(req.params.promptId, userId);
+    } else {
+      prompt = db.prepare('SELECT id FROM prompts WHERE id = ? AND login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)').get(req.params.promptId);
+    }
     if (!prompt) return res.status(404).json({ error: '提示词不存在' });
 
     const versions = db.prepare('SELECT * FROM prompt_versions WHERE prompt_id = ? ORDER BY created_at DESC').all(req.params.promptId);
@@ -91,7 +109,7 @@ router.get('/versions/:promptId', (req, res) => {
   }
 });
 
-router.post('/versions/:promptId', (req, res) => {
+router.post('/versions/:promptId', authMiddleware, (req, res) => {
   try {
     // 验证所有权
     const prompt = db.prepare('SELECT id FROM prompts WHERE id = ? AND user_id = ?').get(req.params.promptId, req.user.id);
@@ -110,13 +128,23 @@ router.post('/versions/:promptId', (req, res) => {
 });
 
 // 标签关联列表（必须在 /:id 之前）
-router.get('/tag-relations', (req, res) => {
+router.get('/tag-relations', optionalAuth, (req, res) => {
   try {
-    const relations = db.prepare(`
-      SELECT pt.* FROM prompt_tags pt
-      JOIN prompts p ON pt.prompt_id = p.id
-      WHERE p.user_id = ?
-    `).all(req.user.id);
+    const userId = req.user ? req.user.id : null;
+    let relations;
+    if (userId) {
+      relations = db.prepare(`
+        SELECT pt.* FROM prompt_tags pt
+        JOIN prompts p ON pt.prompt_id = p.id
+        WHERE (p.user_id = ?) OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))
+      `).all(userId);
+    } else {
+      relations = db.prepare(`
+        SELECT pt.* FROM prompt_tags pt
+        JOIN prompts p ON pt.prompt_id = p.id
+        WHERE p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)
+      `).all();
+    }
     res.json({ relations });
   } catch (err) {
     console.error('[prompts] GET /tag-relations error:', err.message);
@@ -124,9 +152,15 @@ router.get('/tag-relations', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', optionalAuth, (req, res) => {
   try {
-    const prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    const userId = req.user ? req.user.id : null;
+    let prompt;
+    if (userId) {
+      prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND (user_id = ? OR (login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))').get(req.params.id, userId);
+    } else {
+      prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)').get(req.params.id);
+    }
     if (!prompt) return res.status(404).json({ error: '提示词不存在' });
 
     prompt.tags = db.prepare('SELECT t.* FROM tags t JOIN prompt_tags pt ON t.id = pt.tag_id WHERE pt.prompt_id = ?').all(prompt.id).map(t => ({ ...t, tag_id: t.id, tag_name: t.name }));
@@ -141,16 +175,20 @@ router.get('/:id', (req, res) => {
 });
 
 // 创建提示词
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, (req, res) => {
   try {
-    const { title, description, content, folder_id, tags } = req.body;
+    const { title, description, content, folder_id, tags, login_required } = req.body;
     if (!title || !content) return res.status(400).json({ error: '标题和内容不能为空' });
+
+    // 只有管理员可设置 login_required
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.user.id);
+    const lr = (user && user.is_admin && login_required) ? 1 : 0;
 
     const id = uuidv4();
     const now = Date.now();
 
-    db.prepare(`INSERT INTO prompts (id, user_id, title, description, content, folder_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, req.user.id, title, description || '', content, folder_id || null, now, now);
+    db.prepare(`INSERT INTO prompts (id, user_id, title, description, content, folder_id, login_required, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, req.user.id, title, description || '', content, folder_id || null, lr, now, now);
 
     // 创建初始版本
     const versionId = uuidv4();
@@ -175,9 +213,9 @@ router.post('/', (req, res) => {
 });
 
 // 更新提示词
-router.put('/:id', (req, res) => {
+router.put('/:id', authMiddleware, (req, res) => {
   try {
-    const { title, description, content, folder_id, tags, is_favorite } = req.body;
+    const { title, description, content, folder_id, tags, is_favorite, login_required } = req.body;
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!prompt) return res.status(404).json({ error: '提示词不存在' });
 
@@ -200,6 +238,14 @@ router.put('/:id', (req, res) => {
 
     db.prepare('UPDATE prompts SET updated_at = ? WHERE id = ?').run(now, prompt.id);
 
+    // 只有管理员可修改 login_required
+    if (login_required !== undefined) {
+      const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.user.id);
+      if (user && user.is_admin) {
+        db.prepare('UPDATE prompts SET login_required = ? WHERE id = ?').run(login_required ? 1 : 0, prompt.id);
+      }
+    }
+
     // 更新标签
     if (tags !== undefined) {
       db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(prompt.id);
@@ -219,7 +265,7 @@ router.put('/:id', (req, res) => {
 });
 
 // 删除提示词
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authMiddleware, (req, res) => {
   try {
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!prompt) return res.status(404).json({ error: '提示词不存在' });
@@ -233,7 +279,7 @@ router.delete('/:id', (req, res) => {
 });
 
 // 恢复版本
-router.post('/:id/restore', (req, res) => {
+router.post('/:id/restore', authMiddleware, (req, res) => {
   try {
     const { version_id } = req.body;
     const prompt = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
@@ -261,12 +307,25 @@ router.post('/:id/restore', (req, res) => {
 
 // ===== Prompt 文件夹 =====
 
-router.get('/folders/all', (req, res) => {
+router.get('/folders/all', optionalAuth, (req, res) => {
   try {
-    const folders = db.prepare(`
-      SELECT pf.*, (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id) as prompt_count
-      FROM prompt_folders pf WHERE pf.user_id = ? ORDER BY pf.created_at
-    `).all(req.user.id);
+    const userId = req.user ? req.user.id : null;
+    let folders;
+    if (userId) {
+      folders = db.prepare(`
+        SELECT pf.*, (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id AND (user_id = ? OR (login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))) as prompt_count
+        FROM prompt_folders pf
+        WHERE (pf.user_id = ?) OR (pf.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND pf.id IN (SELECT folder_id FROM prompts WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))
+        ORDER BY pf.created_at
+      `).all(userId, userId);
+    } else {
+      folders = db.prepare(`
+        SELECT pf.*, (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id AND login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)) as prompt_count
+        FROM prompt_folders pf
+        WHERE pf.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND pf.id IN (SELECT folder_id FROM prompts WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1))
+        ORDER BY pf.created_at
+      `).all();
+    }
     // 兼容前端期望的 folder_id 字段
     res.json({ folders: folders.map(f => ({ ...f, folder_id: f.id, folder_name: f.name })) });
   } catch (err) {
@@ -276,7 +335,7 @@ router.get('/folders/all', (req, res) => {
 });
 
 // 创建文件夹
-router.post('/folders', (req, res) => {
+router.post('/folders', authMiddleware, (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: '名称不能为空' });
@@ -294,7 +353,7 @@ router.post('/folders', (req, res) => {
 });
 
 // 更新文件夹
-router.put('/folders/:id', (req, res) => {
+router.put('/folders/:id', authMiddleware, (req, res) => {
   try {
     const { name, parent_id, icon } = req.body;
     const folder = db.prepare('SELECT * FROM prompt_folders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
@@ -313,7 +372,7 @@ router.put('/folders/:id', (req, res) => {
 });
 
 // 删除文件夹（提示词 folder_id 置空）
-router.delete('/folders/:id', (req, res) => {
+router.delete('/folders/:id', authMiddleware, (req, res) => {
   try {
     const folder = db.prepare('SELECT * FROM prompt_folders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!folder) return res.status(404).json({ error: '文件夹不存在' });

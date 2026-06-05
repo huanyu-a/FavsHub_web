@@ -64,7 +64,9 @@ const FavsHubSettings = (() => {
 
   async function _persistToBackend() {
     try {
-      if (window.api && typeof window.api.updateSettings === 'function') {
+      // 游客不持久化设置
+      if (!window.api || !window.api.isLoggedIn()) return;
+      if (typeof window.api.updateSettings === 'function') {
         await window.api.updateSettings(_cache);
       }
     } catch (e) {

@@ -1,19 +1,33 @@
 const { Router } = require('express');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
-router.use(authMiddleware);
 
 // 获取书签 + 文件夹列表（支持 search 参数搜索）
-router.get('/', (req, res) => {
+// 游客：只看管理员的公开书签
+// 登录用户：自己的全部 + 管理员的公开
+router.get('/', optionalAuth, (req, res) => {
   try {
     const { folder_id, search } = req.query;
-    let sql = 'SELECT * FROM bookmarks WHERE user_id = ?';
-    const params = [req.user.id];
+    const userId = req.user ? req.user.id : null;
+
+    // 构建可见性条件
+    let visibilityClause;
+    const visParams = [];
+    if (userId) {
+      // 登录用户：自己的全部 + 管理员的公开
+      visibilityClause = '(b.user_id = ? OR (b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1)))';
+      visParams.push(userId);
+    } else {
+      // 游客：只看管理员的公开
+      visibilityClause = '(b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1))';
+    }
+
+    let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause}`;
+    const params = [...visParams];
 
     if (search) {
-      // 多关键词全文搜索：匹配任一关键词即返回（OR 逻辑），前端按 calculateRelevance 评分排序
       const keywords = search.split(/\s+/).filter(k => k.length > 0);
       const conditions = keywords.map(kw => {
         let domainQ = `%${kw}%`;
@@ -21,7 +35,7 @@ router.get('/', (req, res) => {
           const match = kw.match(/^[\w.-]+\.[\w]{2,}/);
           if (match) domainQ = `%${match[0]}%`;
         } catch (e) {}
-        return '(title LIKE ? OR url LIKE ? OR url LIKE ?)';
+        return '(b.title LIKE ? OR b.url LIKE ? OR b.url LIKE ?)';
       });
       sql += ' AND (' + conditions.join(' OR ') + ')';
       for (const kw of keywords) {
@@ -36,13 +50,23 @@ router.get('/', (req, res) => {
     }
 
     if (folder_id) {
-      sql += ' AND folder_id = ?';
+      sql += ' AND b.folder_id = ?';
       params.push(folder_id);
     }
 
-    sql += ' ORDER BY sort_order, created_at';
+    sql += ' ORDER BY b.sort_order, b.created_at';
     const bookmarks = db.prepare(sql).all(...params);
-    const folders = db.prepare('SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order, created_at').all(req.user.id);
+
+    // 文件夹：同样的可见性逻辑
+    let folderSql;
+    let folderParams = [];
+    if (userId) {
+      folderSql = `SELECT DISTINCT fo.* FROM folders fo WHERE (fo.user_id = ? OR (fo.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND fo.id IN (SELECT folder_id FROM bookmarks WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))) ORDER BY fo.sort_order, fo.created_at`;
+      folderParams = [userId];
+    } else {
+      folderSql = `SELECT DISTINCT fo.* FROM folders fo WHERE fo.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND fo.id IN (SELECT folder_id FROM bookmarks WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)) ORDER BY fo.sort_order, fo.created_at`;
+    }
+    const folders = db.prepare(folderSql).all(...folderParams);
     res.json({ bookmarks, folders });
   } catch (err) {
     console.error('[bookmarks] GET / error:', err.message);
@@ -51,14 +75,18 @@ router.get('/', (req, res) => {
 });
 
 // 创建书签
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, (req, res) => {
   try {
-    const { title, url, folder_id, icon } = req.body;
+    const { title, url, folder_id, icon, login_required } = req.body;
     if (!title || !url) return res.status(400).json({ error: '标题和 URL 不能为空' });
+
+    // 只有管理员可设置 login_required
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.user.id);
+    const lr = (user && user.is_admin && login_required) ? 1 : 0;
 
     const now = Date.now();
     const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM bookmarks WHERE user_id = ?').get(req.user.id);
-    const result = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(req.user.id, title, url, folder_id || null, icon || null, (maxOrder?.m || 0) + 1, 'web', now, now);
+    const result = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, source, login_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(req.user.id, title, url, folder_id || null, icon || null, (maxOrder?.m || 0) + 1, 'web', lr, now, now);
 
     const bookmark = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(result.lastInsertRowid);
     res.json({ bookmark });
@@ -69,7 +97,7 @@ router.post('/', (req, res) => {
 });
 
 // 批量重排序（必须在 /:id 之前）
-router.put('/reorder', (req, res) => {
+router.put('/reorder', authMiddleware, (req, res) => {
   try {
     const { items } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'items 必须是数组' });
@@ -91,9 +119,9 @@ router.put('/reorder', (req, res) => {
 });
 
 // 更新书签
-router.put('/:id', (req, res) => {
+router.put('/:id', authMiddleware, (req, res) => {
   try {
-    const { title, url, folder_id, sort_order, icon } = req.body;
+    const { title, url, folder_id, sort_order, icon, login_required } = req.body;
     const bookmark = db.prepare('SELECT * FROM bookmarks WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!bookmark) return res.status(404).json({ error: '书签不存在' });
 
@@ -103,6 +131,13 @@ router.put('/:id', (req, res) => {
     if (folder_id !== undefined) db.prepare('UPDATE bookmarks SET folder_id = ?, updated_at = ? WHERE id = ?').run(folder_id, now, bookmark.id);
     if (sort_order !== undefined) db.prepare('UPDATE bookmarks SET sort_order = ?, updated_at = ? WHERE id = ?').run(sort_order, now, bookmark.id);
     if (icon !== undefined) db.prepare('UPDATE bookmarks SET icon = ?, updated_at = ? WHERE id = ?').run(icon, now, bookmark.id);
+    // 只有管理员可修改 login_required
+    if (login_required !== undefined) {
+      const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.user.id);
+      if (user && user.is_admin) {
+        db.prepare('UPDATE bookmarks SET login_required = ?, updated_at = ? WHERE id = ?').run(login_required ? 1 : 0, now, bookmark.id);
+      }
+    }
 
     const updated = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(bookmark.id);
     res.json({ bookmark: updated });
@@ -113,7 +148,7 @@ router.put('/:id', (req, res) => {
 });
 
 // 删除书签
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authMiddleware, (req, res) => {
   try {
     const bookmark = db.prepare('SELECT * FROM bookmarks WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!bookmark) return res.status(404).json({ error: '书签不存在' });

@@ -158,7 +158,7 @@ router.delete('/bookmarks/:id', (req, res) => {
 router.put('/bookmarks/:id', (req, res) => {
   const bookmarkId = parseInt(req.params.id);
   if (isNaN(bookmarkId)) return res.status(400).json({ error: '无效的书签 ID' });
-  const { title, url, folder_id } = req.body;
+  const { title, url, folder_id, icon, login_required } = req.body;
   const bookmark = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(bookmarkId);
   if (!bookmark) return res.status(404).json({ error: '书签不存在' });
 
@@ -166,6 +166,8 @@ router.put('/bookmarks/:id', (req, res) => {
   if (title !== undefined) db.prepare('UPDATE bookmarks SET title = ?, updated_at = ? WHERE id = ?').run(title, now, bookmarkId);
   if (url !== undefined) db.prepare('UPDATE bookmarks SET url = ?, updated_at = ? WHERE id = ?').run(url, now, bookmarkId);
   if (folder_id !== undefined) db.prepare('UPDATE bookmarks SET folder_id = ?, updated_at = ? WHERE id = ?').run(folder_id !== 0 ? folder_id : null, now, bookmarkId);
+  if (icon !== undefined) db.prepare('UPDATE bookmarks SET icon = ?, updated_at = ? WHERE id = ?').run(icon, now, bookmarkId);
+  if (login_required !== undefined) db.prepare('UPDATE bookmarks SET login_required = ?, updated_at = ? WHERE id = ?').run(login_required ? 1 : 0, now, bookmarkId);
 
   const updated = db.prepare('SELECT b.*, f.name as folder_name, u.username FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id LEFT JOIN users u ON b.user_id = u.id WHERE b.id = ?').get(bookmarkId);
   res.json({ bookmark: updated });
@@ -332,6 +334,31 @@ router.get('/prompts', (req, res) => {
   }
 
   res.json({ prompts });
+});
+
+// 更新提示词（管理员）
+router.put('/prompts/:id', (req, res) => {
+  const promptId = req.params.id;
+  if (!promptId) return res.status(400).json({ error: '无效的提示词 ID' });
+  const prompt = db.prepare('SELECT id FROM prompts WHERE id = ?').get(promptId);
+  if (!prompt) return res.status(404).json({ error: '提示词不存在' });
+
+  const { title, description, content, folder_id, login_required } = req.body;
+  const now = Date.now();
+  if (title !== undefined) db.prepare('UPDATE prompts SET title = ?, updated_at = ? WHERE id = ?').run(title, now, promptId);
+  if (description !== undefined) db.prepare('UPDATE prompts SET description = ?, updated_at = ? WHERE id = ?').run(description, now, promptId);
+  if (content !== undefined) db.prepare('UPDATE prompts SET content = ?, updated_at = ? WHERE id = ?').run(content, now, promptId);
+  if (folder_id !== undefined) db.prepare('UPDATE prompts SET folder_id = ?, updated_at = ? WHERE id = ?').run(folder_id || null, now, promptId);
+  if (login_required !== undefined) db.prepare('UPDATE prompts SET login_required = ?, updated_at = ? WHERE id = ?').run(login_required ? 1 : 0, now, promptId);
+
+  const updated = db.prepare(`
+    SELECT p.*, u.username, pf.name as folder_name
+    FROM prompts p
+    LEFT JOIN users u ON p.user_id = u.id
+    LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
+    WHERE p.id = ?
+  `).get(promptId);
+  res.json({ prompt: updated });
 });
 
 router.delete('/prompts/:id', (req, res) => {

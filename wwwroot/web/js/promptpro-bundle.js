@@ -1125,11 +1125,19 @@ window.PromptProDB = PromptProDB;
     // 仅在 promptpro 页面执行，避免覆盖主页导航
     if (!isPromptProPage()) return;
 
+    // 游客模式：设置 body 属性
+    if (typeof isGuest === 'function' && isGuest()) {
+      document.body.setAttribute('data-guest', 'true');
+    }
+
     const loading = document.getElementById('loading');
     if (loading) loading.style.display = 'flex';
     try {
       await PromptProDB.init();
-      await PromptProDB.initSampleData();
+      // 游客模式：跳过示例数据初始化（游客只看管理员公开数据）
+      if (!(typeof isGuest === 'function' && isGuest())) {
+        await PromptProDB.initSampleData();
+      }
       await loadAll();
       bindEvents();
       initCustomSelects();

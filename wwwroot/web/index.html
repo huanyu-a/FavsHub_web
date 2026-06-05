@@ -11,10 +11,27 @@
   <link href="css/mobile-responsive.css?v=19" rel="stylesheet">
   <link href="vendor/remixicon.css" rel="stylesheet">
   <style id="dynamic-background"></style>
+  <style id="guest-mode-css">
+    /* 游客模式：隐藏编辑/添加/删除/拖拽等操作控件 */
+    body[data-guest="true"] .bookmark-card .bookmark-edit-btn,
+    body[data-guest="true"] .bookmark-card .bookmark-delete-btn,
+    body[data-guest="true"] .folder-card .folder-edit-btn,
+    body[data-guest="true"] .folder-card .folder-delete-btn,
+    body[data-guest="true"] .add-bookmark-card,
+    body[data-guest="true"] .sidebar-toolbar #history-link,
+    body[data-guest="true"] .sidebar-toolbar #downloads-link,
+    body[data-guest="true"] .sidebar-toolbar #passwords-link,
+    body[data-guest="true"] .sidebar-toolbar #extensions-link,
+    body[data-guest="true"] #logout-link,
+    body[data-guest="true"] #admin-link { display: none !important; }
+    body[data-guest="true"] .bookmark-card { cursor: pointer !important; }
+    body[data-guest="true"] .bookmark-card[draggable],
+    body[data-guest="true"] .folder-card[draggable] { cursor: pointer !important; }
+  </style>
   <script src="js/utils.js?v=1"></script>
-  <script src="js/chrome-shim.js?v=11"></script>
-  <script src="/js/api.js?v=6"></script>
-  <script src="js/settings-store.js?v=3"></script>
+  <script src="js/chrome-shim.js?v=12"></script>
+  <script src="/js/api.js?v=7"></script>
+  <script src="js/settings-store.js?v=4"></script>
   <script src="vendor/lodash.min.js"></script>
   <script defer src="js/icons.js?v=2"></script>
   <script defer src="js/gesture-navigation.js"></script>

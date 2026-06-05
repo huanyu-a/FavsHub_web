@@ -184,6 +184,8 @@ ensureColumn('bookmarks', 'updated_at', 'ALTER TABLE bookmarks ADD COLUMN update
 ensureColumn('bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT ''");
 ensureColumn('folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER');
 ensureColumn('users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''");
+ensureColumn('bookmarks', 'login_required', 'ALTER TABLE bookmarks ADD COLUMN login_required INTEGER DEFAULT 0');
+ensureColumn('prompts', 'login_required', 'ALTER TABLE prompts ADD COLUMN login_required INTEGER DEFAULT 0');
 
 // 唯一索引：支持增量合并的 upsert 操作（以 url 为基准去重）
 try {

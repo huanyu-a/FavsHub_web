@@ -17,6 +17,20 @@
     <link rel="stylesheet" href="../css/index-sidebar-fix.css">
     <link rel="stylesheet" href="../css/promptpro-page.css">
     <link rel="stylesheet" href="../css/mobile-responsive.css?v=19">
+    <style id="guest-mode-css">
+      /* 游客模式：隐藏编辑/创建/删除/文件夹管理等操作 */
+      body[data-guest="true"] #createPromptBtn,
+      body[data-guest="true"] #addFolderBtn,
+      body[data-guest="true"] #addTagBtn,
+      body[data-guest="true"] .prompt-card .btn-edit,
+      body[data-guest="true"] .prompt-card .btn-delete,
+      body[data-guest="true"] #editPromptBtn,
+      body[data-guest="true"] #deletePromptBtn,
+      body[data-guest="true"] .tag-chip-delete,
+      body[data-guest="true"] #importDataBtn,
+      body[data-guest="true"] #exportDataBtn,
+      body[data-guest="true"] #backupSetupModal { display: none !important; }
+    </style>
 </head>
 <body>
     <div id="sidebar-container" class="flex">
@@ -345,7 +359,7 @@
         </div>
     </div>
 
-    <script src="../js/chrome-shim.js?v=10"></script>
+    <script src="../js/chrome-shim.js?v=12"></script>
     <script src="/js/api.js?v=6"></script>
     <script src="../js/settings-store.js?v=2"></script>
     <script defer src="../js/icons.js?v=2"></script>

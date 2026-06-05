@@ -1,15 +1,36 @@
 const { Router } = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const router = Router();
-router.use(authMiddleware);
 
 // 获取标签列表（兼容前端 tag_id, tag_name 字段）
-router.get('/', (req, res) => {
+// 游客：管理员公开提示词关联的标签
+// 登录用户：自己的标签 + 管理员公开提示词关联的标签
+router.get('/', optionalAuth, (req, res) => {
   try {
-    const tags = db.prepare('SELECT * FROM tags WHERE user_id = ? ORDER BY name').all(req.user.id);
+    const userId = req.user ? req.user.id : null;
+    let tags;
+    if (userId) {
+      tags = db.prepare(`
+        SELECT DISTINCT t.* FROM tags t WHERE t.user_id = ?
+        UNION
+        SELECT DISTINCT t.* FROM tags t
+        JOIN prompt_tags pt ON t.id = pt.tag_id
+        JOIN prompts p ON pt.prompt_id = p.id
+        WHERE p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)
+        ORDER BY name
+      `).all(userId);
+    } else {
+      tags = db.prepare(`
+        SELECT DISTINCT t.* FROM tags t
+        JOIN prompt_tags pt ON t.id = pt.tag_id
+        JOIN prompts p ON pt.prompt_id = p.id
+        WHERE p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)
+        ORDER BY name
+      `).all();
+    }
     res.json({ tags: tags.map(t => ({ ...t, tag_id: t.id, tag_name: t.name })) });
   } catch (err) {
     console.error('[tags] GET / error:', err.message);
@@ -18,7 +39,7 @@ router.get('/', (req, res) => {
 });
 
 // 创建标签
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: '标签名不能为空' });
@@ -38,7 +59,7 @@ router.post('/', (req, res) => {
 });
 
 // 更新标签
-router.put('/:id', (req, res) => {
+router.put('/:id', authMiddleware, (req, res) => {
   try {
     const { name, color } = req.body;
     const tag = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
@@ -64,7 +85,7 @@ router.put('/:id', (req, res) => {
 });
 
 // 删除标签
-router.delete('/:id', (req, res) => {
+router.delete('/:id', authMiddleware, (req, res) => {
   try {
     const tag = db.prepare('SELECT * FROM tags WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!tag) return res.status(404).json({ error: '标签不存在' });

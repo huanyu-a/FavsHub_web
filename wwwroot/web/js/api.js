@@ -64,6 +64,12 @@ class FavsHubAPI {
 
     if (!res.ok) {
       if (res.status === 401) {
+        // GET 请求：游客模式，清除 token，不跳转
+        if (!options.method || options.method === 'GET') {
+          this.setToken(null);
+          throw new Error('未登录');
+        }
+        // 写操作：跳转登录
         this.setToken(null);
         const redirect = encodeURIComponent(window.location.pathname);
         window.location.href = `/login.html?redirect=${redirect}`;
@@ -362,6 +368,10 @@ class FavsHubAPI {
 
   deleteAdminPrompt(id) {
     return this.request(`/admin/prompts/${id}`, { method: 'DELETE' });
+  }
+
+  updateAdminPrompt(id, data) {
+    return this.request(`/admin/prompts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
   getAdminPromptVersions(id) {

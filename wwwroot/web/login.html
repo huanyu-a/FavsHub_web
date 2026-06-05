@@ -83,9 +83,9 @@
       ? rawRedirect
       : '/index.html';
 
-    // 已登录直接跳转管理后台
+    // 已登录直接跳转目标页
     if (api.isLoggedIn()) {
-      window.location.href = '/admin/';
+      window.location.href = redirectUrl;
     }
 
     // Tab 切换

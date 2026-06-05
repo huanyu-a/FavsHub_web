@@ -24,15 +24,21 @@ async function apiFetch(path, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (res.status === 401) {
-    localStorage.removeItem('favshub_token');
-    // 同步清除 chrome.storage.local 中的 token
-    if (window.chrome && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.remove(['favshub_token', 'favshub_last_sync']);
+    // 游客模式：GET 请求不跳转，返回空数据
+    if (!options.method || options.method === 'GET') {
+      localStorage.removeItem('favshub_token');
+      return { bookmarks: [], folders: [], prompts: [] };
     }
+    // 写操作 401 → 跳转登录
+    localStorage.removeItem('favshub_token');
     window.location.href = '/login.html';
     throw new Error('未登录');
   }
   return res.json();
+}
+
+function isGuest() {
+  return !getToken();
 }
 
 // ===== chrome.bookmarks =====
@@ -790,28 +796,31 @@ if (_isExtensionMode) {
   }
 })();
 
-// ===== 登录检查（跳过登录/注册页面）=====
+// ===== 登录状态检测（游客可浏览，不强制跳转）=====
 const _authExcludePaths = ['/login.html', '/register.html', '/oauth-callback.html'];
 if (!_authExcludePaths.some(p => window.location.pathname.endsWith(p))) {
-  if (!requireAuth()) {
-    // 未登录会跳转到 login.html
-    throw new Error('未登录');
-  }
-  // 异步刷新用户信息（含 nickname），确保 localStorage 中有最新数据
-  try {
-    var _storedUser = JSON.parse(localStorage.getItem('favshub_user') || 'null');
-    if (!_storedUser || _storedUser.nickname === undefined) {
-      apiFetch('/auth/me').then(data => {
-        if (data && data.user) {
-          localStorage.setItem('favshub_user', JSON.stringify(data.user));
-          // 通知前端更新侧边栏用户信息
-          if (typeof window.updateAuthUI === 'function') {
-            window.updateAuthUI();
+  var _token = getToken();
+  if (_token) {
+    // 已登录：异步刷新用户信息
+    try {
+      var _storedUser = JSON.parse(localStorage.getItem('favshub_user') || 'null');
+      if (!_storedUser || _storedUser.nickname === undefined) {
+        apiFetch('/auth/me').then(data => {
+          if (data && data.user) {
+            localStorage.setItem('favshub_user', JSON.stringify(data.user));
+            if (typeof window.updateAuthUI === 'function') {
+              window.updateAuthUI();
+            }
           }
-        }
-      }).catch(() => {});
-    }
-  } catch (_) {}
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  } else {
+    // 游客模式：标记 body
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.setAttribute('data-guest', 'true');
+    });
+  }
 }
 
 // ===== HTML 转义工具（原 escape-html.js） =====

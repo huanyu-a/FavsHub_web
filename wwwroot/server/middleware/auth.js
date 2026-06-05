@@ -49,13 +49,33 @@ function authMiddleware(req, res, next) {
     req.user = { id: payload.id, username: payload.username };
     next();
   } catch (err) {
-    // 记录详细错误用于调试，但只向客户端返回通用消息
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token 已过期，请重新登录' });
     }
     console.warn('[Auth] Token 验证失败:', err.name);
     return res.status(401).json({ error: 'Token 无效或已过期' });
   }
+}
+
+// 可选认证：有 token 则解析，无 token 则 req.user = null 继续执行
+function optionalAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    req.user = null;
+    return next();
+  }
+  const token = header.slice(7);
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = { id: payload.id, username: payload.username };
+  } catch {
+    req.user = null;
+  }
+  next();
 }
 
 /**
@@ -68,4 +88,4 @@ function signToken(payload, expiresIn = '30d') {
   return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
-module.exports = { authMiddleware, signToken };
+module.exports = { authMiddleware, optionalAuth, signToken };

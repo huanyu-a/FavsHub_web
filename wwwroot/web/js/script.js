@@ -567,6 +567,11 @@ document.addEventListener('DOMContentLoaded', async function () {
   // 等待后端设置加载完成（获取管理员全局默认设置）
   await FavsHubSettings.load();
 
+  // 游客模式：设置 body 属性，隐藏编辑控件
+  if (typeof isGuest === 'function' && isGuest()) {
+    document.body.setAttribute('data-guest', 'true');
+  }
+
   // 统一应用所有管理员设置到页面
   applyAllSettings();
 
@@ -2748,6 +2753,8 @@ function createFolderCard(folder, index) {
 }
 
 function initBookmarkSortable() {
+  // 游客模式：禁用拖拽排序
+  if (typeof isGuest === 'function' && isGuest()) return;
   const bookmarksList = document.getElementById('bookmarks-list');
   if (!bookmarksList) return;
 
@@ -2852,6 +2859,8 @@ function initBookmarkSortable() {
 }
 
 function setupSortable() {
+  // 游客模式：禁用侧边栏拖拽
+  if (typeof isGuest === 'function' && isGuest()) return;
   sidebarSortableInstances.forEach(instance => instance.destroy());
   sidebarSortableInstances = [];
 
