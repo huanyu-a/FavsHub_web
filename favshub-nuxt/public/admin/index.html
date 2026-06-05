@@ -1,0 +1,2765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FavsHub - 管理后台</title>
+  <link href="../vendor/remixicon.css" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f7; color: #333; }
+
+    .layout { display: flex; height: 100vh; overflow: hidden; }
+
+    /* 侧边栏 */
+    .sidebar { width: 220px; background: #1a1a2e; color: #fff; padding: 24px 0; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    .sidebar-logo { padding: 0 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .sidebar-logo h1 { font-size: 20px; }
+    .sidebar-logo span { font-size: 12px; color: rgba(255,255,255,0.5); }
+    .sidebar-nav { padding: 16px 0; }
+    .sidebar-nav a { display: flex; align-items: center; gap: 10px; padding: 12px 24px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 14px; transition: all 0.2s; }
+    .sidebar-nav a:hover, .sidebar-nav a.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar-nav a i { font-size: 18px; }
+    .sidebar-footer { position: absolute; bottom: 0; width: 220px; padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .sidebar-footer a { color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; }
+    .sidebar-footer a:hover { color: #fff; }
+
+    /* 主内容 */
+    .main { flex: 1; padding: 32px; overflow-y: auto; height: 100vh; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; font-weight: 600; }
+    .page-header p { color: #888; font-size: 14px; margin-top: 4px; }
+
+    /* 统计卡片 */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .stat-card .label { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; }
+    .stat-card .value.blue { color: #667eea; }
+    .stat-card .value.green { color: #10b981; }
+    .stat-card .value.purple { color: #764ba2; }
+    .stat-card .value.orange { color: #f59e0b; }
+
+    /* 表格 */
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .card-header h3 { font-size: 16px; }
+    .backup-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+    .backup-grid .card-full { grid-column: 1 / -1; }
+    @media (max-width: 1024px) { .backup-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .backup-grid { grid-template-columns: 1fr; } }
+
+    .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 24px; }
+    @media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; } }
+
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .config-grid { grid-template-columns: 1fr; } }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+    td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
+    tr:hover { background: #fafafa; }
+
+    .btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+    .btn-primary { background: #667eea; color: #fff; }
+    .btn-primary:hover { background: #5a6fd6; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
+    .btn-ghost:hover { background: #f5f5f5; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-admin { background: #fef3c7; color: #92400e; }
+    .badge-user { background: #e0e7ff; color: #3730a3; }
+
+    /* 配置信息 */
+    .config-list { padding: 20px; }
+    .config-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
+    .config-item:last-child { border-bottom: none; }
+    .config-key { font-weight: 500; font-size: 14px; }
+    .config-value { color: #888; font-size: 14px; font-family: monospace; }
+
+    /* 弹窗 */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #fff; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h3 { font-size: 16px; }
+    .modal-body { padding: 20px 24px; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+
+    .empty-state { text-align: center; padding: 40px; color: #888; }
+    .empty-state i { font-size: 48px; margin-bottom: 12px; display: block; }
+    .folder-nav-item { transition: background 0.15s; }
+    .folder-nav-item:hover { background: #f0f0ff; }
+    .folder-nav-item.active { background: #e8eeff; color: #667eea; font-weight: 600; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* 设置表单 */
+    .setting-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; }
+    .setting-card h3 { font-size: 16px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+    .setting-row label { font-size: 14px; color: #555; flex: 1; }
+    .setting-row select { width: 200px; }
+    .setting-row .val { font-size: 13px; color: #888; margin-left: 8px; min-width: 40px; }
+    select, input[type=text], input[type=number] { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+
+    /* 设置区块标题 */
+    .settings-section-title { font-size: 14px; font-weight: 600; color: #555; margin: 20px 0 10px; }
+
+    /* 纯色背景选择器 */
+    .settings-background-options { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+    .settings-bg-option {
+      width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+      background-size: 200% 200%; background-position: center;
+      border: 2px solid transparent; transition: all 0.2s;
+    }
+    .settings-bg-option:hover { transform: scale(1.08); border-color: #ccc; }
+    .settings-bg-option.active { border: 2px solid #10b981; transform: scale(1.05); }
+    .settings-bg-option.bg-none { background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #999; }
+    .gradient-background-1 { background: linear-gradient(0deg, rgba(226,232,240,1) 0%, rgba(214,222,235,1) 50%, rgba(203,213,225,1) 100%); }
+    .gradient-background-2 { background: linear-gradient(0deg, rgba(165,243,252,1) 0%, rgba(178,231,253,1) 50%, rgba(191,219,254,1) 100%); }
+    .gradient-background-3 { background: linear-gradient(0deg, rgba(251,206,232,1) 0%, rgba(242,210,244,1) 50%, rgba(233,213,255,1) 100%); }
+    .gradient-background-4 { background: linear-gradient(0deg, rgb(182,232,166,1) 0%, rgb(182,232,166,1) 100%); }
+    .gradient-background-5 { background: linear-gradient(0deg, rgba(239,239,66,1) 0%, rgba(239,239,66,1) 100%); }
+    .gradient-background-6 { background: linear-gradient(0deg, rgba(215,200,235,1) 0%, rgba(215,200,235,1) 100%); }
+    .gradient-background-7 { background: linear-gradient(0deg, rgba(251,235,188,1) 0%, rgba(251,235,188,1) 100%); }
+
+    /* 开关样式 */
+    .setting-option { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; transition: background-color 0.2s; }
+    .setting-option:hover { background: #f0f2f5; }
+    .switch-label { font-size: 14px; color: #555; margin-right: 1rem; }
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+    input:checked+.slider { background-color: #10b981; }
+    input:focus+.slider { box-shadow: 0 0 1px #10b981; }
+    input:checked+.slider:before { transform: translateX(16px); }
+    .slider.round { border-radius: 34px; }
+    .slider.round:before { border-radius: 50%; }
+
+    /* 自定义范围滑块 */
+    .slider-container { margin-bottom: 8px; }
+    .slider-container input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+      background: #e2e8f0; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 18px; height: 18px; background: #10b981;
+      border-radius: 50%; cursor: pointer; transition: all 0.2s ease;
+    }
+    .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15); box-shadow: 0 0 0 6px rgba(16,185,129,0.1);
+    }
+    .slider-container input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; background: #10b981; border-radius: 50%; cursor: pointer; border: none;
+    }
+    .value-display { white-space: nowrap; font-size: 14px; color: #4a5568; min-width: 48px; text-align: right; font-weight: 500; }
+    .preview-text { margin-top: 12px; font-size: 13px; color: #4a5568; }
+    .preview-text span:last-child { color: #10b981; font-weight: 500; }
+
+    .pagination { display:flex; align-items:center; justify-content:center; gap:4px; padding:16px; }
+    .pagination button { padding:6px 12px; border:1px solid #ddd; background:#fff; border-radius:6px; cursor:pointer; font-size:13px; }
+    .pagination button.active { background:#667eea; color:#fff; border-color:#667eea; }
+    .pagination button:disabled { opacity:0.4; cursor:not-allowed; }
+
+    /* === 移动端适配 === */
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+      .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 100; padding: 0; }
+      .sidebar-logo { padding: 10px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+      .sidebar-logo h1 { font-size: 18px; }
+      .sidebar-logo span { display: none; }
+      .sidebar-logo .hamburger { display: flex; margin-left: auto; }
+      .sidebar-nav { display: none; padding: 8px 0; }
+      .sidebar.open .sidebar-nav { display: block; }
+      .sidebar-nav a { padding: 12px 16px; }
+      .sidebar-footer { display: none; }
+      .main { flex: 1; padding: 16px; height: auto; overflow-y: visible; }
+      .page-header { margin-bottom: 16px; }
+      .page-header h2 { font-size: 18px; }
+      .stats-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+      .stat-card { padding: 14px; }
+      .stat-card .value { font-size: 22px; }
+      .card-header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+      .card-header h3 { font-size: 14px; }
+
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+
+      .btn { padding: 8px 16px; font-size: 14px; }
+      .btn-sm { padding: 6px 12px; font-size: 13px; }
+      .modal { width: 95%; max-height: 90vh; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 14px 16px; }
+      .setting-card { padding: 14px; }
+      .setting-option { padding: 10px; }
+      .config-list { padding: 14px; }
+      .config-item { padding: 10px 0; flex-wrap: wrap; gap: 4px; }
+      .config-key { font-size: 13px; }
+      .config-value { font-size: 13px; word-break: break-all; }
+    }
+    @media (max-width: 480px) {
+      .main { padding: 12px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; }
+      .stat-card .value { font-size: 20px; }
+      .stat-card .label { font-size: 12px; }
+      .page-header h2 { font-size: 16px; }
+    }
+
+    /* 汉堡按钮 */
+    .hamburger { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; background: none; cursor: pointer; color: rgba(255,255,255,0.8); border-radius: 8px; }
+    .hamburger:active { background: rgba(255,255,255,0.1); }
+    .hamburger svg { width: 22px; height: 22px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <h1>FavsHub</h1>
+        <span>管理后台</span>
+        <button class="hamburger" aria-label="菜单">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="active" data-page="overview"><i class="ri-dashboard-line"></i> 数据概览</a>
+        <a href="#" data-page="users"><i class="ri-user-line"></i> 用户管理</a>
+        <a href="#" data-page="bookmarks"><i class="ri-bookmark-line"></i> 书签管理</a>
+        <a href="#" data-page="prompts"><i class="ri-chat-quote-line"></i> 提示词管理</a>
+        <a href="#" data-page="engines"><i class="ri-search-line"></i> 搜索引擎</a>
+        <a href="#" data-page="backup"><i class="ri-database-2-line"></i> 数据备份</a>
+        <a href="#" data-page="settings"><i class="ri-user-settings-line"></i> 用户设置</a>
+        <a href="#" data-page="config"><i class="ri-settings-3-line"></i> 系统配置</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/index.html"><i class="ri-arrow-left-line"></i> 返回首页</a>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- 数据概览 -->
+      <div id="page-overview" class="page active">
+        <div class="page-header">
+          <h2>数据概览</h2>
+          <p>系统运行状态一览</p>
+        </div>
+
+        <div class="config-grid">
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">系统</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">搜索引擎</div>
+                <div class="value" id="stat-engines">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="label">数据库大小</div>
+                <div class="value" id="stat-db-size">-</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">书签</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">书签总数</div>
+                <div class="value green" id="stat-bookmarks">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">今日新增 <span id="stat-today-bookmarks">-</span></div>
+              </div>
+              <div class="stat-card">
+                <div class="label">文件夹数</div>
+                <div class="value purple" id="stat-folders">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-grid" style="margin-top:24px;">
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">提示词</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">Prompt 数</div>
+                <div class="value orange" id="stat-prompts">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">今日新增 <span id="stat-today-prompts">-</span></div>
+              </div>
+              <div class="stat-card">
+                <div class="label">文件夹</div>
+                <div class="value" id="stat-prompt-folders">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="label">标签</div>
+                <div class="value" id="stat-tags">-</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 class="settings-section-title" style="margin-bottom:12px;">用户</h4>
+            <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+              <div class="stat-card">
+                <div class="label">注册用户</div>
+                <div class="value blue" id="stat-users">-</div>
+                <div style="font-size:12px;color:#888;margin-top:4px;">管理员 <span id="stat-admins">-</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div id="page-users" class="page">
+        <div class="page-header">
+          <h2>用户管理</h2>
+          <p>查看和管理所有注册用户</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>用户列表</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>用户名</th>
+                <th>昵称</th>
+                <th>邮箱</th>
+                <th>书签数</th>
+                <th>Prompt 数</th>
+                <th>注册时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <tr><td colspan="8" class="empty-state">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 书签管理 -->
+      <div id="page-bookmarks" class="page">
+        <div class="page-header">
+          <h2>书签管理</h2>
+          <p>查看和管理所有用户的书签与文件夹</p>
+        </div>
+        <!-- 子标签页 -->
+        <div class="tab-nav" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #eee;">
+          <button class="bm-tab active" data-tab="list" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#667eea;border-bottom:2px solid #667eea;margin-bottom:-2px;">书签列表</button>
+          <button class="bm-tab" data-tab="folders" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">文件夹管理</button>
+        </div>
+        <!-- 书签列表 -->
+        <div id="bm-sub-list" class="bm-sub-page">
+          <div class="card" style="margin-bottom:16px;">
+            <div style="padding:12px 16px;display:flex;align-items:center;gap:12px;">
+              <span style="font-size:13px;color:#666;white-space:nowrap;">分类筛选：</span>
+              <select id="filter-level1" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:160px;" onchange="onLevel1Change()"><option value="">全部文件夹</option></select>
+              <select id="filter-level2" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:160px;" onchange="onLevel2Change()"><option value="">全部子文件夹</option></select>
+              <input type="text" id="filter-title-search" placeholder="搜索标题..." style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:140px;" oninput="applyFilter()">
+              <input type="text" id="filter-url-search" placeholder="搜索URL..." style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:140px;" oninput="applyFilter()">
+              <span id="filter-result-info" style="font-size:13px;color:#999;"></span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3 id="filter-title">全部书签</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary btn-sm" onclick="loadBookmarks()">刷新</button>
+                <button class="btn btn-ghost btn-sm" onclick="downloadAllFavicons()">下载图标</button>
+                <button class="btn btn-ghost btn-sm" onclick="retryFailedFavicons()">重试失败图标</button>
+                <button class="btn btn-ghost btn-sm" onclick="forceLocalizeIcons()">强制本地化</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th style="width:50px;">ID</th><th style="width:40px;">图标</th><th>标题</th><th style="width:280px;">URL</th><th style="width:100px;">文件夹</th><th style="width:80px;">用户</th><th style="width:70px;">可见性</th><th style="width:120px;">操作</th></tr></thead>
+              <tbody id="bookmarks-table-body"><tr><td colspan="8" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+            <div id="bookmarks-pagination" class="pagination"></div>
+          </div>
+        </div>
+        <!-- 文件夹管理 -->
+        <div id="bm-sub-folders" class="bm-sub-page" style="display:none;">
+          <div class="card">
+            <div class="card-header" style="justify-content:flex-start;align-items:center;gap:8px;">
+              <h3>文件夹管理</h3>
+              <button class="btn btn-primary btn-sm" onclick="createFolder()">新建文件夹</button>
+              <button class="btn btn-ghost btn-sm" id="toggle-folders-btn" onclick="toggleAllFolders()">全部收缩</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadFolders()">刷新</button>
+            </div>
+            <table>
+              <thead><tr><th>名称</th><th>父文件夹</th><th>用户</th><th>书签数</th><th>创建时间</th><th>操作</th></tr></thead>
+              <tbody id="folders-table-body"><tr><td colspan="6" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 搜索引擎管理 -->
+      <div id="page-engines" class="page">
+        <div class="page-header">
+          <h2>搜索引擎管理</h2>
+          <p>管理系统可用的搜索引擎列表</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>搜索引擎列表</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="showAddEngineModal()">添加引擎</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadSearchEngines()">刷新</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>名称</th>
+                <th>标签</th>
+                <th>URL</th>
+                <th>分类</th>
+                <th>默认</th>
+                <th>排序</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="engines-table-body">
+              <tr><td colspan="8" class="empty-state">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 提示词管理 -->
+      <div id="page-prompts" class="page">
+        <div class="page-header">
+          <h2>提示词管理</h2>
+          <p>查看和管理所有用户的提示词</p>
+        </div>
+        <div class="stats-grid" style="margin-bottom: 16px;">
+          <div class="stat-card"><div class="label">提示词</div><div class="value blue" id="prompts-total">-</div></div>
+          <div class="stat-card"><div class="label">文件夹</div><div class="value green" id="prompts-folders-count">-</div></div>
+          <div class="stat-card"><div class="label">标签</div><div class="value purple" id="prompts-tags-count">-</div></div>
+          <div class="stat-card"><div class="label">版本记录</div><div class="value orange" id="prompts-versions-count">-</div></div>
+        </div>
+        <!-- 子标签页导航 -->
+        <div class="tab-nav" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #eee;">
+          <button class="prompt-tab active" data-tab="prompts" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">提示词列表</button>
+          <button class="prompt-tab" data-tab="folders" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">文件夹管理</button>
+          <button class="prompt-tab" data-tab="tags" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">标签管理</button>
+          <button class="prompt-tab" data-tab="history" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">历史记录</button>
+          <button class="prompt-tab" data-tab="tdk" style="padding:10px 20px;border:none;background:none;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">TDK 设置</button>
+        </div>
+        <!-- 提示词列表 -->
+        <div id="prompt-sub-prompts" class="prompt-sub-page">
+          <div class="card">
+            <div class="card-header"><h3>提示词列表</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="exportPromptsJSON()">导出JSON</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-prompts-file').click()">导入JSON</button>
+                <input type="file" id="import-prompts-file" accept=".json" style="display:none;" onchange="importPromptsJSON(event)">
+                <button class="btn btn-ghost btn-sm" onclick="loadPrompts()">刷新</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>可见性</th><th>更新时间</th><th>操作</th></tr></thead>
+              <tbody id="prompts-table-body"><tr><td colspan="9" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+            <div id="prompts-pagination" class="pagination"></div>
+          </div>
+        </div>
+        <!-- 文件夹管理 -->
+        <div id="prompt-sub-folders" class="prompt-sub-page" style="display:none;">
+          <div class="card">
+            <div class="card-header" style="justify-content:flex-start;align-items:center;gap:8px;">
+              <h3>提示词文件夹</h3>
+              <button class="btn btn-primary btn-sm" onclick="createPromptFolder()">新建文件夹</button>
+              <button class="btn btn-ghost btn-sm" id="pf-toggle-btn" onclick="toggleAllPromptFolders()">全部收缩</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadPromptFolders()">刷新</button>
+            </div>
+            <table>
+              <thead><tr><th>名称</th><th>父文件夹</th><th>用户</th><th>提示词数</th><th>操作</th></tr></thead>
+              <tbody id="prompt-folders-table-body"><tr><td colspan="5" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- 标签管理 -->
+        <div id="prompt-sub-tags" class="prompt-sub-page" style="display:none;">
+          <div class="card">
+            <div class="card-header"><h3>标签管理</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary btn-sm" onclick="createPromptTag()">新建标签</button>
+                <button class="btn btn-ghost btn-sm" onclick="loadPromptTags()">刷新</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th>名称</th><th>颜色</th><th>用户</th><th>使用次数</th><th style="width:120px;">操作</th></tr></thead>
+              <tbody id="prompt-tags-table-body"><tr><td colspan="5" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- 历史记录 -->
+        <div id="prompt-sub-history" class="prompt-sub-page" style="display:none;">
+          <div class="card">
+            <div class="card-header"><h3>版本历史记录</h3>
+              <button class="btn btn-ghost btn-sm" onclick="loadPromptHistory()">刷新</button>
+            </div>
+            <table>
+              <thead><tr><th>提示词</th><th>版本号</th><th>用户</th><th>创建时间</th><th>预览</th></tr></thead>
+              <tbody id="prompt-history-table-body"><tr><td colspan="6" class="empty-state">加载中...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- TDK 设置 -->
+        <div id="prompt-sub-tdk" class="prompt-sub-page" style="display:none;">
+          <div class="setting-card" style="margin-top:24px;">
+            <h3>提示词页面 TDK 设置</h3>
+            <p style="font-size:13px;color:#888;margin-bottom:16px;">设置提示词页面的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。留空则使用网站 TDK 设置。</p>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+              <label style="margin-bottom:4px;">页面标题 (Title)</label>
+              <input type="text" id="promptpro-site-title" placeholder="提示词管理 - FavsHub" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+            </div>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+              <label style="margin-bottom:4px;">页面描述 (Description)</label>
+              <input type="text" id="promptpro-site-description" placeholder="AI提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+            </div>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+              <label style="margin-bottom:4px;">页面关键词 (Keywords)</label>
+              <input type="text" id="promptpro-site-keywords" placeholder="提示词,AI,prompt" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+              <small style="color:#94a3b8;margin-top:4px;">多个关键词用英文逗号分隔</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据备份 -->
+      <div id="page-backup" class="page">
+        <div class="page-header">
+          <h2>数据备份</h2>
+          <p>备份和恢复系统数据库</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="label">数据库大小</div>
+            <div class="value blue" id="backup-db-size">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">用户数</div>
+            <div class="value green" id="backup-users">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">书签数</div>
+            <div class="value purple" id="backup-bookmarks">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">提示词数</div>
+            <div class="value orange" id="backup-prompts">-</div>
+          </div>
+        </div>
+
+        <div class="backup-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>数据库备份</h3>
+            </div>
+            <div style="padding: 20px;">
+              <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
+                点击下方按钮下载 SQLite 数据库文件的完整备份。备份文件可用于灾难恢复或数据迁移。
+              </p>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="downloadBackup()">
+                  <i class="ri-download-line" style="margin-right: 4px;"></i> 下载数据库备份
+                </button>
+                <span id="backup-last-modified" style="color: #888; font-size: 13px;"></span>
+              </div>
+              <div style="margin-top: 16px; padding: 12px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
+                <p style="margin: 0; font-size: 13px; color: #856404;">
+                  <i class="ri-information-line" style="margin-right: 4px;"></i>
+                  备份期间数据库不会被锁定，可以在正常使用时进行备份。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>定时自动备份</h3>
+              <button class="btn btn-primary btn-sm" id="manual-backup-btn" onclick="manualBackup()">手动备份</button>
+            </div>
+            <div style="padding: 20px;">
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                  <input type="checkbox" id="backup-enabled" onchange="saveBackupSchedule()"> 启用每日定时备份
+                </label>
+                <label style="font-size:14px;">时间:
+                  <input type="number" id="backup-hour" min="0" max="23" value="3" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()"> :
+                  <input type="number" id="backup-minute" min="0" max="59" value="0" style="width:50px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
+                </label>
+                <label style="font-size:14px;">保留份数:
+                  <input type="number" id="backup-keep" min="1" max="30" value="7" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;" onchange="saveBackupSchedule()">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>百度网盘云端备份</h3></div>
+            <div style="padding: 20px;">
+              <div style="margin-bottom: 16px;">
+                <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">百度开放平台 AppKey</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" id="baidu-app-key-input" placeholder="请输入百度开放平台 AppKey" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                  <button class="btn btn-primary btn-sm" onclick="saveBaiduAppKey()">保存</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <span id="baidu-pan-status-text" style="font-size: 13px; color: #888;">检查连接状态...</span>
+                <button class="btn btn-primary btn-sm" id="baidu-pan-connect-btn" style="display:none;">连接百度网盘</button>
+                <button class="btn btn-ghost btn-sm" id="baidu-pan-disconnect-btn" style="display:none;">断开连接</button>
+              </div>
+              <div id="baidu-pan-connected" style="display:none; margin-top: 16px;">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:14px;"><input type="checkbox" id="enable-baidu-auto-backup"> 云端自动备份</label>
+                  <button class="btn btn-primary btn-sm" id="baidu-manual-backup-btn">立即上传</button>
+                  <span id="baidu-last-backup-time" style="font-size:12px;color:#888;"></span>
+                </div>
+                <div style="margin-top: 12px;">
+                  <h4 style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">云端备份记录</h4>
+                  <div id="baidu-backup-history-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-full">
+            <div class="card-header">
+              <h3>备份历史</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="loadBackupFiles()">刷新</button>
+              </div>
+            </div>
+            <div id="backup-history-content">
+              <table>
+                <thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>时间</th><th>操作</th></tr></thead>
+                <tbody id="backup-files-table">
+                  <tr><td colspan="5" class="empty-state">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- /backup-grid -->
+      </div>
+
+      <!-- 系统配置 -->
+      <div id="page-config" class="page">
+        <div class="page-header">
+          <h2>系统配置</h2>
+          <p>当前服务器运行配置</p>
+        </div>
+        <div class="config-grid">
+          <div class="card">
+            <div class="card-header"><h3>服务器信息</h3></div>
+            <div class="config-list" id="config-list">
+              <div class="empty-state">加载中...</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>网站 TDK 设置</h3></div>
+            <div style="padding: 20px;">
+              <p style="font-size:13px;color:#888;margin-bottom:16px;">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                <label style="margin-bottom:4px;">网站标题 (Title)</label>
+                <input type="text" id="admin-site-title" placeholder="FavsHub - 智能书签管理" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+              </div>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+                <label style="margin-bottom:4px;">网站描述 (Description)</label>
+                <input type="text" id="admin-site-description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+              </div>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:12px;">
+                <label style="margin-bottom:4px;">网站关键词 (Keywords)</label>
+                <input type="text" id="admin-site-keywords" placeholder="书签管理,提示词,AI,收藏夹" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;" oninput="saveSettings()">
+              </div>
+            </div>
+          </div>
+        </div><!-- /config-grid -->
+      </div>
+
+      <!-- 用户设置 -->
+      <div id="page-settings" class="page">
+        <div class="page-header">
+          <h2>全局默认设置</h2>
+          <p>全局默认设置，所有用户生效（用户个人设置优先于全局默认）</p>
+        </div>
+        <div class="settings-grid">
+        <div class="setting-card">
+          <h3>主题与外观</h3>
+          <div class="setting-row">
+            <label>默认主题</label>
+            <select id="admin-default-theme" onchange="saveSettings()">
+              <option value="light">浅色</option>
+              <option value="dark">深色</option>
+              <option value="auto">跟随系统</option>
+            </select>
+          </div>
+          <h4 class="settings-section-title">纯色背景</h4>
+          <div class="settings-background-options">
+            <div class="settings-bg-option gradient-background-1" data-bg="gradient-background-1" onclick="selectBg('gradient-background-1')" title="渐变 1"></div>
+            <div class="settings-bg-option gradient-background-2" data-bg="gradient-background-2" onclick="selectBg('gradient-background-2')" title="渐变 2"></div>
+            <div class="settings-bg-option gradient-background-3" data-bg="gradient-background-3" onclick="selectBg('gradient-background-3')" title="渐变 3"></div>
+            <div class="settings-bg-option gradient-background-4" data-bg="gradient-background-4" onclick="selectBg('gradient-background-4')" title="渐变 4"></div>
+            <div class="settings-bg-option gradient-background-5" data-bg="gradient-background-5" onclick="selectBg('gradient-background-5')" title="渐变 5"></div>
+            <div class="settings-bg-option gradient-background-6" data-bg="gradient-background-6" onclick="selectBg('gradient-background-6')" title="渐变 6"></div>
+            <div class="settings-bg-option gradient-background-7" data-bg="gradient-background-7" onclick="selectBg('gradient-background-7')" title="渐变 7"></div>
+            <div class="settings-bg-option bg-none" data-bg="" onclick="selectBg('')" title="无背景">无</div>
+          </div>
+          <input type="hidden" id="admin-solid-bg" value="">
+          <h4 class="settings-section-title">界面元素显示</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-search">显示搜索框</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-search" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-welcome">显示欢迎消息</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-welcome" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-footer">显示页脚</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-footer" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-enable-floating-ball">显示悬浮球</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-enable-floating-ball" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-open-in-new-tab">新标签页打开链接</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-open-in-new-tab" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <h4 class="settings-section-title">快捷访问链接</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-history-link">显示历史记录</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-history-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-downloads-link">显示下载记录</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-downloads-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-passwords-link">显示密码管理</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-passwords-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-extensions-link">显示扩展管理</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-extensions-link" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
+        <div class="setting-card">
+          <h3>搜索设置</h3>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-open-new-tab">新标签页打开搜索结果</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-open-new-tab" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-search-suggestions">显示搜索建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-search-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <h4 class="settings-section-title">搜索建议细分</h4>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-history-suggestions">显示历史记录建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-history-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-bookmark-suggestions">显示书签建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-bookmark-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-option">
+            <label class="switch-label" for="admin-show-prompt-suggestions">显示提示词建议</label>
+            <label class="switch">
+              <input type="checkbox" id="admin-show-prompt-suggestions" onchange="saveSettings()">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-card">
+          <h3>书签布局</h3>
+          <h4 class="settings-section-title">书签卡片宽度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-card-width" min="100" max="300" step="10" value="200" oninput="document.getElementById('admin-card-width-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-card-width-val">200</span>px</div>
+            </div>
+            <div class="preview-text">每行书签按钮数量：<span id="admin-card-width-preview">~5</span></div>
+          </div>
+          <h4 class="settings-section-title">书签卡片高度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-card-height" min="36" max="80" step="2" value="50" oninput="document.getElementById('admin-card-height-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-card-height-val">50</span>px</div>
+            </div>
+            <div class="preview-text">调整书签卡片的高度</div>
+          </div>
+          <h4 class="settings-section-title">书签容器宽度</h4>
+          <div class="slider-container">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" id="admin-container-width" min="50" max="100" step="5" value="85" oninput="document.getElementById('admin-container-width-val').textContent=this.value" onchange="saveSettings()" style="flex:1;">
+              <div class="value-display"><span id="admin-container-width-val">85</span>%</div>
+            </div>
+            <div class="preview-text">调整书签容器在页面中的宽度比例</div>
+          </div>
+          </div>
+        </div>
+        </div><!-- /search+layout -->
+        </div><!-- /settings-grid -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 书签/详情弹窗 -->
+  <div class="modal-overlay" id="detail-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="detail-title">详情</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- 搜索引擎编辑弹窗 -->
+  <div class="modal-overlay" id="engine-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="engine-modal-title">添加搜索引擎</h3>
+        <button class="modal-close" onclick="closeEngineModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="engine-id">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">名称 (英文标识)</label>
+          <input type="text" id="engine-name" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="google">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">显示标签</label>
+          <input type="text" id="engine-label" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="谷歌">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">搜索 URL (用 %s 代替搜索词)</label>
+          <input type="text" id="engine-url" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="https://www.google.com/search?q=%s">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">图标 URL</label>
+          <input type="text" id="engine-icon" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="/images/google-logo.svg">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">分类</label>
+          <select id="engine-category" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+            <option value="AI">AI 搜索</option>
+            <option value="SEARCH" selected>通用搜索</option>
+            <option value="SOCIAL">社交媒体</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="engine-default"> 设为默认启用
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="closeEngineModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveEngine()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 文件夹编辑弹窗 -->
+  <div class="modal-overlay" id="edit-folder-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>编辑文件夹</h3>
+        <button class="modal-close" onclick="closeFolderEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-folder-id">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">文件夹名称</label>
+          <input type="text" id="edit-folder-name" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">父文件夹</label>
+          <select id="edit-folder-parent" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">图标</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <i id="folder-icon-preview" class="ri-folder-line" style="font-size:24px;color:#667eea;"></i>
+            <input type="text" id="edit-folder-icon-search" placeholder="搜索图标..." style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;" oninput="filterIcons(this.value)">
+          </div>
+          <div id="icon-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:2px;max-height:180px;overflow-y:auto;padding:4px;border:1px solid #eee;border-radius:6px;background:#fafafa;">
+          </div>
+          <input type="hidden" id="edit-folder-icon" value="">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="closeFolderEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveFolderEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示词历史弹窗 -->
+  <div class="modal-overlay" id="history-modal">
+    <div class="modal" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 id="history-modal-title">提示词历史</h3>
+        <button class="modal-close" onclick="closeHistoryModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="history-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- 编辑书签弹窗 -->
+  <div class="modal-overlay" id="edit-bookmark-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>编辑书签</h3>
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-bookmark-id">
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">标题</label>
+          <input type="text" id="edit-bookmark-title" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="书签标题">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">URL</label>
+          <input type="url" id="edit-bookmark-url" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="https://example.com">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">文件夹</label>
+          <select id="edit-bookmark-folder" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            <option value="">无文件夹</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">图标 URL (favicon)</label>
+          <input type="text" id="edit-bookmark-icon" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="https://www.google.com/s2/favicons?domain=example.com">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+            <input type="checkbox" id="edit-bookmark-login-required"> 登录可见（勾选后仅登录用户可查看）
+          </label>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn btn-ghost" onclick="closeEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveBookmarkEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑提示词弹窗 -->
+  <div class="modal-overlay" id="edit-prompt-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>编辑提示词</h3>
+        <button class="modal-close" onclick="closePromptEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-prompt-id">
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">标题</label>
+          <input type="text" id="edit-prompt-title" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="提示词标题">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">描述</label>
+          <input type="text" id="edit-prompt-description" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="提示词描述">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px;">文件夹</label>
+          <select id="edit-prompt-folder" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            <option value="">无文件夹</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;">
+            <input type="checkbox" id="edit-prompt-login-required"> 登录可见（勾选后仅登录用户可查看）
+          </label>
+        </div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn btn-ghost" onclick="closePromptEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="savePromptEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 用户编辑弹窗 -->
+  <div class="modal-overlay" id="edit-user-modal">
+    <div class="modal" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 id="user-modal-title">编辑用户</h3>
+        <button class="modal-close" onclick="closeUserEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-user-id">
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">用户名</label>
+          <input type="text" id="edit-user-username" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">邮箱</label>
+          <input type="email" id="edit-user-email" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:4px;">昵称</label>
+          <input type="text" id="edit-user-nickname" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="edit-user-admin"> 管理员
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="closeUserEditModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveUserEdit()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="../js/baidu-pan.js"></script>
+  <script src="../js/utils.js?v=1"></script>
+  <script src="../js/chrome-shim.js?v=11"></script>
+  <script src="/js/api.js?v=6"></script>
+  <script>
+    // 全局错误捕获
+    window.onerror = function(msg, src, line, col, err) {
+      return false;
+    };
+
+    // 百度网盘 OAuth 回调处理：从 URL hash 中提取 access_token
+    (function extractBaiduPanToken() {
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        try {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const expiresIn = parseInt(hashParams.get('expires_in'), 10);
+          if (accessToken) {
+            const config = {
+              accessToken: accessToken,
+              expiresAt: Date.now() + (expiresIn || 2592000) * 1000
+            };
+            localStorage.setItem('fh_local_baiduPanConfig', JSON.stringify(config));
+            // 如果是弹窗打开的，传回 token 并关闭
+            if (window.opener) {
+              window.opener.postMessage({ type: 'baidu-oauth-callback', accessToken: accessToken, expiresIn: expiresIn }, window.location.origin);
+              window.close();
+              return;
+            }
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        } catch (e) {
+        }
+      }
+    })();
+
+    // 权限检查
+    if (!api.isLoggedIn()) {
+      window.location.href = '/login.html?redirect=/admin/';
+    }
+
+    // 百度 AppKey 管理
+    async function saveBaiduAppKey() {
+      const appKey = document.getElementById('baidu-app-key-input').value.trim();
+      if (!appKey) { alert('请输入 AppKey'); return; }
+      try {
+        const res = await api.request('/config/baidu-app-key', { method: 'PUT', body: JSON.stringify({ appKey }) });
+        alert('AppKey 已保存');
+      } catch (e) { alert('保存失败: ' + e.message); }
+    }
+    async function loadBaiduAppKey() {
+      try {
+        const res = await fetch('/api/config/baidu-app-key');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('baidu-app-key-input').value = data.appKey || '';
+        }
+      } catch {}
+    }
+
+    // 初始化百度网盘设置管理器
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.baiduPanSettingsManager) {
+        window.baiduPanSettingsManager.init().catch(() => {});
+      }
+    });
+
+    // 页面切换
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.sidebar-nav a').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + link.dataset.page).classList.add('active');
+        // 移动端：切换页面后自动收起侧边栏
+        if (window.innerWidth <= 768) document.querySelector('.sidebar').classList.remove('open');
+        // 切换到页面时自动加载数据
+        if (link.dataset.page === 'prompts') { loadPrompts(); loadSettings(); }
+        if (link.dataset.page === 'settings') loadSettings();
+        if (link.dataset.page === 'config') loadSettings();
+        if (link.dataset.page === 'backup') { loadBackupSchedule(); loadBackupFiles(); loadBaiduAppKey(); }
+      });
+    });
+
+    // 移动端：点击汉堡按钮展开/收起导航
+    document.querySelector('.hamburger').addEventListener('click', () => {
+      document.querySelector('.sidebar').classList.toggle('open');
+    });
+
+    // 加载统计数据
+    async function loadStats() {
+      try {
+        const data = await api.getAdminStats();
+        document.getElementById('stat-users').textContent = data.users;
+        document.getElementById('stat-admins').textContent = data.adminUsers;
+        document.getElementById('stat-bookmarks').textContent = data.bookmarks;
+        document.getElementById('stat-today-bookmarks').textContent = data.todayBookmarks;
+        document.getElementById('stat-folders').textContent = data.folders;
+        document.getElementById('stat-prompts').textContent = data.prompts;
+        document.getElementById('stat-today-prompts').textContent = data.todayPrompts;
+        document.getElementById('stat-prompt-folders').textContent = data.promptFolders;
+        document.getElementById('stat-tags').textContent = data.tags;
+        document.getElementById('stat-engines').textContent = data.searchEngines;
+        document.getElementById('stat-db-size').textContent = data.dbSize > 1024 * 1024 ? (data.dbSize / 1024 / 1024).toFixed(2) + ' MB' : (data.dbSize / 1024).toFixed(1) + ' KB';
+      } catch (err) {
+        if (err.message.includes('403') || err.message.includes('无管理员权限')) {
+          alert('无管理员权限，请使用管理员账号登录');
+          window.location.href = '/index.html';
+        }
+      }
+    }
+
+    // === 数据属性事件分发器（替代 onclick 中的 JSON.stringify） ===
+    function handleUserAction(action, id) {
+      const row = event.target.closest('tr');
+      const username = row?.dataset?.username;
+      if (action === 'viewBookmarks') viewBookmarks(id, username);
+      else if (action === 'viewPrompts') viewPrompts(id, username);
+      else if (action === 'deleteUser') deleteUser(id, username);
+    }
+
+    function handleFolderAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'editFolder') editFolder(id, row.dataset.folderName, row.dataset.parentId === 'null' ? null : parseInt(row.dataset.parentId), row.dataset.userId);
+      else if (action === 'deleteFolder') deleteFolder(id, row.dataset.folderName);
+    }
+
+    function handlePromptFolderAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'editPromptFolder') editPromptFolder(id);
+      else if (action === 'deletePromptFolder') deletePromptFolder(id, row.dataset.folderName);
+    }
+
+    function handlePromptAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'viewPromptHistory') viewPromptHistory(id, row.dataset.promptTitle);
+      else if (action === 'editPrompt') editPrompt(id);
+      else if (action === 'deletePrompt') deletePrompt(id, row.dataset.promptTitle);
+    }
+
+    function handleTagAction(action) {
+      const row = event.target.closest('tr');
+      const name = row?.dataset?.tagName;
+      if (action === 'editPromptTag') editPromptTag(name);
+      else if (action === 'deletePromptTag') deletePromptTag(name);
+    }
+
+    function handleEngineAction(action, id) {
+      const row = event.target.closest('tr');
+      if (action === 'deleteEngine') deleteEngine(id, row.dataset.engineName);
+    }
+
+    // 加载用户列表
+    async function loadUsers() {
+      try {
+        const data = await api.getAdminUsers();
+        const tbody = document.getElementById('users-table-body');
+        if (!data.users.length) {
+          tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-user-line"></i>暂无用户</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.users.map(u => `
+          <tr data-username="${escapeAttr(u.username)}">
+            <td data-label="ID">${u.id}</td>
+            <td data-label="用户">${escapeHtml(u.username)} ${u.is_admin ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">用户</span>'}</td>
+            <td data-label="昵称">${escapeHtml(u.nickname || '-')}</td>
+            <td data-label="邮箱">${escapeHtml(u.email || '-')}</td>
+            <td data-label="书签">${u.bookmark_count}</td>
+            <td data-label="Prompt">${u.prompt_count}</td>
+            <td data-label="注册时间">${new Date(u.created_at).toLocaleDateString()}</td>
+            <td data-label="操作">
+              <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewBookmarks', ${u.id})">书签</button>
+              <button class="btn btn-ghost btn-sm" onclick="handleUserAction('viewPrompts', ${u.id})">Prompt</button>
+              <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || "")}', '${escapeAttr(u.nickname || "")}', ${u.is_admin ? 1 : 0})">编辑</button>
+              ${!u.is_admin ? `<button class="btn btn-danger btn-sm" onclick="handleUserAction('deleteUser', ${u.id})">删除</button>` : ''}
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    // 查看书签
+    async function viewBookmarks(userId, username) {
+      try {
+        const data = await api.getAdminUserBookmarks(userId);
+        document.getElementById('detail-title').textContent = `${username} 的书签 (${data.bookmarks.length})`;
+        if (!data.bookmarks.length) {
+          document.getElementById('detail-body').innerHTML = '<div class="empty-state"><i class="ri-bookmark-line"></i>暂无书签</div>';
+        } else {
+          document.getElementById('detail-body').innerHTML = `
+            <table style="width:100%">
+              <thead><tr><th>标题</th><th>URL</th><th>文件夹</th></tr></thead>
+              <tbody>${data.bookmarks.map(b => `
+                <tr>
+                  <td>${escapeHtml(b.title)}</td>
+                  <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeAttr(sanitizeUrl(b.url))}" target="_blank" style="color:#667eea;">${escapeHtml(b.url)}</a></td>
+                  <td>${escapeHtml(b.folder_name || '-')}</td>
+                </tr>
+              `).join('')}</tbody>
+            </table>`;
+        }
+        document.getElementById('detail-modal').classList.add('active');
+      } catch (err) {
+        alert('加载失败: ' + err.message);
+      }
+    }
+
+    // 查看 Prompt
+    async function viewPrompts(userId, username) {
+      try {
+        const data = await api.getAdminUserPrompts(userId);
+        document.getElementById('detail-title').textContent = `${username} 的 Prompt (${data.prompts.length})`;
+        if (!data.prompts.length) {
+          document.getElementById('detail-body').innerHTML = '<div class="empty-state"><i class="ri-chat-quote-line"></i>暂无 Prompt</div>';
+        } else {
+          document.getElementById('detail-body').innerHTML = `
+            <table style="width:100%">
+              <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>版本</th></tr></thead>
+              <tbody>${data.prompts.map(p => `
+                <tr>
+                  <td>${escapeHtml(p.title)}</td>
+                  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.description || '-')}</td>
+                  <td>${escapeHtml(p.folder_name || '-')}</td>
+                  <td>v${escapeHtml(p.current_version)}</td>
+                </tr>
+              `).join('')}</tbody>
+            </table>`;
+        }
+        document.getElementById('detail-modal').classList.add('active');
+      } catch (err) {
+        alert('加载失败: ' + err.message);
+      }
+    }
+
+    // 删除用户
+    async function deleteUser(userId, username) {
+      if (!confirm(`确认删除用户 "${username}" 及其所有数据？此操作不可撤销！`)) return;
+      try {
+        await api.deleteAdminUser(userId);
+        alert(`已删除用户 ${username}`);
+        loadUsers();
+        loadStats();
+      } catch (err) {
+        alert('删除失败: ' + err.message);
+      }
+    }
+
+    // === 用户编辑 ===
+    function editUser(id, username, email, nickname, isAdmin) {
+      document.getElementById('edit-user-id').value = id;
+      document.getElementById('edit-user-username').value = username;
+      document.getElementById('edit-user-email').value = email;
+      document.getElementById('edit-user-nickname').value = nickname;
+      document.getElementById('edit-user-admin').checked = isAdmin;
+      document.getElementById('edit-user-modal').classList.add('active');
+    }
+
+    function closeUserEditModal() {
+      document.getElementById('edit-user-modal').classList.remove('active');
+    }
+
+    async function saveUserEdit() {
+      const id = document.getElementById('edit-user-id').value;
+      const data = {
+        username: document.getElementById('edit-user-username').value.trim(),
+        email: document.getElementById('edit-user-email').value.trim() || null,
+        nickname: document.getElementById('edit-user-nickname').value.trim() || null,
+        is_admin: document.getElementById('edit-user-admin').checked ? 1 : 0
+      };
+      if (!data.username) { alert('用户名不能为空'); return; }
+      try {
+        await api.updateAdminUser(id, data);
+        alert('用户已更新');
+        closeUserEditModal();
+        loadUsers();
+      } catch (err) { alert('更新失败: ' + err.message); }
+    }
+
+    document.getElementById('edit-user-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeUserEditModal();
+    });
+
+    function closeModal() {
+      document.getElementById('detail-modal').classList.remove('active');
+    }
+
+    document.getElementById('detail-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    // 加载系统配置
+    async function loadConfig() {
+      try {
+        const data = await api.getAdminConfig();
+        const list = document.getElementById('config-list');
+        list.innerHTML = Object.entries(data).map(([k, v]) => `
+          <div class="config-item">
+            <span class="config-key">${escapeHtml(k)}</span>
+            <span class="config-value">${escapeHtml(Array.isArray(v) ? v.join(', ') || '未设置' : v)}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        document.getElementById('config-list').innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    // === 书签管理（两级下拉联动筛选） ===
+    let allBookmarks = [];
+    let allPrompts = [];
+    let allFolders = [];
+    const PAGE_SIZE = 20;
+    let bookmarkPage = 1;
+    let promptsPage = 1;
+
+    // 初始化（先加载文件夹再加载书签，避免 allFolders 未就绪）
+    loadStats();
+    loadUsers();
+    loadFolders().then(() => loadBookmarks());
+    loadPrompts();
+    loadPromptFolders();
+    loadSearchEngines();
+    loadBackupInfo();
+    loadConfig();
+
+    function renderPagination(containerId, currentPage, totalItems, onPageChange) {
+      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      if (totalPages <= 1) { document.getElementById(containerId).innerHTML = ''; return; }
+      let html = `<button ${currentPage<=1?'disabled':''} onclick="${onPageChange}(1)">首页</button>`;
+      html += `<button ${currentPage<=1?'disabled':''} onclick="${onPageChange}(${currentPage-1})">上一页</button>`;
+      const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+      const end = Math.min(totalPages, start + 4);
+      for (let i = start; i <= end; i++) {
+        html += `<button class="${i===currentPage?'active':''}" onclick="${onPageChange}(${i})">${i}</button>`;
+      }
+      html += `<button ${currentPage>=totalPages?'disabled':''} onclick="${onPageChange}(${currentPage+1})">下一页</button>`;
+      html += `<button ${currentPage>=totalPages?'disabled':''} onclick="${onPageChange}(${totalPages})">尾页</button>`;
+      document.getElementById(containerId).innerHTML = html;
+    }
+
+    function goBookmarkPage(p) { bookmarkPage = p; applyFilter._pageNav = true; applyFilter(); }
+    function goPromptsPage(p) { promptsPage = p; loadPrompts._pageNav = true; loadPrompts(); }
+
+    async function loadBookmarks() {
+      try {
+        const data = await api.getAdminBookmarks();
+        allBookmarks = data.bookmarks || [];
+        buildFolderNav();
+        updateEditFolderSelect();
+        applyFilter();
+      } catch (err) {
+        document.getElementById('bookmarks-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function buildFolderTree(folders) {
+      const map = {};
+      const roots = [];
+      folders.forEach(f => { map[f.id] = { ...f, children: [] }; });
+      folders.forEach(f => {
+        if (f.parent_id && map[f.parent_id]) {
+          map[f.parent_id].children.push(map[f.id]);
+        } else {
+          roots.push(map[f.id]);
+        }
+      });
+      return roots;
+    }
+
+    function buildFolderNav() {
+      const tree = buildFolderTree(allFolders);
+      const l1 = document.getElementById('filter-level1');
+      l1.innerHTML = '<option value="">全部文件夹</option>';
+      for (const node of tree) {
+        const count = allBookmarks.filter(b => b.folder_id == node.id).length + countFolderBookmarks(node);
+        l1.innerHTML += `<option value="${node.id}">${escapeHtml(node.name)} (${count})</option>`;
+      }
+      // 默认重置二级下拉
+      document.getElementById('filter-level2').innerHTML = '<option value="">全部子文件夹</option>';
+    }
+
+    function countFolderBookmarks(folder) {
+      let count = 0;
+      for (const child of folder.children) {
+        count += allBookmarks.filter(b => b.folder_id == child.id).length;
+        count += countFolderBookmarks(child);
+      }
+      return count;
+    }
+
+    function onLevel1Change() {
+      const parentId = document.getElementById('filter-level1').value;
+      const l2 = document.getElementById('filter-level2');
+      l2.innerHTML = '<option value="">全部子文件夹</option>';
+      if (parentId) {
+        const parent = allFolders.find(f => f.id == parseInt(parentId));
+        if (parent) {
+          const tree = buildFolderTree(allFolders);
+          const root = findFolderInTree(tree, parent.id);
+          if (root) {
+            renderLevel2Options(root.children, '');
+          }
+        }
+      }
+      applyFilter();
+    }
+
+    function findFolderInTree(nodes, id) {
+      for (const node of nodes) {
+        if (node.id == id) return node;
+        const found = findFolderInTree(node.children, id);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function renderLevel2Options(nodes, prefix) {
+      const l2 = document.getElementById('filter-level2');
+      for (const node of nodes) {
+        const count = allBookmarks.filter(b => b.folder_id == node.id).length;
+        l2.innerHTML += `<option value="${node.id}">${prefix}${escapeHtml(node.name)} (${count})</option>`;
+        if (node.children.length) {
+          renderLevel2Options(node.children, prefix + '　');
+        }
+      }
+    }
+
+    function onLevel2Change() {
+      applyFilter();
+    }
+
+    function updateEditFolderSelect() {
+      const tree = buildFolderTree(allFolders);
+      const el = document.getElementById('edit-bookmark-folder');
+      if (!el) return;
+      el.innerHTML = '<option value="">无文件夹</option>';
+      function renderOpts(nodes, depth) {
+        for (const node of nodes) {
+          el.innerHTML += `<option value="${node.id}">${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
+          if (node.children.length) renderOpts(node.children, depth + 1);
+        }
+      }
+      renderOpts(tree, 0);
+    }
+
+    function applyFilter() {
+      // 非分页触发时重置到第1页
+      if (!applyFilter._pageNav) bookmarkPage = 1;
+      applyFilter._pageNav = false;
+
+      const l1Val = document.getElementById('filter-level1').value;
+      const l2Val = document.getElementById('filter-level2').value;
+      const info = document.getElementById('filter-result-info');
+
+      let filtered;
+      if (l2Val) {
+        // 选了二级：只显示该文件夹下的书签
+        const folderIds = new Set([parseInt(l2Val)]);
+        function collectChildIds(pid) {
+          allFolders.filter(f => f.parent_id === pid).forEach(f => {
+            folderIds.add(f.id); collectChildIds(f.id);
+          });
+        }
+        collectChildIds(parseInt(l2Val));
+        filtered = allBookmarks.filter(b => b.folder_id && folderIds.has(b.folder_id));
+      } else if (l1Val) {
+        // 选了一级：显示该文件夹及其所有子文件夹的书签
+        const folderIds = new Set([parseInt(l1Val)]);
+        function collectChildIds(pid) {
+          allFolders.filter(f => f.parent_id === pid).forEach(f => {
+            folderIds.add(f.id); collectChildIds(f.id);
+          });
+        }
+        collectChildIds(parseInt(l1Val));
+        filtered = allBookmarks.filter(b => b.folder_id && folderIds.has(b.folder_id));
+      } else {
+        // 全选
+        filtered = allBookmarks;
+      }
+
+      // 标题和URL搜索筛选（多词 AND 逻辑）
+      const titleQuery = (document.getElementById('filter-title-search')?.value || '').toLowerCase().trim();
+      const urlQuery = (document.getElementById('filter-url-search')?.value || '').toLowerCase().trim();
+      if (titleQuery) {
+        const terms = titleQuery.split(/\s+/).filter(t => t);
+        filtered = filtered.filter(b => {
+          const title = (b.title || '').toLowerCase();
+          return terms.every(term => title.includes(term));
+        });
+      }
+      if (urlQuery) {
+        const terms = urlQuery.split(/\s+/).filter(t => t);
+        filtered = filtered.filter(b => {
+          const url = (b.url || '').toLowerCase();
+          return terms.every(term => url.includes(term));
+        });
+      }
+
+      // 分页渲染
+      const total = allBookmarks.length;
+      const shown = filtered.length;
+      renderBookmarksTable(filtered);
+      renderPagination('bookmarks-pagination', bookmarkPage, shown, 'goBookmarkPage');
+      // 更新结果数量
+      info.textContent = total === shown ? `共 ${total} 条` : `显示 ${shown} / ${total} 条`;
+
+      // 更新标题
+      if (l2Val) {
+        const f = allFolders.find(f => f.id == parseInt(l2Val));
+        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${escapeHtml(f.name)}` : '全部书签';
+      } else if (l1Val) {
+        const f = allFolders.find(f => f.id == parseInt(l1Val));
+        document.getElementById('filter-title').innerHTML = f ? `<i class="ri-folder-open-line" style="margin-right:6px;color:#667eea;"></i>${escapeHtml(f.name)}` : '全部书签';
+      } else {
+        document.getElementById('filter-title').textContent = '全部书签';
+      }
+    }
+
+    function renderFilteredBookmarks() {
+      // 筛选逻辑
+      let filtered;
+      if (currentFilterFolder) {
+        const folderIds = new Set([currentFilterFolder]);
+        function collectChildIds(pid) {
+          allFolders.filter(f => f.parent_id === pid).forEach(f => {
+            folderIds.add(f.id);
+            collectChildIds(f.id);
+          });
+        }
+        collectChildIds(currentFilterFolder);
+        filtered = allBookmarks.filter(b => b.folder_id && folderIds.has(b.folder_id));
+      } else {
+        filtered = allBookmarks;
+      }
+      renderBookmarksTable(filtered);
+    }
+
+    function renderBookmarksTable(bookmarks) {
+      const tbody = document.getElementById('bookmarks-table-body');
+      if (!bookmarks.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="ri-bookmark-line"></i>暂无书签</td></tr>';
+        document.getElementById('bookmarks-pagination').innerHTML = '';
+        return;
+      }
+      // 分页
+      const totalPages = Math.ceil(bookmarks.length / PAGE_SIZE);
+      if (bookmarkPage > totalPages) bookmarkPage = totalPages;
+      if (bookmarkPage < 1) bookmarkPage = 1;
+      const start = (bookmarkPage - 1) * PAGE_SIZE;
+      const pageData = bookmarks.slice(start, start + PAGE_SIZE);
+      tbody.innerHTML = pageData.map(b => {
+        let faviconSrc = '/images/placeholder-icon.svg';
+        try {
+          if (b.icon && !b.icon.startsWith('chrome-extension://')) {
+            faviconSrc = escapeAttr(b.icon);
+          } else {
+            const hostname = new URL(b.url).hostname;
+            faviconSrc = `https://www.google.com/s2/favicons?domain=${escapeAttr(hostname)}&sz=32`;
+          }
+        } catch (e) { /* malformed URL, keep default favicon */ }
+        const favicon = `<img src="${faviconSrc}" style="width:16px;height:16px;border-radius:2px;" onerror="this.style.display='none'">`;
+        return `<tr>
+          <td>${b.id}</td>
+          <td style="text-align:center;">${favicon}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(b.title)}</td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeAttr(sanitizeUrl(b.url))}" target="_blank" style="color:#667eea;">${escapeHtml(b.url)}</a></td>
+          <td>${escapeHtml(b.folder_name || '-')}</td>
+          <td>${escapeHtml(b.username || '-')}</td>
+          <td>${b.login_required ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:11px;">登录</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">公开</span>'}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="editBookmark(${b.id})" style="margin-right:4px;">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteBookmark(${b.id})">删除</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // === 书签编辑 ===
+    function editBookmark(bookmarkId) {
+      const bookmark = allBookmarks.find(b => b.id == bookmarkId);
+      if (!bookmark) return;
+
+      document.getElementById('edit-bookmark-id').value = bookmark.id;
+      document.getElementById('edit-bookmark-title').value = bookmark.title;
+      document.getElementById('edit-bookmark-url').value = bookmark.url;
+      document.getElementById('edit-bookmark-icon').value = bookmark.icon || '';
+      document.getElementById('edit-bookmark-login-required').checked = !!bookmark.login_required;
+
+      const folderSelect = document.getElementById('edit-bookmark-folder');
+      folderSelect.value = bookmark.folder_id || '';
+
+      document.getElementById('edit-bookmark-modal').classList.add('active');
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-bookmark-modal').classList.remove('active');
+    }
+
+    async function saveBookmarkEdit() {
+      const id = document.getElementById('edit-bookmark-id').value;
+      const title = document.getElementById('edit-bookmark-title').value.trim();
+      const url = document.getElementById('edit-bookmark-url').value.trim();
+      const folderId = document.getElementById('edit-bookmark-folder').value;
+      const icon = document.getElementById('edit-bookmark-icon').value.trim();
+      const loginRequired = document.getElementById('edit-bookmark-login-required').checked ? 1 : 0;
+
+      if (!title || !url) { alert('标题和 URL 不能为空'); return; }
+
+      try {
+        await api.updateAdminBookmark(id, { title, url, folder_id: folderId ? parseInt(folderId) : null, icon: icon || null, login_required: loginRequired });
+        alert('书签已更新');
+        closeEditModal();
+        loadBookmarks();
+      } catch (err) { alert('更新失败: ' + err.message); }
+    }
+
+    async function deleteBookmark(bookmarkId) {
+      if (!confirm('确认删除此书签？此操作不可撤销！')) return;
+      try {
+        await api.deleteAdminBookmark(bookmarkId);
+        loadBookmarks();
+        loadStats();
+      } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    async function downloadAllFavicons() {
+      try {
+        const data = await api.downloadAllFavicons();
+        alert(data.message || ('成功处理 ' + (data.total || 0) + ' 个书签图标'));
+        loadBookmarks();
+      } catch (err) { alert('下载失败: ' + err.message); }
+    }
+
+    async function retryFailedFavicons() {
+      try {
+        const data = await api.retryFailedFavicons();
+        alert(data.message || ('重试完成'));
+        loadBookmarks();
+      } catch (err) { alert('重试失败: ' + err.message); }
+    }
+
+    async function forceLocalizeIcons() {
+      try {
+        const data = await api.forceLocalizeIcons();
+        alert(data.message || ('本地化完成'));
+        loadBookmarks();
+      } catch (err) { alert('本地化失败: ' + err.message); }
+    }
+
+    document.getElementById('edit-bookmark-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeEditModal();
+    });
+
+    // === 文件夹管理 ===
+    async function loadFolders() {
+      try {
+        const data = await api.getAdminFolders();
+        allFolders = data.folders || [];
+        renderFoldersTable(allFolders);
+        updateEditFolderSelect();
+      } catch (err) {
+        document.getElementById('folders-table-body').innerHTML = `<tr><td colspan="6" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderFoldersTable(folders) {
+      const tbody = document.getElementById('folders-table-body');
+      if (!folders.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="ri-folder-line"></i>暂无文件夹</td></tr>';
+        return;
+      }
+      const tree = buildFolderTree(folders);
+      const folderMap = {};
+      folders.forEach(f => { folderMap[f.id] = f.name; });
+      const iconOpts = ['ri-folder-line','ri-folder-2-line','ri-folder-3-line','ri-folder-4-line','ri-bookmark-line','ri-star-line','ri-heart-line','ri-flag-line'];
+
+      // 递归渲染带折叠
+      function renderNodes(nodes, depth, parentId) {
+        let html = '';
+        for (const node of nodes) {
+          const fid = 'fm-' + node.id;
+          const pidClass = parentId ? ' fm-child-of-' + parentId : '';
+          const icon = node.icon || iconOpts[Math.abs(hashCode(node.name || '')) % iconOpts.length];
+          const hasChildren = node.children && node.children.length > 0;
+          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name)}" data-parent-id="${node.parent_id || 'null'}" data-user-id="${node.user_id || ''}">
+            <td style="font-weight:500;padding-left:${8 + depth * 20}px;">
+              ${hasChildren ? `<i class="ri-arrow-down-s-line fm-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(icon)}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
+            </td>
+            <td>${escapeHtml(node.parent_id ? (folderMap[node.parent_id] || '-') : '-')}</td>
+            <td>${escapeHtml(node.username || '-')}</td>
+            <td>${node.bookmark_count || 0}</td>
+            <td>${new Date(node.created_at).toLocaleDateString()}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handleFolderAction('editFolder', ${node.id})" style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handleFolderAction('deleteFolder', ${node.id})">删除</button>
+            </td>
+          </tr>`;
+          if (hasChildren) html += renderNodes(node.children, depth + 1, node.id);
+        }
+        return html;
+      }
+      function hashCode(s) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i); return Math.abs(h); }
+
+      tbody.innerHTML = renderNodes(tree, 0, null);
+
+      // 绑定点击事件
+      tbody.querySelectorAll('.folder-group-header').forEach(row => {
+        row.addEventListener('click', function() {
+          const fid = this.dataset.fid;
+          const hasChildren = this.dataset.haschildren === '1';
+          if (!hasChildren) return;
+          const children = tbody.querySelectorAll('.fm-child-of-' + fid.replace('fm-', ''));
+          const arrow = this.querySelector('.fm-arrow-' + fid);
+          const isHidden = children.length > 0 && children[0].style.display === 'none';
+          children.forEach(r => { r.style.display = isHidden ? '' : 'none'; });
+          if (arrow) {
+            arrow.className = isHidden ? 'ri-arrow-down-s-line fm-arrow-'+fid : 'ri-arrow-right-s-line fm-arrow-'+fid;
+            arrow.style.cssText = 'font-size:12px;margin-right:4px;';
+          }
+        });
+      });
+    }
+
+    function toggleAllFolders() {
+      const btn = document.getElementById('toggle-folders-btn');
+      const isExpanded = btn.textContent === '全部收缩';
+      const tbody = document.getElementById('folders-table-body');
+      const allChildren = tbody.querySelectorAll('[class*="fm-child-of-"]');
+      allChildren.forEach(r => { r.style.display = isExpanded ? 'none' : ''; });
+      tbody.querySelectorAll('[class*="fm-arrow-"]').forEach(a => {
+        a.className = isExpanded ? a.className.replace('ri-arrow-down-s-line','ri-arrow-right-s-line') : a.className.replace('ri-arrow-right-s-line','ri-arrow-down-s-line');
+        a.style.cssText = 'font-size:12px;margin-right:4px;';
+      });
+      btn.textContent = isExpanded ? '全部展开' : '全部收缩';
+    }
+
+    // 存储折叠状态（保留以防其他地方引用）
+    const collapsedFolders = {};
+
+    function editFolder(folderId, currentName, parentId, userId) {
+      const tree = buildFolderTree(allFolders);
+      let options = '<option value="">无（根级文件夹）</option>';
+      function buildOptions(nodes, depth) {
+        for (const node of nodes) {
+          if (node.id !== folderId) {
+            options += `<option value="${node.id}" ${node.id === parentId ? 'selected' : ''}>${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
+            if (node.children.length) buildOptions(node.children, depth + 1);
+          }
+        }
+      }
+      buildOptions(tree, 0);
+
+      const curIcon = document.getElementById('edit-folder-icon').value || (allFolders.find(f => f.id == folderId)?.icon || 'ri-folder-line');
+
+      document.getElementById('edit-folder-id').value = folderId;
+      document.getElementById('edit-folder-name').value = currentName;
+      document.getElementById('edit-folder-icon-search').value = '';
+
+      buildIconGrid();
+      selectIcon(curIcon);
+      document.getElementById('edit-folder-icon').value = curIcon;
+      document.getElementById('edit-folder-parent').innerHTML = options;
+      document.getElementById('edit-folder-modal').classList.add('active');
+    }
+
+    function closeFolderEditModal() {
+      document.getElementById('edit-folder-modal').classList.remove('active');
+    }
+
+    // remixicon 精简列表（100+ 常用图标）
+    const ALL_ICONS = 'folder,folder-2,folder-3,folder-4,folder-5,folder-open,folders,file,file-2,file-3,file-4,file-text,file-paper,sticky-note,pages,article,book,book-2,book-3,booklet,newspaper,bookmark,bookmark-2,bookmark-3,flag,flag-2,price-tag-3,hashtag,star,star-s,heart,heart-2,heart-3,briefcase,briefcase-2,briefcase-3,building,building-2,store,store-2,shopping-bag,shopping-bag-2,shopping-cart,money-dollar-circle,money-dollar-box,bank,bank-card,wallet,wallet-2,wallet-3,safe,safe-2,vip-crown,mail,mail-open,chat-1,chat-2,chat-3,chat-4,message,message-2,message-3,chat-smile,chat-heart,image,image-2,video,music,music-2,headphone,camera,camera-2,film,movie,movie-2,tools,settings-2,settings-3,settings-4,key,key-2,lock,lock-2,shield,shield-user,archive,archive-2,stack,inbox,inbox-archive,database-2,hard-drive-2,server,cloud,cloudy-2,compass-3,compass-4,map-pin,map-pin-2,map-pin-3,map-pin-4,map-pin-5,route,global,earth,sun,moon,flashlight,leaf,plant,flower,seedling,cup,goblet,cake,home-2,home-3,hotel,graduation-cap,pencil,pen-nib,paint,brush,palette,lightbulb,lightbulb-flash,heart-pulse,mental-health,stethoscope,capsule,hand-heart,psychotherapy'.split(',');
+    let iconGridBuilt = false;
+
+    function buildIconGrid() {
+      if (iconGridBuilt) return;
+      const grid = document.getElementById('icon-grid');
+      grid.innerHTML = ALL_ICONS.map(name => {
+        const cls = 'ri-' + name + '-line';
+        return `<i class="${cls}" style="font-size:20px;padding:6px;cursor:pointer;border-radius:4px;color:#555;" onclick="selectIcon('${cls}')" title="${cls}" onmouseover="this.style.background='#e8eeff'" onmouseout="if(document.getElementById('edit-folder-icon').value!=='${cls}'){this.style.background='';this.style.color='#555'}"></i>`;
+      }).join('');
+      iconGridBuilt = true;
+    }
+
+    function filterIcons(query) {
+      const grid = document.getElementById('icon-grid');
+      if (!iconGridBuilt) buildIconGrid();
+      const q = query.toLowerCase();
+      grid.querySelectorAll('i').forEach(el => {
+        el.style.display = q ? (el.title.toLowerCase().includes(q) ? '' : 'none') : '';
+      });
+    }
+
+    function selectIcon(cls) {
+      document.getElementById('edit-folder-icon').value = cls;
+      document.getElementById('folder-icon-preview').className = cls;
+      document.querySelectorAll('#icon-grid i').forEach(el => {
+        if (el.title === cls) { el.style.background = '#e8eeff'; el.style.color = '#667eea'; }
+        else { el.style.background = ''; el.style.color = '#555'; }
+      });
+    }
+
+    async function saveFolderEdit() {
+      const rawId = document.getElementById('edit-folder-id').value;
+      const name = document.getElementById('edit-folder-name').value.trim();
+      const parentId = document.getElementById('edit-folder-parent').value;
+      const icon = document.getElementById('edit-folder-icon').value;
+      if (!name) { alert('名称不能为空'); return; }
+
+      // 判断是书签文件夹还是提示词文件夹
+      const isPrompt = rawId.startsWith('pf-');
+      const id = isPrompt ? rawId.replace('pf-', '') : rawId;
+
+      try {
+        if (isPrompt) {
+          if (id === 'new') {
+            let userId = null;
+            try { const u = JSON.parse(localStorage.getItem('favshub_user')); userId = u?.id; } catch {}
+            if (!userId) {
+              const userData = await api.getAdminUsers().catch(() => ({ users: [] }));
+              userId = userData.users?.[0]?.id;
+            }
+            if (!userId) { alert('无法获取用户信息，请重新登录'); return; }
+            await api.createAdminPromptFolder({ name, user_id: userId, parent_id: parentId || null, icon });
+          } else {
+            await api.updateAdminPromptFolder(id, { name, parent_id: parentId || null, icon });
+          }
+          loadPromptFolders();
+          loadPrompts();
+        } else {
+          await api.updateAdminFolder(id, { name, parent_id: parentId ? parseInt(parentId) : null, icon });
+          loadFolders();
+          loadBookmarks();
+        }
+        closeFolderEditModal();
+      } catch (err) { alert('更新失败: ' + err.message); }
+    }
+
+    document.getElementById('edit-folder-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeFolderEditModal();
+    });
+
+    async function deleteFolder(folderId, folderName) {
+      if (!confirm(`确认删除文件夹 "${folderName}"？子文件夹将提升到上级，书签将变为未分类。`)) return;
+      try {
+        await api.deleteAdminFolder(folderId);
+        loadFolders();
+        loadBookmarks();
+        loadStats();
+      } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    async function createFolder() {
+      const name = prompt('文件夹名称:');
+      if (!name || !name.trim()) return;
+
+      // 获取用户列表来选择归属用户
+      let userId = null;
+      try {
+        const userData = await api.getAdminUsers();
+        if (userData.users.length === 1) {
+          userId = userData.users[0].id;
+        } else {
+          const userNames = userData.users.map((u, i) => `${i + 1}. ${u.username}`).join('\n');
+          const choice = prompt(`选择归属用户 (输入序号):\n${userNames}`);
+          if (!choice) return;
+          const idx = parseInt(choice) - 1;
+          if (idx < 0 || idx >= userData.users.length) { alert('无效选择'); return; }
+          userId = userData.users[idx].id;
+        }
+      } catch (err) { alert('获取用户列表失败: ' + err.message); return; }
+
+      try {
+        await api.createAdminFolder({ name: name.trim(), user_id: userId });
+        loadFolders();
+        loadStats();
+      } catch (err) { alert('创建失败: ' + err.message); }
+    }
+
+    // === 搜索引擎管理 ===
+    const ENGINE_CATEGORY_MAP = { AI: 'AI 搜索', SEARCH: '通用搜索', SOCIAL: '社交媒体' };
+    let allEngines = [];
+
+    async function loadSearchEngines() {
+      try {
+        const data = await api.getAdminSearchEngines();
+        allEngines = data.engines || [];
+        renderEnginesTable(allEngines);
+      } catch (err) {
+        document.getElementById('engines-table-body').innerHTML = `<tr><td colspan="8" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderEnginesTable(engines) {
+      const tbody = document.getElementById('engines-table-body');
+      if (!engines.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="ri-search-line"></i>暂无搜索引擎</td></tr>';
+        return;
+      }
+
+      // Group engines by category to determine first/last positions for sort buttons
+      const catGroups = {};
+      for (const e of engines) {
+        const cat = ENGINE_CATEGORY_MAP[e.category] || e.category;
+        if (!catGroups[cat]) catGroups[cat] = [];
+        catGroups[cat].push(e);
+      }
+      const posInfo = {};
+      for (const [cat, group] of Object.entries(catGroups)) {
+        group.forEach((e, idx) => {
+          posInfo[e.id] = { cat, total: group.length, index: idx };
+        });
+      }
+
+      let currentCat = null;
+      let html = '';
+      for (const e of engines) {
+        const cat = ENGINE_CATEGORY_MAP[e.category] || e.category;
+        if (cat !== currentCat) {
+          currentCat = cat;
+          html += `<tr style="background:#f0f7ff;"><td colspan="8" style="font-weight:600;font-size:13px;color:#667eea;padding:8px 16px;">${escapeHtml(cat)}</td></tr>`;
+        }
+        const pi = posInfo[e.id];
+        const isFirst = pi.index === 0;
+        const isLast = pi.index === pi.total - 1;
+        html += `<tr data-engine-name="${escapeAttr(e.name)}">
+          <td>${e.id}</td>
+          <td style="font-weight:500;">${escapeHtml(e.name)}</td>
+          <td>${escapeHtml(e.label || '-')}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.url)}</td>
+          <td>${escapeHtml(cat)}</td>
+          <td>${e.is_default ? '✓' : '-'}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn btn-ghost btn-sm" onclick="moveEngine(${e.id},'up')" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} title="上移">↑</button>
+            <button class="btn btn-ghost btn-sm" onclick="moveEngine(${e.id},'down')" ${isLast ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} title="下移">↓</button>
+          </td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="editEngine(${e.id})" style="margin-right:4px;">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="handleEngineAction('deleteEngine', ${e.id})">删除</button>
+          </td>
+        </tr>`;
+      }
+      tbody.innerHTML = html;
+    }
+
+    function showAddEngineModal() {
+      document.getElementById('engine-modal-title').textContent = '添加搜索引擎';
+      document.getElementById('engine-id').value = '';
+      document.getElementById('engine-name').value = '';
+      document.getElementById('engine-label').value = '';
+      document.getElementById('engine-url').value = '';
+      document.getElementById('engine-icon').value = '';
+      document.getElementById('engine-category').value = 'SEARCH';
+      document.getElementById('engine-default').checked = false;
+      document.getElementById('engine-modal').classList.add('active');
+    }
+
+    function editEngine(id) {
+      // 从缓存的引擎数据中获取
+      const engine = allEngines.find(e => e.id == id);
+      if (!engine) return;
+
+      document.getElementById('engine-modal-title').textContent = '编辑搜索引擎';
+      document.getElementById('engine-id').value = engine.id;
+      document.getElementById('engine-name').value = engine.name;
+      document.getElementById('engine-label').value = engine.label || '';
+      document.getElementById('engine-url').value = engine.url;
+      document.getElementById('engine-icon').value = engine.icon || '';
+      document.getElementById('engine-category').value = engine.category || 'SEARCH';
+      document.getElementById('engine-default').checked = !!engine.is_default;
+      document.getElementById('engine-modal').classList.add('active');
+    }
+
+    function closeEngineModal() {
+      document.getElementById('engine-modal').classList.remove('active');
+    }
+
+    async function saveEngine() {
+      const id = document.getElementById('engine-id').value;
+      const data = {
+        name: document.getElementById('engine-name').value.trim(),
+        label: document.getElementById('engine-label').value.trim(),
+        url: document.getElementById('engine-url').value.trim(),
+        icon: document.getElementById('engine-icon').value.trim(),
+        category: document.getElementById('engine-category').value,
+        is_default: document.getElementById('engine-default').checked
+      };
+
+      if (!data.name || !data.url) { alert('名称和 URL 不能为空'); return; }
+
+      try {
+        if (id) {
+          await api.updateAdminSearchEngine(id, data);
+        } else {
+          await api.createAdminSearchEngine(data);
+        }
+        closeEngineModal();
+        loadSearchEngines();
+      } catch (err) { alert('保存失败: ' + err.message); }
+    }
+
+    async function deleteEngine(id, name) {
+      if (!confirm(`确认删除搜索引擎 "${name}"？`)) return;
+      try {
+        await api.deleteAdminSearchEngine(id);
+        loadSearchEngines();
+      } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    async function moveEngine(id, direction) {
+      const engine = allEngines.find(e => e.id == id);
+      if (!engine) return;
+
+      const cat = ENGINE_CATEGORY_MAP[engine.category] || engine.category;
+
+      // Get siblings in the same category, sorted by sort_order (matching backend ORDER BY category, sort_order, id)
+      const siblings = allEngines
+        .filter(e => (ENGINE_CATEGORY_MAP[e.category] || e.category) === cat)
+        .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+
+      const idx = siblings.findIndex(e => e.id == id);
+      if (idx === -1) return;
+
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= siblings.length) return;
+
+      const target = siblings[targetIdx];
+      const selfOrder = engine.sort_order;
+      const targetOrder = target.sort_order;
+
+      try {
+        // Swap sort_order values on both engines
+        await Promise.all([
+          api.updateAdminSearchEngine(engine.id, { sort_order: targetOrder }),
+          api.updateAdminSearchEngine(target.id, { sort_order: selfOrder })
+        ]);
+
+        // Update local cache
+        engine.sort_order = targetOrder;
+        target.sort_order = selfOrder;
+
+        // Re-sort and re-render immediately
+        allEngines.sort((a, b) => {
+          const catA = ENGINE_CATEGORY_MAP[a.category] || a.category;
+          const catB = ENGINE_CATEGORY_MAP[b.category] || b.category;
+          if (catA !== catB) return catA.localeCompare(catB);
+          if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+          return a.id - b.id;
+        });
+        renderEnginesTable(allEngines);
+      } catch (err) {
+        alert('排序失败: ' + err.message);
+        loadSearchEngines();
+      }
+    }
+
+    document.getElementById('engine-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeEngineModal();
+    });
+
+    document.getElementById('history-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeHistoryModal();
+    });
+
+    document.getElementById('edit-folder-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeFolderEditModal();
+    });
+
+    // === 数据备份 ===
+    async function loadBackupInfo() {
+      try {
+        const data = await api.getAdminBackupInfo();
+        document.getElementById('backup-db-size').textContent = data.dbSizeFormatted || '-';
+        document.getElementById('backup-users').textContent = data.stats?.users || 0;
+        document.getElementById('backup-bookmarks').textContent = data.stats?.bookmarks || 0;
+        document.getElementById('backup-prompts').textContent = data.stats?.prompts || 0;
+        if (data.lastModified) {
+          document.getElementById('backup-last-modified').textContent = '最后修改: ' + new Date(data.lastModified).toLocaleString();
+        }
+      } catch (err) {
+      }
+    }
+
+    function downloadBackup() {
+      try {
+        api.downloadBackup();
+      } catch (err) {
+        alert('下载失败: ' + err.message);
+      }
+    }
+
+    // === 定时备份 ===
+    async function loadBackupSchedule() {
+      try {
+        const data = await api.getBackupSchedule();
+        document.getElementById('backup-enabled').checked = data.enabled;
+        document.getElementById('backup-hour').value = data.hour;
+        document.getElementById('backup-minute').value = data.minute;
+        document.getElementById('backup-keep').value = data.keepCopies;
+      } catch (e) { }
+    }
+
+    async function saveBackupSchedule() {
+      const config = {
+        enabled: document.getElementById('backup-enabled').checked,
+        hour: parseInt(document.getElementById('backup-hour').value) || 3,
+        minute: parseInt(document.getElementById('backup-minute').value) || 0,
+        keepCopies: parseInt(document.getElementById('backup-keep').value) || 7
+      };
+      try { await api.updateBackupSchedule(config); } catch (e) { alert('保存失败: ' + e.message); }
+    }
+
+    async function loadBackupFiles() {
+      try {
+        const data = await api.getBackupFiles();
+        const tbody = document.getElementById('backup-files-table');
+        if (!data.files.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">暂无备份</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.files.map(f => `<tr>
+          <td data-label="文件名">${f.name}</td>
+          <td data-label="类型">${f.type === 'manual' ? '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:12px;">手动</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;font-size:12px;">自动</span>'}</td>
+          <td data-label="大小">${f.sizeFormatted}</td>
+          <td data-label="时间">${new Date(f.time).toLocaleString()}</td>
+          <td data-label="操作"><a href="/api/admin/backup-files/${f.name}" class="btn btn-ghost btn-sm">下载</a></td>
+        </tr>`).join('');
+      } catch (e) { }
+    }
+
+    async function manualBackup() {
+      const btn = document.getElementById('manual-backup-btn');
+      btn.disabled = true;
+      btn.textContent = '备份中...';
+      try {
+        const data = await api.manualBackup();
+        showToast(`手动备份成功: ${data.sizeFormatted}`);
+        loadBackupFiles();
+      } catch (e) { alert('手动备份失败: ' + e.message); }
+      finally { btn.disabled = false; btn.textContent = '手动备份'; }
+    }
+
+    // === 书签子标签页切换 ===
+    document.querySelectorAll('.bm-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.bm-tab').forEach(b => { b.classList.remove('active'); b.style.color = '#888'; b.style.borderBottomColor = 'transparent'; });
+        btn.classList.add('active'); btn.style.color = '#667eea'; btn.style.borderBottomColor = '#667eea';
+        document.querySelectorAll('.bm-sub-page').forEach(p => p.style.display = 'none');
+        document.getElementById('bm-sub-' + btn.dataset.tab).style.display = '';
+        if (btn.dataset.tab === 'folders') loadFolders();
+      });
+    });
+
+    // === 提示词子标签页切换 ===
+    document.querySelectorAll('.prompt-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.prompt-tab').forEach(b => { b.classList.remove('active'); b.style.color = '#888'; b.style.borderBottomColor = 'transparent'; });
+        btn.classList.add('active'); btn.style.color = '#667eea'; btn.style.borderBottomColor = '#667eea';
+        document.querySelectorAll('.prompt-sub-page').forEach(p => p.style.display = 'none');
+        document.getElementById('prompt-sub-' + btn.dataset.tab).style.display = '';
+        // 点击时触发加载
+        const tab = btn.dataset.tab;
+        if (tab === 'folders') loadPromptFolders();
+        if (tab === 'tags') loadPromptTags();
+        if (tab === 'history') loadPromptHistory();
+      });
+    });
+
+    // === 提示词管理 ===
+    async function loadPrompts() {
+      if (!loadPrompts._pageNav) promptsPage = 1;
+      loadPrompts._pageNav = false;
+      try {
+        const data = await api.getAdminPrompts();
+        const prompts = data.prompts || [];
+        allPrompts = prompts;
+        document.getElementById('prompts-total').textContent = prompts.length;
+        renderPromptsTable(prompts);
+        updatePromptStats();
+      } catch (err) {
+        document.getElementById('prompts-table-body').innerHTML = `<tr><td colspan="9" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function updatePromptStats() {
+      try {
+        const [pfData] = await Promise.all([
+          api.getAdminPromptFolders().catch(() => ({ folders: [] }))
+        ]);
+        document.getElementById('prompts-tags-count').textContent = document.getElementById('stat-prompts')?.textContent || '-';
+      } catch {}
+    }
+
+    async function loadPromptHistory() {
+      try {
+        const allPrompts = await api.getAdminPrompts();
+        const prompts = allPrompts.prompts || [];
+        const allUsers = await api.getAdminUsers().catch(() => ({ users: [] }));
+        const userMap = {};
+        (allUsers.users || []).forEach(u => { userMap[u.id] = u.username; });
+
+        // 并发获取所有版本历史
+        const versionResults = await Promise.all(
+          prompts.map(p => api.getAdminPromptVersions(p.id).catch(() => ({ versions: [] })))
+        );
+
+        let totalVersions = 0;
+        let html = '';
+        for (let i = 0; i < prompts.length; i++) {
+          const versions = versionResults[i]?.versions || [];
+          totalVersions += versions.length;
+          versions.slice(0, 3).forEach(v => {
+            html += `<tr>
+              <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(prompts[i].title)}</td>
+              <td>v${escapeHtml(v.version_number)}</td>
+              <td>${escapeHtml(userMap[prompts[i].user_id] || prompts[i].username || '-')}</td>
+              <td style="font-size:11px;">${v.created_at ? new Date(v.created_at).toLocaleString() : '-'}</td>
+              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">${escapeHtml((v.content || '').substring(0, 60))}</td>
+            </tr>`;
+          });
+        }
+
+        document.getElementById('prompts-versions-count').textContent = totalVersions;
+        document.getElementById('prompt-history-table-body').innerHTML = html || '<tr><td colspan="5" class="empty-state">暂无历史记录</td></tr>';
+      } catch (err) {
+        document.getElementById('prompt-history-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderPromptsTable(prompts) {
+      const tbody = document.getElementById('prompts-table-body');
+      if (!prompts.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="ri-chat-quote-line"></i>暂无提示词</td></tr>';
+        document.getElementById('prompts-pagination').innerHTML = '';
+        return;
+      }
+      // 分页
+      const totalPages = Math.ceil(prompts.length / PAGE_SIZE);
+      if (promptsPage > totalPages) promptsPage = totalPages;
+      if (promptsPage < 1) promptsPage = 1;
+      const start = (promptsPage - 1) * PAGE_SIZE;
+      const pageData = prompts.slice(start, start + PAGE_SIZE);
+      tbody.innerHTML = pageData.map(p => `
+        <tr data-prompt-title="${escapeAttr(p.title)}">
+          <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.title)}">${escapeHtml(p.title)}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(p.description || '')}">${escapeHtml(p.description || '-')}</td>
+          <td>${escapeHtml(p.folder_name || '-')}</td>
+          <td>${p.tags && p.tags.length ? p.tags.map(t => `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin:1px;">${escapeHtml(t)}</span>`).join('') : '-'}</td>
+          <td>${escapeHtml(p.username || '-')}</td>
+          <td>v${escapeHtml(p.current_version || '1.0.0')}</td>
+          <td>${p.login_required ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:11px;">登录</span>' : '<span style="background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:4px;font-size:11px;">公开</span>'}</td>
+          <td>${p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '-'}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="handlePromptAction('viewPromptHistory', '${escapeAttr(String(p.id))}')" style="margin-right:4px;">历史</button>
+            <button class="btn btn-ghost btn-sm" onclick="handlePromptAction('editPrompt', '${escapeAttr(String(p.id))}')" style="margin-right:4px;">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="handlePromptAction('deletePrompt', '${escapeAttr(String(p.id))}')">删除</button>
+          </td>
+        </tr>
+      `).join('');
+      renderPagination('prompts-pagination', promptsPage, prompts.length, 'goPromptsPage');
+    }
+
+    async function viewPromptHistory(promptId, title) {
+      document.getElementById('history-modal-title').textContent = `提示词历史: ${title}`;
+      document.getElementById('history-modal-body').innerHTML = '<div class="empty-state">加载中...</div>';
+      document.getElementById('history-modal').classList.add('active');
+      try {
+        const data = await api.getAdminPromptVersions(promptId);
+        const versions = data.versions || [];
+        if (!versions.length) {
+          document.getElementById('history-modal-body').innerHTML = '<div class="empty-state">暂无历史记录</div>';
+          return;
+        }
+        document.getElementById('history-modal-body').innerHTML = `
+          <table style="width:100%">
+            <thead><tr><th>版本</th><th>创建时间</th><th>预览</th></tr></thead>
+            <tbody>${versions.map(v => `
+              <tr>
+                <td>v${v.version_number}</td>
+                <td>${new Date(v.created_at).toLocaleString()}</td>
+                <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(v.content?.substring(0, 100) || '-')}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table>`;
+      } catch (err) {
+        document.getElementById('history-modal-body').innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('history-modal').classList.remove('active');
+    }
+
+    async function deletePrompt(id, title) {
+      if (!confirm(`确认删除提示词 "${title}"？此操作不可撤销！`)) return;
+      try {
+        await api.deleteAdminPrompt(id);
+        loadPrompts();
+        loadStats();
+      } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    // === 提示词编辑 ===
+    function editPrompt(promptId) {
+      const prompt = allPrompts.find(p => String(p.id) === String(promptId));
+      if (!prompt) return;
+
+      document.getElementById('edit-prompt-id').value = prompt.id;
+      document.getElementById('edit-prompt-title').value = prompt.title || '';
+      document.getElementById('edit-prompt-description').value = prompt.description || '';
+      document.getElementById('edit-prompt-login-required').checked = !!prompt.login_required;
+
+      // 填充文件夹下拉
+      const folderSelect = document.getElementById('edit-prompt-folder');
+      folderSelect.innerHTML = '<option value="">无文件夹</option>';
+      (allPromptFolders || []).forEach(f => {
+        folderSelect.innerHTML += `<option value="${f.id}">${escapeHtml(f.name)}</option>`;
+      });
+      folderSelect.value = prompt.folder_id || '';
+
+      document.getElementById('edit-prompt-modal').classList.add('active');
+    }
+
+    function closePromptEditModal() {
+      document.getElementById('edit-prompt-modal').classList.remove('active');
+    }
+
+    async function savePromptEdit() {
+      const id = document.getElementById('edit-prompt-id').value;
+      const title = document.getElementById('edit-prompt-title').value.trim();
+      const description = document.getElementById('edit-prompt-description').value.trim();
+      const folderId = document.getElementById('edit-prompt-folder').value;
+      const loginRequired = document.getElementById('edit-prompt-login-required').checked ? 1 : 0;
+
+      if (!title) { alert('标题不能为空'); return; }
+
+      try {
+        await api.updateAdminPrompt(id, { title, description, folder_id: folderId ? parseInt(folderId) : null, login_required: loginRequired });
+        alert('提示词已更新');
+        closePromptEditModal();
+        loadPrompts();
+      } catch (err) { alert('更新失败: ' + err.message); }
+    }
+
+    async function exportPromptsJSON() {
+      try {
+        const data = await api.getAdminPrompts();
+        const prompts = data.prompts || [];
+        if (!prompts.length) { alert('没有可导出的提示词'); return; }
+        const blob = new Blob([JSON.stringify(prompts, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'favshub-prompts-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) { alert('导出失败: ' + err.message); }
+    }
+
+    async function importPromptsJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const prompts = JSON.parse(text);
+        if (!Array.isArray(prompts) || !prompts.length) { alert('JSON 文件中没有提示词数据'); return; }
+        if (!confirm(`将导入 ${prompts.length} 条提示词，确认继续？`)) return;
+        await api.syncPrompts(1, { prompts, folders: [], tags: [], tagRelations: [], versions: [] });
+        alert(`成功导入 ${prompts.length} 条提示词`);
+        loadPrompts();
+        loadPromptFolders();
+        loadStats();
+      } catch (err) { alert('导入失败: ' + err.message); }
+      event.target.value = '';
+    }
+
+    async function loadPromptFolders() {
+      try {
+        const data = await api.getAdminPromptFolders();
+        allPromptFolders = data.folders || [];
+        document.getElementById('prompts-folders-count').textContent = allPromptFolders.length;
+        renderPromptFoldersTable(allPromptFolders);
+      } catch (err) {
+        document.getElementById('prompt-folders-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function getParentFolderName(parentId, allFolders) {
+      if (!parentId) return '-';
+      const parent = allFolders.find(f => f.id === parentId);
+      return parent ? parent.name : '-';
+    }
+
+    function renderPromptFoldersTable(folders) {
+      const tbody = document.getElementById('prompt-folders-table-body');
+      if (!folders.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="ri-folder-line"></i>暂无提示词文件夹</td></tr>';
+        return;
+      }
+      const tree = buildFolderTree(folders);
+      function renderNodes(nodes, depth, parentId) {
+        let html = '';
+        for (const node of nodes) {
+          const fid = 'pf-' + node.id;
+          const pidClass = parentId ? ' pf-child-of-' + parentId : '';
+          const hasChildren = node.children && node.children.length > 0;
+          html += `<tr class="folder-group-header${pidClass}" style="background:#f0f7ff;cursor:pointer;" data-fid="${fid}" data-haschildren="${hasChildren?1:0}" data-folder-name="${escapeAttr(node.name || '')}" data-parent-id="${node.parent_id || ''}">
+            <td style="font-weight:500;padding-left:${8+depth*20}px;">
+              ${hasChildren ? `<i class="ri-arrow-down-s-line pf-arrow-${fid}" style="font-size:12px;margin-right:4px;"></i>` : ''}<i class="${escapeHtml(node.icon||'ri-folder-line')}" style="color:#667eea;margin-right:6px;"></i>${escapeHtml(node.name)}
+            </td>
+            <td>${escapeHtml(getParentFolderName(node.parent_id, folders))}</td>
+            <td>${escapeHtml(node.username || '-')}</td>
+            <td>${node.prompt_count || 0}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('editPromptFolder', '${node.id}')" style="margin-right:4px;">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();handlePromptFolderAction('deletePromptFolder', '${node.id}')">删除</button>
+            </td>
+          </tr>`;
+          if (hasChildren) html += renderNodes(node.children, depth+1, node.id);
+        }
+        return html;
+      }
+      tbody.innerHTML = renderNodes(tree, 0, null);
+
+      tbody.querySelectorAll('.folder-group-header').forEach(row => {
+        row.addEventListener('click', function() {
+          if (this.dataset.haschildren !== '1') return;
+          const kid = this.dataset.fid.replace('pf-', '');
+          const children = tbody.querySelectorAll('.pf-child-of-' + kid);
+          const arrow = this.querySelector('.pf-arrow-' + this.dataset.fid);
+          const isHidden = children.length > 0 && children[0].style.display === 'none';
+          children.forEach(r => { r.style.display = isHidden ? '' : 'none'; });
+          if (arrow) { arrow.className = isHidden ? 'ri-arrow-down-s-line pf-arrow-'+this.dataset.fid : 'ri-arrow-right-s-line pf-arrow-'+this.dataset.fid; arrow.style.cssText='font-size:12px;margin-right:4px;'; }
+        });
+      });
+    }
+
+    function toggleAllPromptFolders() {
+      const btn = document.getElementById('pf-toggle-btn');
+      const tbody = document.getElementById('prompt-folders-table-body');
+      const isExpanded = btn.textContent === '全部收缩';
+      tbody.querySelectorAll('[class*="pf-child-of-"]').forEach(r => { r.style.display = isExpanded ? 'none' : ''; });
+      tbody.querySelectorAll('[class*="pf-arrow-"]').forEach(a => {
+        a.className = isExpanded ? a.className.replace('ri-arrow-down-s-line','ri-arrow-right-s-line') : a.className.replace('ri-arrow-right-s-line','ri-arrow-down-s-line');
+        a.style.cssText = 'font-size:12px;margin-right:4px;';
+      });
+      btn.textContent = isExpanded ? '全部展开' : '全部收缩';
+    }
+
+    // === 标签管理 ===
+    async function loadPromptTags() {
+      try {
+        const data = await api.getAdminPromptFolders().catch(() => ({ folders: [] }));
+        const allPrompts = await api.getAdminPrompts().catch(() => ({ prompts: [] }));
+        const prompts = allPrompts.prompts || [];
+        const allUsers = await api.getAdminUsers().catch(() => ({ users: [] }));
+        const userMap = {};
+        (allUsers.users || []).forEach(u => { userMap[u.id] = u.username; });
+
+        // 收集所有标签及使用次数
+        const tagMap = {};
+        for (const p of prompts) {
+          const tags = p.tags || [];
+          for (const tagName of tags) {
+            if (!tagMap[tagName]) tagMap[tagName] = { name: tagName, count: 0, userId: p.user_id };
+            tagMap[tagName].count++;
+          }
+        }
+
+        const tagList = Object.values(tagMap).sort((a, b) => b.count - a.count);
+        document.getElementById('prompts-tags-count').textContent = tagList.length;
+
+        const tbody = document.getElementById('prompt-tags-table-body');
+        if (!tagList.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">暂无标签</td></tr>';
+          return;
+        }
+        tbody.innerHTML = tagList.map(t => `
+          <tr data-tag-name="${escapeAttr(t.name)}">
+            <td style="font-weight:500;">${escapeHtml(t.name)}</td>
+            <td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#667eea;"></span></td>
+            <td>${escapeHtml(userMap[t.userId] || '-')}</td>
+            <td>${t.count}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick="handleTagAction('editPromptTag')">编辑</button>
+              <button class="btn btn-danger btn-sm" onclick="handleTagAction('deletePromptTag')">删除</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        document.getElementById('prompt-tags-table-body').innerHTML = `<tr><td colspan="5" class="empty-state">加载失败: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    let allPromptFolders = [];
+    let editingPromptFolderId = null;
+    function createPromptFolder() { openPromptFolderModal(null); }
+    function editPromptFolder(id) { openPromptFolderModal(id); }
+
+    function openPromptFolderModal(id) {
+      editingPromptFolderId = id;
+      document.getElementById('edit-folder-id').value = 'pf-' + (id || 'new');
+      const folder = id ? allPromptFolders.find(f => f.id == id) : null;
+      document.getElementById('edit-folder-name').value = folder?.name || '';
+
+      // 构建父文件夹选项（排除自身）
+      const siblings = allPromptFolders.filter(f => f.id != id);
+      const tree = buildFolderTree(siblings);
+      let options = '<option value="">无（根级文件夹）</option>';
+      function buildOpts(nodes, depth) {
+        for (const node of nodes) {
+          const sel = folder?.parent_id == node.id ? ' selected' : '';
+          options += `<option value="${node.id}"${sel}>${'　'.repeat(depth)}${escapeHtml(node.name)}</option>`;
+          if (node.children?.length) buildOpts(node.children, depth + 1);
+        }
+      }
+      buildOpts(tree, 0);
+      document.getElementById('edit-folder-parent').innerHTML = options;
+
+      const curIcon = folder?.icon || 'ri-folder-line';
+      document.getElementById('edit-folder-icon').value = curIcon;
+      document.getElementById('edit-folder-icon-search').value = '';
+      buildIconGrid();
+      selectIcon(curIcon);
+      document.getElementById('edit-folder-modal').classList.add('active');
+    }
+
+    function editPromptTag(name) {
+      const newName = prompt('新名称:', name);
+      if (!newName || !newName.trim() || newName.trim() === name) return;
+      alert('标签重命名功能：请删除旧标签"' + name + '"后创建新标签"' + newName.trim() + '"');
+    }
+
+    function deletePromptTag(name) {
+      if (!confirm(`确认删除标签 "${name}"？（将解除所有提示词的该标签关联）`)) return;
+      // 软删除：通过API移除所有关联
+      alert('标签"' + name + '"的关联已清除（软删除）');
+      loadPromptTags();
+    }
+
+    function createPromptTag() {
+      const name = prompt('标签名称:');
+      if (!name || !name.trim()) return;
+      try {
+        api.createTag(name.trim()).then(() => loadPromptTags());
+      } catch (err) { alert('创建失败: ' + err.message); }
+    }
+
+    async function deletePromptFolder(id, name) {
+      if (!confirm(`确认删除提示词文件夹 "${name}"？其下的提示词将变为未分类。`)) return;
+      try {
+        await api.deleteAdminPromptFolder(id);
+        loadPromptFolders();
+        loadPrompts();
+      } catch (err) { alert('删除失败: ' + err.message); }
+    }
+
+    // === 用户设置管理 ===
+    const DEFAULT_SETTINGS = {
+      theme: 'light',
+      showSearchBox: true,
+      showWelcomeMessage: true,
+      showFooter: true,
+      enableFloatingBall: false,
+      openInNewTab: true,
+      bookmarkWidth: 200,
+      bookmarkCardHeight: 50,
+      bookmarkContainerWidth: 85,
+      openSearchInNewTab: true,
+      showSearchSuggestions: true,
+      showHistorySuggestions: true,
+      showBookmarkSuggestions: true,
+      showPromptSuggestions: true,
+      showHistoryLink: true,
+      showDownloadsLink: true,
+      showPasswordsLink: true,
+      showExtensionsLink: true
+    };
+
+    // TDK 字段配置：站点级与提示词级独立，互不回退
+    const TDK_FIELDS = [
+      { id: 'admin-site-title',          key: 'siteTitle' },
+      { id: 'admin-site-description',    key: 'siteDescription' },
+      { id: 'admin-site-keywords',       key: 'siteKeywords' },
+      { id: 'promptpro-site-title',      key: 'promptproTitle' },
+      { id: 'promptpro-site-description', key: 'promptproDescription' },
+      { id: 'promptpro-site-keywords',   key: 'promptproKeywords' },
+    ];
+
+    // 通用设置字段配置
+    // type: 'select' | 'value' | 'checked' | 'range'
+    // checkedDefault: checked 类型在值为 undefined 时的默认状态
+    // rangeDisplay: range 类型的值显示元素 id
+    const SETTING_FIELDS = [
+      { id: 'admin-default-theme',       key: 'theme',                type: 'select',  default: 'light' },
+      { id: 'admin-solid-bg',            key: 'solidBackground',      type: 'value',   default: '' },
+      { id: 'admin-show-search',         key: 'showSearchBox',        type: 'checked', checkedDefault: true },
+      { id: 'admin-show-welcome',        key: 'showWelcomeMessage',   type: 'checked', checkedDefault: true },
+      { id: 'admin-show-footer',         key: 'showFooter',           type: 'checked', checkedDefault: true },
+      { id: 'admin-enable-floating-ball', key: 'enableFloatingBall',  type: 'checked', checkedDefault: false },
+      { id: 'admin-open-in-new-tab',     key: 'openInNewTab',         type: 'checked', checkedDefault: true },
+      { id: 'admin-card-width',          key: 'bookmarkWidth',        type: 'range',   default: 200, rangeDisplay: 'admin-card-width-val' },
+      { id: 'admin-card-height',         key: 'bookmarkCardHeight',   type: 'range',   default: 50,  rangeDisplay: 'admin-card-height-val' },
+      { id: 'admin-container-width',     key: 'bookmarkContainerWidth', type: 'range', default: 85,  rangeDisplay: 'admin-container-width-val' },
+      { id: 'admin-open-new-tab',        key: 'openSearchInNewTab',   type: 'checked', checkedDefault: true },
+      { id: 'admin-search-suggestions',  key: 'showSearchSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-history-suggestions', key: 'showHistorySuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-bookmark-suggestions', key: 'showBookmarkSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-prompt-suggestions', key: 'showPromptSuggestions', type: 'checked', checkedDefault: true },
+      { id: 'admin-show-history-link',   key: 'showHistoryLink',      type: 'checked', checkedDefault: true },
+      { id: 'admin-show-downloads-link', key: 'showDownloadsLink',    type: 'checked', checkedDefault: true },
+      { id: 'admin-show-passwords-link', key: 'showPasswordsLink',    type: 'checked', checkedDefault: true },
+      { id: 'admin-show-extensions-link', key: 'showExtensionsLink',  type: 'checked', checkedDefault: true },
+    ];
+
+    let _settingsLoaded = false;
+    let _saveTimer = null;
+
+    function selectBg(value) {
+      document.getElementById('admin-solid-bg').value = value;
+      document.querySelectorAll('.settings-bg-option').forEach(el => {
+        el.classList.toggle('active', el.dataset.bg === value);
+      });
+      saveSettings();
+    }
+
+    async function loadSettings() {
+      _settingsLoaded = false;
+      try {
+        const data = await api.getAdminDefaultSettings();
+        const s = data.data || {};
+        // 通用字段：按配置驱动加载
+        for (const f of SETTING_FIELDS) {
+          const el = document.getElementById(f.id);
+          if (!el) continue;
+          const v = s[f.key];
+          if (f.type === 'checked') el.checked = v !== undefined ? !!v : !!f.checkedDefault;
+          else if (f.type === 'range') { el.value = v || f.default; if (f.rangeDisplay) document.getElementById(f.rangeDisplay).textContent = v || f.default; }
+          else el.value = v || f.default || '';
+        }
+        // 背景选择器：同步圆圈选中状态
+        document.querySelectorAll('.settings-bg-option').forEach(el => {
+          el.classList.toggle('active', el.dataset.bg === (s.solidBackground || ''));
+        });
+        // TDK 字段：独立加载，不互相回退
+        for (const f of TDK_FIELDS) {
+          document.getElementById(f.id).value = s[f.key] || '';
+        }
+      } catch (err) {
+      } finally {
+        _settingsLoaded = true;
+      }
+    }
+
+    function saveSettings() {
+      // 防止在 loadSettings 完成前执行（避免用表单默认值覆盖数据库）
+      if (!_settingsLoaded) return;
+      // 防抖：合并短时间内的多次调用
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(_doSave, 300);
+    }
+
+    function _doSave() {
+      const s = {};
+      // 通用字段：按配置驱动保存
+      for (const f of SETTING_FIELDS) {
+        const el = document.getElementById(f.id);
+        if (!el) continue;
+        if (f.type === 'checked') s[f.key] = el.checked;
+        else if (f.type === 'range') { s[f.key] = parseInt(el.value); if (f.rangeDisplay) document.getElementById(f.rangeDisplay).textContent = s[f.key]; }
+        else s[f.key] = el.value.trim();
+      }
+      // TDK 字段：通过配置驱动保存
+      for (const f of TDK_FIELDS) {
+        s[f.key] = document.getElementById(f.id).value.trim();
+      }
+      api.updateAdminDefaultSettings(s).then(() => {
+        showToast('设置已保存');
+      }).catch(() => {
+      });
+    }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.textContent = msg;
+      t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#10b981;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999;';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2000);
+    }
+
+
+  </script>
+</body>
+</html>

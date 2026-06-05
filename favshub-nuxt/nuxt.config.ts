@@ -23,6 +23,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    '/': { redirect: '/index.html' },
+    '/login': { redirect: '/login.html' },
     '/admin/**': { ssr: false },
   },
 

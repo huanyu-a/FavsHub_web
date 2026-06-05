@@ -1,0 +1,339 @@
+/* ==========================================
+   PromptPro - 浅色模式标签区和文件夹选择区优化样式
+   ========================================== */
+
+/* 浅色模式 - 标签选择器容器 */
+.tag-selector {
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+/* 浅色模式 - 标签列表容器 */
+.tag-list {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    min-height: 44px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.tag-list:hover {
+    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.tag-list:focus-within {
+    border-color: var(--primary-color);
+    background: white;
+    box-shadow: 0 0 0 4px var(--primary-medium);
+}
+
+/* 浅色模式 - 标签项 */
+.tag-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    animation: tagSlideIn 0.2s ease-out;
+}
+
+@keyframes tagSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.tag-item:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15);
+}
+
+.tag-item .tag-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--primary-color);
+    font-size: 12px;
+}
+
+.tag-item .tag-remove:hover {
+    background: var(--danger-color);
+    color: white;
+    transform: scale(1.1);
+}
+
+/* 浅色模式 - 标签输入框 */
+.tag-input {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-system);
+    transition: all 0.2s;
+}
+
+.tag-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.tag-input:focus {
+    background: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px var(--primary-medium);
+    outline: none;
+}
+
+/* 浅色模式 - 标签建议列表 */
+.tag-suggestions {
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    margin-top: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.tag-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tag-suggestions::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 3px;
+}
+
+.tag-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.tag-suggestions::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.tag-suggestion {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 99px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tag-suggestion i {
+    color: var(--text-secondary);
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.tag-suggestion:hover {
+    background: var(--primary-light);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.tag-suggestion:hover i {
+    color: var(--primary-color);
+}
+
+/* 浅色模式 - 文件夹选择器（自定义下拉框） */
+.custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-system);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.custom-select-trigger:hover {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.custom-select-trigger.active {
+    background: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px var(--primary-medium);
+}
+
+.custom-select-trigger .selected-text {
+    color: var(--text-primary);
+}
+
+.custom-select-trigger .placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.custom-select-trigger .arrow {
+    color: var(--text-secondary);
+    font-size: 14px;
+    transition: transform 0.2s;
+}
+
+.custom-select-trigger.active .arrow {
+    transform: rotate(180deg);
+    color: var(--primary-color);
+}
+
+/* 浅色模式 - 下拉菜单 */
+.custom-select-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.custom-select-dropdown.open {
+    display: block;
+    animation: dropdownSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dropdownSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.custom-select-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 3px;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.custom-select-dropdown::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* 浅色模式 - 下拉选项 */
+.custom-select-option {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.custom-select-option:last-child {
+    border-bottom: none;
+}
+
+.custom-select-option:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.custom-select-option:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.custom-select-option:hover {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.custom-select-option.selected {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.custom-select-option.selected::before {
+    content: '✓';
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--primary-color);
+}
+
+/* 浅色模式 - 文件夹图标 */
+.custom-select-option .folder-icon {
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.custom-select-option:hover .folder-icon {
+    color: var(--primary-color);
+}
+
+.custom-select-option.selected .folder-icon {
+    color: var(--primary-color);
+}

@@ -1,0 +1,660 @@
+/* ============================================================
+   FavsHub Mobile Responsive Styles
+   Breakpoints: 768px (tablet/phone), 480px (phone)
+   Covers: homepage (index.html) & promptpro page
+   ============================================================ */
+
+/* Hide mobile-only elements on desktop */
+@media (min-width: 769px) {
+  .mobile-header-bar,
+  .mobile-sidebar-overlay,
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+}
+
+/* ========== Core: Mobile Drawer ========== */
+@media (max-width: 768px) {
+
+  /* --- Sidebar as drawer (both pages) --- */
+  aside.custom-width,
+  aside.sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 85vw !important;
+    z-index: 10001 !important;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  aside.custom-width.mobile-drawer-open,
+  aside.sidebar.mobile-drawer-open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  /* --- Sidebar overlay --- */
+  .mobile-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+  }
+
+  /* --- Mobile header bar (logo left + hamburger right) --- */
+  .mobile-header-bar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    height: 56px;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  /* Reuse sidebar-brand-card; just scale down slightly for header */
+  .mobile-header-bar .sidebar-brand-card {
+    padding: 0;
+    gap: 0.6rem;
+  }
+
+  .mobile-header-bar .sidebar-brand-logo {
+    width: 38px;
+    height: 38px;
+    padding: 7px;
+    border-radius: 10px;
+  }
+
+  .mobile-header-bar .sidebar-brand-title {
+    font-size: 16px;
+  }
+
+  .mobile-header-bar .sidebar-brand-subtitle {
+    font-size: 10px;
+  }
+
+  /* Action buttons wrapper (right side of header) */
+  .mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Compact buttons in header */
+  .mobile-header-actions .btn-favorite,
+  .mobile-header-actions .btn-primary {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+    gap: 3px !important;
+    min-height: unset !important;
+  }
+
+  .mobile-header-actions .btn-favorite span,
+  .mobile-header-actions .btn-primary span {
+    display: none;
+  }
+
+  .mobile-header-actions .btn-favorite i,
+  .mobile-header-actions .btn-primary i {
+    font-size: 14px !important;
+    margin: 0 !important;
+  }
+
+  .mobile-hamburger-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #374151;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s;
+  }
+
+  .mobile-hamburger-btn:active {
+    background: rgba(0, 0, 0, 0.06);
+    transform: scale(0.95);
+  }
+
+  .mobile-hamburger-btn svg {
+    width: 22px;
+    height: 22px;
+    pointer-events: none;
+  }
+
+  /* Hide desktop toggle button */
+  #toggle-sidebar {
+    display: none !important;
+  }
+
+  /* --- Main content reset (both pages) --- */
+  #sidebar-container {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  #sidebar-container.collapsed aside.custom-width,
+  #sidebar-container.collapsed aside.sidebar {
+    display: flex !important;
+    margin-left: 0 !important;
+  }
+
+  main.flex-1 {
+    width: 100% !important;
+    margin-left: 0 !important;
+    padding: 60px 1rem 1rem !important;
+  }
+
+  /* When drawer is open, push main off-screen */
+  #sidebar-container.mobile-drawer-open main.flex-1,
+  #sidebar-container.mobile-drawer-open .main-content {
+    pointer-events: none;
+  }
+
+  /* PromptPro main content */
+  .main-content {
+    width: 100% !important;
+  }
+
+  .main-area {
+    padding: 60px 1rem 1rem !important;
+  }
+
+  /* ========== Homepage: hide welcome + search on mobile ========== */
+  #welcome-message {
+    display: none !important;
+  }
+
+  .welcome-search-container {
+    display: none !important;
+  }
+
+  .search-container {
+    display: none !important;
+  }
+
+  .bookmarks-container {
+    width: 100% !important;
+    padding: 0.75rem !important;
+    margin: 1rem auto !important;
+    border-radius: 8px !important;
+  }
+
+  /* Folder group: reduce padding on mobile */
+  .folder-group {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .folder-group-title {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+
+  /* Force two-column grid for bookmark cards */
+  .folder-bookmarks-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .folder-bookmarks-grid .bookmark-card {
+    max-width: 100% !important;
+  }
+
+  /* ========== PromptPro specifics ========== */
+  .search-box {
+    display: none !important;
+  }
+
+  .main-toolbar {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .btn-favorite {
+    flex: 0 0 auto;
+  }
+
+  .main-toolbar .btn-primary {
+    flex: 0 0 auto;
+  }
+
+  .prompts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .filter-bar {
+    flex-wrap: wrap;
+    font-size: 11px;
+  }
+
+  /* Prompt card touch-friendly adjustments */
+  .prompt-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  /* Always show prompt action buttons on touch devices */
+  .prompt-actions {
+    opacity: 1;
+  }
+
+  /* Modal adjustments */
+  .modal-content {
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px !important;
+    max-height: calc(100vh - 24px) !important;
+    overflow-y: auto !important;
+  }
+
+  .modal-large,
+  .modal-xlarge {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .modal-body {
+    padding: 16px !important;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px !important;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Back-to-top: arrow only, theme color, always visible */
+  #back-to-top-container {
+    bottom: 56px !important;
+    right: 8px !important;
+  }
+
+  #back-to-top {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Hide progress ring, keep only arrow */
+  #back-to-top::before,
+  #back-to-top::after {
+    display: none !important;
+  }
+
+  #back-to-top svg {
+    width: 26px !important;
+    height: 26px !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    display: block !important;
+    stroke: #667eea !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25)) !important;
+  }
+
+  [data-theme="dark"] #back-to-top svg {
+    stroke: #818cf8 !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)) !important;
+  }
+
+  /* Always show icon, never swap to percent text */
+  #back-to-top.show.show-percent svg { display: block !important; }
+  #back-to-top.show.show-percent #scroll-percent { display: none !important; }
+
+  /* Bottom padding for bottom nav */
+  main.flex-1 {
+    padding-bottom: 64px !important;
+  }
+  .main-area {
+    padding-bottom: 64px !important;
+  }
+
+  /* ========== Bottom Navigation ========== */
+  .mobile-bottom-nav {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-around;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9998;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 2px;
+    padding: 6px 0;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+  }
+
+  .mobile-nav-tab.active,
+  .mobile-nav-tab:active {
+    color: #10b981;
+  }
+
+  .mobile-nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-nav-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mobile-nav-label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  /* ========== Search Bottom Sheet Popup ========== */
+  .mobile-search-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10002;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .mobile-search-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-search-bottomsheet {
+    position: fixed;
+    bottom: 56px;
+    left: 0;
+    right: 0;
+    z-index: 10003;
+    max-height: 80vh;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    display: none;
+    flex-direction: column;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-search-bottomsheet.active {
+    display: flex;
+  }
+
+  /* Floating close button - high z-index to stay above all content */
+  .mobile-search-sheet-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(0, 0, 0, 0.08);
+    color: #374151;
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 99999;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-search-sheet-close:active {
+    background: rgba(0, 0, 0, 0.15);
+    transform: scale(0.95);
+  }
+
+  .mobile-search-sheet-close svg {
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+  }
+
+  .mobile-search-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  /* Only override: suggestions wrapper should flow inside bottom sheet, not absolute */
+  .mobile-search-sheet-body .search-suggestions-wrapper {
+    position: static !important;
+    box-shadow: none !important;
+  }
+
+  /* Search form width should fill the bottom sheet */
+  .mobile-search-sheet-body .search-form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* PromptPro search-box should also fill the bottom sheet */
+  .mobile-search-sheet-body .search-box {
+    width: 100% !important;
+    display: flex !important;
+  }
+
+}
+
+/* ========== Phone tweaks (≤480px) ========== */
+@media (max-width: 480px) {
+
+  main.flex-1 {
+    padding: 52px 0.75rem 0.75rem !important;
+  }
+
+  .main-area {
+    padding: 52px 0.75rem 0.75rem !important;
+  }
+
+  .mobile-header-bar {
+    height: 50px;
+    padding: 0 10px;
+  }
+
+  .mobile-header-bar .sidebar-brand-logo {
+    width: 34px;
+    height: 34px;
+    padding: 6px;
+    border-radius: 8px;
+  }
+
+  .mobile-header-bar .sidebar-brand-title {
+    font-size: 15px;
+  }
+
+  .mobile-hamburger-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .bookmarks-container {
+    padding: 0.5rem !important;
+    margin: 0.5rem auto !important;
+    border-radius: 6px !important;
+  }
+
+  /* PromptPro */
+  .main-toolbar .btn-primary,
+  .btn-favorite {
+    font-size: 12px;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .prompt-card {
+    padding: 12px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+
+  .prompt-title {
+    font-size: 14px;
+  }
+
+  .prompt-desc {
+    font-size: 12px;
+  }
+
+  .prompt-meta-footer {
+    padding-top: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .modal-content {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .modal-header {
+    padding: 12px 16px !important;
+  }
+
+  .modal-header h2 {
+    font-size: 16px !important;
+  }
+
+  /* Sidebar drawer slightly narrower on phones */
+  aside.custom-width,
+  aside.sidebar {
+    width: 260px !important;
+    min-width: 260px !important;
+  }
+}
+
+/* ========== Dark mode overrides ========== */
+[data-theme="dark"] .mobile-header-bar {
+  background: rgba(15, 23, 42, 0.3);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-header-bar .sidebar-brand-title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .mobile-hamburger-btn {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .mobile-hamburger-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .mobile-sidebar-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .mobile-bottom-nav {
+  background: rgba(15, 23, 42, 0.85);
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mobile-nav-tab {
+  color: #64748b;
+}
+
+[data-theme="dark"] .mobile-nav-tab.active,
+[data-theme="dark"] .mobile-nav-tab:active {
+  color: #34d399;
+}
+
+[data-theme="dark"] .mobile-search-bottomsheet {
+  background: #1e293b;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .mobile-search-sheet-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .mobile-search-sheet-close:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+

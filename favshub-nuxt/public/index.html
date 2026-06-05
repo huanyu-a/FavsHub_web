@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FavsHub - 智能书签工作台</title>
+  <!-- Favicon for Edge and Chrome -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link href="css/main-bundle.css?v=5" rel="stylesheet">
+  <link href="css/index-sidebar-fix.css" rel="stylesheet">
+  <link href="css/mobile-responsive.css?v=19" rel="stylesheet">
+  <link href="vendor/remixicon.css" rel="stylesheet">
+  <style id="dynamic-background"></style>
+  <style id="guest-mode-css">
+    /* 游客模式：隐藏编辑/添加/删除/拖拽等操作控件 */
+    body[data-guest="true"] .bookmark-card .bookmark-edit-btn,
+    body[data-guest="true"] .bookmark-card .bookmark-delete-btn,
+    body[data-guest="true"] .folder-card .folder-edit-btn,
+    body[data-guest="true"] .folder-card .folder-delete-btn,
+    body[data-guest="true"] .add-bookmark-card,
+    body[data-guest="true"] .sidebar-toolbar #history-link,
+    body[data-guest="true"] .sidebar-toolbar #downloads-link,
+    body[data-guest="true"] .sidebar-toolbar #passwords-link,
+    body[data-guest="true"] .sidebar-toolbar #extensions-link,
+    body[data-guest="true"] #logout-link,
+    body[data-guest="true"] #admin-link { display: none !important; }
+    body[data-guest="true"] .bookmark-card { cursor: pointer !important; }
+    body[data-guest="true"] .bookmark-card[draggable],
+    body[data-guest="true"] .folder-card[draggable] { cursor: pointer !important; }
+  </style>
+  <script src="js/utils.js?v=1"></script>
+  <script src="js/chrome-shim.js?v=12"></script>
+  <script src="/js/api.js?v=7"></script>
+  <script src="js/settings-store.js?v=4"></script>
+  <script src="vendor/lodash.min.js"></script>
+  <script defer src="js/icons.js?v=2"></script>
+  <script defer src="js/gesture-navigation.js"></script>
+  <script defer src="js/search-engine-dropdown.js?v=2"></script>
+  <script defer src="js/welcome.js?v=2"></script>
+  <script defer src="js/backup-manager.js?v=2"></script>
+  <script defer src="js/baidu-pan.js"></script>
+  <script defer src="js/wallpaper.js?v=3"></script>
+  <script defer src="js/script.js?v=21"></script>
+  <script defer src="js/mobile-drawer.js?v=6"></script>
+  <script defer src="js/mobile-bottom-nav.js?v=8"></script>
+  <script defer src="js/sidepanel-bundle.js"></script>
+</head>
+<body class="h-screen flex flex-col">
+  <div id="sidebar-container" class="flex">
+    <aside class="custom-width p-4 overflow-auto border-r border-gray-200 relative">
+      <div class="sidebar-shell">
+        <div class="sidebar-top">
+          <a href="#" class="sidebar-brand-card" title="主页">
+            <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
+            <div class="sidebar-brand-copy">
+              <span class="sidebar-brand-title">FavsHub</span>
+              <span class="sidebar-brand-subtitle">Workspace</span>
+            </div>
+          </a>
+
+          <div class="sidebar-hub-nav">
+            <a href="#" class="sidebar-hub-link active" data-page="home" title="主页">
+              <span class="sidebar-hub-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </span>
+              <span class="sidebar-hub-label">主页</span>
+            </a>
+            <a href="/promptpro/" class="sidebar-hub-link" data-page="promptpro" title="提示词管理" target="_blank">
+              <span class="sidebar-hub-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+              </span>
+              <span class="sidebar-hub-label">提示词管理</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="sidebar-folders-panel">
+          <ul id="categories-list" class="space-y-2">
+            <!-- 文件夹标签将通过JS动态生成 -->
+          </ul>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-toolbar">
+            <a href="#" id="history-link" class="sidebar-toolbar-icon" title="历史记录" style="text-decoration:none;">
+              <i class="ri-history-line" style="font-size:14px;"></i>
+            </a>
+            <a href="#" id="downloads-link" class="sidebar-toolbar-icon" title="下载记录" style="text-decoration:none;">
+              <i class="ri-download-line" style="font-size:14px;"></i>
+            </a>
+            <a href="#" id="passwords-link" class="sidebar-toolbar-icon" title="密码管理" style="text-decoration:none;">
+              <i class="ri-key-2-line" style="font-size:14px;"></i>
+            </a>
+            <a href="#" id="extensions-link" class="sidebar-toolbar-icon" title="扩展管理" style="text-decoration:none;">
+              <i class="ri-apps-line" style="font-size:14px;"></i>
+            </a>
+            <button class="sidebar-theme-btn" id="navThemeBtn" title="切换主题">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M481.15-140Q339-140 240.08-238.92 141.16-337.85 141.16-480q0-118.38 73.26-210.46 73.27-92.08 195.19-118.69 12.62-3.16 22.23.61 9.62 3.77 15.62 11.23 6 7.47 7.08 18.12 1.07 10.65-5 21.27-12.39 22.54-18.39 46.83t-6 51.09q0 98.33 68.84 167.17Q562.82-424 661.15-424q29.47 0 56.31-7.46 26.85-7.46 47-17.31 9.85-4.3 19.23-3.04 9.39 1.27 16.02 6.27 7.37 5 10.94 13.66 3.58 8.65.81 20.34-21.31 118-114.81 194.77Q603.15-140 481.15-140Zm0-60q88 0 158-48.5t102-126.5q-20 5-40 8t-40 3q-123 0-209.5-86.5T365.15-660q0-20 3-40t8-40q-78 32-126.5 102t-48.5 158q0 116 82 198t198 82Zm-10-270Z"/></svg>
+            </button>
+            <a href="/login.html" id="login-link" class="sidebar-toolbar-icon" title="登录" style="text-decoration:none;" onclick="window.location.href='/login.html';return false;">
+              <i class="ri-login-box-line" style="font-size:14px;"></i>
+            </a>
+            <a href="/admin/" id="admin-link" class="sidebar-toolbar-icon" title="管理后台" style="text-decoration:none;display:none;">
+              <i class="ri-dashboard-line" style="font-size:14px;"></i>
+            </a>
+            <a href="#" id="logout-link" class="sidebar-toolbar-icon" title="退出登录" style="text-decoration:none;display:none;" onclick="event.preventDefault();localStorage.removeItem('favshub_token');localStorage.removeItem('fh_local_favshub_token');location.href='/login.html'">
+              <i class="ri-logout-box-r-line" style="font-size:14px;"></i>
+            </a>
+          </div>
+        </div>
+        <script>
+          (function(){
+            var loginEl = document.getElementById('login-link');
+            var adminEl = document.getElementById('admin-link');
+            var logoutEl = document.getElementById('logout-link');
+            function updateAuthUI() {
+              var token = localStorage.getItem('favshub_token') || localStorage.getItem('fh_local_favshub_token');
+              if (token) {
+                if (loginEl) loginEl.style.display = 'none';
+                if (adminEl) adminEl.style.display = '';
+                if (logoutEl) logoutEl.style.display = '';
+              } else {
+                if (loginEl) loginEl.style.display = '';
+                if (adminEl) adminEl.style.display = 'none';
+                if (logoutEl) logoutEl.style.display = 'none';
+              }
+              // 如果已登录但用户信息未就绪，异步获取后刷新欢迎消息
+              if (token) {
+                try {
+                  var user = JSON.parse(localStorage.getItem('favshub_user'));
+                  if (!user || user.nickname === undefined) {
+                    fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+                      .then(function(r) { return r.ok ? r.json() : null; })
+                      .then(function(data) {
+                        if (data && data.user) {
+                          localStorage.setItem('favshub_user', JSON.stringify(data.user));
+                          if (window.WelcomeManager) window.WelcomeManager.updateWelcomeMessage();
+                        }
+                      }).catch(function(){});
+                  }
+                } catch (e) {}
+              }
+            }
+            // 暴露到全局，供 chrome-shim 异步获取用户信息后回调
+            window.updateAuthUI = updateAuthUI;
+            updateAuthUI();
+            // 延迟再检查一次（等 chrome-shim async fetch 完成）
+            setTimeout(updateAuthUI, 1500);
+          })();
+        </script>
+      </div>
+    </aside>
+    <main class="flex-1 bg-gray-50 p-8 overflow-auto flex flex-col">
+      <div class="welcome-search-container">
+        <div id="welcome-message" style="visibility: hidden;"></div>
+      </div>
+      <div class="flex justify-between items-center mb-4">
+        <div class="search-container">
+          <form class="search-form" id="search-form">
+            <div style="position: relative;height: auto;">
+              <div class="search-icon-container">
+                <img id="search-engine-icon" src="/images/placeholder-icon.svg" alt="search-engine-icon"
+                  class="search-engine-icon">
+                <span class="dropdown-indicator">▼</span>
+              </div>
+              <textarea class="search-input" placeholder="按 Enter 键搜索，或按 Cmd/Ctrl + Enter 键搜索所有搜索引擎" rows="1" style="width: 100%; resize: none; padding-left: 40px;"></textarea>
+            </div>
+            <div class="search-suggestions-wrapper">
+              <div class="line-container" id="line-container">
+                <hr class="custom-hr">
+              </div>
+              <div class="category-tabs" id="category-tabs"></div>
+              <ul id="search-suggestions" class="search-suggestions"></ul>
+              <div id="tabs-container" class="tabs">
+                <span class="search-tips">本次使用</span>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="bookmarks-container" id="bookmarks-list">
+        <!-- 添加占位符 -->
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+        <div class="bookmark-placeholder"></div>
+
+        <!-- 可以根据需要添加更多占位符 -->
+      </div>
+      <!-- Edit Bookmark Dialog -->
+      <div id="edit-dialog" class="modal">
+        <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h2>编辑快捷链接</h2>
+          <form id="edit-form">
+            <label for="edit-name">名称：</label>
+            <input type="text" id="edit-name" name="name" required>
+            <label for="edit-url">网址：</label>
+            <input type="url" id="edit-url" name="url" required>
+            <label for="edit-category">分类</label>
+            <select id="edit-category" name="category"></select>
+            <div class="form-buttons">
+              <button type="button" class="cancel-button">取消</button>
+              <button type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- Edit Category Dialog -->
+      <div id="edit-category-dialog" class="modal">
+        <div class="modal-content">
+          <span class="close-category-button">&times;</span>
+          <h2>重命名文件夹</h2>
+          <form id="edit-category-form">
+            <label for="edit-category-name">名称</label>
+            <input type="text" id="edit-category-name" name="name" required>
+            <div class="form-buttons">
+              <button type="button" class="cancel-category-button">取消</button>
+              <button type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <footer class="bg-gray-50 text-center p-4 border-t border-gray-200 mt-auto">
+      <!-- 新增的进度条容器 -->
+      <div id="year-progress" class="year-progress-container"></div>
+      </footer>
+      <div id="side-panel-content" class="side-panel-content">
+        <iframe id="side-panel-iframe" class="side-panel-iframe"></iframe>
+      </div>
+    </main>
+  </div>
+  <button id="toggle-sidebar" class="bg-gray-300 p-1 rounded-r-md">
+    &lt;
+  </button>
+  <div id="more-button-toast" class="toast">
+    <p>更多搜索支持即将推出</p>
+  </div>
+
+  <script src="vendor/Sortable.min.js"></script>
+  <script src="vendor/qrcode.min.js"></script>
+  <div id="confirm-dialog" class="modal">
+    <div class="modal-content">
+      <h2 id="confirm-dialog-title">确认删除</h2>
+      <p id="confirm-dialog-message"></p>
+      <p id="confirm-delete-quick-link-message"></p> <!-- 新增的元素 -->
+      <div class="buttons">
+        <button id="cancel-delete-button" class="cancel-button">取消</button>
+        <button id="confirm-delete-button" class="delete-button">删除</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast" style="display: none;"></div>
+  <!-- 在合适的位置添加检查缓存按钮 -->
+  <div id="search-engines-dialog" class="modal">
+    <div class="modal-content">
+      <span class="close-button settings-modal-close">&times;</span>
+      <h2 class="search-engines-title">搜索引擎设置</h2>
+      <div class="search-engines-container">
+        <!-- 搜索引擎 -->
+        <div class="search-engine-category">
+          <h3 class="category-title">通用搜索</h3>
+          <div class="search-engine-grid" id="search-engines"></div>
+        </div>
+
+        <!-- AI 搜索引擎 -->
+        <div class="search-engine-category">
+          <h3 class="category-title">AI 搜索</h3>
+          <div class="search-engine-grid" id="ai-search-engines"></div>
+        </div>
+
+        <!-- 社交媒体 -->
+        <div class="search-engine-category">
+          <h3 class="category-title">社交媒体</h3>
+          <div class="search-engine-grid" id="social-media-engines"></div>
+        </div>
+
+        <!-- 自定义搜索引擎 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 回到顶部按钮 -->
+  <div id="back-to-top-container" style="position: fixed; bottom: 0; right: 0; z-index: 999999; pointer-events: none;">
+    <div id="back-to-top" title="回到顶部" style="pointer-events: auto;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px; height:20px;">
+        <path d="M12 19V5M5 12l7-7 7 7"></path>
+      </svg>
+      <span id="scroll-percent" class="scroll-percent-text">0%</span>
+    </div>
+  </div>
+</body>
+</html>
