@@ -15,6 +15,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: 'favicons 必须是数组' } })
   }
 
+  if (favicons.length > 1000) {
+    throw createError({ statusCode: 400, data: { error: '最多 1000 个图标' } })
+  }
+
   const db = getRawDb()
   const userId = authUser.id
 
@@ -33,7 +37,9 @@ export default defineEventHandler(async (event) => {
 
       // 解码 base64 并写入文件
       const base64Data = item.base64.replace(/^data:image\/\w+;base64,/, '')
-      writeFileSync(filepath, Buffer.from(base64Data, 'base64'))
+      const buf = Buffer.from(base64Data, 'base64')
+      if (buf.length > 512 * 1024) continue // 跳过超过 512KB 的图标
+      writeFileSync(filepath, buf)
 
       // 更新数据库（仅更新当前用户的图标，防止跨用户污染）
       updateStmt.run(localPath, userId, item.url)

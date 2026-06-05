@@ -10,6 +10,11 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { title, url, folder_id, sort_order, icon, login_required } = body || {}
 
+  // 输入长度校验
+  if (title !== undefined && title.length > 256) throw createError({ statusCode: 400, data: { error: '标题最长 256 字符' } })
+  if (url !== undefined && url.length > 2048) throw createError({ statusCode: 400, data: { error: 'URL 最长 2048 字符' } })
+  if (icon !== undefined && icon.length > 2048) throw createError({ statusCode: 400, data: { error: '图标 URL 最长 2048 字符' } })
+
   const db = getRawDb()
 
   // 验证书签归属

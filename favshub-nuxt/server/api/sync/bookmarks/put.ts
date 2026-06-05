@@ -100,6 +100,11 @@ export default defineEventHandler(async (event) => {
     // 阶段 1 + 2：文件夹解析 + 书签 Upsert
     const incomingUrls = new Set<string>()
     for (const bm of bookmarks) {
+      // 跳过字段超长的条目
+      if (!bm.url || bm.url.length > 2048) continue
+      if (bm.title && bm.title.length > 256) bm.title = bm.title.slice(0, 256)
+      if (bm.icon && bm.icon.length > 2048) bm.icon = null
+
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)
       const container = bm.container || ''
       incomingUrls.add(bm.url)

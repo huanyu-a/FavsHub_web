@@ -1,0 +1,41 @@
+/**
+ * GET /api/admin/backup-schedule — 获取备份配置
+ */
+import { requireAdmin } from '../../utils/auth'
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
+// 备份配置文件路径
+const BACKUP_CONFIG_FILE = join(process.cwd(), 'data', '.backup-config.json')
+
+// 默认配置
+const DEFAULT_CONFIG: { enabled: boolean; hour: number; minute: number; keepCopies: number; lastBackupDate: string | null } = { enabled: false, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null }
+
+function loadBackupSchedule(): typeof DEFAULT_CONFIG {
+  try {
+    if (existsSync(BACKUP_CONFIG_FILE)) {
+      const saved = JSON.parse(readFileSync(BACKUP_CONFIG_FILE, 'utf8'))
+      return { ...DEFAULT_CONFIG, ...saved }
+    }
+  } catch { /* 首次启动可能没有配置文件 */ }
+  // 如果 lastBackupDate 未持久化，从已有备份文件推断
+  if (!DEFAULT_CONFIG.lastBackupDate) {
+    try {
+      const backupDir = join(process.cwd(), 'data', 'backups')
+      if (existsSync(backupDir)) {
+        const files = readdirSync(backupDir).filter(f => f.startsWith('auto-backup-')).sort()
+        if (files.length > 0) {
+          const latest = files[files.length - 1]
+          const dateMatch = latest.match(/auto-backup-(\d{4}-\d{2}-\d{2})/)
+          if (dateMatch) DEFAULT_CONFIG.lastBackupDate = dateMatch[1]
+        }
+      }
+    } catch {}
+  }
+  return { ...DEFAULT_CONFIG }
+}
+
+export default defineEventHandler(async (event) => {
+  requireAdmin(event)
+  return loadBackupSchedule()
+})

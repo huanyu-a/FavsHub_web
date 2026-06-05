@@ -24,6 +24,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const { title, description, content, folder_id, tags, is_favorite, login_required } = body || {}
+
+  // 输入长度校验
+  if (title !== undefined && title.length > 256) throw createError({ statusCode: 400, data: { error: '标题最长 256 字符' } })
+  if (description !== undefined && description.length > 2000) throw createError({ statusCode: 400, data: { error: '描述最长 2000 字符' } })
+  if (content !== undefined && content.length > 100000) throw createError({ statusCode: 400, data: { error: '内容最长 100000 字符' } })
+
   const now = Date.now()
 
   // 检测内容是否变更

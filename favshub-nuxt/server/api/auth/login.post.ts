@@ -5,8 +5,11 @@
 import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
+import { checkRateLimit } from '../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
+  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  checkRateLimit(`login:${ip}`, 20, 60_000)
   const body = await readBody(event)
   const { username, password } = body || {}
 
@@ -25,6 +28,15 @@ export default defineEventHandler(async (event) => {
   }
 
   const token = signToken({ id: user.id, username: user.username })
+
+  // 服务端设置 httpOnly cookie（防止 XSS 读取）
+  setCookie(event, 'favshub_token', token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7,
+  })
+
   return {
     token,
     user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname || '' },

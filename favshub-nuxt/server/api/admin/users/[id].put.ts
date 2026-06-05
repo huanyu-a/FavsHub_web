@@ -4,6 +4,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
+import bcrypt from 'bcryptjs'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -37,12 +38,18 @@ export default defineEventHandler(async (event) => {
     db.prepare('UPDATE users SET nickname = ? WHERE id = ?').run(nickname, userId)
   }
   if (is_admin !== undefined) {
+    // 防止移除最后一个管理员
+    if (!is_admin) {
+      const adminCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get() as { c: number }).c
+      if (adminCount <= 1) {
+        throw createError({ statusCode: 400, data: { error: '不能移除最后一个管理员的权限' } })
+      }
+    }
     db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(is_admin, userId)
   }
   if (password !== undefined && password) {
-    const bcrypt = require('bcryptjs')
     const hashedPassword = bcrypt.hashSync(password, 10)
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId)
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId)
   }
 
   return { success: true }

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useAuthStore } from '~/stores/auth'
 
 export interface Bookmark {
   id: number; user_id: number; title: string; url: string;
@@ -20,6 +21,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
     currentFolderId: null as number | null,
     isLoading: false,
   }),
+
   getters: {
     filteredBookmarks: (state) => {
       let result = state.bookmarks
@@ -36,7 +38,18 @@ export const useBookmarksStore = defineStore('bookmarks', {
     },
     visibleFolders: (state) => state.folders,
   },
+
   actions: {
+    /** Get Authorization header from the auth store */
+    _authHeaders(): Record<string, string> {
+      const auth = useAuthStore()
+      const headers: Record<string, string> = {}
+      if (auth.token) headers.Authorization = `Bearer ${auth.token}`
+      return headers
+    },
+
+    // ── Bookmarks ──────────────────────────────────────────────
+
     async fetchBookmarks(token?: string) {
       this.isLoading = true
       try {
@@ -49,6 +62,93 @@ export const useBookmarksStore = defineStore('bookmarks', {
         this.isLoading = false
       }
     },
+
+    async createBookmark(data: { title: string; url: string; folder_id?: number | null; icon?: string }) {
+      const res = await $fetch<{ bookmark: Bookmark }>('/api/bookmarks', {
+        method: 'POST',
+        headers: this._authHeaders(),
+        body: data,
+      })
+      this.bookmarks.push(res.bookmark)
+      return res.bookmark
+    },
+
+    async updateBookmark(id: number, data: Partial<Omit<Bookmark, 'id' | 'user_id'>>) {
+      const res = await $fetch<{ bookmark: Bookmark }>(`/api/bookmarks/${id}`, {
+        method: 'PUT',
+        headers: this._authHeaders(),
+        body: data,
+      })
+      const idx = this.bookmarks.findIndex(b => b.id === id)
+      if (idx !== -1) this.bookmarks[idx] = res.bookmark
+      return res.bookmark
+    },
+
+    async deleteBookmark(id: number) {
+      await $fetch(`/api/bookmarks/${id}`, {
+        method: 'DELETE',
+        headers: this._authHeaders(),
+      })
+      this.bookmarks = this.bookmarks.filter(b => b.id !== id)
+    },
+
+    async reorderBookmarks(items: { id: number; sort_order: number }[]) {
+      await $fetch('/api/bookmarks/reorder', {
+        method: 'PUT',
+        headers: this._authHeaders(),
+        body: { items },
+      })
+      // Apply the new sort_order locally so the UI reflects the change immediately
+      for (const item of items) {
+        const bookmark = this.bookmarks.find(b => b.id === item.id)
+        if (bookmark) bookmark.sort_order = item.sort_order
+      }
+    },
+
+    // ── Folders ────────────────────────────────────────────────
+
+    async fetchFolders() {
+      const res = await $fetch<{ folders: Folder[] }>('/api/folders', {
+        headers: this._authHeaders(),
+      })
+      this.folders = res.folders
+    },
+
+    async createFolder(data: { name: string; parent_id?: number | null }) {
+      const res = await $fetch<{ folder: Folder }>('/api/folders', {
+        method: 'POST',
+        headers: this._authHeaders(),
+        body: data,
+      })
+      this.folders.push(res.folder)
+      return res.folder
+    },
+
+    async updateFolder(id: number, data: Partial<Omit<Folder, 'id' | 'user_id'>>) {
+      const res = await $fetch<{ folder: Folder }>(`/api/folders/${id}`, {
+        method: 'PUT',
+        headers: this._authHeaders(),
+        body: data,
+      })
+      const idx = this.folders.findIndex(f => f.id === id)
+      if (idx !== -1) this.folders[idx] = res.folder
+      return res.folder
+    },
+
+    async deleteFolder(id: number) {
+      await $fetch(`/api/folders/${id}`, {
+        method: 'DELETE',
+        headers: this._authHeaders(),
+      })
+      this.folders = this.folders.filter(f => f.id !== id)
+      // Clear folder_id on bookmarks that belonged to the deleted folder
+      this.bookmarks = this.bookmarks.map(b =>
+        b.folder_id === id ? { ...b, folder_id: null } : b
+      )
+    },
+
+    // ── Query helpers ──────────────────────────────────────────
+
     setSearchQuery(q: string) { this.searchQuery = q },
     setCurrentFolder(id: number | null) { this.currentFolderId = id },
   },

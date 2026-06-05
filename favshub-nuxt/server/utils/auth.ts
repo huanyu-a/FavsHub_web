@@ -3,24 +3,30 @@
  * 移植自 wwwroot/server/middleware/auth.js + admin.js
  */
 import type { H3Event } from 'h3'
-import { getHeader, createError } from 'h3'
+import { getHeader, getCookie, createError } from 'h3'
 import { verifyToken, type JwtPayload } from './jwt'
 import { getRawDb } from '../database'
 
 export interface AuthUser extends JwtPayload {}
 
 /**
- * 从 H3 event 中提取 Bearer token 并验证
+ * 从 H3 event 中提取 token 并验证
+ * 优先级：Authorization header > httpOnly cookie
  * @returns 已验证的用户信息，或 null（无 token 时）
  */
 function extractUser(event: H3Event): AuthUser | null {
+  // 1. Authorization header（浏览器扩展优先方式）
   const header = getHeader(event, 'authorization')
-  if (!header || !header.startsWith('Bearer ')) return null
+  if (header && header.startsWith('Bearer ')) {
+    const token = header.slice(7)
+    if (token) return verifyToken(token)
+  }
 
-  const token = header.slice(7)
-  if (!token) return null
+  // 2. httpOnly cookie（Web 页面 fallback）
+  const cookieToken = getCookie(event, 'favshub_token')
+  if (cookieToken) return verifyToken(cookieToken)
 
-  return verifyToken(token)
+  return null
 }
 
 /**

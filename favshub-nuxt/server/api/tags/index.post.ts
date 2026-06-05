@@ -14,6 +14,9 @@ export default defineEventHandler(async (event) => {
   if (!name || typeof name !== 'string' || !name.trim()) {
     throw createError({ statusCode: 400, data: { error: '标签名称不能为空' } })
   }
+  if (name.length > 64) {
+    throw createError({ statusCode: 400, data: { error: '标签名称最长 64 字符' } })
+  }
 
   const db = getRawDb()
 

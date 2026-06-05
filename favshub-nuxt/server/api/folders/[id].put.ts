@@ -10,6 +10,10 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { name, sort_order } = body || {}
 
+  if (name !== undefined && name.length > 128) {
+    throw createError({ statusCode: 400, data: { error: '文件夹名称最长 128 字符' } })
+  }
+
   const db = getRawDb()
 
   // 验证文件夹归属

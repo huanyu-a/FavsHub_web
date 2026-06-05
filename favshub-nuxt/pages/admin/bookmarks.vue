@@ -1,0 +1,258 @@
+<template>
+  <div class="admin-page">
+    <header class="page-header">
+      <h1>书签管理</h1>
+      <p>查看和管理所有用户的书签与文件夹</p>
+    </header>
+
+    <div class="tab-nav">
+      <button :class="{ active: tab === 'list' }" @click="tab = 'list'">书签列表</button>
+      <button :class="{ active: tab === 'folders' }" @click="tab = 'folders'">文件夹管理</button>
+    </div>
+
+    <!-- 书签列表 -->
+    <div v-if="tab === 'list'">
+      <div class="filter-bar">
+        <select v-model="filterFolder" @change="loadBookmarks">
+          <option :value="null">全部文件夹</option>
+          <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
+        </select>
+        <input v-model="filterTitle" type="text" placeholder="搜索标题..." @input="debouncedLoad">
+        <input v-model="filterUrl" type="text" placeholder="搜索URL..." @input="debouncedLoad">
+        <span class="info">共 {{ total }} 条</span>
+        <button class="btn btn-primary btn-sm" @click="loadBookmarks">刷新</button>
+        <button class="btn btn-ghost btn-sm" @click="downloadAllFavicons">下载图标</button>
+        <button class="btn btn-ghost btn-sm" @click="retryFailed">重试失败</button>
+        <button class="btn btn-ghost btn-sm" @click="forceLocalize">强制本地化</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>ID</th><th>图标</th><th>标题</th><th>URL</th><th>文件夹</th><th>用户</th><th>可见性</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-if="loading"><td colspan="8" class="empty-state">加载中...</td></tr>
+            <tr v-else-if="bookmarks.length === 0"><td colspan="8" class="empty-state">暂无数据</td></tr>
+            <tr v-for="bm in bookmarks" :key="bm.id">
+              <td>{{ bm.id }}</td>
+              <td><img v-if="bm.icon" :src="bm.icon" width="20" height="20" style="object-fit:contain;" @error="(e) => (e.target as HTMLElement).style.display='none'"></td>
+              <td><a :href="bm.url" target="_blank" rel="noopener" style="color:#667eea;">{{ bm.title }}</a></td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ bm.url }}</td>
+              <td>{{ bm.folder_name || '-' }}</td>
+              <td>{{ bm.username || bm.user_id }}</td>
+              <td><span class="badge" :class="bm.login_required ? 'badge-locked' : 'badge-public'">{{ bm.login_required ? '登录可见' : '公开' }}</span></td>
+              <td class="actions">
+                <button class="btn btn-ghost btn-sm" @click="openEdit(bm)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
+                <button class="btn btn-ghost btn-sm" @click="downloadIcon(bm.id)">图标</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination" v-if="totalPages > 1">
+          <button :disabled="page <= 1" @click="page--; loadBookmarks()">上一页</button>
+          <button v-for="p in pages" :key="p" :class="{ active: p === page }" @click="page = p; loadBookmarks()">{{ p }}</button>
+          <button :disabled="page >= totalPages" @click="page++; loadBookmarks()">下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 文件夹管理 -->
+    <div v-if="tab === 'folders'">
+      <div class="card">
+        <div class="card-header"><h3>文件夹管理</h3>
+          <div>
+            <button class="btn btn-primary btn-sm" @click="openFolderCreate">新建文件夹</button>
+            <button class="btn btn-ghost btn-sm" @click="toggleAllFolders">{{ allExpanded ? '全部收缩' : '全部展开' }}</button>
+            <button class="btn btn-ghost btn-sm" @click="loadFolders">刷新</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>名称</th><th>父文件夹</th><th>用户</th><th>书签数</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-if="folderLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
+            <tr v-else-if="displayFolders.length === 0"><td colspan="5" class="empty-state">暂无数据</td></tr>
+            <tr v-for="f in displayFolders" :key="f.id">
+              <td :style="{ paddingLeft: (f._depth * 20 + 16) + 'px' }">
+                <span v-if="f._hasChildren" class="expand-btn" @click="f._collapsed = !f._collapsed">{{ f._collapsed ? '▶' : '▼' }}</span>
+                <span v-else style="display:inline-block;width:16px;"></span>
+                {{ f.name }}
+              </td>
+              <td>{{ f.parent_name || '-' }}</td>
+              <td>{{ f.username || f.user_id }}</td>
+              <td>{{ f.bookmark_count || 0 }}</td>
+              <td class="actions">
+                <button class="btn btn-ghost btn-sm" @click="renameFolder(f)">重命名</button>
+                <button class="btn btn-ghost btn-sm" @click="moveFolder(f)">移动</button>
+                <button class="btn btn-danger btn-sm" @click="delFolder(f)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 编辑弹窗 -->
+    <div v-if="editVisible" class="modal-overlay" @click.self="editVisible = false">
+      <div class="modal">
+        <div class="modal-header"><h3>编辑书签</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
+        <div class="modal-body">
+          <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
+          <div class="fg"><label>URL</label><input v-model="ef.url" type="url"></div>
+          <div class="fg"><label>图标</label><input v-model="ef.icon" type="text"></div>
+          <div class="fg"><label>文件夹</label>
+            <select v-model="ef.folder_id">
+              <option :value="null">未分类</option>
+              <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
+            </select>
+          </div>
+          <div class="fg"><label><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0"> 登录可见</label></div>
+          <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+definePageMeta({ middleware: 'admin', layout: 'admin' })
+
+const tab = ref('list')
+
+// Bookmark list state
+const bookmarks = ref<any[]>([])
+const loading = ref(false)
+const total = ref(0)
+const page = ref(1)
+const pageSize = 50
+const filterFolder = ref<number | null>(null)
+const filterTitle = ref('')
+const filterUrl = ref('')
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const pages = computed(() => { const a: number[] = []; for (let i = Math.max(1, page.value - 2); i <= Math.min(totalPages.value, page.value + 2); i++) a.push(i); return a })
+
+// Folder state
+interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
+const folderAll = ref<any[]>([])
+const folderLoading = ref(false)
+const allExpanded = ref(true)
+
+function buildTree(list: any[]): FolderNode[] {
+  const map = new Map<number, FolderNode>()
+  const roots: FolderNode[] = []
+  for (const f of list) map.set(f.id, { ...f, _depth: 0, children: [], _hasChildren: false, _collapsed: false })
+  for (const n of map.values()) {
+    const pid = n.parent_id
+    if (pid && map.has(pid)) { map.get(pid)!.children.push(n); map.get(pid)!._hasChildren = true }
+    else roots.push(n)
+  }
+  return roots
+}
+
+function flattenTree(nodes: FolderNode[], depth: number): FolderNode[] {
+  let r: FolderNode[] = []
+  for (const n of nodes) { n._depth = depth; r.push(n); if (n.children.length > 0) r = r.concat(flattenTree(n.children, depth + 1)) }
+  return r
+}
+
+const flatFolders = computed(() => flattenTree(buildTree(folderAll.value), 0))
+
+const displayFolders = computed(() => {
+  const tree = buildTree(folderAll.value)
+  const result: FolderNode[] = []
+  function walk(nodes: FolderNode[]) { for (const n of nodes) { result.push(n); if (!n._collapsed && n.children.length) walk(n.children) } }
+  walk(tree)
+  return result
+})
+
+async function loadBookmarks() {
+  loading.value = true
+  const p = new URLSearchParams({ page: String(page.value), limit: String(pageSize) })
+  if (filterFolder.value) p.set('folder_id', String(filterFolder.value))
+  if (filterTitle.value) p.set('q', filterTitle.value)
+  if (filterUrl.value) p.set('url', filterUrl.value)
+  const r = await $fetch<any>(`/api/admin/bookmarks?${p}`)
+  bookmarks.value = r.bookmarks || []
+  total.value = r.total || 0
+  loading.value = false
+}
+
+let dt: any = null
+function debouncedLoad() { clearTimeout(dt); dt = setTimeout(loadBookmarks, 400) }
+
+async function loadFolders() {
+  folderLoading.value = true
+  const d = await $fetch<{ folders: any[] }>('/api/admin/folders')
+  folderAll.value = d.folders || []
+  folderLoading.value = false
+}
+
+function toggleAllFolders() {
+  allExpanded.value = !allExpanded.value
+  const tree = buildTree(folderAll.value)
+  function walk(n: FolderNode[]) { for (const x of n) { x._collapsed = !allExpanded.value; walk(x.children) } }
+  walk(tree)
+}
+
+// Edit modal
+const editVisible = ref(false)
+const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0 })
+function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0 }); editVisible.value = true }
+async function saveEdit() { await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', body: { ...ef } }); editVisible.value = false; loadBookmarks() }
+async function delBm(bm: any) { if (!confirm(`删除「${bm.title}」？`)) return; await $fetch(`/api/admin/bookmarks/${bm.id}`, { method: 'DELETE' }); loadBookmarks() }
+async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favicon/${id}`, { method: 'POST' }); loadBookmarks() }
+async function downloadAllFavicons() { await $fetch('/api/admin/download-favicons', { method: 'POST' }) }
+async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', { method: 'POST' }) }
+async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST' }) }
+
+// Folder ops
+async function renameFolder(f: any) { const n = prompt('新名称', f.name); if (n) { await $fetch(`/api/admin/folders/${f.id}`, { method: 'PUT', body: { name: n } }); loadFolders() } }
+async function moveFolder(f: any) { const p = prompt('父文件夹 ID（留空=顶级）', f.parent_id || ''); if (p !== null) { await $fetch(`/api/admin/folders/${f.id}`, { method: 'PUT', body: { parent_id: p ? Number(p) : null } }); loadFolders() } }
+async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE' }); loadFolders() }
+function openFolderCreate() { const n = prompt('文件夹名称'); if (n) { $fetch('/api/admin/folders', { method: 'POST', body: { name: n } }).then(loadFolders) } }
+
+onMounted(() => { loadBookmarks(); loadFolders() })
+</script>
+
+<style scoped>
+.admin-page { max-width: 1400px; margin: 0 auto; padding: 32px; }
+.page-header { margin-bottom: 24px; }
+.page-header h1 { font-size: 22px; font-weight: 600; }
+.page-header p { color: #888; font-size: 14px; margin-top: 4px; }
+.tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #eee; }
+.tab-nav button { padding: 10px 20px; border: none; background: none; font-size: 14px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab-nav button.active { color: #667eea; border-bottom-color: #667eea; }
+.filter-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.filter-bar .info { font-size: 13px; color: #999; }
+.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.card-header h3 { font-size: 16px; margin: 0; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 14px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+tr:hover { background: #fafafa; }
+.actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; }
+.btn-primary { background: #667eea; color: #fff; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+.badge-public { background: #e0e7ff; color: #3730a3; }
+.badge-locked { background: #fef3c7; color: #92400e; }
+.empty-state { text-align: center; padding: 40px; color: #888; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 16px; }
+.pagination button { padding: 6px 12px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.pagination button.active { background: #667eea; color: #fff; border-color: #667eea; }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.expand-btn { cursor: pointer; width: 16px; display: inline-block; text-align: center; user-select: none; }
+.modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; align-items: center; justify-content: center; }
+.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { margin: 0; font-size: 16px; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+.modal-body { padding: 20px; }
+.fg { margin-bottom: 12px; }
+.fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+.fg input, .fg select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+.form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>

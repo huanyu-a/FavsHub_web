@@ -12,6 +12,9 @@ export default defineEventHandler(async (event) => {
   if (!name) {
     throw createError({ statusCode: 400, data: { error: '文件夹名称不能为空' } })
   }
+  if (name.length > 128) {
+    throw createError({ statusCode: 400, data: { error: '文件夹名称最长 128 字符' } })
+  }
 
   const db = getRawDb()
 

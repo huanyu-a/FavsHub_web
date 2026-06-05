@@ -7,6 +7,8 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
   ],
 
+  // 全局 CSS 通过 layouts/default.vue 的 useHead() 引用 public/ 下的静态文件
+
   runtimeConfig: {
     jwtSecret: '',
     dbPath: './data/favshub.db',
@@ -20,15 +22,21 @@ export default defineNuxtConfig({
       // better-sqlite3 is a native module, don't bundle it
       external: ['better-sqlite3'],
     },
+    routeRules: {
+      '/**': {
+        headers: {
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'X-XSS-Protection': '1; mode=block',
+        },
+      },
+    },
   },
 
-  routeRules: {
-    '/': { redirect: '/index.html' },
-    '/login': { redirect: '/login.html' },
-    '/admin/**': { ssr: false },
-  },
+  routeRules: {},
 
   devServer: {
-    port: 3001,
+    port: 3000,
   },
 })

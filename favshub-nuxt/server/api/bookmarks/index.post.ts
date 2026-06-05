@@ -12,6 +12,9 @@ export default defineEventHandler(async (event) => {
   if (!title || !url) {
     throw createError({ statusCode: 400, data: { error: '标题和 URL 不能为空' } })
   }
+  if (title.length > 256 || url.length > 2048 || (icon && icon.length > 2048)) {
+    throw createError({ statusCode: 400, data: { error: '字段长度超出限制' } })
+  }
 
   const db = getRawDb()
 

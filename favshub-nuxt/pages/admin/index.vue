@@ -29,20 +29,36 @@
         <h2 class="section-title">快捷操作</h2>
         <div class="nav-grid">
           <NuxtLink to="/admin/users" class="nav-card">
-            <span class="nav-icon">👥</span>
+            <i class="ri-user-line nav-icon"></i>
             <span class="nav-label">用户管理</span>
           </NuxtLink>
           <NuxtLink to="/admin/bookmarks" class="nav-card">
-            <span class="nav-icon">🔖</span>
+            <i class="ri-bookmark-line nav-icon"></i>
             <span class="nav-label">书签管理</span>
           </NuxtLink>
+          <NuxtLink to="/admin/folders" class="nav-card">
+            <i class="ri-folder-line nav-icon"></i>
+            <span class="nav-label">文件夹管理</span>
+          </NuxtLink>
           <NuxtLink to="/admin/prompts" class="nav-card">
-            <span class="nav-icon">💬</span>
+            <i class="ri-chat-quote-line nav-icon"></i>
             <span class="nav-label">提示词管理</span>
           </NuxtLink>
-          <NuxtLink to="/admin/import" class="nav-card">
-            <span class="nav-icon">📥</span>
-            <span class="nav-label">数据导入</span>
+          <NuxtLink to="/admin/search-engines" class="nav-card">
+            <i class="ri-search-line nav-icon"></i>
+            <span class="nav-label">搜索引擎</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/backup" class="nav-card">
+            <i class="ri-database-2-line nav-icon"></i>
+            <span class="nav-label">备份管理</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/settings" class="nav-card">
+            <i class="ri-user-settings-line nav-icon"></i>
+            <span class="nav-label">用户设置</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/config" class="nav-card">
+            <i class="ri-settings-3-line nav-icon"></i>
+            <span class="nav-label">系统配置</span>
           </NuxtLink>
         </div>
       </div>
@@ -53,6 +69,7 @@
 <script setup lang="ts">
 definePageMeta({
   middleware: 'admin',
+  layout: 'admin',
 })
 
 interface AdminStats {
@@ -62,9 +79,12 @@ interface AdminStats {
   folders: number
 }
 
-const { data, pending: isLoading } = await useFetch<{ stats: AdminStats }>('/api/admin/stats')
+const { data, pending: isLoading } = await useFetch('/api/admin/stats')
 
-const stats = computed(() => data.value?.stats || { users: 0, bookmarks: 0, prompts: 0, folders: 0 })
+const stats = computed(() => {
+  const d = data.value as any
+  return d || { users: 0, bookmarks: 0, prompts: 0, folders: 0 }
+})
 </script>
 
 <style scoped>
@@ -137,7 +157,8 @@ const stats = computed(() => data.value?.stats || { users: 0, bookmarks: 0, prom
   transform: translateY(-2px);
 }
 .nav-icon {
-  font-size: 28px;
+  font-size: 24px;
+  color: #667eea;
 }
 .nav-label {
   font-size: 14px;

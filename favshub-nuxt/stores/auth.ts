@@ -90,11 +90,13 @@ export const useAuthStore = defineStore('auth', {
     /**
      * 登出
      */
-    logout() {
+    async logout() {
       this.token = null
       this.user = null
       if (import.meta.client) {
         localStorage.removeItem('favshub_token')
+        // 清除服务端 httpOnly cookie
+        try { await $fetch('/api/auth/logout', { method: 'POST' }) } catch {}
       }
     },
   },

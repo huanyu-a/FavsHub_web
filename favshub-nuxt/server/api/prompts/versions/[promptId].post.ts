@@ -30,10 +30,17 @@ export default defineEventHandler(async (event) => {
   const id = randomUUID()
   const now = created_at || Date.now()
 
+  // 补丁递增版本号：1.0.0 → 1.0.1 → 1.0.2
+  const newVersionNum = `1.0.${(prompt.version_count || 0) + 1}`
+
   db.prepare(`
     INSERT INTO prompt_versions (id, prompt_id, content, version_number, variables, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, promptId, content, version_number || prompt.current_version || '1.0.0', variables || '', now)
+  `).run(id, promptId, content, version_number || newVersionNum, variables || '', now)
+
+  // 递增版本计数和当前版本
+  db.prepare('UPDATE prompts SET version_count = version_count + 1, current_version = ?, updated_at = ? WHERE id = ?')
+    .run(version_number || newVersionNum, now, promptId)
 
   const version = db.prepare('SELECT * FROM prompt_versions WHERE id = ?').get(id)
   return { version }

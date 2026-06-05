@@ -1,0 +1,47 @@
+/**
+ * POST /api/admin/manual-backup — 手动备份数据库
+ */
+import { getRawDb } from '../../database'
+import { requireAdmin } from '../../utils/auth'
+import { createError } from 'h3'
+import { existsSync, mkdirSync, copyFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
+function localTimestamp(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}-${String(d.getSeconds()).padStart(2, '0')}`
+}
+
+export default defineEventHandler(async (event) => {
+  requireAdmin(event)
+  const db = getRawDb()
+
+  const config = useRuntimeConfig(event)
+  const dbPath = config.dbPath || join(process.cwd(), 'data', 'favshub.db')
+
+  if (!existsSync(dbPath)) {
+    throw createError({ statusCode: 404, data: { error: '数据库文件不存在' } })
+  }
+
+  db.pragma('wal_checkpoint(TRUNCATE)')
+
+  const timestamp = localTimestamp()
+  const backupDir = join(process.cwd(), 'data', 'backups')
+  if (!existsSync(backupDir)) {
+    mkdirSync(backupDir, { recursive: true })
+  }
+
+  const backupPath = join(backupDir, `manual-backup-${timestamp}.db`)
+  try {
+    copyFileSync(dbPath, backupPath)
+    const stat = statSync(backupPath)
+    return {
+      success: true,
+      filename: `manual-backup-${timestamp}.db`,
+      size: stat.size,
+      sizeFormatted: (stat.size / 1024).toFixed(1) + ' KB'
+    }
+  } catch (e: any) {
+    throw createError({ statusCode: 500, data: { error: '手动备份失败: ' + e.message } })
+  }
+})

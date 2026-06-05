@@ -3,7 +3,7 @@
  */
 export default defineEventHandler(async () => {
   try {
-    const data = await $fetch<any>('https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN')
+    const data = await $fetch<{ images?: Array<{ url: string; title: string; copyright: string }> }>('https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN')
     const img = data?.images?.[0]
     if (img?.url) {
       return { url: `https://www.bing.com${img.url}`, title: img.title, copyright: img.copyright }

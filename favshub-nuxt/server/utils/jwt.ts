@@ -5,9 +5,9 @@
 import jwt from 'jsonwebtoken'
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 
-const SECRET_FILE = './data/.jwt-secret'
+const SECRET_FILE = join(process.cwd(), 'data', '.jwt-secret')
 
 let _secret: string | null = null
 
@@ -73,8 +73,8 @@ export function getSecret(): string {
 /**
  * 签发 JWT token
  */
-export function signToken(payload: JwtPayload, expiresIn = '30d'): string {
-  return jwt.sign(payload, getSecret(), { expiresIn })
+export function signToken(payload: JwtPayload, expiresIn: string = '7d'): string {
+  return jwt.sign(payload, getSecret(), { expiresIn: expiresIn as any })
 }
 
 /**

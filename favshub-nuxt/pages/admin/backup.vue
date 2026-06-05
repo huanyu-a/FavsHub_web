@@ -1,0 +1,215 @@
+<template>
+  <div class="admin-page">
+    <header class="page-header">
+      <h1 class="page-title">备份管理</h1>
+    </header>
+
+    <!-- 备份信息 -->
+    <div class="info-grid">
+      <div class="card info-card">
+        <h3>备份信息</h3>
+        <div v-if="info" class="info-list">
+          <div class="info-item"><span class="info-label">数据库大小</span><span>{{ info.db_size || '-' }}</span></div>
+          <div class="info-item"><span class="info-label">书签数</span><span>{{ info.bookmarks || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">提示词数</span><span>{{ info.prompts || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">用户数</span><span>{{ info.users || 0 }}</span></div>
+        </div>
+        <div v-else class="loading-sm">加载中...</div>
+      </div>
+
+      <div class="card info-card">
+        <h3>备份计划</h3>
+        <div class="form-group">
+          <label>自动备份</label>
+          <select v-model="schedule.enabled">
+            <option :value="true">启用</option>
+            <option :value="false">禁用</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>频率</label>
+          <select v-model="schedule.frequency">
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>保留数量</label>
+          <input v-model.number="schedule.keep_count" type="number" min="1" max="100">
+        </div>
+        <button class="btn btn-primary" @click="saveSchedule">保存计划</button>
+      </div>
+    </div>
+
+    <!-- 手动备份 -->
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-header">
+        <h3>手动操作</h3>
+        <div class="header-actions">
+          <button class="btn btn-primary" @click="manualBackup" :disabled="backupLoading">
+            {{ backupLoading ? '备份中...' : '立即备份' }}
+          </button>
+          <button class="btn btn-ghost" @click="downloadBackup">下载最新备份</button>
+          <button class="btn btn-ghost" @click="downloadFavicons">下载 Favicon</button>
+          <button class="btn btn-ghost" @click="retryFavicons">重试失败图标</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 备份文件列表 -->
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-header">
+        <h3>备份文件</h3>
+        <button class="btn btn-ghost btn-sm" @click="refreshFiles">刷新</button>
+      </div>
+      <div v-if="filesLoading" class="loading-sm" style="padding: 20px;">加载中...</div>
+      <div v-else-if="backupFiles.length === 0" class="empty-state">暂无备份文件</div>
+      <table v-else class="data-table">
+        <thead>
+          <tr><th>文件名</th><th>大小</th><th>创建时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="file in backupFiles" :key="file.name">
+            <td class="filename">{{ file.name }}</td>
+            <td>{{ file.size || '-' }}</td>
+            <td>{{ formatDate(file.created_at) }}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" @click="downloadFile(file.name)">下载</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="message" :class="['message', messageType]">{{ message }}</div>
+  </div>
+</template>
+
+<script setup lang="ts">
+definePageMeta({ middleware: 'admin', layout: 'admin' })
+
+const info = ref<any>(null)
+const schedule = reactive({ enabled: true, frequency: 'daily', keep_count: 7 })
+const backupFiles = ref<any[]>([])
+const backupLoading = ref(false)
+const filesLoading = ref(false)
+const message = ref('')
+const messageType = ref<'success' | 'error'>('success')
+
+async function loadInfo() {
+  try { info.value = await $fetch('/api/admin/backup/info') } catch {}
+}
+
+async function loadSchedule() {
+  try {
+    const data = await $fetch<any>('/api/admin/backup-schedule')
+    if (data) Object.assign(schedule, data)
+  } catch {}
+}
+
+async function loadFiles() {
+  filesLoading.value = true
+  try {
+    const data = await $fetch<any>('/api/admin/backup-files')
+    backupFiles.value = data?.files || []
+  } catch { backupFiles.value = [] }
+  filesLoading.value = false
+}
+
+async function saveSchedule() {
+  try {
+    await $fetch('/api/admin/backup-schedule', { method: 'PUT', body: schedule })
+    showMessage('备份计划已保存')
+  } catch { showMessage('保存失败', 'error') }
+}
+
+async function manualBackup() {
+  backupLoading.value = true
+  try {
+    await $fetch('/api/admin/manual-backup', { method: 'POST' })
+    showMessage('备份完成')
+    await loadFiles()
+  } catch { showMessage('备份失败', 'error') }
+  backupLoading.value = false
+}
+
+function downloadBackup() {
+  window.open('/api/admin/backup/download', '_blank')
+}
+
+function downloadFile(name: string) {
+  window.open(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, '_blank')
+}
+
+async function downloadFavicons() {
+  try {
+    const res = await $fetch<any>('/api/admin/download-favicons', { method: 'POST' })
+    showMessage(`下载完成：${res?.downloaded || 0} 个`)
+  } catch { showMessage('下载失败', 'error') }
+}
+
+async function retryFavicons() {
+  try {
+    const res = await $fetch<any>('/api/admin/retry-failed-favicons', { method: 'POST' })
+    showMessage(`重试完成：${res?.retried || 0} 个`)
+  } catch { showMessage('重试失败', 'error') }
+}
+
+function refreshFiles() { loadFiles() }
+
+function showMessage(msg: string, type: 'success' | 'error' = 'success') {
+  message.value = msg
+  messageType.value = type
+  setTimeout(() => { message.value = '' }, 3000)
+}
+
+function formatDate(ts?: number | string) {
+  if (!ts) return '-'
+  return new Date(ts).toLocaleString('zh-CN')
+}
+
+onMounted(() => {
+  loadInfo()
+  loadSchedule()
+  loadFiles()
+})
+</script>
+
+<style scoped>
+.admin-page { max-width: 1200px; margin: 0 auto; padding: 32px; }
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 22px; font-weight: 600; margin: 0; color: #333; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+.info-card { padding: 20px; }
+.info-card h3 { font-size: 16px; margin: 0 0 16px; color: #333; }
+.info-list { display: flex; flex-direction: column; gap: 10px; }
+.info-item { display: flex; justify-content: space-between; font-size: 14px; }
+.info-label { color: #888; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.card-header h3 { font-size: 16px; margin: 0; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.data-table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
+.filename { font-family: monospace; font-size: 13px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
+.form-group select,
+.form-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
+.form-group select:focus,
+.form-group input:focus { border-color: #667eea; }
+.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: #667eea; color: #fff; }
+.btn-primary:hover { background: #5a6fd6; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
+.btn-ghost:hover { background: #f5f5f5; }
+.loading-sm { text-align: center; padding: 16px; color: #999; font-size: 13px; }
+.empty-state { text-align: center; padding: 40px; color: #888; }
+.message { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 14px; text-align: center; }
+.message.success { background: #d1fae5; color: #065f46; }
+.message.error { background: #fee2e2; color: #991b1b; }
+</style>

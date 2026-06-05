@@ -22,7 +22,7 @@ export const folders = sqliteTable('folders', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull().references(() => users.id),
   name: text('name').notNull(),
-  parentId: integer('parent_id').references(() => folders.id),
+  parentId: integer('parent_id').references((): any => folders.id),
   sortOrder: integer('sort_order').default(0),
   icon: text('icon').default(''),
   createdAt: integer('created_at'),

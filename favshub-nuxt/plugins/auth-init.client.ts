@@ -7,8 +7,13 @@ import { useAuthStore } from '~/stores/auth'
 export default defineNuxtPlugin(() => {
   const authStore = useAuthStore()
 
-  // 仅在客户端执行
   if (import.meta.client) {
-    authStore.init()
+    // 同步读取 token 设置状态（立即生效，不阻塞渲染）
+    const savedToken = localStorage.getItem('favshub_token')
+    if (savedToken) {
+      authStore.token = savedToken
+      // 异步获取用户信息，失败则登出
+      authStore.fetchMe().catch(() => authStore.logout())
+    }
   }
 })
