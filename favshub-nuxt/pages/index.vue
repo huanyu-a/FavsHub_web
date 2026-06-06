@@ -16,12 +16,12 @@
     />
 
     <!-- 主内容区 -->
-    <main class="flex-1 bg-gray-50 p-8 overflow-auto flex flex-col">
+    <main class="main-content">
       <!-- 欢迎消息 -->
       <WelcomeMessage v-if="settingsStore.get('showWelcomeMessage', true)" />
 
       <!-- 搜索栏 -->
-      <div class="flex justify-between items-center mb-4">
+      <div class="search-row" v-if="settingsStore.get('showSearchBox', true)">
         <SearchBar
           :engines="searchEngineStore.engines"
           :current-engine="searchEngineStore.currentEngine"
@@ -36,7 +36,7 @@
         :bookmarks="displayBookmarks"
         :is-loading="bookmarksStore.isLoading"
         :is-guest="authStore.isGuest"
-        :bookmark-width="settingsStore.get('bookmarkWidth', 200)"
+        :bookmark-width="settingsStore.get('bookmarkWidth', 180)"
         @edit="openEditDialog"
         @delete="confirmDelete"
         @reorder="handleReorder"
@@ -67,14 +67,24 @@
       </div>
 
       <!-- 年度进度条 -->
-      <footer class="bg-gray-50 text-center p-4 border-t border-gray-200 mt-auto">
+      <footer v-if="settingsStore.get('showFooter', true)" class="page-footer">
         <YearProgress />
       </footer>
     </main>
+
+    <!-- 侧边栏切换按钮 -->
+    <button id="toggle-sidebar" class="sidebar-toggle-btn" @click="uiStore.toggleSidebar()" title="收起/展开侧边栏">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+
+    <!-- 回到顶部按钮 -->
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+definePageMeta({ layout: 'default' })
+
 import Sidebar from '~/components/sidebar/Sidebar.vue'
 import SearchBar from '~/components/search/SearchBar.vue'
 import BookmarkGrid from '~/components/bookmark/BookmarkGrid.vue'
@@ -82,6 +92,7 @@ import BookmarkEditDialog from '~/components/bookmark/BookmarkEditDialog.vue'
 import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
 import WallpaperBackground from '~/components/WallpaperBackground.vue'
+import BackToTop from '~/components/BackToTop.vue'
 
 const authStore = useAuthStore()
 const bookmarksStore = useBookmarksStore()
@@ -171,7 +182,52 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 <style scoped>
 .home-page {
   min-height: 100vh;
+  position: relative;
 }
+
+.main-content {
+  flex: 1;
+  background: transparent;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+}
+
+.search-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.page-footer {
+  text-align: center;
+  padding: 1rem;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  margin-top: auto;
+}
+
+/* 侧边栏切换按钮 */
+.sidebar-toggle-btn {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  background: rgba(0,0,0,0.08);
+  border: none;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 4px;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.2s;
+}
+.sidebar-toggle-btn:hover {
+  background: rgba(0,0,0,0.15);
+}
+
+/* 删除确认弹窗 */
 .modal {
   position: fixed;
   inset: 0;
@@ -215,5 +271,9 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   background: #e74c3c;
   color: #fff;
   cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .main-content { padding: 1rem; }
 }
 </style>

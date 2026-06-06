@@ -85,6 +85,13 @@ html[data-admin="true"] .client-only-admin  { display: flex !important; }
 [data-theme="dark"] .bookmark-card:hover { background: rgba(255,255,255,0.08); }
 [data-theme="dark"] .bookmark-title     { color: #ddd; }
 [data-theme="dark"] .bookmark-icon-text { background: rgba(74,144,217,0.2); }
+[data-theme="dark"] .card               { background: transparent; }
+[data-theme="dark"] .card:hover         { background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .card-title         { color: #ddd; }
+[data-theme="dark"] .card-icon-text     { background: rgba(74,144,217,0.2); }
+
+/* ── Bookmarks container dark mode ──────────────────────────── */
+[data-theme="dark"] .bookmarks-container { background: rgba(30,30,30,0.6); }
 
 /* hide edit/delete buttons for guests */
 html[data-guest="true"] .bookmark-actions { display: none !important; }
@@ -104,8 +111,22 @@ html[data-guest="true"] .add-bookmark-card { display: none !important; }
 [data-theme="dark"] .context-menu-item i   { color: #aaa; }
 
 /* ── SearchBar dark mode ────────────────────────────────────── */
-[data-theme="dark"] .search-input-wrapper { background: #2a2a2a; border-color: #444; }
-[data-theme="dark"] .search-input         { color: #eee; }
+[data-theme="dark"] .search-form           { background: #2a2a2a; border-color: #444; }
+[data-theme="dark"] .search-input-wrapper  { background: #2a2a2a; border-color: #444; }
+[data-theme="dark"] .search-input          { color: #eee; }
+[data-theme="dark"] .search-input::placeholder { color: #888; }
+[data-theme="dark"] .search-suggestions-wrapper { background: #2a2a2a; border-color: #444; }
+[data-theme="dark"] .search-suggestion-item:hover { background: #333; }
+[data-theme="dark"] .search-suggestion-item .suggestion-text { color: #ddd; }
+[data-theme="dark"] .line-container .custom-hr { border-color: #444; }
+[data-theme="dark"] .tab                    { background: #333; color: #ccc; }
+[data-theme="dark"] .tab:hover              { background: #444; }
+[data-theme="dark"] .tab.active             { background: #667eea; color: #fff; }
+
+/* ── Search Engine Dialog dark mode ─────────────────────────── */
+[data-theme="dark"] .search-engines-dialog  { background: #2a2a2a; color: #ddd; }
+[data-theme="dark"] .search-engine-item:hover { background: #333; }
+[data-theme="dark"] .search-engine-item.selected { background: #1a3a5c; }
 
 /* ── SearchEngineDropdown dark mode ─────────────────────────── */
 [data-theme="dark"] .engine-dropdown      { background: #2a2a2a; border-color: #444; }
@@ -125,4 +146,14 @@ html[data-guest="true"] .add-bookmark-card { display: none !important; }
 [data-theme="dark"] .nav-card      { background: #1e1e1e; border-color: #333; }
 [data-theme="dark"] .stat-value    { color: #64b5f6; }
 [data-theme="dark"] .nav-label     { color: #ccc; }
+
+/* ── BackToTop / SidebarToggle dark mode ────────────────────── */
+[data-theme="dark"] #back-to-top     { background: rgba(40,40,40,0.9); border-color: #444; color: #aaa; }
+[data-theme="dark"] #back-to-top:hover { background: #333; color: #fff; }
+[data-theme="dark"] .sidebar-toggle-btn { background: rgba(255,255,255,0.06); color: #aaa; }
+[data-theme="dark"] .sidebar-toggle-btn:hover { background: rgba(255,255,255,0.12); }
+
+/* ── Main content dark mode ─────────────────────────────────── */
+[data-theme="dark"] body { background: #121212; color: #ddd; }
+[data-theme="dark"] .main-content { background: transparent; }
 </style>

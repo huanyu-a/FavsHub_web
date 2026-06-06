@@ -1,6 +1,6 @@
 <template>
   <div class="welcome-search-container">
-    <div id="welcome-message" class="welcome-text">{{ greeting }}</div>
+    <div id="welcome-message" class="welcome-text" :style="{ visibility: ready ? 'visible' : 'hidden' }">{{ greeting }}</div>
   </div>
 </template>
 
@@ -8,6 +8,7 @@
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 
+const ready = ref(false)
 const greeting = computed(() => {
   const hours = new Date().getHours()
   let timeGreeting: string
@@ -17,6 +18,11 @@ const greeting = computed(() => {
 
   const userName = authStore.user?.nickname || settingsStore.get('userName', '')
   return userName ? `${timeGreeting}, ${userName}` : timeGreeting
+})
+
+onMounted(() => {
+  // 延迟显示，匹配旧版行为
+  setTimeout(() => { ready.value = true }, 100)
 })
 </script>
 

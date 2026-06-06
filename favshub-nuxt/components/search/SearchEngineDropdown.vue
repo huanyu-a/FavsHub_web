@@ -7,7 +7,12 @@
       @click="$emit('select', engine)"
     >
       <img v-if="engine.icon" :src="engine.icon" class="engine-icon" :alt="engine.name">
+      <img v-else src="/images/placeholder-icon.svg" class="engine-icon" :alt="engine.name">
       <span>{{ engine.name }}</span>
+    </div>
+    <div class="engine-item engine-item--manage" @click="$emit('manage')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      <span>管理搜索引擎</span>
     </div>
   </div>
 </template>
@@ -27,6 +32,7 @@ defineProps<{
 
 defineEmits<{
   select: [engine: Engine]
+  manage: []
 }>()
 </script>
 
@@ -61,6 +67,15 @@ defineEmits<{
   width: 18px;
   height: 18px;
   object-fit: contain;
+}
+/* 管理搜索引擎按钮 */
+.engine-item--manage {
+  border-top: 1px solid #f0f0f0;
+  color: #667eea;
+  font-weight: 500;
+}
+.engine-item--manage:hover {
+  background: #e8f0fe;
 }
 /* Dark mode is now defined globally in layouts/default.vue */
 </style>
