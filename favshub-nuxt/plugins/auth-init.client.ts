@@ -1,19 +1,23 @@
 /**
  * 客户端插件 — 应用启动时恢复认证状态
- * 从 localStorage 读取 token 并调用 /api/auth/me
+ *
+ * 由于 SSR hydration 会覆盖 Pinia state，因此需要在此处重新从 localStorage 读取 token
+ * 并强制写入 store（覆盖 SSR 传递的 token: null）。
  */
 import { useAuthStore } from '~/stores/auth'
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin(async () => {
   const authStore = useAuthStore()
 
-  if (import.meta.client) {
-    // 同步读取 token 设置状态（立即生效，不阻塞渲染）
-    const savedToken = localStorage.getItem('favshub_token')
-    if (savedToken) {
-      authStore.token = savedToken
-      // 异步获取用户信息，失败则登出
-      authStore.fetchMe().catch(() => authStore.logout())
+  // 从 localStorage 恢复 token（覆盖 SSR hydration 的 null）
+  const savedToken = localStorage.getItem('favshub_token')
+  if (savedToken) {
+    authStore.$patch({ token: savedToken })
+    // 异步获取用户信息，失败则登出
+    try {
+      await authStore.fetchMe()
+    } catch {
+      authStore.logout()
     }
   }
 })

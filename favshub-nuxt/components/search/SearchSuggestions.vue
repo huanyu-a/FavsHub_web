@@ -62,11 +62,5 @@ defineEmits<{
   color: #999;
   margin-left: auto;
 }
-:global([data-theme="dark"]) .suggestions-dropdown {
-  background: #2a2a2a;
-  border-color: #444;
-}
-:global([data-theme="dark"]) .suggestion-item:hover {
-  background: #333;
-}
+/* Dark mode is now defined globally in layouts/default.vue */
 </style>

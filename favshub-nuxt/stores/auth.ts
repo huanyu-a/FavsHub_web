@@ -19,10 +19,14 @@ interface AuthState {
 }
 
 export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    token: null,
-    user: null,
-  }),
+  state: (): AuthState => {
+    // 从 localStorage 恢复 token（仅客户端）
+    let token: string | null = null
+    if (typeof localStorage !== 'undefined') {
+      token = localStorage.getItem('favshub_token')
+    }
+    return { token, user: null }
+  },
 
   getters: {
     isLoggedIn: (state) => !!state.token,

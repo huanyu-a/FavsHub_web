@@ -62,11 +62,5 @@ defineEmits<{
   height: 18px;
   object-fit: contain;
 }
-:global([data-theme="dark"]) .engine-dropdown {
-  background: #2a2a2a;
-  border-color: #444;
-}
-:global([data-theme="dark"]) .engine-item:hover {
-  background: #333;
-}
+/* Dark mode is now defined globally in layouts/default.vue */
 </style>

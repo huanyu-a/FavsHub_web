@@ -140,18 +140,9 @@ if (import.meta.client) {
 .sortable-ghost {
   opacity: 0.4;
 }
-:global([data-guest="true"]) .add-bookmark-card {
-  display: none !important;
-}
-:global([data-guest="true"]) .client-only-user {
-  display: none !important;
-}
-.client-only-user {
-  display: flex;
-}
+/* Auth visibility and dark mode are now defined globally in layouts/default.vue */
 @media (prefers-color-scheme: dark) {
   .add-bookmark-card { border-color: #444; }
   .add-bookmark-card:hover { border-color: #667eea; }
 }
-:global([data-theme="dark"]) .add-bookmark-card { border-color: #444; }
 </style>

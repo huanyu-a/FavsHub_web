@@ -305,29 +305,5 @@ function openChromePage(page: string) {
   text-align: center;
 }
 /* Auth-dependent visibility (CSS-only, no v-if to avoid hydration mismatch) */
-.client-only-guest { display: none; }
-.client-only-user { display: flex; }
-.client-only-admin { display: none; }
-:global([data-guest="true"]) .client-only-guest { display: flex; }
-:global([data-guest="true"]) .client-only-user { display: none; }
-:global([data-admin="true"]) .client-only-admin { display: flex; }
-/* Dark mode */
-:global([data-theme="dark"]) .sidebar {
-  background: #1e1e1e;
-  border-right-color: #333;
-}
-:global([data-theme="dark"]) .sidebar-brand-title { color: #eee; }
-:global([data-theme="dark"]) .sidebar-hub-link { color: #ccc; }
-:global([data-theme="dark"]) .sidebar-hub-link:hover { background: rgba(255,255,255,0.06); }
-:global([data-theme="dark"]) .sidebar-hub-link.active { background: #1a3a5c; color: #64b5f6; }
-:global([data-theme="dark"]) .folder-item { color: #ccc; }
-:global([data-theme="dark"]) .folder-item:hover { background: rgba(255,255,255,0.06); }
-:global([data-theme="dark"]) .folder-item.active { background: #1a3a5c; color: #64b5f6; }
-:global([data-theme="dark"]) .sidebar-quick-links { border-top-color: #333; }
-:global([data-theme="dark"]) .quick-link { color: #aaa; }
-:global([data-theme="dark"]) .quick-link:hover { background: rgba(255,255,255,0.06); color: #ccc; }
-:global([data-theme="dark"]) .sidebar-bottom { border-top-color: #333; }
-:global([data-theme="dark"]) .sidebar-top { border-bottom-color: #333; }
-:global([data-theme="dark"]) .sidebar-toolbar-icon,
-:global([data-theme="dark"]) .sidebar-theme-btn { color: #aaa; }
+/* These are now defined globally in layouts/default.vue */
 </style>

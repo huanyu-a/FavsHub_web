@@ -154,6 +154,5 @@ function hideSuggestionsDelayed() {
   background: transparent;
   color: #333;
 }
-:global([data-theme="dark"]) .search-input-wrapper { background: #2a2a2a; border-color: #444; }
-:global([data-theme="dark"]) .search-input { color: #eee; }
+/* Dark mode is now defined globally in layouts/default.vue */
 </style>

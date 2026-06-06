@@ -141,15 +141,10 @@ const initialChar = computed(() => {
   background: rgba(0,0,0,0.1);
   color: #333;
 }
-:global([data-guest="true"]) .bookmark-actions {
-  display: none !important;
-}
+/* Auth visibility and dark mode are now defined globally in layouts/default.vue */
 @media (prefers-color-scheme: dark) {
   .bookmark-card:hover { background: rgba(255, 255, 255, 0.08); }
   .bookmark-title { color: #ddd; }
   .bookmark-icon-text { background: rgba(74, 144, 217, 0.2); }
 }
-:global([data-theme="dark"]) .bookmark-card:hover { background: rgba(255, 255, 255, 0.08); }
-:global([data-theme="dark"]) .bookmark-title { color: #ddd; }
-:global([data-theme="dark"]) .bookmark-icon-text { background: rgba(74, 144, 217, 0.2); }
 </style>

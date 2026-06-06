@@ -161,13 +161,5 @@ function copyUrl() {
 .context-menu-item--danger:hover {
   background: #fff5f5;
 }
-:global([data-theme="dark"]) .context-menu {
-  background: #2a2a2a;
-  border-color: #444;
-}
-:global([data-theme="dark"]) .context-menu-header { color: #999; }
-:global([data-theme="dark"]) .context-menu-divider { background: #444; }
-:global([data-theme="dark"]) .context-menu-item { color: #ddd; }
-:global([data-theme="dark"]) .context-menu-item:hover { background: #333; }
-:global([data-theme="dark"]) .context-menu-item i { color: #aaa; }
+/* Dark mode is now defined globally in layouts/default.vue */
 </style>

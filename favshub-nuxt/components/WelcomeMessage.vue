@@ -35,7 +35,5 @@ const greeting = computed(() => {
     color: #eee;
   }
 }
-:global([data-theme="dark"]) .welcome-text {
-  color: #eee;
-}
+/* Dark mode is now defined globally in layouts/default.vue */
 </style>
