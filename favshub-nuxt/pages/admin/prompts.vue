@@ -238,17 +238,20 @@ onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadTd
 .setting-card h3 { font-size: 16px; margin-bottom: 12px; }
 .hint { font-size: 13px; color: #888; margin-bottom: 16px; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px 14px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
-td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
 tr:hover { background: #fafafa; }
 .actions { display: flex; gap: 4px; flex-wrap: wrap; }
-.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; }
+.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
 .btn-primary { background: #667eea; color: #fff; }
+.btn-primary:hover { background: #5a6fd6; }
 .btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-.badge-public { background: #e0e7ff; color: #3730a3; }
+.btn-ghost:hover { background: #f5f5f5; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge-public { background: #f0fdf4; color: #166534; }
 .badge-locked { background: #fef3c7; color: #92400e; }
 .tag-chip { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 11px; margin: 1px; }
 .empty-state { text-align: center; padding: 40px; color: #888; }
@@ -257,13 +260,40 @@ tr:hover { background: #fafafa; }
 .pagination button.active { background: #667eea; color: #fff; border-color: #667eea; }
 .pagination button:disabled { opacity: .4; cursor: not-allowed; }
 .modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; align-items: center; justify-content: center; }
-.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
 .modal-header h3 { margin: 0; font-size: 16px; }
 .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px; }
+.modal-body { padding: 20px 24px; }
 .fg { margin-bottom: 12px; }
 .fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
 .fg input, .fg select, .fg textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
 .form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .admin-page { padding: 16px; }
+  .page-header h1 { font-size: 18px; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat-card { padding: 14px; }
+  .stat-card .value { font-size: 22px; }
+  .tab-nav button { padding: 8px 12px; font-size: 13px; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .btn { padding: 8px 16px; font-size: 14px; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .modal { width: 95%; max-height: 90vh; }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 14px 16px; }
+  .card-header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+  .card-header h3 { font-size: 14px; }
+  .setting-card { padding: 14px; }
+}
+@media (max-width: 480px) {
+  .admin-page { padding: 12px; }
+  .page-header h1 { font-size: 16px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-card .value { font-size: 20px; }
+  .stat-card .label { font-size: 12px; }
+}
 </style>

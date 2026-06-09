@@ -14,6 +14,12 @@ export const useUIStore = defineStore('ui', {
 
     setTheme(t: 'light' | 'dark' | 'auto') {
       this.theme = t
+      // 镜像到 localStorage，供 layouts/default.vue 的首屏同步脚本读取，消除主题闪烁
+      if (import.meta.client) {
+        try { localStorage.setItem('favshub_theme', t) } catch {}
+      }
+      // 同步到后端设置（登录用户）
+      try { useSettingsStore().set('theme', t) } catch {}
       this.applyTheme()
     },
 
@@ -54,7 +60,14 @@ export const useUIStore = defineStore('ui', {
 
       // Sync with persisted settings
       const settings = useSettingsStore()
-      this.theme = (settings.get('theme') as 'light' | 'dark' | 'auto') || 'auto'
+      let stored = settings.get('theme') as 'light' | 'dark' | 'auto' | undefined
+      // 优先使用 localStorage 镜像（首屏脚本已据此设置 data-theme）
+      try {
+        const ls = localStorage.getItem('favshub_theme') as 'light' | 'dark' | 'auto' | null
+        if (ls) stored = ls
+      } catch {}
+      this.theme = stored || 'auto'
+      try { localStorage.setItem('favshub_theme', this.theme) } catch {}
       this.applyTheme()
 
       // React to OS-level scheme changes when the user preference is 'auto'

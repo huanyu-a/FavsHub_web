@@ -3,16 +3,21 @@
  *
  * 由于 SSR hydration 会覆盖 Pinia state，因此需要在此处重新从 localStorage 读取 token
  * 并强制写入 store（覆盖 SSR 传递的 token: null）。
+ * 同时兼容旧版框架的 localStorage key (fh_local_favshub_token)。
  */
 import { useAuthStore } from '~/stores/auth'
 
 export default defineNuxtPlugin(async () => {
   const authStore = useAuthStore()
 
-  // 从 localStorage 恢复 token（覆盖 SSR hydration 的 null）
-  const savedToken = localStorage.getItem('favshub_token')
+  // 从 localStorage 恢复 token（兼容旧版 key）
+  const savedToken = localStorage.getItem('favshub_token') || localStorage.getItem('fh_local_favshub_token')
   if (savedToken) {
     authStore.$patch({ token: savedToken })
+    // 同步到新版 key，方便后续使用
+    if (!localStorage.getItem('favshub_token')) {
+      localStorage.setItem('favshub_token', savedToken)
+    }
     // 异步获取用户信息，失败则登出
     try {
       await authStore.fetchMe()

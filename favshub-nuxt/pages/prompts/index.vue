@@ -1,218 +1,186 @@
 <template>
-  <div class="prompts-layout">
-    <!-- 左侧导航 -->
-    <aside class="prompts-sidebar">
-      <div class="sidebar-section">
-        <div class="section-header">
-          <span>文件夹</span>
-          <button v-if="!isGuest" class="icon-btn" @click="showFolderDialog = true" title="新建文件夹"><i class="ri-add-line"></i></button>
+  <div id="sidebar-container" class="flex prompts-root">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-shell">
+        <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
+          <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
+            <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
+            <div class="sidebar-brand-copy" style="display:flex;flex-direction:column;gap:2px;">
+              <span class="sidebar-brand-title">PromptPro</span>
+              <span class="sidebar-brand-subtitle">Prompt Manager</span>
+            </div>
+          </NuxtLink>
+          <div class="sidebar-hub-nav">
+            <NuxtLink to="/" class="sidebar-hub-link" title="主页">
+              <span class="sidebar-hub-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </span>
+              <span class="sidebar-hub-label">主页</span>
+            </NuxtLink>
+            <NuxtLink to="/prompts" class="sidebar-hub-link active" title="提示词管理">
+              <span class="sidebar-hub-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+              </span>
+              <span class="sidebar-hub-label">提示词管理</span>
+            </NuxtLink>
+          </div>
         </div>
-        <ul class="folder-list">
-          <li :class="{ active: !activeFolderId }" @click="activeFolderId = null; loadPrompts()">
-            <i class="ri-folder-3-line"></i>
-            <span>全部</span>
-            <span class="count">{{ allPromptCount }}</span>
-          </li>
-          <li :class="{ active: activeFolderId === '_favorites' }" @click="activeFolderId = '_favorites'; loadPrompts()">
-            <i class="ri-star-line"></i>
-            <span>收藏</span>
-          </li>
-          <li
-            v-for="folder in folders"
-            :key="folder.id"
-            :class="{ active: activeFolderId === folder.id }"
-            @click="activeFolderId = folder.id; loadPrompts()"
-          >
-            <i class="ri-folder-3-line"></i>
-            <span>{{ folder.name }}</span>
-            <span class="count">{{ folder.prompt_count || 0 }}</span>
-          </li>
-        </ul>
-      </div>
-      <div class="sidebar-section">
-        <div class="section-header">
-          <span>标签</span>
-        </div>
-        <div class="tag-list">
-          <span
-            v-for="tag in tags"
-            :key="tag.id"
-            class="tag-chip"
-            :class="{ active: activeTagIds.includes(tag.id) }"
-            @click="toggleTag(tag.id)"
-          >
-            {{ tag.name }}
-          </span>
-          <span v-if="tags.length === 0" class="no-tags">暂无标签</span>
+
+        <!-- 导航目录 -->
+        <div class="sidebar-folders-panel">
+          <div class="sidebar-panel-header">
+            <span class="sidebar-section-kicker">导航目录</span>
+            <div class="sidebar-panel-actions">
+              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="showFolderDialog = true">
+                <i class="ri-folder-add-line"></i>
+              </button>
+            </div>
+          </div>
+          <ul id="categories-list">
+            <li
+              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
+              :class="{ 'bg-emerald-500': !activeFolderId }"
+              @click="activeFolderId = null; loadPrompts()"
+            >
+              <i class="ri-folder-3-line" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
+              <span>全部</span>
+              <span class="ml-auto" style="font-size:11px;color:#94a3b8;">{{ allPromptCount }}</span>
+            </li>
+            <li
+              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
+              :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
+              @click="activeFolderId = '_favorites'; loadPrompts()"
+            >
+              <i class="ri-star-line" style="font-size:16px;color:#f59e0b;margin-right:8px;width:20px;text-align:center;"></i>
+              <span>收藏</span>
+            </li>
+            <li
+              v-for="folder in folders"
+              :key="folder.id"
+              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
+              :class="{ 'bg-emerald-500': activeFolderId === folder.id }"
+              @click="activeFolderId = folder.id; loadPrompts()"
+            >
+              <i class="ri-folder-3-line" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
+              <span>{{ folder.name }}</span>
+              <span class="ml-auto" style="font-size:11px;color:#94a3b8;">{{ folder.prompt_count || 0 }}</span>
+            </li>
+          </ul>
+          <div class="tags-section-label">
+            <span>标签</span>
+            <button class="sidebar-panel-action-btn client-only-user" title="筛选标签"><i class="ri-price-tag-3-line"></i></button>
+          </div>
+          <div id="sidebar-tags-grid" class="sidebar-tags-grid">
+            <span
+              v-for="tag in tags"
+              :key="tag.id"
+              class="tag-chip"
+              :class="{ active: activeTagIds.includes(tag.id) }"
+              @click="toggleTag(tag.id)"
+            >{{ tag.name }}</span>
+            <span v-if="tags.length === 0" style="font-size:12px;color:#94a3b8;padding:4px;">暂无标签</span>
+          </div>
         </div>
       </div>
     </aside>
 
-    <!-- 主内容区 -->
-    <div class="prompts-main">
-      <header class="prompts-header">
-        <h1>提示词管理</h1>
-        <div class="header-actions">
-          <input v-model="searchQuery" type="text" class="search-input" placeholder="搜索提示词..." @input="debouncedSearch">
-          <button v-if="!isGuest" class="btn btn-primary" @click="openCreate">
-            <i class="ri-add-line"></i> 新建提示词
+    <!-- 右侧主内容 -->
+    <main class="main-content">
+      <div class="main-area">
+        <div class="main-toolbar">
+          <div class="search-box">
+            <i class="ri-search-line"></i>
+            <input v-model="searchQuery" type="text" placeholder="搜索提示词..." @input="debouncedSearch">
+          </div>
+          <button class="btn-favorite" :class="{ active: activeFolderId === '_favorites' }" title="收藏筛选" @click="toggleFavoritesView">
+            <i :class="activeFolderId === '_favorites' ? 'ri-star-fill' : 'ri-star-line'"></i>
+            <span>收藏</span>
+          </button>
+          <button class="btn btn-primary client-only-user" @click="openCreate">
+            <i class="ri-add-line"></i>
+            <span>新建提示词</span>
           </button>
         </div>
-      </header>
 
-      <div v-if="isLoading" class="loading">加载中...</div>
-      <div v-else-if="prompts.length === 0" class="empty">
-        <i class="ri-chat-quote-line empty-icon"></i>
-        <p>暂无提示词</p>
-        <button v-if="!isGuest" class="btn btn-primary" @click="openCreate">创建第一个提示词</button>
-      </div>
-      <div v-else class="prompts-grid">
-        <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card" @click="viewPrompt(prompt)">
-          <div class="card-top">
-            <h3>{{ prompt.title }}</h3>
-            <div class="card-actions">
-              <button class="icon-btn" @click.stop="toggleFavorite(prompt)" :title="prompt.is_favorite ? '取消收藏' : '收藏'">
-                <i :class="prompt.is_favorite ? 'ri-star-fill fav-active' : 'ri-star-line'"></i>
-              </button>
-              <button v-if="!isGuest" class="icon-btn" @click.stop="openEdit(prompt)" title="编辑">
-                <i class="ri-edit-line"></i>
-              </button>
-              <button v-if="!isGuest" class="icon-btn btn-danger-icon" @click.stop="deletePrompt(prompt)" title="删除">
-                <i class="ri-delete-bin-line"></i>
-              </button>
-            </div>
-          </div>
-          <p v-if="prompt.description" class="card-desc">{{ prompt.description }}</p>
-          <p class="card-content">{{ prompt.content }}</p>
-          <div class="card-footer">
-            <div class="card-tags">
-              <span v-for="tag in (prompt.tags || [])" :key="tag.id" class="mini-tag" :style="tag.color ? { background: tag.color + '20', color: tag.color } : {}">
-                {{ tag.name }}
-              </span>
-            </div>
-            <span class="card-version">v{{ prompt.current_version || '1.0.0' }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 查看详情弹窗 -->
-    <div v-if="viewingPrompt" class="modal-overlay" @click.self="viewingPrompt = null">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <h3>{{ viewingPrompt.title }}</h3>
-          <div class="modal-header-actions">
-            <button class="btn btn-ghost btn-sm" @click="copyContent(viewingPrompt.content)">
-              <i class="ri-file-copy-line"></i> 复制
-            </button>
-            <button class="btn btn-ghost btn-sm" @click="viewVersions(viewingPrompt)">
-              <i class="ri-history-line"></i> 历史
-            </button>
-            <button v-if="!isGuest" class="btn btn-ghost btn-sm" @click="openEdit(viewingPrompt); viewingPrompt = null">
-              <i class="ri-edit-line"></i> 编辑
-            </button>
-            <button class="modal-close" @click="viewingPrompt = null">&times;</button>
-          </div>
-        </div>
-        <div class="modal-body">
-          <p v-if="viewingPrompt.description" class="detail-desc">{{ viewingPrompt.description }}</p>
-          <pre class="detail-content">{{ viewingPrompt.content }}</pre>
-          <div v-if="viewingPrompt.tags?.length" class="detail-tags">
-            <span v-for="tag in viewingPrompt.tags" :key="tag.id" class="tag-chip-sm">{{ tag.name }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 创建/编辑弹窗 -->
-    <div v-if="showEditDialog" class="modal-overlay" @click.self="showEditDialog = false">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <h3>{{ isCreating ? '新建提示词' : '编辑提示词' }}</h3>
-          <button class="modal-close" @click="showEditDialog = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>标题 *</label>
-            <input v-model="editForm.title" type="text" placeholder="提示词标题">
-          </div>
-          <div class="form-group">
-            <label>描述</label>
-            <input v-model="editForm.description" type="text" placeholder="简短描述（可选）">
-          </div>
-          <div class="form-group">
-            <label>内容 *</label>
-            <textarea v-model="editForm.content" rows="10" placeholder="提示词内容"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>文件夹</label>
-              <select v-model="editForm.folder_id">
-                <option :value="null">未分类</option>
-                <option v-for="f in folders" :key="f.id" :value="f.id">{{ f.name }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>标签（用空格分隔）</label>
-            <input v-model="editForm.tagsInput" type="text" placeholder="标签1 标签2 ...">
-          </div>
-          <div class="form-buttons">
-            <button class="btn btn-ghost" @click="showEditDialog = false">取消</button>
-            <button class="btn btn-primary" @click="savePrompt">保存</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 版本历史弹窗 -->
-    <div v-if="showVersions" class="modal-overlay" @click.self="showVersions = false">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <h3>版本历史 — {{ versionsTitle }}</h3>
-          <button class="modal-close" @click="showVersions = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="versionsLoading" class="loading-sm">加载中...</div>
-          <div v-else-if="versions.length === 0" class="empty-sm">暂无版本历史</div>
-          <div v-else class="versions-list">
-            <div v-for="v in versions" :key="v.id" class="version-item">
-              <div class="version-header">
-                <span class="version-num">v{{ v.version_number }}</span>
-                <span class="version-date">{{ formatTime(v.created_at) }}</span>
-                <button class="btn btn-ghost btn-sm" @click="restoreVersion(v)">恢复</button>
+        <div class="prompts-container">
+          <div v-if="!isLoading && prompts.length > 0" class="prompts-grid" id="promptsGrid">
+            <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card" @click="viewPrompt(prompt)">
+              <div class="prompt-card-header">
+                <h3 class="prompt-title">{{ prompt.title }}</h3>
+                <div class="prompt-actions">
+                  <button class="prompt-btn copy-btn" title="复制" @click.stop="copyContent(prompt.content)"><i class="ri-file-copy-line"></i></button>
+                  <button v-if="!isGuest" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
+                  <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
+                </div>
               </div>
-              <pre class="version-content">{{ v.content }}</pre>
+              <p v-if="prompt.description" class="prompt-desc">{{ prompt.description }}</p>
+              <div v-if="prompt.tags && prompt.tags.length" class="prompt-tags">
+                <span v-for="tag in prompt.tags" :key="tag.id" class="prompt-tag">{{ tag.name }}</span>
+              </div>
+              <div class="prompt-card-footer">
+                <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
+              </div>
             </div>
           </div>
+          <div v-if="isLoading" class="loading" id="loading">
+            <i class="ri-loader-4-line spin"></i>
+            <p>加载中...</p>
+          </div>
+          <div v-if="!isLoading && prompts.length === 0" class="empty-state">
+            <i class="ri-file-warning-line"></i>
+            <p>暂无数据</p>
+            <button v-if="!isGuest" class="btn btn-primary" @click="openCreate">创建第一个提示词</button>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
 
-    <!-- 文件夹弹窗 -->
-    <div v-if="showFolderDialog" class="modal-overlay" @click.self="showFolderDialog = false">
-      <div class="modal modal-sm">
-        <div class="modal-header">
-          <h3>新建文件夹</h3>
-          <button class="modal-close" @click="showFolderDialog = false">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label>文件夹名称</label>
-            <input v-model="newFolderName" type="text" placeholder="输入名称">
-          </div>
-          <div class="form-buttons">
-            <button class="btn btn-ghost" @click="showFolderDialog = false">取消</button>
-            <button class="btn btn-primary" @click="createFolder">创建</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ClientOnly>
+      <PromptDialogs
+        :viewing-prompt="viewingPrompt"
+        :show-edit-dialog="showEditDialog"
+        :is-creating="isCreating"
+        :edit-form="editForm"
+        :folders="folders"
+        :show-versions="showVersions"
+        :versions-title="versionsTitle"
+        :versions="versions"
+        :versions-loading="versionsLoading"
+        :show-folder-dialog="showFolderDialog"
+        :is-guest="isGuest"
+        @close-view="viewingPrompt = null"
+        @close-edit="showEditDialog = false"
+        @close-versions="showVersions = false"
+        @close-folder="showFolderDialog = false"
+        @save="savePrompt"
+        @save-folder="createFolder"
+        @copy="copyContent"
+        @view-versions="viewVersions"
+        @edit="(p) => { openEdit(p); viewingPrompt = null }"
+        @delete="deletePrompt"
+        @restore="restoreVersion"
+        @update:folder-name="(v) => newFolderName = v"
+      />
+    </ClientOnly>
   </div>
 </template>
 
 <script setup lang="ts">
-useHead({ title: 'PromptPro - 提示词管理' })
+import PromptDialogs from '~/components/prompts/PromptDialogs.vue'
+
+definePageMeta({ layout: 'default' })
+
+useHead({
+  title: 'PromptPro - 提示词管理',
+  link: [
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css' },
+    { rel: 'stylesheet', href: '/css/promptpro-card-styles.css' },
+    { rel: 'stylesheet', href: '/css/promptpro-light-theme.css' },
+    { rel: 'stylesheet', href: '/css/promptpro-dark-theme.css' },
+    { rel: 'stylesheet', href: '/css/promptpro-page.css' },
+  ],
+})
 
 const { isGuest } = useAuth()
 
@@ -275,6 +243,11 @@ let searchTimeout: ReturnType<typeof setTimeout>
 function debouncedSearch() {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => loadPrompts(), 300)
+}
+
+function toggleFavoritesView() {
+  activeFolderId.value = activeFolderId.value === '_favorites' ? null : '_favorites'
+  loadPrompts()
 }
 
 async function loadPrompts() {
@@ -343,7 +316,6 @@ function openEdit(prompt: Prompt) {
 async function savePrompt() {
   if (!editForm.title.trim() || !editForm.content.trim()) return alert('标题和内容不能为空')
 
-  // 处理标签：查找或创建标签
   const tagNames = editForm.tagsInput.trim().split(/\s+/).filter(Boolean)
   const tagIds: number[] = []
   for (const name of tagNames) {
@@ -389,6 +361,7 @@ async function toggleFavorite(prompt: Prompt) {
 async function deletePrompt(prompt: Prompt) {
   if (!confirm(`确定删除提示词「${prompt.title}」？`)) return
   await $fetch(`/api/prompts/${prompt.id}`, { method: 'DELETE' })
+  viewingPrompt.value = null
   await Promise.all([loadPrompts(), loadFolders()])
 }
 
@@ -422,191 +395,17 @@ function copyContent(content: string) {
   if (import.meta.client) navigator.clipboard.writeText(content)
 }
 
-function formatTime(ts?: number) {
-  if (!ts) return '-'
-  return new Date(ts).toLocaleString('zh-CN')
-}
-
 onMounted(async () => {
   await Promise.all([loadPrompts(), loadFolders(), loadTags()])
 })
 </script>
 
 <style scoped>
-.prompts-layout {
-  display: flex;
+/* 整个页面的视觉样式（侧边栏、工具栏、卡片、弹窗、暗色模式、响应式）
+   全部来自 promptpro-*.css（通过 useHead 注入，仅本页生效）。
+   .prompts-root 仅确保占满视口高度。 */
+.prompts-root {
   height: 100vh;
   overflow: hidden;
-  background: #f5f5f7;
 }
-.prompts-sidebar {
-  width: 240px;
-  background: #fff;
-  border-right: 1px solid #e8e8e8;
-  overflow-y: auto;
-  flex-shrink: 0;
-  padding: 16px 0;
-}
-.sidebar-section { padding: 0 12px; margin-bottom: 16px; }
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0 8px 8px;
-}
-.folder-list { list-style: none; padding: 0; margin: 0; }
-.folder-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #555;
-  transition: all 0.15s;
-}
-.folder-list li:hover { background: #f0f0f5; }
-.folder-list li.active { background: #e3f2fd; color: #1976d2; }
-.folder-list li .count { margin-left: auto; font-size: 11px; color: #aaa; }
-.tag-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px; }
-.tag-chip {
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  cursor: pointer;
-  background: #f0f0f5;
-  color: #666;
-  transition: all 0.15s;
-}
-.tag-chip:hover { background: #e0e0e8; }
-.tag-chip.active { background: #667eea; color: #fff; }
-.no-tags { font-size: 12px; color: #bbb; }
-
-.prompts-main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 32px;
-}
-.prompts-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.prompts-header h1 { font-size: 22px; font-weight: 600; color: #333; margin: 0; }
-.header-actions { display: flex; gap: 10px; align-items: center; }
-.search-input {
-  padding: 8px 14px;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  min-width: 220px;
-}
-.search-input:focus { border-color: #667eea; }
-
-.prompts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-.prompt-card {
-  background: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 10px;
-  padding: 16px;
-  cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.15s;
-}
-.prompt-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
-.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
-.card-top h3 { font-size: 15px; font-weight: 600; margin: 0; color: #333; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-actions { display: flex; gap: 2px; flex-shrink: 0; }
-.icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: #999;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-}
-.icon-btn:hover { background: rgba(0,0,0,0.06); color: #333; }
-.btn-danger-icon:hover { color: #e74c3c; }
-.fav-active { color: #f59e0b; }
-.card-desc { font-size: 12px; color: #888; margin: 0 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-content {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-.card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
-.mini-tag { padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f0f0f5; color: #666; }
-.card-version { font-size: 11px; color: #bbb; }
-
-.btn { padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
-.btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-weight: 600; }
-.btn-primary:hover { opacity: 0.9; }
-.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.btn-ghost:hover { background: #f5f5f5; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-
-.modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
-.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-.modal-lg { max-width: 700px; }
-.modal-sm { max-width: 400px; }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-.modal-header h3 { font-size: 16px; margin: 0; }
-.modal-header-actions { display: flex; gap: 6px; align-items: center; }
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px; }
-.form-group { margin-bottom: 14px; }
-.form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
-.form-group input, .form-group textarea, .form-group select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  font-family: inherit;
-}
-.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #667eea; }
-.form-group textarea { resize: vertical; }
-.form-row { display: flex; gap: 12px; }
-.flex-1 { flex: 1; }
-.form-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
-.detail-desc { font-size: 14px; color: #888; margin: 0 0 12px; }
-.detail-content { padding: 16px; background: #f9f9fb; border-radius: 8px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; margin: 0; }
-.detail-tags { display: flex; gap: 6px; margin-top: 12px; }
-.tag-chip-sm { padding: 2px 10px; border-radius: 10px; font-size: 12px; background: #e3f2fd; color: #1976d2; }
-
-.versions-list { display: flex; flex-direction: column; gap: 12px; }
-.version-item { border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
-.version-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; font-size: 13px; }
-.version-num { font-weight: 600; color: #667eea; }
-.version-date { color: #888; flex: 1; }
-.version-content { padding: 12px 14px; margin: 0; font-size: 13px; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; }
-
-.loading { text-align: center; padding: 60px; color: #999; }
-.loading-sm { text-align: center; padding: 20px; color: #999; font-size: 13px; }
-.empty { text-align: center; padding: 60px; color: #999; }
-.empty-icon { font-size: 48px; margin-bottom: 12px; display: block; }
-.empty-sm { text-align: center; padding: 30px; color: #999; }
 </style>

@@ -135,11 +135,11 @@ tr:hover { background: #fafafa; }
 .btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
 .btn-ghost:hover { background: #f5f5f5; }
 .modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; }
-.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
 .modal-header h3 { font-size: 16px; margin: 0; }
 .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px; }
+.modal-body { padding: 20px 24px; }
 .form-group { margin-bottom: 14px; }
 .form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
 .form-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
@@ -147,4 +147,20 @@ tr:hover { background: #fafafa; }
 .form-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .loading { text-align: center; padding: 60px; color: #999; }
 .empty-state { text-align: center; padding: 40px; color: #888; }
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .admin-page { padding: 16px; }
+  .page-title { font-size: 18px; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .btn { padding: 8px 16px; font-size: 14px; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .modal { width: 95%; max-height: 90vh; }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 14px 16px; }
+}
+@media (max-width: 480px) {
+  .admin-page { padding: 12px; }
+  .page-title { font-size: 16px; }
+}
 </style>

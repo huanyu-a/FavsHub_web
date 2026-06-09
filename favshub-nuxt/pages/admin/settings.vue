@@ -119,14 +119,20 @@ function save() {
 .page-header h1 { font-size: 22px; font-weight: 600; }
 .page-header p { color: #888; font-size: 14px; margin-top: 4px; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-@media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .settings-grid { grid-template-columns: 1fr; }
+  .admin-page { padding: 16px; }
+  .page-header h1 { font-size: 18px; }
+  .setting-card { padding: 14px; }
+  .setting-option { padding: 10px; }
+}
 .setting-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 20px; }
 .setting-card h3 { font-size: 16px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; }
-.section-title { font-size: 13px; font-weight: 600; color: #888; margin: 16px 0 10px; }
+.section-title { font-size: 14px; font-weight: 600; color: #555; margin: 16px 0 10px; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
 .setting-row label { font-size: 14px; color: #555; flex: 1; }
 .setting-row .val { font-size: 13px; color: #888; margin-left: 8px; min-width: 40px; text-align: right; }
-.setting-option { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 6px; }
+.setting-option { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 6px; transition: background 0.2s; }
+.setting-option:hover { background: #f0f2f5; }
 .setting-option span { font-size: 14px; color: #555; }
 select, input[type=range] { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff; }
 input[type=range] { width: 140px; cursor: pointer; }

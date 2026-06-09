@@ -20,10 +20,10 @@ interface AuthState {
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => {
-    // 从 localStorage 恢复 token（仅客户端）
+    // 从 localStorage 恢复 token（兼容旧版 key）
     let token: string | null = null
     if (typeof localStorage !== 'undefined') {
-      token = localStorage.getItem('favshub_token')
+      token = localStorage.getItem('favshub_token') || localStorage.getItem('fh_local_favshub_token')
     }
     return { token, user: null }
   },

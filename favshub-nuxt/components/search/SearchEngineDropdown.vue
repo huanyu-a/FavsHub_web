@@ -1,18 +1,30 @@
 <template>
-  <div v-if="visible" class="engine-dropdown" @mousedown.prevent>
-    <div
-      v-for="engine in engines"
-      :key="engine.id"
-      class="engine-item"
-      @click="$emit('select', engine)"
-    >
-      <img v-if="engine.icon" :src="engine.icon" class="engine-icon" :alt="engine.name">
-      <img v-else src="/images/placeholder-icon.svg" class="engine-icon" :alt="engine.name">
-      <span>{{ engine.name }}</span>
-    </div>
-    <div class="engine-item engine-item--manage" @click="$emit('manage')">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-      <span>管理搜索引擎</span>
+  <div v-if="visible" class="search-engine-dropdown" @mousedown.prevent>
+    <div class="search-engine-options-container">
+      <div
+        v-for="engine in engines"
+        :key="engine.id"
+        class="search-engine-option"
+        :title="engine.name"
+        @click="$emit('select', engine)"
+      >
+        <div class="search-engine-option-content">
+          <img
+            :src="engine.icon || '/images/placeholder-icon.svg'"
+            class="search-engine-option-icon"
+            :alt="engine.name"
+          >
+          <span class="search-engine-option-label">{{ engine.name }}</span>
+        </div>
+      </div>
+      <div class="search-engine-option" title="管理搜索引擎" @click="$emit('manage')">
+        <div class="search-engine-option-content">
+          <span class="search-engine-option-icon" style="display:inline-flex;align-items:center;justify-content:center;color:#667eea;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </span>
+          <span class="search-engine-option-label">管理</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -37,45 +49,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.engine-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-top: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  z-index: 100;
-  max-height: 300px;
-  overflow-y: auto;
-}
-.engine-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.15s;
-}
-.engine-item:hover {
-  background: #f5f5f5;
-}
-.engine-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-}
-/* 管理搜索引擎按钮 */
-.engine-item--manage {
-  border-top: 1px solid #f0f0f0;
-  color: #667eea;
-  font-weight: 500;
-}
-.engine-item--manage:hover {
-  background: #e8f0fe;
-}
-/* Dark mode is now defined globally in layouts/default.vue */
+/* .search-engine-dropdown / .search-engine-options-container / .search-engine-option /
+   .search-engine-option-content / .search-engine-option-icon / .search-engine-option-label
+   全部来自 main-bundle.css（含暗色模式与移动端响应式）。 */
 </style>

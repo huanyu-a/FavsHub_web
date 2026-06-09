@@ -1,13 +1,14 @@
 <template>
-  <div class="home-page flex">
+  <div class="home-shell">
     <!-- 壁纸背景 -->
     <WallpaperBackground />
 
-    <!-- 侧边栏 -->
+    <!-- 侧边栏（自带 #sidebar-container 包裹） -->
     <Sidebar
       :is-open="uiStore.sidebarOpen"
       :folders="bookmarksStore.folders"
       :current-folder-id="bookmarksStore.currentFolderId"
+      active-page="home"
       :is-admin="authStore.isAdmin"
       :is-guest="authStore.isGuest"
       @toggle="uiStore.toggleSidebar()"
@@ -16,12 +17,12 @@
     />
 
     <!-- 主内容区 -->
-    <main class="main-content">
+    <main class="flex-1 bg-gray-50 overflow-auto flex flex-col">
       <!-- 欢迎消息 -->
       <WelcomeMessage v-if="settingsStore.get('showWelcomeMessage', true)" />
 
       <!-- 搜索栏 -->
-      <div class="search-row" v-if="settingsStore.get('showSearchBox', true)">
+      <div class="flex justify-center items-center" v-if="settingsStore.get('showSearchBox', true)">
         <SearchBar
           :engines="searchEngineStore.engines"
           :current-engine="searchEngineStore.currentEngine"
@@ -34,9 +35,11 @@
       <!-- 书签网格 -->
       <BookmarkGrid
         :bookmarks="displayBookmarks"
+        :folders="bookmarksStore.folders"
+        :current-folder-id="bookmarksStore.currentFolderId"
         :is-loading="bookmarksStore.isLoading"
         :is-guest="authStore.isGuest"
-        :bookmark-width="settingsStore.get('bookmarkWidth', 180)"
+        :bookmark-width="settingsStore.get('bookmarkWidth', 200)"
         @edit="openEditDialog"
         @delete="confirmDelete"
         @reorder="handleReorder"
@@ -54,27 +57,27 @@
         @close="editDialogVisible = false"
       />
 
-      <!-- 确认删除弹窗 -->
-      <div v-if="deleteConfirmVisible" class="modal" @click.self="deleteConfirmVisible = false">
+      <!-- 确认删除弹窗（复用旧版 #confirm-dialog 样式） -->
+      <div v-if="deleteConfirmVisible" id="confirm-dialog" class="modal" style="display:flex;" @click.self="deleteConfirmVisible = false">
         <div class="modal-content">
-          <h2>确认删除</h2>
-          <p>确定要删除「{{ deletingBookmark?.title }}」吗？</p>
+          <h2 id="confirm-dialog-title">确认删除</h2>
+          <p id="confirm-dialog-message">确定要删除「{{ deletingBookmark?.title }}」吗？</p>
           <div class="buttons">
-            <button class="cancel-button" @click="deleteConfirmVisible = false">取消</button>
-            <button class="delete-button" @click="executeDelete">删除</button>
+            <button id="cancel-delete-button" class="cancel-button" @click="deleteConfirmVisible = false">取消</button>
+            <button id="confirm-delete-button" class="delete-button" @click="executeDelete">删除</button>
           </div>
         </div>
       </div>
 
-      <!-- 年度进度条 -->
-      <footer v-if="settingsStore.get('showFooter', true)" class="page-footer">
+      <!-- 页脚：年度进度条 -->
+      <footer v-if="settingsStore.get('showFooter', true)" class="bg-gray-50 text-center p-4 border-t border-gray-200 mt-auto">
         <YearProgress />
       </footer>
     </main>
 
-    <!-- 侧边栏切换按钮 -->
-    <button id="toggle-sidebar" class="sidebar-toggle-btn" @click="uiStore.toggleSidebar()" title="收起/展开侧边栏">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <!-- 侧边栏切换按钮（复用旧版 #toggle-sidebar 样式） -->
+    <button id="toggle-sidebar" @click="uiStore.toggleSidebar()" title="收起/展开侧边栏">
+      {{ uiStore.sidebarOpen ? '<' : '>' }}
     </button>
 
     <!-- 回到顶部按钮 -->
@@ -100,26 +103,28 @@ const settingsStore = useSettingsStore()
 const searchEngineStore = useSearchEnginesStore()
 const uiStore = useUIStore()
 
-// 编辑弹窗状态
 const editDialogVisible = ref(false)
 const isNewBookmark = ref(false)
 const editingBookmark = ref<any>(null)
 
-// 删除确认状态
 const deleteConfirmVisible = ref(false)
 const deletingBookmark = ref<any>(null)
 
-// 搜索过滤
 const searchQuery = ref('')
 const displayBookmarks = computed(() => {
-  if (!searchQuery.value) return bookmarksStore.filteredBookmarks
-  const q = searchQuery.value.toLowerCase()
-  return bookmarksStore.bookmarks.filter(b =>
-    b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)
-  )
+  let result = bookmarksStore.bookmarks
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(b =>
+      b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)
+    )
+  }
+  if (bookmarksStore.currentFolderId !== null) {
+    result = result.filter(b => b.folder_id === bookmarksStore.currentFolderId)
+  }
+  return result
 })
 
-// 初始化加载
 onMounted(async () => {
   await bookmarksStore.fetchBookmarks(authStore.token || undefined)
   await searchEngineStore.fetchEngines()
@@ -132,9 +137,7 @@ function selectFolder(id: number | null) {
 
 function showCreateFolder() {
   const name = prompt('请输入文件夹名称')
-  if (name) {
-    bookmarksStore.createFolder({ name })
-  }
+  if (name) bookmarksStore.createFolder({ name })
 }
 
 function handleSearch(query: string) {
@@ -154,11 +157,8 @@ function openAddDialog() {
 }
 
 async function saveBookmark(data: any) {
-  if (isNewBookmark.value) {
-    await bookmarksStore.createBookmark(data)
-  } else {
-    await bookmarksStore.updateBookmark(data.id, data)
-  }
+  if (isNewBookmark.value) await bookmarksStore.createBookmark(data)
+  else await bookmarksStore.updateBookmark(data.id, data)
   editDialogVisible.value = false
 }
 
@@ -168,9 +168,7 @@ function confirmDelete(bookmark: any) {
 }
 
 async function executeDelete() {
-  if (deletingBookmark.value) {
-    await bookmarksStore.deleteBookmark(deletingBookmark.value.id)
-  }
+  if (deletingBookmark.value) await bookmarksStore.deleteBookmark(deletingBookmark.value.id)
   deleteConfirmVisible.value = false
 }
 
@@ -180,100 +178,25 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 </script>
 
 <style scoped>
-.home-page {
-  min-height: 100vh;
+/* 整体布局复用旧版：body.h-screen.flex.flex-col 行为；这里用 .home-shell 承载 */
+.home-shell {
+  height: 100vh;
+  display: flex;
   position: relative;
+  overflow: hidden;
 }
-
-.main-content {
+.home-shell > main {
   flex: 1;
-  background: transparent;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 2rem;
 }
 
-.search-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.page-footer {
-  text-align: center;
-  padding: 1rem;
-  border-top: 1px solid rgba(0,0,0,0.06);
-  margin-top: auto;
-}
-
-/* 侧边栏切换按钮 */
-.sidebar-toggle-btn {
-  position: fixed;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 100;
-  background: rgba(0,0,0,0.08);
-  border: none;
-  border-radius: 0 6px 6px 0;
-  padding: 8px 4px;
-  cursor: pointer;
-  color: #666;
-  transition: background 0.2s;
-}
-.sidebar-toggle-btn:hover {
-  background: rgba(0,0,0,0.15);
-}
-
-/* 删除确认弹窗 */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal-content {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  min-width: 300px;
-  max-width: 90vw;
-}
-.modal-content h2 {
-  margin: 0 0 12px;
-  font-size: 18px;
-}
-.modal-content p {
-  color: #666;
-  margin-bottom: 20px;
-}
+/* 删除确认弹窗复用 main-bundle.css 的 .modal/.modal-content；补充按钮容器 */
 .buttons {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.cancel-button {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
-  cursor: pointer;
-}
-.delete-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: #e74c3c;
-  color: #fff;
-  cursor: pointer;
-}
-
-@media (max-width: 640px) {
-  .main-content { padding: 1rem; }
+  margin-top: 16px;
 }
 </style>
