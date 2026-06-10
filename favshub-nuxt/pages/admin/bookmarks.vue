@@ -13,9 +13,13 @@
     <!-- 书签列表 -->
     <div v-if="tab === 'list'">
       <div class="filter-bar">
+        <select v-model="filterCategory" @change="onCategoryChange">
+          <option :value="null">全部分类</option>
+          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+        </select>
         <select v-model="filterFolder" @change="loadBookmarks">
-          <option :value="null">全部文件夹</option>
-          <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
+          <option :value="null">全部子文件夹</option>
+          <option v-for="f in subFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
         </select>
         <input v-model="filterTitle" type="text" placeholder="搜索标题..." @input="debouncedLoad">
         <input v-model="filterUrl" type="text" placeholder="搜索URL..." @input="debouncedLoad">
@@ -72,7 +76,7 @@
             <tr v-else-if="displayFolders.length === 0"><td colspan="5" class="empty-state">暂无数据</td></tr>
             <tr v-for="f in displayFolders" :key="f.id">
               <td :style="{ paddingLeft: (f._depth * 20 + 16) + 'px' }">
-                <span v-if="f._hasChildren" class="expand-btn" @click="f._collapsed = !f._collapsed">{{ f._collapsed ? '▶' : '▼' }}</span>
+                <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)">{{ collapsedIds.has(f.id) ? '▶' : '▼' }}</span>
                 <span v-else style="display:inline-block;width:16px;"></span>
                 {{ f.name }}
               </td>
@@ -126,6 +130,7 @@ const pageSize = 50
 const filterFolder = ref<number | null>(null)
 const filterTitle = ref('')
 const filterUrl = ref('')
+const filterCategory = ref<number | null>(null)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pages = computed(() => { const a: number[] = []; for (let i = Math.max(1, page.value - 2); i <= Math.min(totalPages.value, page.value + 2); i++) a.push(i); return a })
 
@@ -134,6 +139,7 @@ interface FolderNode { id: number; name: string; parent_id?: number | null; pare
 const folderAll = ref<any[]>([])
 const folderLoading = ref(false)
 const allExpanded = ref(true)
+const collapsedIds = ref(new Set<number>())
 
 function buildTree(list: any[]): FolderNode[] {
   const map = new Map<number, FolderNode>()
@@ -155,11 +161,44 @@ function flattenTree(nodes: FolderNode[], depth: number): FolderNode[] {
 
 const flatFolders = computed(() => flattenTree(buildTree(folderAll.value), 0))
 
+// 双层筛选：分类（顶级文件夹）和子文件夹
+const categories = computed(() => folderAll.value.filter(f => !f.parent_id))
+
+const subFolders = computed(() => {
+  if (filterCategory.value === null) return flatFolders.value
+  const catId = filterCategory.value
+  // 收集该分类下所有后代 ID
+  const descendantIds = new Set<number>([catId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const f of folderAll.value) {
+      if (f.parent_id && descendantIds.has(f.parent_id) && !descendantIds.has(f.id)) {
+        descendantIds.add(f.id)
+        changed = true
+      }
+    }
+  }
+  return flatFolders.value.filter(f => descendantIds.has(f.id))
+})
+
+function onCategoryChange() {
+  filterFolder.value = null
+  loadBookmarks()
+}
+
 const displayFolders = computed(() => {
   const tree = buildTree(folderAll.value)
   const result: FolderNode[] = []
-  function walk(nodes: FolderNode[]) { for (const n of nodes) { result.push(n); if (!n._collapsed && n.children.length) walk(n.children) } }
-  walk(tree)
+  function walk(nodes: FolderNode[], depth: number) {
+    for (const n of nodes) {
+      n._depth = depth
+      n._collapsed = collapsedIds.value.has(n.id)
+      result.push(n)
+      if (!n._collapsed && n.children.length) walk(n.children, depth + 1)
+    }
+  }
+  walk(tree, 0)
   return result
 })
 
@@ -187,9 +226,20 @@ async function loadFolders() {
 
 function toggleAllFolders() {
   allExpanded.value = !allExpanded.value
-  const tree = buildTree(folderAll.value)
-  function walk(n: FolderNode[]) { for (const x of n) { x._collapsed = !allExpanded.value; walk(x.children) } }
-  walk(tree)
+  if (allExpanded.value) {
+    collapsedIds.value = new Set()
+  } else {
+    // 把所有有子节点的文件夹 ID 加入 collapsedIds
+    const ids = new Set<number>()
+    const tree = buildTree(folderAll.value)
+    function walk(nodes: FolderNode[]) {
+      for (const n of nodes) {
+        if (n.children.length > 0) { ids.add(n.id); walk(n.children) }
+      }
+    }
+    walk(tree)
+    collapsedIds.value = ids
+  }
 }
 
 // Edit modal

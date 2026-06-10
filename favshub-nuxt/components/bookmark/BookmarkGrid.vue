@@ -35,10 +35,6 @@
             @delete="$emit('delete', $event)"
             @contextmenu="onContextMenu"
           />
-          <button v-if="gIdx === 0" class="add-bookmark-card client-only-user" @click="$emit('add')">
-            <span class="add-icon">+</span>
-            <span class="add-text">添加</span>
-          </button>
         </div>
       </div>
     </template>
@@ -130,9 +126,6 @@ watchEffect(() => {
  * 按文件夹分组书签，匹配旧版 folder-group 结构
  */
 const folderGroups = computed(() => {
-  if (props.currentFolderId !== null && props.currentFolderId !== undefined) {
-    return []
-  }
   const folders = props.folders || []
   if (!props.bookmarks.length) return []
 

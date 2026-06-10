@@ -14,7 +14,10 @@
           <tr>
             <th>ID</th>
             <th>用户名</th>
+            <th>昵称</th>
             <th>邮箱</th>
+            <th>书签数</th>
+            <th>提示词数</th>
             <th>角色</th>
             <th>注册时间</th>
             <th>操作</th>
@@ -24,7 +27,10 @@
           <tr v-for="user in filteredUsers" :key="user.id">
             <td>{{ user.id }}</td>
             <td>{{ user.username }}</td>
+            <td>{{ user.nickname || '-' }}</td>
             <td>{{ user.email || '-' }}</td>
+            <td>{{ user.bookmark_count ?? 0 }}</td>
+            <td>{{ user.prompt_count ?? 0 }}</td>
             <td>
               <span :class="user.is_admin ? 'badge badge-admin' : 'badge badge-user'">
                 {{ user.is_admin ? '管理员' : '用户' }}
@@ -34,7 +40,7 @@
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="openEdit(user)">编辑</button>
               <button class="btn btn-ghost btn-sm" @click="resetPassword(user)">重置密码</button>
-              <button class="btn btn-danger btn-sm" @click="deleteUser(user)">删除</button>
+              <button v-if="!user.is_admin" class="btn btn-danger btn-sm" @click="deleteUser(user)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -80,9 +86,12 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 interface User {
   id: number
   username: string
+  nickname?: string
   email?: string
   is_admin: number
   created_at?: number
+  bookmark_count?: number
+  prompt_count?: number
 }
 
 const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users')

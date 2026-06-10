@@ -14,6 +14,7 @@
       @toggle="uiStore.toggleSidebar()"
       @select-folder="selectFolder"
       @create-folder="showCreateFolder"
+      @open-settings="showSettings = true"
     />
 
     <!-- 主内容区 -->
@@ -24,7 +25,8 @@
       <!-- 搜索栏 -->
       <div class="flex justify-center items-center" v-if="settingsStore.get('showSearchBox', true)">
         <SearchBar
-          :engines="searchEngineStore.engines"
+          :engines="searchEngineStore.defaultEngines.length > 0 ? searchEngineStore.defaultEngines : searchEngineStore.engines"
+          :all-engines="searchEngineStore.engines"
           :current-engine="searchEngineStore.currentEngine"
           :bookmarks="bookmarksStore.bookmarks"
           @search="handleSearch"
@@ -82,6 +84,9 @@
 
     <!-- 回到顶部按钮 -->
     <BackToTop />
+
+    <!-- 用户设置弹窗 -->
+    <UserSettingsModal :visible="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
@@ -96,6 +101,7 @@ import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
 import WallpaperBackground from '~/components/WallpaperBackground.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import UserSettingsModal from '~/components/UserSettingsModal.vue'
 
 const authStore = useAuthStore()
 const bookmarksStore = useBookmarksStore()
@@ -109,6 +115,7 @@ const editingBookmark = ref<any>(null)
 
 const deleteConfirmVisible = ref(false)
 const deletingBookmark = ref<any>(null)
+const showSettings = ref(false)
 
 const searchQuery = ref('')
 const displayBookmarks = computed(() => {
@@ -118,9 +125,6 @@ const displayBookmarks = computed(() => {
     result = result.filter(b =>
       b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)
     )
-  }
-  if (bookmarksStore.currentFolderId !== null) {
-    result = result.filter(b => b.folder_id === bookmarksStore.currentFolderId)
   }
   return result
 })
@@ -133,6 +137,19 @@ onMounted(async () => {
 
 function selectFolder(id: number | null) {
   bookmarksStore.setCurrentFolder(id)
+  if (import.meta.client) {
+    nextTick(() => {
+      const elId = id === null ? 'folder-group-recommended' : `folder-group-${id}`
+      const el = document.getElementById(elId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        // 短暂高亮效果
+        el.style.transition = 'background-color 0.3s'
+        el.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'
+        setTimeout(() => { el.style.backgroundColor = '' }, 1500)
+      }
+    })
+  }
 }
 
 function showCreateFolder() {

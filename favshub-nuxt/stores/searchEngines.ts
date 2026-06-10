@@ -19,6 +19,13 @@ export const useSearchEnginesStore = defineStore('searchEngines', {
 
   getters: {
     /**
+     * Only engines marked as `is_default` — used by the search bar dropdown.
+     */
+    defaultEngines(state): SearchEngine[] {
+      return state.engines.filter(e => e.is_default === 1)
+    },
+
+    /**
      * The currently selected engine.
      * Falls back to the engine marked `is_default`, then to the first engine.
      */

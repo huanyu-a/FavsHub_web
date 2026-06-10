@@ -31,19 +31,21 @@
         </div>
       </div>
       <table>
-        <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>可见性</th><th>操作</th></tr></thead>
+        <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>更新时间</th><th>可见性</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-if="pLoading"><td colspan="9" class="empty-state">加载中...</td></tr>
-          <tr v-else-if="prompts.length === 0"><td colspan="9" class="empty-state">暂无数据</td></tr>
+          <tr v-if="pLoading"><td colspan="10" class="empty-state">加载中...</td></tr>
+          <tr v-else-if="prompts.length === 0"><td colspan="10" class="empty-state">暂无数据</td></tr>
           <tr v-for="p in prompts" :key="p.id">
             <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.title }}</td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.description || '-' }}</td>
             <td>{{ p.folder_name || '-' }}</td>
-            <td><span v-for="t in (p.tags || [])" :key="t.id" class="tag-chip" :style="{ background: t.color || '#e0e7ff' }">{{ t.name }}</span></td>
+            <td><span v-for="t in (p.tags || [])" :key="t.id || t" class="tag-chip" :style="{ background: (typeof t === 'object' ? t.color : null) || '#e0e7ff' }">{{ typeof t === 'object' ? t.name : t }}</span></td>
             <td>{{ p.username || p.user_id }}</td>
             <td>{{ p.current_version || '1.0.0' }}</td>
+            <td>{{ p.updated_at ? new Date(p.updated_at).toLocaleString() : '-' }}</td>
             <td><span class="badge" :class="p.login_required ? 'badge-locked' : 'badge-public'">{{ p.login_required ? '登录可见' : '公开' }}</span></td>
             <td class="actions">
+              <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
               <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
               <button class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
@@ -187,14 +189,15 @@ async function delPFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) re
 // Tags
 const tags = ref<any[]>([])
 const tagLoading = ref(false)
-async function loadTags() { tagLoading.value = true; const d = await $fetch<{ tags: any[] }>('/api/prompts/tags/admin'); tags.value = d.tags || []; tagLoading.value = false }
+async function loadTags() { tagLoading.value = true; const d = await $fetch<{ tags: any[] }>('/api/admin/tags'); tags.value = d.tags || []; tagLoading.value = false }
 async function createTag() { const n = prompt('标签名称'); if (n) { await $fetch('/api/tags', { method: 'POST', body: { name: n } }); loadTags() } }
 async function delTag(t: any) { if (!confirm(`删除标签「${t.name}」？`)) return; await $fetch(`/api/tags/${t.id}`, { method: 'DELETE' }); loadTags() }
 
 // History
 const history = ref<any[]>([])
 const hLoading = ref(false)
-async function loadHistory() { hLoading.value = true; const d = await $fetch<any>('/api/prompts/history/admin'); history.value = d.versions || []; hLoading.value = false }
+async function loadHistory() { hLoading.value = true; const d = await $fetch<any>('/api/admin/prompts/history'); history.value = d.versions || []; hLoading.value = false }
+function viewHistory(p: any) { tab.value = 'history'; loadHistory() }
 
 // TDK
 const tdk = reactive({ title: '', description: '', keywords: '' })
@@ -215,7 +218,7 @@ function triggerImport() { importFile.value?.click() }
 async function exportJSON() { const d = await $fetch<any>('/api/admin/prompts?limit=10000'); const blob = new Blob([JSON.stringify(d.prompts || [], null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'prompts-export.json'; a.click() }
 async function importJSON(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; const text = await f.text(); const items = JSON.parse(text); if (Array.isArray(items)) { await $fetch('/api/admin/sync-prompts', { method: 'POST', body: { items } }); loadPrompts(); loadStats() } }
 
-onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadTdk() })
+onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHistory(); loadTdk() })
 </script>
 
 <style scoped>

@@ -32,7 +32,7 @@
           <div class="sidebar-panel-header">
             <span class="sidebar-section-kicker">导航目录</span>
             <div class="sidebar-panel-actions">
-              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="showFolderDialog = true">
+              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="editingFolder = null; newFolderName = ''; folderFormParentId = null; folderFormIcon = ''; showFolderDialog = true">
                 <i class="ri-folder-add-line"></i>
               </button>
             </div>
@@ -56,13 +56,15 @@
               <span>收藏</span>
             </li>
             <li
-              v-for="folder in folders"
+              v-for="folder in flatFolderTree"
               :key="folder.id"
               class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
               :class="{ 'bg-emerald-500': activeFolderId === folder.id }"
+              :style="{ paddingLeft: (8 + folder._depth * 16) + 'px' }"
               @click="activeFolderId = folder.id; loadPrompts()"
+              @contextmenu.prevent="onFolderContextMenu($event, folder)"
             >
-              <i class="ri-folder-3-line" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
+              <i :class="folder.icon || 'ri-folder-3-line'" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
               <span>{{ folder.name }}</span>
               <span class="ml-auto" style="font-size:11px;color:#94a3b8;">{{ folder.prompt_count || 0 }}</span>
             </li>
@@ -75,7 +77,7 @@
             <span
               v-for="tag in tags"
               :key="tag.id"
-              class="tag-chip"
+              class="sidebar-tag-chip"
               :class="{ active: activeTagIds.includes(tag.id) }"
               @click="toggleTag(tag.id)"
             >{{ tag.name }}</span>
@@ -114,12 +116,14 @@
                   <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
                 </div>
               </div>
-              <p v-if="prompt.description" class="prompt-desc">{{ prompt.description }}</p>
+              <p v-if="prompt.description" class="prompt-desc">{{ truncate(prompt.description, 120) }}</p>
               <div v-if="prompt.tags && prompt.tags.length" class="prompt-tags">
-                <span v-for="tag in prompt.tags" :key="tag.id" class="prompt-tag">{{ tag.name }}</span>
+                <span v-for="tag in prompt.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
               </div>
               <div class="prompt-card-footer">
+                <span v-if="folderName(prompt.folder_id)" class="card-folder"><i class="ri-folder-line"></i> {{ folderName(prompt.folder_id) }}</span>
                 <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
+                <span v-if="prompt.updated_at" class="card-date">{{ formatDate(prompt.updated_at) }}</span>
               </div>
             </div>
           </div>
@@ -148,21 +152,37 @@
         :versions="versions"
         :versions-loading="versionsLoading"
         :show-folder-dialog="showFolderDialog"
+        :editing-folder="editingFolder"
+        :folder-parent-id="folderFormParentId"
+        :folder-icon="folderFormIcon"
+        :folder-name="newFolderName"
         :is-guest="isGuest"
         @close-view="viewingPrompt = null"
         @close-edit="showEditDialog = false"
         @close-versions="showVersions = false"
-        @close-folder="showFolderDialog = false"
+        @close-folder="closeFolderDialog"
         @save="savePrompt"
-        @save-folder="createFolder"
+        @save-folder="saveFolder"
+        @delete-folder="deleteFolder"
         @copy="copyContent"
         @view-versions="viewVersions"
         @edit="(p) => { openEdit(p); viewingPrompt = null }"
         @delete="deletePrompt"
         @restore="restoreVersion"
         @update:folder-name="(v) => newFolderName = v"
+        @update:folder-parent="(v) => folderFormParentId = v"
+        @update:folder-icon="(v) => folderFormIcon = v"
       />
     </ClientOnly>
+
+    <!-- Copy success toast -->
+    <Teleport to="body">
+      <Transition name="toast-fade">
+        <div v-if="copySuccess" class="copy-toast">
+          <i class="ri-check-line"></i> 复制成功
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -180,6 +200,23 @@ useHead({
     { rel: 'stylesheet', href: '/css/promptpro-dark-theme.css' },
     { rel: 'stylesheet', href: '/css/promptpro-page.css' },
   ],
+})
+
+// PM8: Load TDK from API and apply to page head
+useAsyncData('prompts-tdk', async () => {
+  try {
+    const tdk = await $fetch<{ title?: string; description?: string; keywords?: string }>('/api/tdk')
+    if (tdk) {
+      useHead({
+        title: tdk.title ? `${tdk.title} - PromptPro` : 'PromptPro - 提示词管理',
+        meta: [
+          ...(tdk.description ? [{ name: 'description', content: tdk.description }] : []),
+          ...(tdk.keywords ? [{ name: 'keywords', content: tdk.keywords }] : []),
+        ],
+      })
+    }
+  } catch { /* ignore */ }
+  return true
 })
 
 const { isGuest } = useAuth()
@@ -201,6 +238,8 @@ interface Prompt {
 interface Folder {
   id: string
   name: string
+  parent_id?: string
+  icon?: string
   prompt_count?: number
 }
 
@@ -228,6 +267,9 @@ const versions = ref<any[]>([])
 const versionsLoading = ref(false)
 const showFolderDialog = ref(false)
 const newFolderName = ref('')
+const editingFolder = ref<Folder | null>(null)
+const folderFormParentId = ref<string | null>(null)
+const folderFormIcon = ref('')
 
 const editForm = reactive({
   title: '',
@@ -238,6 +280,34 @@ const editForm = reactive({
 })
 
 const allPromptCount = computed(() => prompts.value.length)
+
+// Build a flat list with _depth for hierarchical indentation
+const flatFolderTree = computed(() => {
+  const map = new Map<string, Folder & { _depth: number; _children: any[] }>()
+  const roots: (Folder & { _depth: number; _children: any[] })[] = []
+  for (const f of folders.value) {
+    map.set(f.id, { ...f, _depth: 0, _children: [] })
+  }
+  for (const f of folders.value) {
+    const node = map.get(f.id)!
+    const pid = (f as any).parent_id
+    if (pid && map.has(pid)) {
+      map.get(pid)!._children.push(node)
+    } else {
+      roots.push(node)
+    }
+  }
+  const result: (Folder & { _depth: number })[] = []
+  function walk(nodes: (Folder & { _depth: number; _children: any[] })[], depth: number) {
+    for (const n of nodes) {
+      n._depth = depth
+      result.push(n)
+      if (n._children.length) walk(n._children, depth + 1)
+    }
+  }
+  walk(roots, 0)
+  return result
+})
 
 let searchTimeout: ReturnType<typeof setTimeout>
 function debouncedSearch() {
@@ -383,16 +453,71 @@ async function restoreVersion(version: any) {
   await loadPrompts()
 }
 
-async function createFolder() {
-  if (!newFolderName.value.trim()) return
-  await $fetch('/api/prompts/folders', { method: 'POST', body: { name: newFolderName.value } })
-  showFolderDialog.value = false
-  newFolderName.value = ''
-  await loadFolders()
+async function saveFolder() {
+  if (!newFolderName.value.trim()) return alert('请输入文件夹名称')
+  if (editingFolder.value) {
+    await $fetch(`/api/prompts/folders/${editingFolder.value.id}`, {
+      method: 'PUT',
+      body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
+    })
+  } else {
+    await $fetch('/api/prompts/folders', {
+      method: 'POST',
+      body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
+    })
+  }
+  closeFolderDialog()
+  await Promise.all([loadFolders(), loadPrompts()])
 }
 
+function onFolderContextMenu(_e: MouseEvent, folder: any) {
+  editingFolder.value = folder
+  newFolderName.value = folder.name
+  folderFormParentId.value = folder.parent_id || null
+  folderFormIcon.value = folder.icon || ''
+  showFolderDialog.value = true
+}
+
+async function deleteFolder(folder: any) {
+  if (!confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) return
+  await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
+  closeFolderDialog()
+  await Promise.all([loadFolders(), loadPrompts()])
+}
+
+function closeFolderDialog() {
+  showFolderDialog.value = false
+  editingFolder.value = null
+  newFolderName.value = ''
+  folderFormParentId.value = null
+  folderFormIcon.value = ''
+}
+
+const copySuccess = ref(false)
+
 function copyContent(content: string) {
-  if (import.meta.client) navigator.clipboard.writeText(content)
+  if (import.meta.client) {
+    navigator.clipboard.writeText(content).then(() => {
+      copySuccess.value = true
+      setTimeout(() => { copySuccess.value = false }, 1500)
+    })
+  }
+}
+
+function truncate(text: string, max: number) {
+  if (!text) return ''
+  return text.length > max ? text.slice(0, max) + '...' : text
+}
+
+function folderName(id?: string) {
+  if (!id) return ''
+  return folders.value.find(f => f.id === id)?.name || ''
+}
+
+function formatDate(ts?: number) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 onMounted(async () => {
@@ -401,11 +526,28 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* 整个页面的视觉样式（侧边栏、工具栏、卡片、弹窗、暗色模式、响应式）
-   全部来自 promptpro-*.css（通过 useHead 注入，仅本页生效）。
-   .prompts-root 仅确保占满视口高度。 */
 .prompts-root {
   height: 100vh;
   overflow: hidden;
 }
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10b981;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10000;
+}
+.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
+.card-folder { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 3px; }
+.card-date { font-size: 11px; color: #94a3b8; margin-left: auto; }
 </style>

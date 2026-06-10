@@ -23,9 +23,6 @@
         <NuxtLink to="/admin/bookmarks" class="nav-item" :class="{ active: route.path === '/admin/bookmarks' }" @click="closeSidebar">
           <i class="ri-bookmark-line"></i><span>书签管理</span>
         </NuxtLink>
-        <NuxtLink to="/admin/folders" class="nav-item" :class="{ active: route.path === '/admin/folders' }" @click="closeSidebar">
-          <i class="ri-folder-line"></i><span>文件夹管理</span>
-        </NuxtLink>
         <NuxtLink to="/admin/prompts" class="nav-item" :class="{ active: route.path === '/admin/prompts' }" @click="closeSidebar">
           <i class="ri-chat-quote-line"></i><span>提示词管理</span>
         </NuxtLink>

@@ -43,6 +43,22 @@ if (import.meta.client) {
       document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
     }
   })
+
+  // 响应背景设置变化，更新 <html> 类名和 localStorage
+  const settingsStore = useSettingsStore()
+  watch(() => settingsStore.get('selectedBackground'), (bg: string) => {
+    const html = document.documentElement
+    // 移除旧的 gradient-background-* 类
+    const oldClasses = Array.from(html.classList).filter(c => c.startsWith('gradient-background'))
+    if (oldClasses.length) html.classList.remove(...oldClasses)
+    // 应用新类名
+    if (bg && bg.startsWith('gradient-background')) {
+      html.classList.add(bg)
+      localStorage.setItem('favshub_bg', bg)
+    } else {
+      localStorage.removeItem('favshub_bg')
+    }
+  }, { immediate: true })
 }
 </script>
 

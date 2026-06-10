@@ -57,10 +57,10 @@
             <span class="suggestion-url">{{ s.url }}</span>
           </li>
         </ul>
-        <div id="tabs-container" class="tabs" v-if="engines.length > 0">
+        <div id="tabs-container" class="tabs" v-if="(allEngines || engines).length > 0">
           <span class="search-tips">本次使用</span>
           <span
-            v-for="engine in engines"
+            v-for="engine in (allEngines || engines)"
             :key="engine.id"
             class="tab"
             :class="{ active: currentEngine?.id === engine.id }"
@@ -124,6 +124,7 @@ interface Bookmark {
 
 const props = defineProps<{
   engines: Engine[]
+  allEngines?: Engine[]
   currentEngine: Engine | null
   bookmarks: Bookmark[]
 }>()
@@ -141,19 +142,20 @@ const showEngineDialog = ref(false)
 const enabledEngineIds = ref(new Set<number>())
 
 const engineCategories = computed(() => {
+  const source = props.allEngines || props.engines
   const cats: Record<string, { key: string; label: string; engines: Engine[] }> = {
     SEARCH: { key: 'SEARCH', label: '通用搜索', engines: [] },
     AI: { key: 'AI', label: 'AI 搜索', engines: [] },
     SOCIAL: { key: 'SOCIAL', label: '社交媒体', engines: [] },
   }
-  for (const e of props.engines) {
+  for (const e of source) {
     const cat = e.category || 'SEARCH'
     if (cats[cat]) cats[cat].engines.push(e)
   }
   return Object.values(cats).filter(c => c.engines.length > 0)
 })
 
-watch(() => props.engines, (engines) => {
+watch(() => props.allEngines || props.engines, (engines) => {
   for (const e of engines) enabledEngineIds.value.add(e.id)
 }, { immediate: true })
 
@@ -184,7 +186,7 @@ function handleSearch(e?: Event) {
   const engine = props.currentEngine
   const kbEvent = e instanceof KeyboardEvent ? e : undefined
   if (kbEvent?.metaKey || kbEvent?.ctrlKey) {
-    props.engines.forEach(eng => {
+    (props.allEngines || props.engines).forEach(eng => {
       if (eng.url) window.open(eng.url.replace('%s', encodeURIComponent(query.value)), '_blank')
     })
   } else if (engine?.url) {
@@ -231,10 +233,12 @@ watch(query, () => {
 </script>
 
 <style scoped>
-/* .search-container / .search-form / .search-input / .search-suggestions-wrapper /
-   .search-suggestions / .tabs / .tab / #search-engines-dialog / .modal 等
-   全部来自 main-bundle.css（含暗色模式与响应式）。
-   仅补充搜索引擎管理弹窗内列表项的复选样式。 */
+/* 覆盖 main-bundle.css 中 .search-container 的 flex:1 和 margin 使搜索框居中 */
+.search-container {
+  flex: unset !important;
+  margin: 1rem auto 2.5rem auto !important;
+}
+
 .dropdown-indicator { font-size: 10px; color: #999; margin-left: 2px; }
 
 .suggestion-url {
