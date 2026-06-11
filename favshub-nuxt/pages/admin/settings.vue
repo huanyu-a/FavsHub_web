@@ -92,7 +92,14 @@ const backgrounds = [
   { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #fbebbc 0%, #fbebbc 100%)' } },
 ]
 
-const { data: res, refresh } = await useFetch<{ data?: Record<string, any> }>('/api/settings/default')
+const authStore = useAuthStore()
+function getAuthHeaders(): Record<string, string> {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+
+const { data: res, refresh } = await useFetch<{ data?: Record<string, any> }>('/api/settings/default', {
+  headers: getAuthHeaders()
+})
 const defaults = computed(() => res.value?.data || {})
 
 const form = reactive<Record<string, any>>({
@@ -108,7 +115,16 @@ let timer: any = null
 function save() {
   clearTimeout(timer)
   timer = setTimeout(async () => {
-    await $fetch('/api/settings/default', { method: 'PUT', body: { data: { ...form } } })
+    try {
+      await $fetch('/api/settings/default', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: { data: { ...form } }
+      })
+      refresh()
+    } catch (e) {
+      console.error('保存全局设置失败', e)
+    }
   }, 300)
 }
 </script>

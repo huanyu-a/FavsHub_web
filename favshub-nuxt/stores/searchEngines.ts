@@ -4,6 +4,7 @@ import { useAuthStore } from '~/stores/auth'
 export interface SearchEngine {
   id: number
   name: string
+  label?: string
   url: string
   icon: string | null
   category: string

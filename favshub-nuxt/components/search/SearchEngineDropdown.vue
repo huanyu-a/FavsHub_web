@@ -5,16 +5,16 @@
         v-for="engine in engines"
         :key="engine.id"
         class="search-engine-option"
-        :title="engine.name"
+        :title="engine.label || engine.name"
         @click="$emit('select', engine)"
       >
         <div class="search-engine-option-content">
           <img
             :src="engine.icon || '/images/placeholder-icon.svg'"
             class="search-engine-option-icon"
-            :alt="engine.name"
+            :alt="engine.label || engine.name"
           >
-          <span class="search-engine-option-label">{{ engine.name }}</span>
+          <span class="search-engine-option-label">{{ engine.label || engine.name }}</span>
         </div>
       </div>
       <div class="search-engine-option" title="管理搜索引擎" @click="$emit('manage')">
@@ -33,6 +33,7 @@
 interface Engine {
   id: number
   name: string
+  label?: string
   url: string
   icon?: string | null
 }
@@ -49,7 +50,88 @@ defineEmits<{
 </script>
 
 <style scoped>
-/* .search-engine-dropdown / .search-engine-options-container / .search-engine-option /
-   .search-engine-option-content / .search-engine-option-icon / .search-engine-option-label
-   全部来自 main-bundle.css（含暗色模式与移动端响应式）。 */
+/* 下拉菜单容器 */
+.search-engine-dropdown {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  z-index: 1000;
+  width: 580px;
+  margin-top: 8px;
+}
+
+/* 搜索引擎选项容器 - 6列网格布局 */
+.search-engine-options-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+/* 单个选项项 */
+.search-engine-option {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.search-engine-option:hover {
+  background-color: #f5f5f5;
+}
+
+/* 选项内容 - 图标在上，名称在下 */
+.search-engine-option-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+}
+
+/* 选项图标 */
+.search-engine-option-icon {
+  height: 18px;
+  margin-bottom: 4px;
+  object-fit: contain;
+}
+
+/* 标签样式 */
+.search-engine-option-label {
+  font-size: 12px;
+  color: #1a202c;
+  text-align: center;
+}
+
+/* 移动端响应式 - 改为3列 */
+@media (max-width: 480px) {
+  .search-engine-dropdown {
+    width: calc(80vw - 30px);
+    left: 16px;
+    right: 16px;
+  }
+
+  .search-engine-options-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* 暗色模式 */
+[data-theme="dark"] .search-engine-dropdown {
+  background: rgba(30, 41, 59, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="dark"] .search-engine-option:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .search-engine-option-label {
+  color: #e2e8f0;
+}
 </style>

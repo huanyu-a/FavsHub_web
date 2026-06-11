@@ -7,6 +7,12 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
   ],
 
+  components: {
+    dirs: [
+      { path: '~/components', pathPrefix: false },
+    ],
+  },
+
   // 全局 CSS 通过 layouts/default.vue 的 useHead() 引用 public/ 下的静态文件
 
   runtimeConfig: {

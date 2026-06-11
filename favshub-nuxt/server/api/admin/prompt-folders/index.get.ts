@@ -10,9 +10,11 @@ export default defineEventHandler(async (event) => {
 
   const folders = db.prepare(`
     SELECT pf.*, u.username,
+      parent.name as parent_name,
       (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id) as prompt_count
     FROM prompt_folders pf
     LEFT JOIN users u ON pf.user_id = u.id
+    LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
     ORDER BY pf.user_id, pf.name
   `).all()
 

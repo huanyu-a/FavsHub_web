@@ -181,26 +181,7 @@ aside.sidebar {
     margin: 0;
 }
 
-/* 文件夹列表项 —— 颜色/粗细由 index-sidebar-fix.css 提供，此处仅补 promptpro 特有样式 */
-#categories-list .folder-item {
-    padding: 0.4rem 0.55rem;
-    border-radius: 8px;
-    gap: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.12s;
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-#categories-list .folder-item span:not(.item-count):not(.folder-arrow):not(.material-icons) {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-#categories-list .folder-item span:last-child {
-    margin-right: 0;
-}
-/* hover/active 样式由 index-sidebar-fix.css 统一管理 */
+/* 文件夹列表项 —— 由 main-bundle.css 统一管理，此处不再覆盖 */
 #categories-list .folder-item > i {
     font-size: 18px;
     flex-shrink: 0;

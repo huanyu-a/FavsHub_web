@@ -1,7 +1,7 @@
 <template>
   <div id="sidebar-container" class="flex prompts-root">
     <!-- 侧边栏 -->
-    <aside class="sidebar">
+    <aside class="custom-width p-4 overflow-auto border-r border-gray-200 relative">
       <div class="sidebar-shell">
         <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
           <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
@@ -32,42 +32,51 @@
           <div class="sidebar-panel-header">
             <span class="sidebar-section-kicker">导航目录</span>
             <div class="sidebar-panel-actions">
-              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="editingFolder = null; newFolderName = ''; folderFormParentId = null; folderFormIcon = ''; showFolderDialog = true">
+              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="openCreateRootFolder">
                 <i class="ri-folder-add-line"></i>
               </button>
             </div>
           </div>
           <ul id="categories-list">
+            <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
-              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
+              class="folder-item"
               :class="{ 'bg-emerald-500': !activeFolderId }"
-              @click="activeFolderId = null; loadPrompts()"
+              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
+              @click="selectAndToggleAll"
+              @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-folder-3-line" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
-              <span>全部</span>
-              <span class="ml-auto" style="font-size:11px;color:#94a3b8;">{{ allPromptCount }}</span>
+              <i class="ri-apps-line" style="font-size:16px;color:#667eea;flex-shrink:0;width:20px;text-align:center;"></i>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
+              <span class="item-count" style="position:absolute;right:8px;">{{ allPromptCount }}</span>
+              <span
+                style="cursor:pointer;display:inline-flex;align-items:center;position:absolute;right:30px;"
+                @click.stop="toggleAllFolders"
+              >
+                <svg v-if="allFoldersExpanded" xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M480-541.85 317.08-378.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.7-8.69-21.08 0-12.38 8.69-21.08l179.77-179.77q10.85-10.84 25.31-10.84 14.46 0 25.31 10.84l179.77 179.77q8.3 8.31 8.5 20.89.19 12.57-8.5 21.27-8.7 8.69-21.08 8.69-12.38 0-21.08-8.69L480-541.85Z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
+              </span>
             </li>
+            <!-- 收藏 -->
             <li
               class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
               :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
               @click="activeFolderId = '_favorites'; loadPrompts()"
             >
               <i class="ri-star-line" style="font-size:16px;color:#f59e0b;margin-right:8px;width:20px;text-align:center;"></i>
-              <span>收藏</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">收藏</span>
             </li>
-            <li
-              v-for="folder in flatFolderTree"
-              :key="folder.id"
-              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
-              :class="{ 'bg-emerald-500': activeFolderId === folder.id }"
-              :style="{ paddingLeft: (8 + folder._depth * 16) + 'px' }"
-              @click="activeFolderId = folder.id; loadPrompts()"
-              @contextmenu.prevent="onFolderContextMenu($event, folder)"
-            >
-              <i :class="folder.icon || 'ri-folder-3-line'" style="font-size:16px;color:#10B981;margin-right:8px;width:20px;text-align:center;"></i>
-              <span>{{ folder.name }}</span>
-              <span class="ml-auto" style="font-size:11px;color:#94a3b8;">{{ folder.prompt_count || 0 }}</span>
-            </li>
+            <!-- 文件夹树：使用 FolderTreeItem 组件 -->
+            <FolderTreeItem
+              v-for="node in promptFolderTree"
+              :key="node.id"
+              :node="node"
+              :current-folder-id="activeFolderId"
+              :expanded-ids="expandedFolderIds"
+              @select-folder="selectPromptFolder"
+              @toggle-expand="toggleFolderExpand"
+              @contextmenu-folder="onFolderContextMenu"
+            />
           </ul>
           <div class="tags-section-label">
             <span>标签</span>
@@ -86,6 +95,34 @@
         </div>
       </div>
     </aside>
+
+    <!-- 文件夹右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="folderMenu.visible"
+        class="folder-context-menu"
+        :style="{ left: folderMenu.x + 'px', top: folderMenu.y + 'px' }"
+        @click.stop
+      >
+        <template v-if="folderMenu.isAll">
+          <div class="folder-context-item" @click="openCreateRootFolder">
+            <i class="ri-folder-add-line"></i> 新建文件夹
+          </div>
+        </template>
+        <template v-else>
+          <div class="folder-context-item" @click="renamePromptFolder(folderMenu.folder!)">
+            <i class="ri-edit-line"></i> 重命名
+          </div>
+          <div class="folder-context-item" @click="openCreateSubFolder(folderMenu.folder!)">
+            <i class="ri-folder-add-line"></i> 新建子文件夹
+          </div>
+          <div class="folder-context-item danger" @click="deletePromptFolder(folderMenu.folder!)">
+            <i class="ri-delete-bin-line"></i> 删除
+          </div>
+        </template>
+      </div>
+      <div v-if="folderMenu.visible" class="folder-context-overlay" @click="folderMenu.visible = false"></div>
+    </Teleport>
 
     <!-- 右侧主内容 -->
     <main class="main-content">
@@ -116,14 +153,18 @@
                   <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
                 </div>
               </div>
-              <p v-if="prompt.description" class="prompt-desc">{{ truncate(prompt.description, 120) }}</p>
+              <p class="prompt-desc">{{ prompt.description ? truncate(prompt.description, 120) : truncate(prompt.content, 120) }}</p>
               <div v-if="prompt.tags && prompt.tags.length" class="prompt-tags">
                 <span v-for="tag in prompt.tags" :key="tag.id" class="tag">{{ tag.name }}</span>
               </div>
-              <div class="prompt-card-footer">
-                <span v-if="folderName(prompt.folder_id)" class="card-folder"><i class="ri-folder-line"></i> {{ folderName(prompt.folder_id) }}</span>
-                <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
-                <span v-if="prompt.updated_at" class="card-date">{{ formatDate(prompt.updated_at) }}</span>
+              <div class="prompt-meta-footer">
+                <div class="meta-left">
+                  <span v-if="folderName(prompt.folder_id)" class="prompt-folder-tag"><i class="ri-folder-fill"></i> {{ folderName(prompt.folder_id) }}</span>
+                  <span v-if="prompt.updated_at" class="meta-item date-item"><i class="ri-calendar-line"></i> {{ formatDate(prompt.updated_at) }}</span>
+                </div>
+                <div class="meta-right">
+                  <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -157,15 +198,15 @@
         :folder-icon="folderFormIcon"
         :folder-name="newFolderName"
         :is-guest="isGuest"
+        :all-tags="tags"
         @close-view="viewingPrompt = null"
         @close-edit="showEditDialog = false"
-        @close-versions="showVersions = false"
         @close-folder="closeFolderDialog"
         @save="savePrompt"
         @save-folder="saveFolder"
         @delete-folder="deleteFolder"
         @copy="copyContent"
-        @view-versions="viewVersions"
+        @load-versions="viewVersions"
         @edit="(p) => { openEdit(p); viewingPrompt = null }"
         @delete="deletePrompt"
         @restore="restoreVersion"
@@ -188,12 +229,15 @@
 
 <script setup lang="ts">
 import PromptDialogs from '~/components/prompts/PromptDialogs.vue'
+import FolderTreeItem from '~/components/sidebar/FolderTreeItem.vue'
 
 definePageMeta({ layout: 'default' })
 
 useHead({
   title: 'PromptPro - 提示词管理',
   link: [
+    { rel: 'stylesheet', href: '/css/main-bundle.css' },
+    { rel: 'stylesheet', href: '/css/index-sidebar-fix.css' },
     { rel: 'stylesheet', href: '/css/promptpro-bundle.css' },
     { rel: 'stylesheet', href: '/css/promptpro-card-styles.css' },
     { rel: 'stylesheet', href: '/css/promptpro-light-theme.css' },
@@ -256,6 +300,7 @@ const isLoading = ref(false)
 const searchQuery = ref('')
 const activeFolderId = ref<string | null>(null)
 const activeTagIds = ref<number[]>([])
+const expandedFolderIds = ref(new Set<string>())
 
 const viewingPrompt = ref<Prompt | null>(null)
 const showEditDialog = ref(false)
@@ -276,38 +321,172 @@ const editForm = reactive({
   description: '',
   content: '',
   folder_id: null as string | null,
-  tagsInput: '',
+  current_version: '1.0.0',
+  tags: [] as any[],
 })
 
 const allPromptCount = computed(() => prompts.value.length)
 
-// Build a flat list with _depth for hierarchical indentation
-const flatFolderTree = computed(() => {
-  const map = new Map<string, Folder & { _depth: number; _children: any[] }>()
-  const roots: (Folder & { _depth: number; _children: any[] })[] = []
+// ── FolderTreeItem compatible types ─────────────────────────────
+interface PromptFolderNode extends Folder {
+  _depth: number
+  _count: number
+  _hasChildren: boolean
+  children: PromptFolderNode[]
+  prompt_count?: number
+}
+
+// Build folder tree compatible with FolderTreeItem
+const promptFolderTree = computed(() => {
+  const map = new Map<string, PromptFolderNode>()
+  const roots: PromptFolderNode[] = []
+
   for (const f of folders.value) {
-    map.set(f.id, { ...f, _depth: 0, _children: [] })
+    map.set(f.id, {
+      ...f,
+      _depth: 0,
+      _count: f.prompt_count || 0,
+      _hasChildren: false,
+      children: [],
+    })
   }
-  for (const f of folders.value) {
-    const node = map.get(f.id)!
-    const pid = (f as any).parent_id
+
+  for (const node of map.values()) {
+    const pid = node.parent_id
     if (pid && map.has(pid)) {
-      map.get(pid)!._children.push(node)
+      map.get(pid)!.children.push(node)
+      map.get(pid)!._hasChildren = true
     } else {
       roots.push(node)
     }
   }
-  const result: (Folder & { _depth: number })[] = []
-  function walk(nodes: (Folder & { _depth: number; _children: any[] })[], depth: number) {
+
+  // Set depth
+  function setDepth(nodes: PromptFolderNode[], depth: number) {
     for (const n of nodes) {
       n._depth = depth
-      result.push(n)
-      if (n._children.length) walk(n._children, depth + 1)
+      if (n.children.length) setDepth(n.children, depth + 1)
     }
   }
-  walk(roots, 0)
-  return result
+  setDepth(roots, 0)
+  return roots
 })
+
+// Collect all folder IDs for expand-all toggle
+const allFolderIds = computed(() => {
+  const ids: string[] = []
+  function walk(nodes: PromptFolderNode[]) {
+    for (const n of nodes) {
+      ids.push(n.id)
+      if (n.children.length) walk(n.children)
+    }
+  }
+  walk(promptFolderTree.value)
+  return ids
+})
+
+// Whether all folders are expanded
+const allFoldersExpanded = computed(() =>
+  allFolderIds.value.length > 0 && allFolderIds.value.every(id => expandedFolderIds.value.has(id))
+)
+
+// Expand/collapse all folders
+function toggleAllFolders() {
+  if (allFoldersExpanded.value) {
+    expandedFolderIds.value = new Set<string>()
+  } else {
+    expandedFolderIds.value = new Set(allFolderIds.value)
+  }
+}
+
+function toggleFolderExpand(id: string | number) {
+  const sid = String(id)
+  if (expandedFolderIds.value.has(sid)) expandedFolderIds.value.delete(sid)
+  else expandedFolderIds.value.add(sid)
+  expandedFolderIds.value = new Set(expandedFolderIds.value)
+}
+
+function selectPromptFolder(folderId: string | number | null) {
+  activeFolderId.value = folderId as string | null
+  loadPrompts()
+}
+
+function selectAndToggleAll() {
+  activeFolderId.value = null
+  loadPrompts()
+}
+
+// ── Context menu state ──────────────────────────────────────────
+const folderMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  folder: null as Folder | null,
+  isAll: false,
+})
+
+function onAllContextMenu(event: MouseEvent) {
+  folderMenu.x = event.clientX
+  folderMenu.y = event.clientY
+  folderMenu.folder = null
+  folderMenu.isAll = true
+  folderMenu.visible = true
+}
+
+function onFolderContextMenu(event: MouseEvent, folder: any) {
+  event.preventDefault()
+  folderMenu.x = event.clientX
+  folderMenu.y = event.clientY
+  folderMenu.folder = folder
+  folderMenu.isAll = false
+  folderMenu.visible = true
+}
+
+function openCreateRootFolder() {
+  folderMenu.visible = false
+  editingFolder.value = null
+  newFolderName.value = ''
+  folderFormParentId.value = null
+  folderFormIcon.value = ''
+  showFolderDialog.value = true
+}
+
+function openCreateSubFolder(parentFolder: Folder) {
+  folderMenu.visible = false
+  editingFolder.value = null
+  newFolderName.value = ''
+  folderFormParentId.value = parentFolder.id
+  folderFormIcon.value = ''
+  showFolderDialog.value = true
+}
+
+function renamePromptFolder(folder: Folder) {
+  folderMenu.visible = false
+  editingFolder.value = folder
+  newFolderName.value = folder.name
+  folderFormParentId.value = folder.parent_id || null
+  folderFormIcon.value = folder.icon || ''
+  showFolderDialog.value = true
+}
+
+async function deletePromptFolder(folder: Folder) {
+  folderMenu.visible = false
+  if (confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) {
+    await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
+    expandedFolderIds.value.delete(folder.id)
+    await Promise.all([loadFolders(), loadPrompts()])
+  }
+}
+
+// Called from PromptDialogs @delete-folder event
+async function deleteFolder(folder: any) {
+  if (!folder) return
+  if (!confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) return
+  await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
+  expandedFolderIds.value.delete(folder.id)
+  closeFolderDialog()
+  await Promise.all([loadFolders(), loadPrompts()])
+}
 
 let searchTimeout: ReturnType<typeof setTimeout>
 function debouncedSearch() {
@@ -331,9 +510,105 @@ async function loadPrompts() {
 
     const query = new URLSearchParams(params).toString()
     const data = await $fetch<{ prompts: Prompt[] }>(`/api/prompts${query ? '?' + query : ''}`)
-    prompts.value = data?.prompts || []
+    let results = data?.prompts || []
+
+    // 搜索时按相关性评分排序（复刻旧版 calculatePromptScore）
+    if (searchQuery.value && results.length > 0) {
+      const keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(Boolean)
+      if (keywords.length > 0) {
+        results = results.map(p => ({
+          ...p,
+          _relevance: calculatePromptScore(p, keywords),
+        })).sort((a: any, b: any) => b._relevance - a._relevance)
+      }
+    }
+
+    prompts.value = results
   } catch { prompts.value = [] }
   isLoading.value = false
+}
+
+/**
+ * 复刻旧版 calculatePromptScore — 多字段加权相关性评分
+ * 支持 title/tags/description/folder_name/content 多字段匹配
+ */
+function calculatePromptScore(prompt: any, keywords: string[]): number {
+  if (!keywords || keywords.length === 0) return 0
+
+  const title = (prompt.title || '').toLowerCase()
+  const desc = (prompt.description || '').toLowerCase()
+  const content = (prompt.content || '').toLowerCase()
+  const folder = (prompt.folder_name || '').toLowerCase()
+  const tagNames: string[] = (prompt.tags || []).map((t: any) => (t.tag_name || t.name || '').toLowerCase())
+
+  let totalScore = 0
+  let titleMatchedCount = 0
+  let tagMatchedCount = 0
+  let descMatchedCount = 0
+  let folderMatchedCount = 0
+
+  for (const keyword of keywords) {
+    // 标题匹配（权重最高）
+    if (title.includes(keyword)) {
+      if (title === keyword) totalScore += 10000
+      else if (title.startsWith(keyword)) totalScore += 8000
+      else totalScore += 5000
+      titleMatchedCount++
+    }
+
+    // 标签匹配
+    if (tagNames.some(tag => tag.includes(keyword))) {
+      totalScore += 2000
+      tagMatchedCount++
+    }
+
+    // 描述匹配
+    if (desc.includes(keyword)) {
+      if (desc.startsWith(keyword)) totalScore += 1500
+      else totalScore += 1000
+      descMatchedCount++
+    }
+
+    // 文件夹匹配
+    if (folder.includes(keyword)) {
+      totalScore += 800
+      folderMatchedCount++
+    }
+
+    // 内容匹配（权重最低）
+    if (content.includes(keyword)) {
+      totalScore += 300
+    }
+  }
+
+  // 标题中包含所有关键词时，给予极高奖励
+  if (titleMatchedCount === keywords.length && keywords.length > 0) {
+    totalScore += keywords.length * 5000
+  }
+
+  // 标签中包含所有关键词时，给予高奖励
+  if (tagMatchedCount === keywords.length && keywords.length > 0) {
+    totalScore += keywords.length * 3000
+  }
+
+  // 描述中包含所有关键词时，给予中等奖励
+  if (descMatchedCount === keywords.length && keywords.length > 0) {
+    totalScore += keywords.length * 1500
+  }
+
+  // 跨字段匹配奖励（标题+标签、标题+描述等）
+  const fieldsMatched = [
+    titleMatchedCount > 0,
+    tagMatchedCount > 0,
+    descMatchedCount > 0,
+    folderMatchedCount > 0,
+  ].filter(Boolean).length
+
+  if (fieldsMatched >= 2 && keywords.length > 1) {
+    totalScore += fieldsMatched * 1000
+  }
+
+  return totalScore
 }
 
 async function loadFolders() {
@@ -368,7 +643,8 @@ function openCreate() {
   editForm.description = ''
   editForm.content = ''
   editForm.folder_id = activeFolderId.value && activeFolderId.value !== '_favorites' ? activeFolderId.value : null
-  editForm.tagsInput = ''
+  editForm.current_version = '1.0.0'
+  editForm.tags = []
   showEditDialog.value = true
 }
 
@@ -379,27 +655,35 @@ function openEdit(prompt: Prompt) {
   editForm.description = prompt.description || ''
   editForm.content = prompt.content
   editForm.folder_id = prompt.folder_id || null
-  editForm.tagsInput = (prompt.tags || []).map(t => t.name).join(' ')
+  editForm.current_version = prompt.current_version || '1.0.0'
+  editForm.tags = (prompt.tags || []).map(t => ({ id: t.id, name: t.name, color: t.color }))
   showEditDialog.value = true
 }
 
 async function savePrompt() {
   if (!editForm.title.trim() || !editForm.content.trim()) return alert('标题和内容不能为空')
 
-  const tagNames = editForm.tagsInput.trim().split(/\s+/).filter(Boolean)
+  // 使用 editForm.tags 数组（PromptDialogs 中的标签选择器已处理）
   const tagIds: number[] = []
-  for (const name of tagNames) {
-    const existing = tags.value.find(t => t.name === name)
-    if (existing) {
-      tagIds.push(existing.id)
+  for (const tag of editForm.tags) {
+    if (tag.id) {
+      tagIds.push(tag.id)
     } else {
-      try {
-        const res = await $fetch<{ tag: Tag }>('/api/tags', { method: 'POST', body: { name } })
-        if (res?.tag) {
-          tagIds.push(res.tag.id)
-          tags.value.push(res.tag)
-        }
-      } catch {}
+      // 新标签，需创建
+      const name = tag.name || tag.tag_name
+      if (!name) continue
+      const existing = tags.value.find(t => t.name.toLowerCase() === name.toLowerCase())
+      if (existing) {
+        tagIds.push(existing.id)
+      } else {
+        try {
+          const res = await $fetch<{ tag: Tag }>('/api/tags', { method: 'POST', body: { name } })
+          if (res?.tag) {
+            tagIds.push(res.tag.id)
+            tags.value.push(res.tag)
+          }
+        } catch {}
+      }
     }
   }
 
@@ -470,21 +754,6 @@ async function saveFolder() {
   await Promise.all([loadFolders(), loadPrompts()])
 }
 
-function onFolderContextMenu(_e: MouseEvent, folder: any) {
-  editingFolder.value = folder
-  newFolderName.value = folder.name
-  folderFormParentId.value = folder.parent_id || null
-  folderFormIcon.value = folder.icon || ''
-  showFolderDialog.value = true
-}
-
-async function deleteFolder(folder: any) {
-  if (!confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) return
-  await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
-  closeFolderDialog()
-  await Promise.all([loadFolders(), loadPrompts()])
-}
-
 function closeFolderDialog() {
   showFolderDialog.value = false
   editingFolder.value = null
@@ -516,8 +785,7 @@ function folderName(id?: string) {
 
 function formatDate(ts?: number) {
   if (!ts) return ''
-  const d = new Date(ts)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  return new Date(ts).toLocaleDateString('zh-CN').replace(/\//g, '-')
 }
 
 onMounted(async () => {
@@ -548,6 +816,74 @@ onMounted(async () => {
 }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
-.card-folder { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 3px; }
-.card-date { font-size: 11px; color: #94a3b8; margin-left: auto; }
+/* 文件夹计数 badge（与 Sidebar.vue 保持一致） */
+:deep(.item-count) {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+  padding: 0 4px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  margin-right: 4px;
+  line-height: 16px;
+}
+:deep(.bg-emerald-500 .item-count) {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.2);
+}
+/* 展开/收缩箭头 */
+:deep(.folder-arrow) {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 16px;
+  color: #94a3b8;
+  width: 20px;
+  text-align: center;
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+:deep(.folder-arrow:hover) {
+  color: #10b981;
+}
+</style>
+
+<style>
+/* 右键菜单（Teleport 到 body，不可 scoped） */
+.folder-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 4px 0;
+  min-width: 160px;
+  font-size: 13px;
+}
+.folder-context-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  transition: background 0.15s;
+}
+.folder-context-item:hover {
+  background: #f1f5f9;
+}
+.folder-context-item.danger {
+  color: #ef4444;
+}
+.folder-context-item.danger:hover {
+  background: #fef2f2;
+}
+.folder-context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
 </style>

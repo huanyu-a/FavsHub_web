@@ -1,12 +1,34 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
     <slot />
+    <MobileHeader />
+    <MobileOverlay />
+    <MobileBottomNav />
   </div>
 </template>
 
 <script setup lang="ts">
 const { isGuest, isAdmin } = useAuth()
 const uiStore = useUIStore()
+const { isMobile, drawerOpen } = useMobile()
+
+// Apply mobile-drawer-open class to sidebar when drawer is open
+if (import.meta.client) {
+  watch(drawerOpen, (open) => {
+    const sidebar = document.querySelector('aside.custom-width, aside.sidebar')
+    if (sidebar) {
+      if (open) sidebar.classList.add('mobile-drawer-open')
+      else sidebar.classList.remove('mobile-drawer-open')
+    }
+  })
+
+  // Close drawer on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && drawerOpen.value) {
+      drawerOpen.value = false
+    }
+  })
+}
 
 // 全局资源：直接复用旧框架 CSS，保证主题样式 100% 一致
 useHead({

@@ -216,4 +216,26 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   gap: 8px;
   margin-top: 16px;
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .home-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  /* 控制书签图标大小 */
+  .home-shell :deep(.bookmark-card .favicon img) {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .home-shell :deep(.bookmark-card .card-icon-text) {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+}
 </style>

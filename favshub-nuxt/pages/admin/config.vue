@@ -33,14 +33,19 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+const authStore = useAuthStore()
+function getAuthHeaders(): Record<string, string> {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+
 const info = reactive({ nodeVersion: '', platform: '', dbPath: '', corsOrigin: '', uptime: '' })
 
-const { data: configData } = await useFetch<any>('/api/admin/config')
-const { data: statsData } = await useFetch<any>('/api/admin/stats')
+const { data: configData } = await useFetch<any>('/api/admin/config', { headers: getAuthHeaders() })
+const { data: statsData } = await useFetch<any>('/api/admin/stats', { headers: getAuthHeaders() })
 
 watchEffect(() => {
   if (configData.value) {
-    info.nodeVersion = configData.value.nodeVersion || process.version || ''
+    info.nodeVersion = configData.value.nodeVersion || ''
     info.platform = configData.value.platform || ''
     info.dbPath = configData.value.dbPath || ''
     info.corsOrigin = configData.value.corsOrigin || ''
@@ -50,10 +55,24 @@ watchEffect(() => {
 
 const tdk = reactive({ title: '', description: '', keywords: '' })
 let tdkTimer: any = null
-function saveTdk() { clearTimeout(tdkTimer); tdkTimer = setTimeout(() => $fetch('/api/admin/config', { method: 'PUT', body: tdk }), 500) }
+function saveTdk() {
+  clearTimeout(tdkTimer)
+  tdkTimer = setTimeout(async () => {
+    try {
+      await $fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: { data: { ...tdk } }
+      })
+    } catch (e) { console.error('保存 TDK 失败', e) }
+  }, 500)
+}
 
 onMounted(async () => {
-  try { const d = await $fetch<any>('/api/tdk'); Object.assign(tdk, { title: d.title || '', description: d.description || '', keywords: d.keywords || '' }) } catch {}
+  try {
+    const d = await $fetch<any>('/api/tdk')
+    Object.assign(tdk, { title: d.title || '', description: d.description || '', keywords: d.keywords || '' })
+  } catch {}
 })
 </script>
 

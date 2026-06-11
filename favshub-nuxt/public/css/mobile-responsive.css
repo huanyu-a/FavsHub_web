@@ -161,8 +161,12 @@
 
   /* --- Main content reset (both pages) --- */
   #sidebar-container {
-    width: 100% !important;
+    position: fixed !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: visible !important;
     margin-left: 0 !important;
+    flex-shrink: 0 !important;
   }
 
   #sidebar-container.collapsed aside.custom-width,

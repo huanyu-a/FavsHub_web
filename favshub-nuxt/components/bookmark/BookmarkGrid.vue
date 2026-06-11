@@ -30,9 +30,6 @@
             v-for="bookmark in group.bookmarks"
             :key="bookmark.id"
             :bookmark="bookmark"
-            :is-guest="isGuest"
-            @edit="$emit('edit', $event)"
-            @delete="$emit('delete', $event)"
             @contextmenu="onContextMenu"
           />
         </div>
@@ -46,9 +43,6 @@
           v-for="bookmark in bookmarks"
           :key="bookmark.id"
           :bookmark="bookmark"
-          :is-guest="isGuest"
-          @edit="$emit('edit', $event)"
-          @delete="$emit('delete', $event)"
           @contextmenu="onContextMenu"
         />
         <button class="add-bookmark-card client-only-user" @click="$emit('add')">

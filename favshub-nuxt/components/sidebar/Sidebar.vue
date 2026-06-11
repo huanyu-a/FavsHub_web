@@ -28,46 +28,36 @@
         </div>
 
         <div class="sidebar-folders-panel">
-          <ul id="categories-list" class="space-y-2">
+          <ul id="categories-list">
+            <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
-              class="cursor-pointer p-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item"
+              class="folder-item"
               :class="{ 'bg-emerald-500': currentFolderId === null }"
+              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
               @click="$emit('select-folder', null)"
+              @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-folder-3-line" style="font-size:16px;color:#667eea;margin-right:8px;flex-shrink:0;width:20px;text-align:center;"></i>
-              <span>全部</span>
-            </li>
-            <template v-for="folder in flatFolderTree" :key="folder.id">
-              <li
-                v-if="folder._visible"
-                class="cursor-pointer p-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item"
-                :class="{ 'bg-emerald-500': currentFolderId === folder.id }"
-                :style="{ paddingLeft: (folder._depth * 20 + 8) + 'px' }"
-                @click="$emit('select-folder', folder.id)"
-                @contextmenu.prevent="onFolderContextMenu($event, folder)"
+              <i class="ri-apps-line" style="font-size:16px;color:#667eea;flex-shrink:0;width:20px;text-align:center;"></i>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
+              <span class="item-count" style="position:absolute;right:8px;">{{ totalBookmarkCount }}</span>
+              <span
+                style="cursor:pointer;display:inline-flex;align-items:center;position:absolute;right:30px;"
+                @click.stop="toggleAllFolders"
               >
-                <!-- 展开/收缩箭头 -->
-                <span
-                  v-if="folder._hasChildren"
-                  class="folder-arrow"
-                  @click.stop="toggleExpand(folder.id)"
-                  style="width:20px;text-align:center;margin-right:4px;flex-shrink:0;cursor:pointer;font-size:12px;color:#94a3b8;"
-                >
-                  <i :class="expandedIds.has(folder.id) ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'" style="font-size:16px;"></i>
-                </span>
-                <span v-else style="width:20px;margin-right:4px;flex-shrink:0;"></span>
-                <i :class="folderIcon(folder.name)" style="font-size:16px;color:#667eea;margin-right:8px;flex-shrink:0;width:20px;text-align:center;"></i>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ folder.name }}</span>
-                <span v-if="folder._count > 0" class="ml-auto" style="font-size:11px;color:#94a3b8;flex-shrink:0;">{{ folder._count }}</span>
-              </li>
-            </template>
-            <li
-              class="cursor-pointer p-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item client-only-user add-folder"
-              @click="$emit('create-folder')"
-            >
-              <i class="ri-add-line" style="font-size:16px;color:#94a3b8;margin-right:8px;flex-shrink:0;width:20px;text-align:center;"></i>
-              <span>新建文件夹</span>
+                <svg v-if="allExpanded" xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M480-541.85 317.08-378.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.7-8.69-21.08 0-12.38 8.69-21.08l179.77-179.77q10.85-10.84 25.31-10.84 14.46 0 25.31 10.84l179.77 179.77q8.3 8.31 8.5 20.89.19 12.57-8.5 21.27-8.7 8.69-21.08 8.69-12.38 0-21.08-8.69L480-541.85Z"/></svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
+              </span>
             </li>
+            <FolderTreeItem
+              v-for="node in folderTree"
+              :key="node.id"
+              :node="node"
+              :current-folder-id="currentFolderId"
+              :expanded-ids="expandedIds"
+              @select-folder="(id: number | null) => $emit('select-folder', id)"
+              @toggle-expand="toggleExpand"
+              @contextmenu-folder="onFolderContextMenu"
+            />
           </ul>
 
           <!-- 文件夹右键菜单 -->
@@ -78,15 +68,24 @@
               :style="{ left: folderMenu.x + 'px', top: folderMenu.y + 'px' }"
               @click.stop
             >
-              <div class="folder-context-item" @click="renameFolder(folderMenu.folder!)">
-                <i class="ri-edit-line"></i> 重命名
-              </div>
-              <div class="folder-context-item" @click="createSubFolder(folderMenu.folder!)">
-                <i class="ri-folder-add-line"></i> 新建子文件夹
-              </div>
-              <div class="folder-context-item danger" @click="deleteFolder(folderMenu.folder!)">
-                <i class="ri-delete-bin-line"></i> 删除
-              </div>
+              <!-- 全部右键菜单 -->
+              <template v-if="folderMenu.isAll">
+                <div class="folder-context-item" @click="createRootFolder">
+                  <i class="ri-folder-add-line"></i> 新建文件夹
+                </div>
+              </template>
+              <!-- 文件夹右键菜单 -->
+              <template v-else>
+                <div class="folder-context-item" @click="renameFolder(folderMenu.folder!)">
+                  <i class="ri-edit-line"></i> 重命名
+                </div>
+                <div class="folder-context-item" @click="createSubFolder(folderMenu.folder!)">
+                  <i class="ri-folder-add-line"></i> 新建子文件夹
+                </div>
+                <div class="folder-context-item danger" @click="deleteFolder(folderMenu.folder!)">
+                  <i class="ri-delete-bin-line"></i> 删除
+                </div>
+              </template>
             </div>
             <div v-if="folderMenu.visible" class="folder-context-overlay" @click="folderMenu.visible = false"></div>
           </Teleport>
@@ -145,7 +144,7 @@ const props = defineProps<{
   isGuest?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   toggle: []
   'select-folder': [id: number | null]
   'create-folder': []
@@ -180,16 +179,36 @@ const folderMenu = reactive({
   visible: false,
   x: 0,
   y: 0,
-  folder: null as (Folder & { _depth: number; _count: number; _hasChildren: boolean; _visible: boolean }) | null,
+  folder: null as FolderNode | null,
+  isAll: false,
 })
 
-// 初始化：根文件夹默认展开
-watch(() => props.folders, (folders) => {
-  if (folders.length > 0 && expandedIds.value.size === 0) {
-    const childParentIds = new Set(folders.filter(f => f.parent_id).map(f => f.parent_id!))
-    folders.filter(f => !f.parent_id || !childParentIds.has(f.id)).forEach(f => expandedIds.value.add(f.id))
+// 收集所有文件夹 ID（含子文件夹）
+const allFolderIds = computed(() => {
+  const ids: number[] = []
+  function walk(nodes: FolderNode[]) {
+    for (const n of nodes) {
+      ids.push(n.id)
+      if (n.children.length) walk(n.children)
+    }
   }
-}, { immediate: true })
+  walk(folderTree.value)
+  return ids
+})
+
+// 是否全部展开
+const allExpanded = computed(() =>
+  allFolderIds.value.length > 0 && allFolderIds.value.every(id => expandedIds.value.has(id))
+)
+
+// 展开/收缩所有文件夹
+function toggleAllFolders() {
+  if (allExpanded.value) {
+    expandedIds.value = new Set<number>()
+  } else {
+    expandedIds.value = new Set(allFolderIds.value)
+  }
+}
 
 function toggleExpand(id: number) {
   if (expandedIds.value.has(id)) {
@@ -199,12 +218,19 @@ function toggleExpand(id: number) {
   }
 }
 
-// ── 构建带展开/收缩的扁平文件夹树 ────────────────────────────
+function selectAndToggle(folder: FolderNode) {
+  // 选中文件夹
+  emit('select-folder', folder.id)
+  // 有子级时同时切换展开/收缩状态
+  if (folder._hasChildren) {
+    toggleExpand(folder.id)
+  }
+}
+
 interface FolderNode extends Folder {
   _depth: number
   _count: number
   _hasChildren: boolean
-  _visible: boolean
   children: FolderNode[]
 }
 
@@ -218,7 +244,9 @@ const bookmarkCountMap = computed(() => {
   return map
 })
 
-const flatFolderTree = computed(() => {
+const totalBookmarkCount = computed(() => bookmarksStore.bookmarks.length)
+
+const folderTree = computed(() => {
   const map = new Map<number, FolderNode>()
   const roots: FolderNode[] = []
 
@@ -228,7 +256,6 @@ const flatFolderTree = computed(() => {
       _depth: 0,
       _count: bookmarkCountMap.value.get(f.id) || 0,
       _hasChildren: false,
-      _visible: false,
       children: [],
     })
   }
@@ -243,28 +270,45 @@ const flatFolderTree = computed(() => {
     }
   }
 
-  // 只有父级展开时才显示子节点
-  const result: FolderNode[] = []
-  function traverse(nodes: FolderNode[], depth: number) {
+  // 设置 depth
+  function setDepth(nodes: FolderNode[], depth: number) {
     for (const n of nodes) {
       n._depth = depth
-      n._visible = true
-      result.push(n)
-      if (n.children.length > 0 && expandedIds.value.has(n.id)) {
-        traverse(n.children, depth + 1)
-      }
+      if (n.children.length) setDepth(n.children, depth + 1)
     }
   }
-  traverse(roots, 0)
+  setDepth(roots, 0)
+  return roots
+})
+
+// 保持 flatFolderTree 兼容
+const flatFolderTree = computed(() => {
+  const result: FolderNode[] = []
+  function walk(nodes: FolderNode[]) {
+    for (const n of nodes) {
+      result.push(n)
+      if (n.children.length && expandedIds.value.has(n.id)) walk(n.children)
+    }
+  }
+  walk(folderTree.value)
   return result
 })
 
 // ── 右键菜单处理 ──────────────────────────────────────────────
+function onAllContextMenu(event: MouseEvent) {
+  folderMenu.x = event.clientX
+  folderMenu.y = event.clientY
+  folderMenu.folder = null
+  folderMenu.isAll = true
+  folderMenu.visible = true
+}
+
 function onFolderContextMenu(event: MouseEvent, folder: any) {
   event.preventDefault()
   folderMenu.x = event.clientX
   folderMenu.y = event.clientY
   folderMenu.folder = folder
+  folderMenu.isAll = false
   folderMenu.visible = true
 }
 
@@ -274,6 +318,16 @@ async function renameFolder(folder: FolderNode) {
     const newName = prompt('重命名文件夹', folder.name)
     if (newName && newName !== folder.name) {
       await bookmarksStore.updateFolder(folder.id, { name: newName })
+    }
+  }
+}
+
+async function createRootFolder() {
+  folderMenu.visible = false
+  if (import.meta.client) {
+    const name = prompt('新建文件夹')
+    if (name) {
+      await bookmarksStore.createFolder({ name })
     }
   }
 }
@@ -316,16 +370,47 @@ function handleLogout() {
 }
 
 function openChromePage(page: string) {
-  if (import.meta.client) {
-    const urls: Record<string, string> = {
-      history: 'chrome://history',
-      downloads: 'chrome://downloads',
-      passwords: 'chrome://password-manager/passwords',
-      extensions: 'chrome://extensions',
+  if (!import.meta.client) return
+
+  // 扩展模式：通过 postMessage 中继到 content script -> background -> chrome.tabs.create
+  if (document.documentElement.getAttribute('data-favshub-ext') === 'active') {
+    const actionMap: Record<string, string> = {
+      history: 'openHistory',
+      downloads: 'openDownloads',
+      passwords: 'openPasswords',
+      extensions: 'openExtensions',
     }
-    const url = urls[page]
-    if (url) window.open(url, '_blank')
+    const action = actionMap[page]
+    if (action) {
+      sendExtensionMessage(action)
+      return
+    }
   }
+
+  // 非扩展模式：直接 window.open（仅对非 chrome:// URL 有效）
+  const urls: Record<string, string> = {
+    history: 'chrome://history',
+    downloads: 'chrome://downloads',
+    passwords: 'chrome://password-manager/passwords',
+    extensions: 'chrome://extensions',
+  }
+  const url = urls[page]
+  if (url) window.open(url, '_blank')
+}
+
+function sendExtensionMessage(action: string, extraParams: Record<string, any> = {}): Promise<any> {
+  return new Promise((resolve) => {
+    const requestId = Date.now().toString() + Math.random().toString(36).slice(2)
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'favshub-ext-response' && event.data?.requestId === requestId) {
+        window.removeEventListener('message', handler)
+        resolve(event.data.payload)
+      }
+    }
+    window.addEventListener('message', handler)
+    window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, '*')
+    setTimeout(() => { window.removeEventListener('message', handler); resolve(null) }, 3000)
+  })
 }
 </script>
 
@@ -337,6 +422,37 @@ function openChromePage(page: string) {
 .add-folder span {
   color: #94a3b8;
   font-size: 12px;
+}
+/* 文件夹计数 badge */
+:deep(.item-count) {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+:deep(.bg-emerald-500 .item-count) {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.2);
+}
+/* 展开/收缩箭头 */
+:deep(.folder-arrow) {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 16px;
+  color: #94a3b8;
+  width: 20px;
+  text-align: center;
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+:deep(.folder-arrow:hover) {
+  color: #10b981;
 }
 </style>
 

@@ -15,6 +15,21 @@ export default defineEventHandler(async (event) => {
     adminUsers,
     jwtSecret: config.jwtSecret ? '已设置（环境变量）' : '使用默认值',
     port: config.port || 3000,
-    dbPath
+    dbPath,
+    nodeVersion: process.version,
+    platform: process.platform,
+    corsOrigin: config.corsOrigin || '*',
+    uptime: formatUptime(process.uptime()),
   }
 })
+
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const parts: string[] = []
+  if (d > 0) parts.push(`${d}天`)
+  if (h > 0) parts.push(`${h}小时`)
+  parts.push(`${m}分钟`)
+  return parts.join(' ')
+}

@@ -78,19 +78,46 @@
               <td :style="{ paddingLeft: (f._depth * 20 + 16) + 'px' }">
                 <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)">{{ collapsedIds.has(f.id) ? '▶' : '▼' }}</span>
                 <span v-else style="display:inline-block;width:16px;"></span>
+                <i v-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:#667eea;"></i>
                 {{ f.name }}
               </td>
               <td>{{ f.parent_name || '-' }}</td>
               <td>{{ f.username || f.user_id }}</td>
               <td>{{ f.bookmark_count || 0 }}</td>
               <td class="actions">
-                <button class="btn btn-ghost btn-sm" @click="renameFolder(f)">重命名</button>
-                <button class="btn btn-ghost btn-sm" @click="moveFolder(f)">移动</button>
+                <button class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
                 <button class="btn btn-danger btn-sm" @click="delFolder(f)">删除</button>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 文件夹编辑弹窗 -->
+    <div v-if="folderEditVisible" class="modal-overlay" @click.self="folderEditVisible = false">
+      <div class="modal">
+        <div class="modal-header"><h3>{{ folderEditId ? '编辑文件夹' : '新建文件夹' }}</h3><button class="modal-close" @click="folderEditVisible = false">&times;</button></div>
+        <div class="modal-body">
+          <div class="fg"><label>名称</label><input v-model="folderEditForm.name" type="text" placeholder="文件夹名称"></div>
+          <div class="fg" v-if="!folderEditId"><label>用户</label>
+            <select v-model="folderEditForm.user_id">
+              <option v-for="u in users" :key="u.id" :value="u.id">{{ u.username }}</option>
+            </select>
+          </div>
+          <div class="fg"><label>父文件夹</label>
+            <select v-model="folderEditForm.parent_id">
+              <option :value="null">无（顶级）</option>
+              <option v-for="f in flatFolders.filter(x => x.id !== folderEditId)" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
+            </select>
+          </div>
+          <div class="fg"><label>图标</label>
+            <div class="icon-picker-row">
+              <span v-for="ic in folderIcons" :key="ic" class="icon-pick-option" :class="{ active: folderEditForm.icon === ic }" @click="folderEditForm.icon = folderEditForm.icon === ic ? '' : ic"><i :class="ic"></i></span>
+            </div>
+          </div>
+          <div class="form-btns"><button class="btn btn-ghost" @click="folderEditVisible = false">取消</button><button class="btn btn-primary" @click="saveFolderEdit">保存</button></div>
+        </div>
       </div>
     </div>
 
@@ -135,11 +162,21 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
 const pages = computed(() => { const a: number[] = []; for (let i = Math.max(1, page.value - 2); i <= Math.min(totalPages.value, page.value + 2); i++) a.push(i); return a })
 
 // Folder state
-interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
+interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; icon?: string; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
 const folderAll = ref<any[]>([])
 const folderLoading = ref(false)
 const allExpanded = ref(true)
 const collapsedIds = ref(new Set<number>())
+
+// Folder edit state
+const folderEditVisible = ref(false)
+const folderEditId = ref<number | null>(null)
+const folderEditForm = reactive({ name: '', parent_id: null as number | null, icon: '', user_id: null as number | null })
+const folderIcons = ['ri-folder-3-line', 'ri-folder-line', 'ri-folder-star-line', 'ri-code-s-slash-line', 'ri-quill-pen-line', 'ri-lightbulb-line', 'ri-book-open-line', 'ri-chat-3-line', 'ri-image-line', 'ri-tools-line', 'ri-database-2-line', 'ri-rocket-line']
+
+// Users list (for create mode)
+const users = ref<any[]>([])
+async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
 
 function buildTree(list: any[]): FolderNode[] {
   const map = new Map<number, FolderNode>()
@@ -254,12 +291,32 @@ async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', 
 async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST' }) }
 
 // Folder ops
-async function renameFolder(f: any) { const n = prompt('新名称', f.name); if (n) { await $fetch(`/api/admin/folders/${f.id}`, { method: 'PUT', body: { name: n } }); loadFolders() } }
-async function moveFolder(f: any) { const p = prompt('父文件夹 ID（留空=顶级）', f.parent_id || ''); if (p !== null) { await $fetch(`/api/admin/folders/${f.id}`, { method: 'PUT', body: { parent_id: p ? Number(p) : null } }); loadFolders() } }
+function openFolderCreate() {
+  folderEditId.value = null
+  Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: users.value[0]?.id || null })
+  folderEditVisible.value = true
+}
+function openFolderEdit(f: any) {
+  folderEditId.value = f.id
+  Object.assign(folderEditForm, { name: f.name, parent_id: f.parent_id ?? null, icon: f.icon || '', user_id: f.user_id })
+  folderEditVisible.value = true
+}
+async function saveFolderEdit() {
+  if (!folderEditForm.name.trim()) return alert('名称不能为空')
+  if (folderEditId.value) {
+    // Edit mode — PUT
+    await $fetch(`/api/admin/folders/${folderEditId.value}`, { method: 'PUT', body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null } })
+  } else {
+    // Create mode — POST
+    if (!folderEditForm.user_id) return alert('请选择用户')
+    await $fetch('/api/admin/folders', { method: 'POST', body: { name: folderEditForm.name, user_id: folderEditForm.user_id, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null } })
+  }
+  folderEditVisible.value = false
+  loadFolders()
+}
 async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE' }); loadFolders() }
-function openFolderCreate() { const n = prompt('文件夹名称'); if (n) { $fetch('/api/admin/folders', { method: 'POST', body: { name: n } }).then(loadFolders) } }
 
-onMounted(() => { loadBookmarks(); loadFolders() })
+onMounted(() => { loadBookmarks(); loadFolders(); loadUsers() })
 </script>
 
 <style scoped>
@@ -308,6 +365,10 @@ tr:hover { background: #fafafa; }
 .fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
 .fg input, .fg select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
 .form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.icon-pick-option { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 18px; color: #6b7280; transition: all .15s; }
+.icon-pick-option:hover { border-color: #667eea; color: #667eea; background: #f0f1ff; }
+.icon-pick-option.active { border-color: #667eea; color: #667eea; background: #eef2ff; }
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {
   .admin-page { padding: 16px; }
