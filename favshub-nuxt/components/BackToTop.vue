@@ -12,42 +12,57 @@
 <script setup lang="ts">
 const scrollPercent = ref(0)
 const showButton = ref(false)
-let scroller: HTMLElement | Window = window
 
-function getScrollContainer(): HTMLElement | null {
-  // 首页主内容区是 main 滚动容器（旧版同样在 main 上滚动）
-  return document.querySelector('.home-shell > main') as HTMLElement | null
+function getScrollTop(): number {
+  // 优先取 window，再取 main 元素
+  const winST = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop
+  if (winST > 0) return winST
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  return mainEl?.scrollTop || 0
+}
+
+function getScrollMetrics() {
+  // 优先用 window 的滚动高度
+  const winST = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop
+  if (winST > 0 || document.documentElement.scrollHeight > document.documentElement.clientHeight) {
+    return {
+      scrollTop: winST,
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+    }
+  }
+  // fallback: main 元素
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  if (mainEl && mainEl.scrollHeight > mainEl.clientHeight) {
+    return { scrollTop: mainEl.scrollTop, scrollHeight: mainEl.scrollHeight, clientHeight: mainEl.clientHeight }
+  }
+  return { scrollTop: 0, scrollHeight: 0, clientHeight: 0 }
 }
 
 function handleScroll() {
-  const el = getScrollContainer()
-  let scrollTop: number, scrollHeight: number
-  if (el) {
-    scrollTop = el.scrollTop
-    scrollHeight = el.scrollHeight - el.clientHeight
-  } else {
-    scrollTop = window.scrollY || document.documentElement.scrollTop
-    scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
-  }
-  scrollPercent.value = scrollHeight > 0 ? Math.round((scrollTop / scrollHeight) * 100) : 0
+  const { scrollTop, scrollHeight, clientHeight } = getScrollMetrics()
+  const maxScroll = scrollHeight - clientHeight
+  scrollPercent.value = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * 100) : 0
   showButton.value = scrollTop > 50
 }
 
 function scrollToTop() {
-  const el = getScrollContainer()
-  if (el) el.scrollTo({ top: 0, behavior: 'smooth' })
-  else window.scrollTo({ top: 0, behavior: 'smooth' })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(() => {
-  const el = getScrollContainer()
-  scroller = el || window
-  scroller.addEventListener('scroll', handleScroll, { passive: true } as any)
+  window.addEventListener('scroll', handleScroll, { passive: true } as any)
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  if (mainEl) mainEl.addEventListener('scroll', handleScroll, { passive: true } as any)
   handleScroll()
 })
 
 onUnmounted(() => {
-  scroller.removeEventListener('scroll', handleScroll as any)
+  window.removeEventListener('scroll', handleScroll as any)
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  if (mainEl) mainEl.removeEventListener('scroll', handleScroll as any)
 })
 </script>
 

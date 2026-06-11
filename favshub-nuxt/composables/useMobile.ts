@@ -3,7 +3,7 @@
  * Uses module-level state so all components share the same refs.
  */
 
-const MOBILE_BP = 768
+const MOBILE_BP = 1024
 
 const isMobile = ref(false)
 const drawerOpen = ref(false)

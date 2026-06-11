@@ -1,6 +1,7 @@
 <template>
   <div class="search-container">
     <form
+      ref="searchFormEl"
       class="search-form"
       id="search-form"
       :class="{ 'focused-with-suggestions': showSuggestions && filteredSuggestions.length > 0 }"
@@ -76,15 +77,15 @@
               </template>
             </span>
             <span class="suggestion-text">{{ s.text }}</span>
-            <span class="suggestion-dash" v-if="s.url && s.type !== 'search'">-</span>
-            <span class="suggestion-url">{{ s.url ? formatUrl(s.url) : '' }}</span>
+            <span class="suggestion-dash" v-if="!mobile && s.url && s.type !== 'search'">-</span>
+            <span v-if="!mobile" class="suggestion-url">{{ s.url ? formatUrl(s.url) : '' }}</span>
             <span class="suggestion-type">{{ typeLabel(s.type) }}</span>
           </li>
         </ul>
-        <div id="tabs-container" class="tabs" v-if="(allEngines || engines).length > 0">
+        <div id="tabs-container" class="tabs" v-if="engines.length > 0">
           <span class="search-tips">本次使用</span>
           <span
-            v-for="engine in (allEngines || engines)"
+            v-for="engine in engines"
             :key="engine.id"
             class="tab"
             :class="{ active: currentEngine?.id === engine.id }"
@@ -178,6 +179,7 @@ const props = defineProps<{
   allEngines?: Engine[]
   currentEngine: Engine | null
   bookmarks: Bookmark[]
+  mobile?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -197,11 +199,9 @@ const keyboardIndex = ref(-1)
 // Prompt suggestions fetched from API
 const promptSuggestions = ref<SuggestionItem[]>([])
 
-// Search history from localStorage
-const searchHistory = ref<SuggestionItem[]>([])
+// Browser visit history from extension
+const browserHistory = ref<SuggestionItem[]>([])
 
-const HISTORY_KEY = 'favshub_search_history'
-const MAX_HISTORY = 20
 
 // ── Engine categories for dialog ────────────────────────────────
 const engineCategories = computed(() => {
@@ -243,36 +243,6 @@ async function loadPromptSuggestions(search?: string) {
   } catch {
     promptSuggestions.value = []
   }
-}
-
-// ── Search history (localStorage) ───────────────────────────────
-function loadHistory() {
-  if (!import.meta.client) return
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY)
-    if (raw) {
-      const items = JSON.parse(raw) as SuggestionItem[]
-      searchHistory.value = items.map(item => ({ ...item, type: 'history' as const }))
-    }
-  } catch {
-    searchHistory.value = []
-  }
-}
-
-function saveToHistory(text: string, url?: string) {
-  if (!import.meta.client || !text.trim()) return
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY)
-    let items: SuggestionItem[] = raw ? JSON.parse(raw) : []
-    // Remove duplicate
-    items = items.filter(i => i.text !== text)
-    // Add to front
-    items.unshift({ text, url: url || '', type: 'search' })
-    // Trim to max
-    items = items.slice(0, MAX_HISTORY)
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(items))
-    loadHistory()
-  } catch { /* ignore */ }
 }
 
 // ── Browser history via extension ──────────────────────────────
@@ -320,33 +290,15 @@ async function loadBrowserHistory(query?: string) {
         text: item.title || item.url,
         url: item.url,
         type: 'history' as const,
-        icon: '',
+        icon: `https://www.google.com/s2/favicons?domain=${domain}&sz=32`,
         relevance: Math.exp(-((now - (item.lastVisitTime || now)) / (1000 * 60 * 60 * 24)) / 7), // 7-day half-life
       })
     }
 
-    const browserHistory = Array.from(uniqueItems.values())
+    browserHistory.value = Array.from(uniqueItems.values())
       .sort((a, b) => (b.relevance || 0) - (a.relevance || 0))
       .slice(0, query ? 20 : 10)
-
-    // Merge: localStorage history first, then browser history (dedup by text)
-    const existing = searchHistory.value
-    const seenTexts = new Set(existing.map(h => h.text))
-    const merged = [...existing]
-    for (const h of browserHistory) {
-      if (!seenTexts.has(h.text)) {
-        merged.push(h)
-        seenTexts.add(h.text)
-      }
-    }
-    searchHistory.value = merged
   } catch { /* silent */ }
-}
-
-function clearHistory() {
-  if (!import.meta.client) return
-  localStorage.removeItem(HISTORY_KEY)
-  searchHistory.value = []
 }
 
 // ── Bookmark suggestions (from props) ───────────────────────────
@@ -380,11 +332,11 @@ function getRawResults(): { history: SuggestionItem[], bookmarks: SuggestionItem
   const q = query.value.trim().toLowerCase()
   const words = q ? q.split(/\s+/).filter(Boolean) : []
 
-  // History
+  // History (browser visit history only, no input history)
   const history: SuggestionItem[] = showHistory
     ? (q
-        ? searchHistory.value.filter(h => multiWordMatch(h.text, words)).map(h => ({ ...h, relevance: 3 }))
-        : searchHistory.value)
+        ? browserHistory.value.filter(h => multiWordMatch(h.text, words)).map(h => ({ ...h, relevance: 3 }))
+        : browserHistory.value)
     : []
 
   // Bookmarks
@@ -416,7 +368,7 @@ const allSuggestions = computed<SuggestionItem[]>(() => {
   const items: SuggestionItem[] = [
     ...bookmarks.slice(0, 8),
     ...prompts.slice(0, 5),
-    ...history.filter(h => h.url).slice(0, 5),
+    ...history.slice(0, 5),
   ]
 
   // Deduplicate by text
@@ -443,7 +395,7 @@ const filteredSuggestions = computed(() => {
   const { history, bookmarks, prompts } = getRawResults()
   const seen = new Set<string>()
   let items: SuggestionItem[] = []
-  if (activeTab.value === 'history') items = history.filter(h => h.url)
+  if (activeTab.value === 'history') items = history
   else if (activeTab.value === 'bookmark') items = bookmarks
   else if (activeTab.value === 'prompt') items = prompts
   return items.filter(item => {
@@ -492,6 +444,15 @@ function closeEngineDialog() {
   searchEngineStore.fetchEngines()
 }
 
+/** Open URL; on mobile use location.href to avoid popup blockers */
+function openUrl(url: string) {
+  if (props.mobile) {
+    window.location.href = url
+  } else {
+    window.open(url, '_blank')
+  }
+}
+
 function handleSearch(e?: Event) {
   const kbEvent = e instanceof KeyboardEvent ? e : undefined
   const searchText = query.value.trim()
@@ -500,12 +461,11 @@ function handleSearch(e?: Event) {
   const engine = props.currentEngine
   if (kbEvent?.metaKey || kbEvent?.ctrlKey) {
     (props.allEngines || props.engines).forEach(eng => {
-      if (eng.url) window.open(eng.url.replace('%s', encodeURIComponent(searchText)), '_blank')
+      if (eng.url) openUrl(eng.url.replace('%s', encodeURIComponent(searchText)))
     })
   } else if (engine?.url) {
-    window.open(engine.url.replace('%s', encodeURIComponent(searchText)), '_blank')
+    openUrl(engine.url.replace('%s', encodeURIComponent(searchText)))
   }
-  saveToHistory(searchText)
   emit('search', searchText)
   showSuggestions.value = false
   keyboardIndex.value = -1
@@ -514,8 +474,7 @@ function handleSearch(e?: Event) {
 function searchWithEngine(engine: Engine) {
   const searchText = query.value.trim()
   if (!searchText) return
-  if (engine.url) window.open(engine.url.replace('%s', encodeURIComponent(searchText)), '_blank')
-  saveToHistory(searchText)
+  if (engine.url) openUrl(engine.url.replace('%s', encodeURIComponent(searchText)))
   showSuggestions.value = false
   keyboardIndex.value = -1
 }
@@ -533,13 +492,11 @@ function applySuggestion(s: SuggestionItem) {
     // Execute the search
     const engine = props.currentEngine
     if (engine?.url) {
-      window.open(engine.url.replace('%s', encodeURIComponent(s.text)), '_blank')
+      openUrl(engine.url.replace('%s', encodeURIComponent(s.text)))
     }
-    saveToHistory(s.text)
   } else if (s.url) {
-    window.open(s.url, '_blank')
+    openUrl(s.url)
     query.value = s.text
-    saveToHistory(s.text, s.url)
   } else {
     query.value = s.text
   }
@@ -552,7 +509,6 @@ let inputDebounceTimer: ReturnType<typeof setTimeout> | null = null
 function onFocus() {
   showSuggestions.value = true
   keyboardIndex.value = -1
-  loadHistory()
   // Load default prompt suggestions when focusing with empty query
   if (!query.value.trim()) {
     loadPromptSuggestions()
@@ -574,7 +530,6 @@ function onInput() {
     loadPromptSuggestions()
     loadBrowserHistory()
   }
-  emit('search', query.value)
 }
 
 function hideSuggestionsDelayed() {
@@ -643,7 +598,6 @@ watch(query, () => {
 
 // ── Init ────────────────────────────────────────────────────────
 onMounted(() => {
-  loadHistory()
 })
 </script>
 
@@ -653,6 +607,7 @@ onMounted(() => {
   flex: unset !important;
   margin: 1rem auto 2.5rem auto !important;
 }
+
 
 .dropdown-indicator { font-size: 10px; color: #999; margin-left: 2px; }
 
@@ -720,7 +675,7 @@ onMounted(() => {
 .engine-dialog-overlay {
   display: flex;
   position: fixed;
-  z-index: 1002;
+  z-index: 100001;
   left: 0;
   top: 0;
   width: 100%;

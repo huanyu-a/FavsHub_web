@@ -1717,7 +1717,7 @@ main {
   border-radius: 0 0 12px 12px;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   z-index: 1000;
-  overflow: hidden;
+  overflow: visible;
   display: none;
 }
 
@@ -1761,15 +1761,15 @@ main {
   position: relative;
   padding: 8px 10px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-start;
   align-items: center;
-  overflow-x: auto;
-  white-space: nowrap;
+  gap: 6px;
   z-index: 5;
   padding-left: 30px;
   background-color: #ffffff;
-  scrollbar-width: none; /* 对�?? Firefox */
-  -ms-overflow-style: none; /* 对�?? Internet Explorer ???Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 
@@ -3515,7 +3515,8 @@ input:checked+.slider:before {
   }
   
   /* 确�?�主???容区??��?�满宽度，�?�论侧边??�状???�?�?*/
-  main.flex-1 {
+  main.flex-1,
+  .main-content {
     width: 100% !important;
     margin-left: 0 !important;
     transition: none !important; /* �??���?渡�????? */
@@ -3665,7 +3666,7 @@ input:checked+.slider:before {
     height: auto; /* ???许自?��增长 */
   }
 
-  .search-input::placeholder {
+  .home-shell .search-input::placeholder {
     color: transparent !important;
     opacity: 0 !important;
   }
@@ -5867,10 +5868,10 @@ body.is-sorting-bookmarks .card:hover {
 /* ??��?�顶??��?�钮容器 - ?��定在?��下�?? */
 #back-to-top-container {
   position: fixed !important;
-  bottom: 0 !important;
+  bottom: 0;
   right: 0 !important;
   z-index: 999999 !important;
-  pointer-events: none !important; /* 容器不接?��鼠�??事�??*/
+  pointer-events: none !important;
   width: auto !important;
   height: auto !important;
 }

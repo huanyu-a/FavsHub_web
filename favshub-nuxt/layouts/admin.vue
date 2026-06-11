@@ -2,7 +2,7 @@
   <div class="admin-layout">
     <aside class="admin-sidebar" :class="{ open: sidebarOpen }">
       <div class="admin-sidebar-logo">
-        <NuxtLink to="/" class="logo-link">
+        <NuxtLink to="/admin" class="logo-link">
           <img src="/images/logo.svg" alt="FavsHub" class="logo-img">
           <div class="logo-text">
             <h1>FavsHub</h1>

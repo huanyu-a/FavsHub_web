@@ -1,13 +1,13 @@
 /**
- * PUT /api/settings/default — 更新管理员默认设置（仅管理员）
+ * PUT /api/settings/default — 更新当前用户的个人设置
  * Body: { data: { ... } }
- * 直接覆盖系统设置（user_id=0），不进行合并
+ * 每个登录用户写入自己的设置，互不影响
  */
 import { getRawDb } from '../../database'
-import { requireAdmin } from '../../utils/auth'
+import { requireAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event) // 仅管理员可访问
+  const authUser = requireAuth(event)
   const body = await readBody(event)
   const { data } = body || {}
 
@@ -17,14 +17,16 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // 直接覆盖系统设置
-  const jsonStr = JSON.stringify(data)
+  // 读取现有设置并合并
+  const existingRow = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(authUser.id) as { data: string } | undefined
+  const existing = existingRow ? JSON.parse(existingRow.data) : {}
+  const merged = { ...existing, ...data }
 
-  // UPSERT
+  // UPSERT 当前用户设置
   db.prepare(`
-    INSERT INTO settings (user_id, data) VALUES (0, ?)
+    INSERT INTO settings (user_id, data) VALUES (?, ?)
     ON CONFLICT(user_id) DO UPDATE SET data = excluded.data
-  `).run(jsonStr)
+  `).run(authUser.id, JSON.stringify(merged))
 
-  return { data }
+  return { data: merged }
 })

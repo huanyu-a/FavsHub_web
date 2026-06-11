@@ -108,13 +108,10 @@
             <button class="sidebar-theme-btn" title="切换主题" @click="toggleTheme">
               <i :class="isDark ? 'ri-sun-line' : 'ri-moon-line'" style="font-size:14px;"></i>
             </button>
-            <button class="sidebar-toolbar-icon client-only-user" title="个人设置" @click="$emit('open-settings')">
-              <i class="ri-settings-3-line" style="font-size:14px;"></i>
-            </button>
             <NuxtLink to="/login" class="sidebar-toolbar-icon client-only-guest" title="登录" style="text-decoration:none;">
               <i class="ri-login-box-line" style="font-size:14px;"></i>
             </NuxtLink>
-            <NuxtLink to="/admin" class="sidebar-toolbar-icon client-only-admin" title="管理后台" style="text-decoration:none;">
+            <NuxtLink to="/admin" target="_blank" class="sidebar-toolbar-icon client-only-user" title="管理后台" style="text-decoration:none;">
               <i class="ri-dashboard-line" style="font-size:14px;"></i>
             </NuxtLink>
             <a href="#" class="sidebar-toolbar-icon client-only-user" title="退出登录" style="text-decoration:none;" @click.prevent="handleLogout">
@@ -148,7 +145,6 @@ const emit = defineEmits<{
   toggle: []
   'select-folder': [id: number | null]
   'create-folder': []
-  'open-settings': []
   'rename-folder': [id: number, name: string]
   'create-sub-folder': [parentId: number, name: string]
   'delete-folder': [id: number]

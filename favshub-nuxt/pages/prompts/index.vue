@@ -224,12 +224,16 @@
         </div>
       </Transition>
     </Teleport>
+    <ClientOnly>
+      <BackToTop />
+    </ClientOnly>
   </div>
 </template>
 
 <script setup lang="ts">
 import PromptDialogs from '~/components/prompts/PromptDialogs.vue'
 import FolderTreeItem from '~/components/sidebar/FolderTreeItem.vue'
+import BackToTop from '~/components/BackToTop.vue'
 
 definePageMeta({ layout: 'default' })
 
@@ -825,7 +829,7 @@ onMounted(async () => {
 <style scoped>
 .prompts-root {
   height: 100vh;
-  overflow: hidden;
+  overflow: visible;
 }
 .copy-toast {
   position: fixed;

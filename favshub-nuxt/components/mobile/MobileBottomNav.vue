@@ -46,6 +46,7 @@
             :all-engines="searchEngineStore.engines"
             :current-engine="searchEngineStore.currentEngine"
             :bookmarks="bookmarksStore.bookmarks"
+            :mobile="true"
             @select-engine="(id) => searchEngineStore.setCurrentEngine(id)"
             @search="closeSearchSheet"
           />
@@ -65,9 +66,9 @@ const { isMobile, drawerOpen, searchSheetOpen, closeDrawer, openSearchSheet, clo
 const isPromptsPage = computed(() => route.path.startsWith('/prompts'))
 
 // Mobile search: reuse same stores as desktop SearchBar
+const uiStore = useUIStore()
 const searchEngineStore = useSearchEnginesStore()
 const bookmarksStore = useBookmarksStore()
-const settingsStore = useSettingsStore()
 const authStore = useAuthStore()
 
 // Load bookmarks if not loaded
@@ -79,10 +80,8 @@ onMounted(() => {
 })
 
 function toggleTheme() {
-  const current = settingsStore.settings.theme || 'light'
-  const next = current === 'dark' ? 'light' : 'dark'
-  if (authStore.token) settingsStore.updateSettings({ theme: next }, authStore.token)
-  document.documentElement.setAttribute('data-theme', next)
+  const next = uiStore.theme === 'dark' ? 'light' : 'dark'
+  uiStore.setTheme(next)
 }
 </script>
 
@@ -92,46 +91,7 @@ function toggleTheme() {
 }
 .mobile-search-sheet-body :deep(.search-form) {
   margin: 0;
-}
-.mobile-search-sheet-body :deep(.search-suggestions-wrapper) {
-  max-height: 50vh;
-  overflow-y: auto;
-}
-.mobile-search-sheet-body :deep(.search-engine-icon) {
-  width: 20px;
-  height: 20px;
-}
-.mobile-search-form {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-}
-.mobile-search-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  font-size: 16px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.mobile-search-input:focus {
-  border-color: #667eea;
-}
-.mobile-search-submit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: none;
-  background: #667eea;
-  color: #fff;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.mobile-search-submit:active {
-  background: #5a6fd6;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 </style>

@@ -15,6 +15,13 @@ body {
     flex: 1;
     min-width: 0;
 }
+/* 移动端：main-bundle.css 的 width:0 规则会折叠本页面布局，覆盖回 auto */
+@media (max-width: 1024px) {
+    #sidebar-container {
+        width: auto !important;
+        overflow: visible !important;
+    }
+}
 aside.sidebar {
     width: 18rem;
     min-width: 18rem;
@@ -483,7 +490,6 @@ aside.sidebar {
 /* ========== 回到顶部 ========== */
 #back-to-top-container {
     position: fixed !important;
-    bottom: 0 !important;
     right: 0 !important;
     z-index: 999999 !important;
     pointer-events: none !important;

@@ -216,11 +216,11 @@ class FavsHubAPI {
 
   // ===== Admin =====
   getAdminDefaultSettings() {
-    return this.request('/admin/default-settings');
+    return this.request('/settings/default');
   }
 
   updateAdminDefaultSettings(data) {
-    return this.request('/admin/default-settings', { method: 'PUT', body: JSON.stringify({ data }) });
+    return this.request('/settings/default', { method: 'PUT', body: JSON.stringify({ data }) });
   }
 
   getAdminStats() {

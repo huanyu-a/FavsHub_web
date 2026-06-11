@@ -174,7 +174,6 @@
   main.flex-1 {
     width: 100% !important;
     margin-left: 0 !important;
-    padding: 60px 1rem 1rem !important;
   }
 
   /* When drawer is open, push main off-screen */
@@ -186,10 +185,11 @@
   /* PromptPro main content */
   .main-content {
     width: 100% !important;
+    padding: 0 !important;
   }
 
   .main-area {
-    padding: 60px 1rem 1rem !important;
+    padding: 0 !important;
   }
 
   /* ========== Homepage: hide welcome + search on mobile ========== */
@@ -236,21 +236,10 @@
   }
 
   /* ========== PromptPro specifics ========== */
+  /* 提示词页工具栏移动端隐藏 */
+  .main-toolbar { display: none !important; }
   .search-box {
     display: none !important;
-  }
-
-  .main-toolbar {
-    flex-wrap: wrap !important;
-    gap: 0.5rem !important;
-  }
-
-  .btn-favorite {
-    flex: 0 0 auto;
-  }
-
-  .main-toolbar .btn-primary {
-    flex: 0 0 auto;
   }
 
   .prompts-grid {
@@ -356,9 +345,6 @@
   #back-to-top.show.show-percent #scroll-percent { display: none !important; }
 
   /* Bottom padding for bottom nav */
-  main.flex-1 {
-    padding-bottom: 64px !important;
-  }
   .main-area {
     padding-bottom: 64px !important;
   }

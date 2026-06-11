@@ -82,7 +82,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
-useHead({ title: '用户设置' })
+useHead({ title: '个人设置' })
 
 const backgrounds = [
   { value: 'gradient-background-1', label: '渐变1', style: { background: 'linear-gradient(0deg, #e2e8f0 0%, #d6deeb 50%, #cbd5e1 100%)' } },
@@ -94,40 +94,32 @@ const backgrounds = [
   { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #fbebbc 0%, #fbebbc 100%)' } },
 ]
 
-const authStore = useAuthStore()
-function getAuthHeaders(): Record<string, string> {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
-}
+const settingsStore = useSettingsStore()
 
-const { data: res, refresh } = await useFetch<{ data?: Record<string, any> }>('/api/settings/default', {
-  headers: getAuthHeaders()
-})
-const defaults = computed(() => res.value?.data || {})
-
+// 从 settingsStore 初始化表单
 const form = reactive<Record<string, any>>({
-  theme: 'auto', selectedBackground: '', showSearchBox: true, showWelcomeMessage: true, showFooter: true,
-  openInNewTab: true, showHistoryLink: true, showDownloadsLink: true, showPasswordsLink: true, showExtensionsLink: true,
-  showSearchSuggestions: true, showHistorySuggestions: true, showBookmarkSuggestions: true, showPromptSuggestions: true,
-  openSearchInNewTab: true, bookmarkWidth: 200, bookmarkCardHeight: 50, bookmarkContainerWidth: 85,
+  theme: settingsStore.get('theme', 'auto'),
+  selectedBackground: settingsStore.get('selectedBackground', ''),
+  showSearchBox: settingsStore.get('showSearchBox', true),
+  showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),
+  showFooter: settingsStore.get('showFooter', true),
+  openInNewTab: settingsStore.get('openInNewTab', true),
+  showHistoryLink: settingsStore.get('showHistoryLink', true),
+  showDownloadsLink: settingsStore.get('showDownloadsLink', true),
+  showPasswordsLink: settingsStore.get('showPasswordsLink', true),
+  showExtensionsLink: settingsStore.get('showExtensionsLink', true),
+  showSearchSuggestions: settingsStore.get('showSearchSuggestions', true),
+  showHistorySuggestions: settingsStore.get('showHistorySuggestions', true),
+  showBookmarkSuggestions: settingsStore.get('showBookmarkSuggestions', true),
+  showPromptSuggestions: settingsStore.get('showPromptSuggestions', true),
+  openSearchInNewTab: settingsStore.get('openSearchInNewTab', true),
+  bookmarkWidth: settingsStore.get('bookmarkWidth', 200),
+  bookmarkCardHeight: settingsStore.get('bookmarkCardHeight', 50),
+  bookmarkContainerWidth: settingsStore.get('bookmarkContainerWidth', 85),
 })
 
-watch(defaults, (d) => { if (d) Object.assign(form, d) }, { immediate: true })
-
-let timer: any = null
 function save() {
-  clearTimeout(timer)
-  timer = setTimeout(async () => {
-    try {
-      await $fetch('/api/settings/default', {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: { data: { ...form } }
-      })
-      refresh()
-    } catch (e) {
-      console.error('保存全局设置失败', e)
-    }
-  }, 300)
+  settingsStore.setMany({ ...form })
 }
 </script>
 

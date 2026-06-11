@@ -1761,15 +1761,15 @@ main {
   position: relative;
   padding: 8px 10px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-start;
   align-items: center;
-  overflow-x: auto;
-  white-space: nowrap;
+  gap: 6px;
   z-index: 5;
   padding-left: 30px;
   background-color: #ffffff;
-  scrollbar-width: none; /* 对�?? Firefox */
-  -ms-overflow-style: none; /* 对�?? Internet Explorer ???Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 

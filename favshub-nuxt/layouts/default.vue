@@ -68,6 +68,11 @@ if (import.meta.client) {
 
   // 响应背景设置变化，更新 <html> 类名和 localStorage
   const settingsStore = useSettingsStore()
+  watch(() => settingsStore.get('theme'), (t: string) => {
+    if (t && t !== uiStore.theme) {
+      uiStore.theme = t as 'light' | 'dark' | 'auto'
+    }
+  })
   watch(() => settingsStore.get('selectedBackground'), (bg: string) => {
     const html = document.documentElement
     // 移除旧的 gradient-background-* 类

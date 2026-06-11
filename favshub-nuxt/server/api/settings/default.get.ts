@@ -1,17 +1,15 @@
 /**
- * GET /api/settings/default — 获取管理员默认设置（仅管理员）
- * 返回原始系统设置（user_id=0），不进行敏感字段过滤
- * 用于管理员设置页面查看/编辑所有设置，包括 baiduAppKey
+ * GET /api/settings/default — 获取当前用户的个人设置
+ * 每个登录用户读取自己的设置，互不影响
  */
 import { getRawDb } from '../../database'
-import { requireAdmin } from '../../utils/auth'
+import { requireAuth } from '../../utils/auth'
 
 export default defineEventHandler((event) => {
-  requireAdmin(event) // 仅管理员可访问
+  const authUser = requireAuth(event)
   const db = getRawDb()
 
-  // 获取系统设置 (user_id = 0)
-  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as { data: string } | undefined
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(authUser.id) as { data: string } | undefined
   let settings: Record<string, any> = {}
   try {
     settings = row ? JSON.parse(row.data) : {}

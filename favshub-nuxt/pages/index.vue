@@ -14,7 +14,6 @@
       @toggle="uiStore.toggleSidebar()"
       @select-folder="selectFolder"
       @create-folder="showCreateFolder"
-      @open-settings="showSettings = true"
     />
 
     <!-- 主内容区 -->
@@ -85,8 +84,6 @@
     <!-- 回到顶部按钮 -->
     <BackToTop />
 
-    <!-- 用户设置弹窗 -->
-    <UserSettingsModal :visible="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
@@ -101,7 +98,6 @@ import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
 import WallpaperBackground from '~/components/WallpaperBackground.vue'
 import BackToTop from '~/components/BackToTop.vue'
-import UserSettingsModal from '~/components/UserSettingsModal.vue'
 
 const authStore = useAuthStore()
 const bookmarksStore = useBookmarksStore()
@@ -115,7 +111,6 @@ const editingBookmark = ref<any>(null)
 
 const deleteConfirmVisible = ref(false)
 const deletingBookmark = ref<any>(null)
-const showSettings = ref(false)
 
 const searchQuery = ref('')
 const displayBookmarks = computed(() => {
@@ -215,6 +210,13 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* 平板及以下：清除 main-bundle.css 的 margin-left:auto 防止主页被推出视口 */
+@media (max-width: 1024px) {
+  .home-shell > main {
+    margin-left: 0 !important;
+  }
 }
 
 /* 移动端适配 */
