@@ -43,7 +43,7 @@
                 </p>
                 <div v-else class="version-collapse">
                   <!-- vcol-header -->
-                  <div class="vcol-header" @click="versionsExpanded = !versionsExpanded">
+                  <div class="vcol-header" @click.stop="toggleVersions">
                     <div class="vcol-left">
                       <i class="ri-git-commit-line"></i>
                       <span>版本历史</span>
@@ -124,20 +124,23 @@
             <div class="form-row-2col">
               <div class="form-group">
                 <label><i class="ri-folder-line"></i> 文件夹</label>
-                <div class="custom-select" :class="{ open: folderSelectOpen }">
-                  <div class="custom-select-trigger" @click.stop="folderSelectOpen = !folderSelectOpen">
+                <!-- 匹配旧版 #folderSelect .custom-select 结构 -->
+                <div id="folderSelect" class="custom-select" :class="{ open: folderSelectOpen }">
+                  <div class="custom-select-trigger" :class="{ open: folderSelectOpen }" data-select-id="folderSelect" @click.stop="folderSelectOpen = !folderSelectOpen">
                     <span class="selected-text" :class="{ placeholder: !editForm.folder_id }">{{ selectedFolderName }}</span>
                     <i class="ri-arrow-down-s-line arrow"></i>
                   </div>
                   <div class="custom-select-dropdown" :class="{ open: folderSelectOpen }">
-                    <div class="custom-select-option" :class="{ selected: !editForm.folder_id }" @click="editForm.folder_id = null; folderSelectOpen = false">未分类</div>
+                    <div class="custom-select-option" :class="{ selected: !editForm.folder_id }" @click="editForm.folder_id = null; folderSelectOpen = false">
+                      <i class="ri-folder-line folder-icon"></i>未选择文件夹
+                    </div>
                     <div
                       v-for="f in folders"
                       :key="f.id"
                       class="custom-select-option"
                       :class="{ selected: editForm.folder_id === f.id }"
                       @click="editForm.folder_id = f.id; folderSelectOpen = false"
-                    >{{ f.name }}</div>
+                    ><i class="ri-folder-line folder-icon"></i>{{ f.name }}</div>
                   </div>
                 </div>
               </div>
@@ -221,16 +224,33 @@
             <button class="modal-close" @click="showCompare = false"><i class="ri-close-line"></i></button>
           </div>
           <div class="modal-body">
-            <div class="compare-header">
-              <span class="compare-ver">v{{ compareOld?.version_number }}</span>
-              <span>→</span>
-              <span class="compare-ver">v{{ compareNew?.version_number }}</span>
+            <div class="compare-info">
+              <div class="compare-version">
+                <span class="label">旧版本</span>
+                <span class="value">v{{ compareOld?.version_number }}</span>
+                <span class="time">{{ formatTime(compareOld?.created_at) }}</span>
+              </div>
+              <span class="compare-arrow"><i class="ri-arrow-right-line"></i></span>
+              <div class="compare-version">
+                <span class="label">新版本</span>
+                <span class="value">v{{ compareNew?.version_number }}</span>
+                <span class="time">{{ formatTime(compareNew?.created_at) }}</span>
+              </div>
+            </div>
+            <div class="compare-stats">
+              <span class="stat added">+{{ addedCount }} 行</span>
+              <span class="stat removed">-{{ removedCount }} 行</span>
+              <span class="stat same">= {{ sameCount }} 行</span>
             </div>
             <div class="compare-diff">
               <div v-for="(line, i) in diffLines" :key="i" class="diff-line" :class="line.type">
-                <span class="diff-prefix">{{ line.prefix }}</span>{{ line.text }}
+                <span class="diff-line-num">{{ i + 1 }}</span>
+                <span class="diff-line-content"><span class="diff-prefix">{{ line.prefix }}</span>{{ line.text }}</span>
               </div>
             </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click="showCompare = false">关闭</button>
           </div>
         </div>
       </div>
@@ -386,6 +406,10 @@ watch(() => props.viewingPrompt, (p) => {
   }
 })
 
+function toggleVersions() {
+  versionsExpanded.value = !versionsExpanded.value
+}
+
 function toggleCheck(idx: number) {
   const s = new Set(checkedIndices.value)
   if (s.has(idx)) s.delete(idx)
@@ -431,6 +455,10 @@ const showCompare = ref(false)
 const compareOld = ref<any>(null)
 const compareNew = ref<any>(null)
 const diffLines = ref<{ type: string; prefix: string; text: string }[]>([])
+
+const addedCount = computed(() => diffLines.value.filter(l => l.type === 'add').length)
+const removedCount = computed(() => diffLines.value.filter(l => l.type === 'del').length)
+const sameCount = computed(() => diffLines.value.filter(l => l.type === 'same').length)
 
 function openCompare() {
   const indices = [...checkedIndices.value].sort((a, b) => a - b)
@@ -539,83 +567,363 @@ function formatTime(ts?: number) {
 </script>
 
 <style scoped>
-/* Version collapse accordion */
-.version-collapse { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+/* ── Version collapse accordion ── */
+.version-collapse {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+}
+.vcol-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: white;
+}
+.vcol-body.open {
+  max-height: 600px;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 .vcol-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 14px; cursor: pointer; background: #f8f9fa; user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-color);
 }
-.vcol-header:hover { background: #f1f5f9; }
-.vcol-left { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569; }
+.vcol-header:hover { background: rgba(0, 0, 0, 0.04); }
+.vcol-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.vcol-left i {
+  font-size: 16px;
+  color: var(--primary-color);
+}
 .vcol-badge {
-  background: #667eea; color: #fff; font-size: 11px; font-weight: 700;
-  padding: 1px 7px; border-radius: 10px;
+  padding: 2px 8px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
 }
-.vcol-right { display: flex; align-items: center; gap: 8px; }
+.vcol-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .vcol-compare-btn {
-  font-size: 12px; padding: 3px 10px; border-radius: 6px; border: 1px solid #ddd;
-  background: #fff; cursor: pointer; color: #64748b; transition: all 0.15s;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
 }
-.vcol-compare-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.vcol-compare-btn.active { border-color: #667eea; color: #667eea; }
-.vcol-arrow { font-size: 16px; color: #94a3b8; transition: transform 0.2s; }
-.vcol-grid { display: flex; flex-direction: column; }
+.vcol-compare-btn:hover:not(:disabled) {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+.vcol-compare-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(106, 161, 183, 0.25);
+}
+.vcol-compare-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vcol-arrow {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+/* ── 2-column version grid ── */
+.vcol-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 12px;
+}
 .vcol-item {
-  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
-  border-bottom: 1px solid #f1f5f9; transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  transition: all 0.2s;
+  background: white;
 }
-.vcol-item:last-child { border-bottom: none; }
-.vcol-item:hover { background: #f8fafc; }
-.vcol-item.is-cur { background: #f0fdf4; }
-.vcol-cb { width: 14px; height: 14px; cursor: pointer; accent-color: #667eea; flex-shrink: 0; }
-.vcol-label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; font-size: 13px; }
-.vcol-ver { display: flex; align-items: center; gap: 4px; }
+.vcol-item.is-cur {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+.vcol-item:hover:not(.is-cur) {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.vcol-cb {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary-color);
+}
+.vcol-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+}
+.vcol-ver {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .vtag {
-  font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
-  background: #e2e8f0; color: #475569;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
 }
-.vtag.cur { background: #10b981; color: #fff; }
+.vtag.cur {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
 .vtag-cur {
-  font-size: 10px; padding: 1px 5px; border-radius: 4px;
-  background: #d1fae5; color: #065f46; font-weight: 600;
+  padding: 1px 6px;
+  background: var(--secondary-color);
+  color: white;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
-.vcol-time { font-size: 11px; color: #94a3b8; }
-.vcol-size { font-size: 11px; color: #94a3b8; }
-.vcol-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+.vcol-time {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vcol-size {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+.vcol-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 .btn-icon {
-  background: none; border: none; cursor: pointer; padding: 4px 6px;
-  border-radius: 6px; font-size: 14px; color: #64748b; transition: all 0.15s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
 }
-.btn-icon:hover { background: #e2e8f0; color: #334155; }
-.vcol-restore:hover { color: #10b981; background: #d1fae5; }
+.btn-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--primary-color);
+}
+.vcol-view {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+.vcol-restore:hover {
+  color: var(--primary-color);
+  background: var(--primary-light);
+}
 
-/* Version detail modal */
-.version-modal { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 10001; align-items: center; justify-content: center; }
-.version-detail { }
-.version-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+/* ── Version detail modal ── */
+.version-modal {
+  display: flex; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 10001;
+  align-items: center; justify-content: center;
+}
+.version-detail {
+  padding: 16px;
+}
+.version-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
 .version-header h3 { margin: 0; font-size: 15px; }
-.version-time { font-size: 12px; color: #94a3b8; }
+.version-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
 .version-content {
-  background: #f8f9fa; padding: 12px 14px; border-radius: 8px;
-  white-space: pre-wrap; font-size: 13px; line-height: 1.6; max-height: 60vh;
-  overflow-y: auto; border: 1px solid #e2e8f0;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 16px;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid var(--border-color);
 }
 
-/* Compare modal */
-.compare-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 14px; }
-.compare-ver { font-weight: 700; color: #667eea; }
+/* ── Compare modal ── */
+.compare-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+.compare-version {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.compare-version .label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.compare-version .value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+.compare-version .time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.compare-arrow {
+  font-size: 24px;
+  color: var(--text-secondary);
+}
+.compare-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.compare-stats .stat {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.compare-stats .added {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.compare-stats .removed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.compare-stats .same {
+  background: #f3f4f6;
+  color: #6b7280;
+}
 .compare-diff {
-  background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px;
-  font-family: 'Fira Code', monospace; font-size: 12px; line-height: 1.6;
-  max-height: 60vh; overflow-y: auto;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 500px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
 }
-.diff-line { white-space: pre-wrap; }
-.diff-line.add { color: #4ade80; background: rgba(74,222,128,0.08); }
-.diff-line.del { color: #f87171; background: rgba(248,113,113,0.08); }
-.diff-line.same { color: #94a3b8; }
-.diff-prefix { font-weight: 700; margin-right: 4px; }
+.diff-line {
+  display: flex;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.diff-line:last-child { border-bottom: none; }
+.diff-line-num {
+  width: 50px;
+  padding: 4px 8px;
+  text-align: right;
+  color: #9ca3af;
+  background: rgba(0, 0, 0, 0.02);
+  border-right: 1px solid var(--border-color);
+  user-select: none;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+.diff-line-content {
+  flex: 1;
+  padding: 4px 12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.diff-line.add {
+  background: #dcfce7;
+}
+.diff-line.add .diff-line-content {
+  color: #16a34a;
+}
+.diff-line.del {
+  background: #fee2e2;
+}
+.diff-line.del .diff-line-content {
+  color: #dc2626;
+}
+.diff-line.same {
+  color: var(--text-secondary);
+}
+.diff-prefix {
+  font-weight: 700;
+  margin-right: 4px;
+}
 
-/* Edit form grid */
+/* ── Edit form grid ── */
 .edit-form-grid { display: flex; flex-direction: column; gap: 12px; }
 .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .full-width { width: 100%; }
@@ -630,7 +938,7 @@ function formatTime(ts?: number) {
   font-size: 13px !important; line-height: 1.6 !important; tab-size: 2;
 }
 
-/* Tag selector */
+/* ── Tag selector ── */
 .tag-selector {
   position: relative; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   border: 1px solid #ddd; border-radius: 8px; padding: 6px 10px; min-height: 38px;
@@ -654,7 +962,7 @@ function formatTime(ts?: number) {
 }
 .tag-suggestion:hover { background: #f0f0f0; }
 
-/* Icon picker */
+/* ── Icon picker ── */
 .icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .icon-pick-option {
   width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
@@ -664,6 +972,12 @@ function formatTime(ts?: number) {
 .icon-pick-option:hover { border-color: #10b981; color: #10b981; }
 .icon-pick-option.active { border-color: #10b981; background: rgba(16,185,129,0.08); color: #10b981; }
 
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .vcol-grid { grid-template-columns: 1fr; }
+  .compare-info { flex-direction: column; gap: 12px; }
+  .compare-stats { flex-wrap: wrap; }
+}
 @media (max-width: 640px) {
   .form-row-2col { grid-template-columns: 1fr; }
 }
