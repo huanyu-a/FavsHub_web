@@ -82,6 +82,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '用户设置' })
+
 const backgrounds = [
   { value: 'gradient-background-1', label: '渐变1', style: { background: 'linear-gradient(0deg, #e2e8f0 0%, #d6deeb 50%, #cbd5e1 100%)' } },
   { value: 'gradient-background-2', label: '渐变2', style: { background: 'linear-gradient(0deg, #a5f3fc 0%, #b2e7fd 50%, #bfdbfe 100%)' } },

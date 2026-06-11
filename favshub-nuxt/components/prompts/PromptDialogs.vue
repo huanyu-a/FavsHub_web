@@ -301,15 +301,7 @@
           </div>
           <div class="form-group">
             <label>图标（Remix Icon class）</label>
-            <div class="icon-picker-row">
-              <span
-                v-for="ic in folderIcons"
-                :key="ic"
-                class="icon-pick-option"
-                :class="{ active: folderIcon === ic }"
-                @click="$emit('update:folder-icon', ic)"
-              ><i :class="ic"></i></span>
-            </div>
+            <IconPicker :model-value="folderIcon || ''" @update:model-value="$emit('update:folder-icon', $event)" />
           </div>
         </div>
         <div class="modal-footer">
@@ -548,12 +540,7 @@ function selectSuggestion(s: { id: number; name: string; color?: string }) {
   tagSuggestions.value = []
 }
 
-const folderIcons = [
-  'ri-folder-3-line', 'ri-folder-line', 'ri-folder-star-line',
-  'ri-code-s-slash-line', 'ri-quill-pen-line', 'ri-lightbulb-line',
-  'ri-book-open-line', 'ri-chat-3-line', 'ri-image-line',
-  'ri-tools-line', 'ri-database-2-line', 'ri-rocket-line',
-]
+import IconPicker from '~/components/common/IconPicker.vue'
 
 function folderName(id?: string) {
   if (!id) return ''

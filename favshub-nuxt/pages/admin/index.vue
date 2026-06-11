@@ -85,6 +85,8 @@ definePageMeta({
   layout: 'admin',
 })
 
+useHead({ title: '仪表盘' })
+
 interface AdminStats {
   users: number
   bookmarks: number

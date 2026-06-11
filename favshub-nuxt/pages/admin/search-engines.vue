@@ -65,6 +65,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '搜索引擎' })
+
 const engines = ref<any[]>([])
 const loading = ref(false)
 const modalVisible = ref(false)

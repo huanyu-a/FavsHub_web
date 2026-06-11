@@ -153,7 +153,7 @@ interface Bookmark {
   id: number
   title: string
   url: string
-  icon?: string
+  icon?: string | null
 }
 
 interface Prompt {
@@ -414,9 +414,9 @@ const allSuggestions = computed<SuggestionItem[]>(() => {
   const { history, bookmarks, prompts } = getRawResults()
   // 'All' tab: limited preview per type
   const items: SuggestionItem[] = [
-    ...history.slice(0, 5),
     ...bookmarks.slice(0, 8),
     ...prompts.slice(0, 5),
+    ...history.filter(h => h.url).slice(0, 5),
   ]
 
   // Deduplicate by text
@@ -443,7 +443,7 @@ const filteredSuggestions = computed(() => {
   const { history, bookmarks, prompts } = getRawResults()
   const seen = new Set<string>()
   let items: SuggestionItem[] = []
-  if (activeTab.value === 'history') items = history
+  if (activeTab.value === 'history') items = history.filter(h => h.url)
   else if (activeTab.value === 'bookmark') items = bookmarks
   else if (activeTab.value === 'prompt') items = prompts
   return items.filter(item => {

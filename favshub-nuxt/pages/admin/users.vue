@@ -83,6 +83,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '用户管理' })
+
 interface User {
   id: number
   username: string

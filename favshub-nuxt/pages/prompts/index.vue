@@ -233,6 +233,35 @@ import FolderTreeItem from '~/components/sidebar/FolderTreeItem.vue'
 
 definePageMeta({ layout: 'default' })
 
+// Mobile header: show PromptPro action buttons
+const { mobileActionsSlot } = useMobile()
+
+onMounted(() => {
+  mobileActionsSlot.value = () => [
+    // Favorite filter button (uses .btn-favorite class for mobile-responsive CSS)
+    h('button', {
+      class: ['btn-favorite', { active: activeFolderId.value === '_favorites' }],
+      title: '收藏筛选',
+      onClick: () => toggleFavoritesView(),
+    }, [
+      h('i', { class: 'ri-star-line' }),
+      h('span', null, '收藏'),
+    ]),
+    // New prompt button (uses .btn-primary class for mobile-responsive CSS)
+    h('button', {
+      class: 'btn btn-primary',
+      title: '新建提示词',
+      onClick: () => openCreate(),
+    }, [
+      h('i', { class: 'ri-add-line' }),
+      h('span', null, '新建'),
+    ]),
+  ]
+})
+onUnmounted(() => {
+  mobileActionsSlot.value = null
+})
+
 useHead({
   title: 'PromptPro - 提示词管理',
   link: [

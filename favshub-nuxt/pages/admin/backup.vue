@@ -89,6 +89,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '备份管理' })
+
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, frequency: 'daily', keep_count: 7 })
 const backupFiles = ref<any[]>([])

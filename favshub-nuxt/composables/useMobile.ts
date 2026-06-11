@@ -1,27 +1,26 @@
 /**
  * Mobile layout composable — shared state for drawer, overlay, bottom nav
+ * Uses module-level state so all components share the same refs.
  */
-export function useMobile() {
-  const MOBILE_BP = 768
 
-  const isMobile = ref(false)
-  const drawerOpen = ref(false)
-  const searchSheetOpen = ref(false)
+const MOBILE_BP = 768
+
+const isMobile = ref(false)
+const drawerOpen = ref(false)
+const searchSheetOpen = ref(false)
+/** Pages can set this to render extra action buttons in the mobile header */
+const mobileActionsSlot = ref<(() => any) | null>(null)
+
+let initialized = false
+
+function initMobile() {
+  if (initialized || !import.meta.client) return
+  initialized = true
 
   function checkMobile() {
-    if (import.meta.client) {
-      isMobile.value = window.innerWidth <= MOBILE_BP
-    }
+    isMobile.value = window.innerWidth <= MOBILE_BP
   }
 
-  function openDrawer() { drawerOpen.value = true }
-  function closeDrawer() { drawerOpen.value = false }
-  function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
-
-  function openSearchSheet() { searchSheetOpen.value = true }
-  function closeSearchSheet() { searchSheetOpen.value = false }
-
-  // Auto-close drawer on resize above breakpoint
   function onResize() {
     checkMobile()
     if (!isMobile.value) {
@@ -30,16 +29,26 @@ export function useMobile() {
     }
   }
 
-  if (import.meta.client) {
-    checkMobile()
-    window.addEventListener('resize', onResize)
-    onUnmounted(() => window.removeEventListener('resize', onResize))
-  }
+  checkMobile()
+  window.addEventListener('resize', onResize)
+  onUnmounted(() => window.removeEventListener('resize', onResize))
+}
+
+export function useMobile() {
+  initMobile()
+
+  function openDrawer() { drawerOpen.value = true }
+  function closeDrawer() { drawerOpen.value = false }
+  function toggleDrawer() { drawerOpen.value = !drawerOpen.value }
+
+  function openSearchSheet() { searchSheetOpen.value = true }
+  function closeSearchSheet() { searchSheetOpen.value = false }
 
   return {
     isMobile,
     drawerOpen,
     searchSheetOpen,
+    mobileActionsSlot,
     openDrawer,
     closeDrawer,
     toggleDrawer,

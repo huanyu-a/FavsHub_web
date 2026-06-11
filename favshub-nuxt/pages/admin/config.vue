@@ -33,6 +33,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '系统配置' })
+
 const authStore = useAuthStore()
 function getAuthHeaders(): Record<string, string> {
   return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}

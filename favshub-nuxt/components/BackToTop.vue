@@ -30,7 +30,7 @@ function handleScroll() {
     scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
   }
   scrollPercent.value = scrollHeight > 0 ? Math.round((scrollTop / scrollHeight) * 100) : 0
-  showButton.value = scrollTop > 300
+  showButton.value = scrollTop > 50
 }
 
 function scrollToTop() {

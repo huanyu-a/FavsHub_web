@@ -112,9 +112,7 @@
             </select>
           </div>
           <div class="fg"><label>图标</label>
-            <div class="icon-picker-row">
-              <span v-for="ic in folderIcons" :key="ic" class="icon-pick-option" :class="{ active: folderEditForm.icon === ic }" @click="folderEditForm.icon = folderEditForm.icon === ic ? '' : ic"><i :class="ic"></i></span>
-            </div>
+            <IconPicker v-model="folderEditForm.icon" />
           </div>
           <div class="form-btns"><button class="btn btn-ghost" @click="folderEditVisible = false">取消</button><button class="btn btn-primary" @click="saveFolderEdit">保存</button></div>
         </div>
@@ -146,6 +144,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
+useHead({ title: '书签管理' })
+
 const tab = ref('list')
 
 // Bookmark list state
@@ -172,7 +172,7 @@ const collapsedIds = ref(new Set<number>())
 const folderEditVisible = ref(false)
 const folderEditId = ref<number | null>(null)
 const folderEditForm = reactive({ name: '', parent_id: null as number | null, icon: '', user_id: null as number | null })
-const folderIcons = ['ri-folder-3-line', 'ri-folder-line', 'ri-folder-star-line', 'ri-code-s-slash-line', 'ri-quill-pen-line', 'ri-lightbulb-line', 'ri-book-open-line', 'ri-chat-3-line', 'ri-image-line', 'ri-tools-line', 'ri-database-2-line', 'ri-rocket-line']
+import IconPicker from '~/components/common/IconPicker.vue'
 
 // Users list (for create mode)
 const users = ref<any[]>([])

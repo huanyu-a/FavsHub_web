@@ -58,6 +58,7 @@ function closeSidebar() { sidebarOpen.value = false }
 
 // 复用旧框架 admin 样式 + 图标字体
 useHead({
+  titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     { rel: 'stylesheet', href: '/css/admin.css' },
