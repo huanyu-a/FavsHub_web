@@ -9,10 +9,12 @@
       <div class="card info-card">
         <h3>备份信息</h3>
         <div v-if="info" class="info-list">
-          <div class="info-item"><span class="info-label">数据库大小</span><span>{{ info.db_size || '-' }}</span></div>
-          <div class="info-item"><span class="info-label">书签数</span><span>{{ info.bookmarks || 0 }}</span></div>
-          <div class="info-item"><span class="info-label">提示词数</span><span>{{ info.prompts || 0 }}</span></div>
-          <div class="info-item"><span class="info-label">用户数</span><span>{{ info.users || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">数据库大小</span><span>{{ info.dbSizeFormatted || '-' }}</span></div>
+          <div class="info-item"><span class="info-label">最后修改</span><span>{{ formatDate(info.lastModified) }}</span></div>
+          <div class="info-item"><span class="info-label">书签数</span><span>{{ info.stats?.bookmarks || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">提示词数</span><span>{{ info.stats?.prompts || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">用户数</span><span>{{ info.stats?.users || 0 }}</span></div>
+          <div class="info-item"><span class="info-label">文件夹数</span><span>{{ info.stats?.folders || 0 }}</span></div>
         </div>
         <div v-else class="loading-sm">加载中...</div>
       </div>
@@ -27,16 +29,18 @@
           </select>
         </div>
         <div class="form-group">
-          <label>频率</label>
-          <select v-model="schedule.frequency">
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
-          </select>
+          <label>执行时间</label>
+          <div class="time-picker">
+            <input v-model.number="schedule.hour" type="number" min="0" max="23" placeholder="时"> :
+            <input v-model.number="schedule.minute" type="number" min="0" max="59" placeholder="分">
+          </div>
         </div>
         <div class="form-group">
-          <label>保留数量</label>
-          <input v-model.number="schedule.keep_count" type="number" min="1" max="100">
+          <label>保留份数</label>
+          <input v-model.number="schedule.keepCopies" type="number" min="1">
+        </div>
+        <div v-if="schedule.lastBackupDate" class="info-item" style="margin-bottom: 14px;">
+          <span class="info-label">上次备份</span><span>{{ formatDate(schedule.lastBackupDate) }}</span>
         </div>
         <button class="btn btn-primary" @click="saveSchedule">保存计划</button>
       </div>
@@ -72,8 +76,8 @@
         <tbody>
           <tr v-for="file in backupFiles" :key="file.name">
             <td class="filename">{{ file.name }}</td>
-            <td>{{ file.size || '-' }}</td>
-            <td>{{ formatDate(file.created_at) }}</td>
+            <td>{{ file.sizeFormatted || '-' }}</td>
+            <td>{{ formatDate(file.time) }}</td>
             <td>
               <button class="btn btn-ghost btn-sm" @click="downloadFile(file.name)">下载</button>
             </td>
@@ -92,7 +96,7 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '备份管理' })
 
 const info = ref<any>(null)
-const schedule = reactive({ enabled: true, frequency: 'daily', keep_count: 7 })
+const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })
 const backupFiles = ref<any[]>([])
 const backupLoading = ref(false)
 const filesLoading = ref(false)
@@ -202,6 +206,8 @@ td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
 .form-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
 .form-group select:focus,
 .form-group input:focus { border-color: #667eea; }
+.time-picker { display: flex; align-items: center; gap: 6px; }
+.time-picker input { width: 70px; text-align: center; }
 .btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
 .btn-primary { background: #667eea; color: #fff; }
 .btn-primary:hover { background: #5a6fd6; }

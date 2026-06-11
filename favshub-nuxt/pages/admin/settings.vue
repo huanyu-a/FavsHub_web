@@ -61,7 +61,7 @@
           <div class="setting-row">
             <label>卡片宽度</label>
             <input type="range" min="100" max="300" step="10" v-model.number="form.bookmarkWidth" @change="save">
-            <span class="val">{{ form.bookmarkWidth }}px</span>
+            <span class="val">{{ form.bookmarkWidth }}px <em class="estimate">≈{{ cardsPerRow }}个/行</em></span>
           </div>
           <div class="setting-row">
             <label>卡片高度</label>
@@ -121,6 +121,15 @@ const form = reactive<Record<string, any>>({
 function save() {
   settingsStore.setMany({ ...form })
 }
+
+// 每行卡片数量预估（基于 1440px 视口宽度）
+const cardsPerRow = computed(() => {
+  const viewportWidth = 1440
+  const containerPx = viewportWidth * (form.bookmarkContainerWidth || 85) / 100
+  const cardWidth = form.bookmarkWidth || 200
+  const gap = 16
+  return Math.max(1, Math.floor((containerPx + gap) / (cardWidth + gap)))
+})
 </script>
 
 <style scoped>
@@ -141,6 +150,7 @@ function save() {
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
 .setting-row label { font-size: 14px; color: #555; flex: 1; }
 .setting-row .val { font-size: 13px; color: #888; margin-left: 8px; min-width: 40px; text-align: right; }
+.estimate { font-style: normal; color: #10b981; font-size: 12px; margin-left: 4px; }
 .setting-option { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 6px; transition: background 0.2s; }
 .setting-option:hover { background: #f0f2f5; }
 .setting-option span { font-size: 14px; color: #555; }

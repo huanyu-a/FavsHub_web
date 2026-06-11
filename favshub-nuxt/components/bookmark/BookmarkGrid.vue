@@ -80,6 +80,8 @@ const props = defineProps<{
   isLoading?: boolean
   isGuest?: boolean
   bookmarkWidth?: number
+  bookmarkCardHeight?: number
+  bookmarkContainerWidth?: number
   currentFolderId?: number | null
 }>()
 
@@ -113,6 +115,30 @@ function onContextMenu(event: MouseEvent, bookmark: any) {
 watchEffect(() => {
   if (import.meta.client && props.bookmarkWidth) {
     document.documentElement.style.setProperty('--bookmark-width', props.bookmarkWidth + 'px')
+  }
+})
+
+// 卡片高度 → 注入 <style> 覆盖 .card height
+watchEffect(() => {
+  if (import.meta.client && props.bookmarkCardHeight) {
+    let el = document.getElementById('custom-card-height') as HTMLStyleElement | null
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'custom-card-height'
+      document.head.appendChild(el)
+    }
+    el.textContent = `.folder-bookmarks-grid .bookmark-card { height: ${props.bookmarkCardHeight}px !important; }`
+  }
+})
+
+// 容器宽度 → .bookmarks-container 宽度
+watchEffect(() => {
+  if (import.meta.client && props.bookmarkContainerWidth) {
+    const container = document.getElementById('bookmarks-list') as HTMLElement | null
+    if (container) {
+      container.style.width = `${props.bookmarkContainerWidth}%`
+      container.style.margin = '0 auto'
+    }
   }
 })
 

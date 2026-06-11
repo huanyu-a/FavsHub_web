@@ -87,7 +87,7 @@
             <div class="setting-item range-item">
               <label>卡片宽度</label>
               <input type="range" min="100" max="300" step="10" :value="settingsStore.get('bookmarkWidth', 200)" @input="settingsStore.set('bookmarkWidth', Number(($event.target as HTMLInputElement).value))">
-              <span class="range-val">{{ settingsStore.get('bookmarkWidth', 200) }}px</span>
+              <span class="range-val">{{ settingsStore.get('bookmarkWidth', 200) }}px <em class="estimate">≈{{ cardsPerRow }}个/行</em></span>
             </div>
             <div class="setting-item range-item">
               <label>卡片高度</label>
@@ -119,6 +119,15 @@ const tabs = [
   { key: 'layout', label: '布局', icon: 'ri-layout-grid-line' },
 ]
 const activeTab = ref('ui')
+
+// 每行卡片数量预估（基于 1440px 视口宽度）
+const cardsPerRow = computed(() => {
+  const viewportWidth = 1440
+  const containerPx = viewportWidth * (settingsStore.get('bookmarkContainerWidth', 85) as number) / 100
+  const cardWidth = settingsStore.get('bookmarkWidth', 200) as number
+  const gap = 16
+  return Math.max(1, Math.floor((containerPx + gap) / (cardWidth + gap)))
+})
 </script>
 
 <style scoped>
@@ -179,7 +188,8 @@ const activeTab = ref('ui')
 .range-item { flex-direction: column; align-items: flex-start; gap: 8px; }
 .range-item label { font-size: 14px; color: #555; font-weight: 500; }
 .range-item input[type=range] { width: 100%; cursor: pointer; }
-.range-val { font-size: 12px; color: #94a3b8; align-self: flex-end; }
+.range-val { font-size: 12px; color: #94a3b8; align-self: flex-end; display: flex; align-items: center; gap: 4px; }
+.estimate { font-style: normal; color: #10b981; font-size: 12px; }
 
 @media (max-width: 640px) {
   .settings-modal { width: 95%; max-height: 85vh; }

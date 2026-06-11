@@ -22,7 +22,9 @@ export default defineEventHandler(async (event) => {
       return {
         name: f,
         size: stat.size,
-        sizeFormatted: (stat.size / 1024).toFixed(1) + ' KB',
+        sizeFormatted: stat.size > 1024 * 1024
+          ? (stat.size / 1024 / 1024).toFixed(2) + ' MB'
+          : (stat.size / 1024).toFixed(1) + ' KB',
         time: stat.mtime.toISOString(),
         type: f.startsWith('manual-') ? 'manual' : 'auto'
       }

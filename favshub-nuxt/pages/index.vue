@@ -41,6 +41,8 @@
         :is-loading="bookmarksStore.isLoading"
         :is-guest="authStore.isGuest"
         :bookmark-width="settingsStore.get('bookmarkWidth', 200)"
+        :bookmark-card-height="settingsStore.get('bookmarkCardHeight', 50)"
+        :bookmark-container-width="settingsStore.get('bookmarkContainerWidth', 85)"
         @edit="openEditDialog"
         @delete="confirmDelete"
         @reorder="handleReorder"

@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   if (enabled !== undefined) schedule.enabled = !!enabled
   if (hour !== undefined) schedule.hour = Math.max(0, Math.min(23, parseInt(hour) || 0))
   if (minute !== undefined) schedule.minute = Math.max(0, Math.min(59, parseInt(minute) || 0))
-  if (keepCopies !== undefined) schedule.keepCopies = Math.max(1, Math.min(30, parseInt(keepCopies) || 7))
+  if (keepCopies !== undefined) schedule.keepCopies = Math.max(1, parseInt(keepCopies) || 7)
 
   saveConfig(schedule)
 
