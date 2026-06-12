@@ -1,6 +1,6 @@
 /**
- * JWT 工具 — 移植自 wwwroot/server/middleware/auth.js
- * 密钥兼容旧系统：环境变量 → 持久化文件 → 自动生成
+ * JWT 工具
+ * 密钥来源：环境变量 → 持久化文件 → 自动生成
  */
 import jwt from 'jsonwebtoken'
 import { randomBytes } from 'node:crypto'

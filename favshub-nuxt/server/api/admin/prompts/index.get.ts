@@ -1,22 +1,34 @@
 /**
- * GET /api/admin/prompts — 获取所有提示词（管理员视图）
+ * GET /api/admin/prompts — 管理后台提示词列表
+ * 管理员：全部
+ * 普通用户：仅自己的
  */
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  const user = requireAuth(event)
   const db = getRawDb()
 
-  const prompts = db.prepare(`
-    SELECT p.*, u.username, pf.name as folder_name
-    FROM prompts p
-    LEFT JOIN users u ON p.user_id = u.id
-    LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
-    ORDER BY p.updated_at DESC
-  `).all() as any[]
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
-  // 附加标签（批量查询，避免 N+1）
+  const prompts = isAdmin
+    ? db.prepare(`
+        SELECT p.*, u.username, pf.name as folder_name
+        FROM prompts p LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
+        ORDER BY p.updated_at DESC
+      `).all() as any[]
+    : db.prepare(`
+        SELECT p.*, u.username, pf.name as folder_name
+        FROM prompts p LEFT JOIN users u ON p.user_id = u.id
+        LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
+        WHERE p.user_id = ?
+        ORDER BY p.updated_at DESC
+      `).all(user.id) as any[]
+
+  // 附加标签
   if (prompts.length > 0) {
     const promptIds = prompts.map(p => p.id)
     const placeholders = promptIds.map(() => '?').join(',')
@@ -31,14 +43,10 @@ export default defineEventHandler(async (event) => {
       if (!tagsByPromptId[tag.prompt_id]) tagsByPromptId[tag.prompt_id] = []
       tagsByPromptId[tag.prompt_id].push(tag.name)
     }
-    for (const p of prompts) {
-      p.tags = tagsByPromptId[p.id] || []
-    }
+    for (const p of prompts) { p.tags = tagsByPromptId[p.id] || [] }
   } else {
-    for (const p of prompts) {
-      p.tags = []
-    }
+    for (const p of prompts) { p.tags = [] }
   }
 
-  return { prompts }
+  return { prompts, isAdmin }
 })

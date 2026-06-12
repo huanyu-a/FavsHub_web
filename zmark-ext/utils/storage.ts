@@ -15,7 +15,7 @@ export const languageStorage = storage.defineItem<AppLanguage>('local:LANGUAGE',
 });
 
 // FavsHub 用户信息
-export const userInfoStorage = storage.defineItem<{ id: number; username: string; email?: string }>('local:USER_INFO', {
+export const userInfoStorage = storage.defineItem<{ id: number; username: string; email?: string; is_admin?: boolean }>('local:USER_INFO', {
   fallback: null,
 });
 

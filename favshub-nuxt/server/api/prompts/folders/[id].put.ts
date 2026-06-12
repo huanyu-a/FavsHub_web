@@ -1,25 +1,21 @@
 /**
  * PUT /api/prompts/folders/:id — 更新提示词文件夹
- * Body: { name?, parent_id?, icon? }
+ * 普通用户禁止修改，仅管理员可操作
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  requireAdmin(event)
   const { id } = getRouterParams(event)
   const body = await readBody(event)
   const { name, parent_id, icon } = body || {}
 
   const db = getRawDb()
 
-  // 验证归属
   const folder = db.prepare('SELECT * FROM prompt_folders WHERE id = ?').get(id) as any
   if (!folder) {
     throw createError({ statusCode: 404, data: { error: '文件夹不存在' } })
-  }
-  if (folder.user_id !== user.id) {
-    throw createError({ statusCode: 403, data: { error: '无权修改此文件夹' } })
   }
 
   const updates: string[] = []

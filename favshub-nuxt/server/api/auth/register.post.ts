@@ -1,6 +1,5 @@
 /**
  * POST /api/auth/register — 注册
- * 移植自 wwwroot/server/routes/auth.js
  */
 import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
@@ -31,6 +30,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getRawDb()
+
+  // 检查是否允许注册
+  const settingRow = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
+  const sysSettings = settingRow ? JSON.parse(settingRow.data) : {}
+  if (sysSettings.allow_registration === false) {
+    throw createError({ statusCode: 403, data: { error: '注册功能已关闭，请联系管理员' } })
+  }
 
   // 检查用户名是否已存在（模糊错误信息防止用户名枚举）
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username)
@@ -65,6 +71,6 @@ export default defineEventHandler(async (event) => {
 
   return {
     token,
-    user: { id: userId, username, email: email || null, nickname: nickname || '' },
+    user: { id: userId, username, email: email || null, nickname: nickname || '', is_admin: !!isAdmin },
   }
 })

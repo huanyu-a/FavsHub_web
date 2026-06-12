@@ -1,8 +1,8 @@
 /**
  * GET /api/prompts — 获取提示词列表
- * 复刻旧版 wwwroot/server/routes/prompts.js GET /
  * 游客：管理员的公开 prompts
- * 登录用户：自己的 + 管理员的公开
+ * 管理员：全部
+ * 普通登录用户：自己的 + 管理员公开的
  * Query: folder_id, tag_ids (逗号分隔), search, favorites, limit
  */
 import { getRawDb } from '../../database'
@@ -15,17 +15,25 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // ── 可见性条件（与旧版一致） ──────────────────────────────────
+  // ── 可见性条件 ──────────────────────────────────────────────
+  // 管理员：看全部
+  // 普通登录用户：自己的 + 管理员公开的
+  // 游客：管理员的公开提示词
   let visibilityClause: string
   const visParams: any[] = []
   if (user) {
-    visibilityClause = '(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))'
-    visParams.push(user.id)
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (dbUser?.is_admin) {
+      visibilityClause = '1=1'
+    } else {
+      visibilityClause = `(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
+      visParams.push(user.id)
+    }
   } else {
     visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
   }
 
-  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name（与旧版一致）
+  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
   let sql = `SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE ${visibilityClause}`
   const params: any[] = [...visParams]
 
@@ -40,7 +48,7 @@ export default defineEventHandler(async (event) => {
     sql += ' AND p.is_favorite = 1'
   }
 
-  // ── 多关键词搜索（复刻旧版 OR 逻辑） ──────────────────────
+  // ── 多关键词搜索（OR 逻辑） ─────────────────────────────────
   // 每个关键词独立一组：(title LIKE ? OR description LIKE ? OR content LIKE ? OR tag子查询)
   // 多个关键词之间 OR 连接
   if (search && typeof search === 'string') {
@@ -72,7 +80,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // ── 排序：更新时间降序（与旧版一致） ──────────────────────
+  // ── 排序：更新时间降序 ─────────────────────────────────────
   sql += ' ORDER BY p.updated_at DESC'
 
   // ── limit 参数 ──────────────────────────────────────────────
@@ -85,7 +93,7 @@ export default defineEventHandler(async (event) => {
 
   const prompts = db.prepare(sql).all(...params) as any[]
 
-  // ── 批量获取标签（避免 N+1，与旧版一致） ──────────────────
+  // ── 批量获取标签（避免 N+1）────────────────────────────────
   if (prompts.length > 0) {
     const promptIds = prompts.map(p => p.id)
     const placeholders = promptIds.map(() => '?').join(',')

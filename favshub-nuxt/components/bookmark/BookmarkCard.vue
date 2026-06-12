@@ -168,7 +168,7 @@ onMounted(() => {
 
 <style scoped>
 /* .bookmark-card / .card / .favicon / .card-content / .card-title 全部来自 main-bundle.css。
-   下面仅补充新框架特有的编辑/删除按钮（旧版无此控件），不覆盖旧版布局。 */
+   下面仅补充编辑/删除按钮样式。 */
 .bookmark-card { position: relative; }
 
 .card-favicon-img {

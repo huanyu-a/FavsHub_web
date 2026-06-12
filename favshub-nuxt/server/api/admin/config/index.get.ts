@@ -2,6 +2,7 @@
  * GET /api/admin/config — 读取系统配置
  */
 import { requireAuth } from '../../../utils/auth'
+import { getRawDb } from '../../../database'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
@@ -10,6 +11,11 @@ export default defineEventHandler(async (event) => {
 
   const adminUsers = (config.adminUsers || '').split(',').map((u: string) => u.trim()).filter(Boolean)
   const dbPath = config.dbPath || join(process.cwd(), 'data', 'favshub.db')
+
+  // 读取系统级设置（user_id = 0）
+  const db = getRawDb()
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
+  const systemData = row ? JSON.parse(row.data) : {}
 
   return {
     adminUsers,
@@ -20,6 +26,7 @@ export default defineEventHandler(async (event) => {
     platform: process.platform,
     corsOrigin: config.corsOrigin || '*',
     uptime: formatUptime(process.uptime()),
+    systemData,
   }
 })
 

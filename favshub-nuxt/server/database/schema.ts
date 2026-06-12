@@ -1,6 +1,5 @@
 /**
  * Drizzle ORM Schema — 完整映射 FavsHub SQLite 数据库的 10 张表
- * 与 wwwroot/server/db.js 中的表结构完全一致（含所有迁移列）
  */
 import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 
@@ -130,6 +129,7 @@ export const settings = sqliteTable('settings', {
 // ─── search_engines ───────────────────────────────────────────
 export const searchEngines = sqliteTable('search_engines', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').default(0),
   name: text('name').notNull(),
   label: text('label'),
   url: text('url').notNull(),

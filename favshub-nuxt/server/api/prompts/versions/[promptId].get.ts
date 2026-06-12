@@ -16,13 +16,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
   }
 
-  // 可见性检查
-  if (prompt.login_required && !user) {
-    throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
-  }
-  if (prompt.login_required && user && user.id !== prompt.user_id) {
-    const isAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-    if (!isAdmin?.is_admin) {
+  // 可见性检查：普通用户只能查看自己提示词的版本
+  if (user) {
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (!dbUser?.is_admin && prompt.user_id !== user.id) {
+      throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
+    }
+  } else {
+    const isOwnerAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as { is_admin: number } | undefined
+    if (!isOwnerAdmin?.is_admin || prompt.login_required) {
       throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
     }
   }

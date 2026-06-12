@@ -16,21 +16,23 @@ export default defineEventHandler(async (event) => {
   }
 
   // 可见性检查
-  if (prompt.login_required) {
-    // 非公开提示词：仅本人和管理员可见
-    if (!user) {
+  // 管理员：全部
+  // 普通用户：自己的 + 管理员公开的
+  // 游客：管理员的公开提示词
+  const isOwnerAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as { is_admin: number } | undefined
+  if (user) {
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (dbUser?.is_admin) {
+      // 管理员可以看全部
+    } else if (prompt.user_id === user.id) {
+      // 自己的
+    } else if (isOwnerAdmin?.is_admin && !prompt.login_required) {
+      // 管理员公开的
+    } else {
       throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
     }
-    if (user.id !== prompt.user_id) {
-      const adminCheck = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-      if (!adminCheck?.is_admin) {
-        throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
-      }
-    }
-  } else if (!user) {
-    // 游客只能看管理员的公开提示词
-    const isOwnerAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as { is_admin: number } | undefined
-    if (!isOwnerAdmin?.is_admin) {
+  } else {
+    if (!isOwnerAdmin?.is_admin || prompt.login_required) {
       throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
     }
   }

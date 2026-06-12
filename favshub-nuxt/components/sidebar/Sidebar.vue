@@ -76,13 +76,13 @@
               </template>
               <!-- 文件夹右键菜单 -->
               <template v-else>
-                <div class="folder-context-item" @click="renameFolder(folderMenu.folder!)">
+                <div v-if="authStore.isAdmin" class="folder-context-item" @click="renameFolder(folderMenu.folder!)">
                   <i class="ri-edit-line"></i> 重命名
                 </div>
                 <div class="folder-context-item" @click="createSubFolder(folderMenu.folder!)">
                   <i class="ri-folder-add-line"></i> 新建子文件夹
                 </div>
-                <div class="folder-context-item danger" @click="deleteFolder(folderMenu.folder!)">
+                <div v-if="authStore.isAdmin" class="folder-context-item danger" @click="deleteFolder(folderMenu.folder!)">
                   <i class="ri-delete-bin-line"></i> 删除
                 </div>
               </template>
@@ -161,7 +161,7 @@ const isDark = computed(() =>
   (uiStore.theme === 'auto' && import.meta.client && window.matchMedia('(prefers-color-scheme: dark)').matches)
 )
 
-// 文件夹图标按名称哈希选取（匹配旧版逻辑）
+// 文件夹图标按名称哈希选取
 function folderIcon(name: string) {
   const iconList = ['ri-folder-line', 'ri-folder-2-line', 'ri-folder-3-line', 'ri-folder-4-line', 'ri-bookmark-line', 'ri-star-line']
   let h = 0

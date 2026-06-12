@@ -1,6 +1,5 @@
 /**
  * GET /api/auth/me — 获取当前用户信息
- * 移植自 wwwroot/server/routes/auth.js
  */
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
@@ -20,5 +19,5 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, data: { error: '用户不存在' } })
   }
 
-  return { user }
+  return { user: { ...user, is_admin: !!user.is_admin } }
 })

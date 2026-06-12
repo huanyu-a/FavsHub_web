@@ -2,12 +2,12 @@
   <div class="admin-page">
     <header class="page-header">
       <h2>管理后台</h2>
-      <p>系统概览与快捷操作</p>
+      <p>欢迎回来，{{ authStore.user?.nickname || authStore.user?.username || '用户' }}！{{ isAdmin ? '（管理员）' : '' }}</p>
     </header>
 
     <div v-if="isLoading" class="empty-state">加载中...</div>
     <template v-else>
-      <!-- 统计分组卡片（复刻旧版8指标） -->
+      <!-- 统计分组卡片 -->
       <div class="stats-groups">
         <div class="stat-group">
           <h4 class="stat-group-title"><i class="ri-settings-4-line"></i> 系统</h4>
@@ -38,6 +38,35 @@
           <div class="stat-group-items">
             <div class="stat-group-item"><span class="sgi-label">注册用户</span><span class="sgi-value green">{{ stats.users }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">管理员</span><span class="sgi-value">{{ stats.adminUsers || 0 }}</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据导出 -->
+      <div class="export-section">
+        <h3 class="settings-section-title">数据导出</h3>
+        <div class="export-cards">
+          <div class="export-card">
+            <div class="export-card-header">
+              <i class="ri-bookmark-line"></i>
+              <span>书签导出</span>
+            </div>
+            <div class="export-card-body">
+              <button v-if="isAdmin" class="btn btn-primary btn-sm" @click="exportAdminBookmarks">📥 导出全部书签</button>
+              <button class="btn btn-ghost btn-sm" @click="exportMyBookmarks">📥 导出我的书签</button>
+              <p class="export-hint">Netscape HTML 格式，兼容浏览器导入</p>
+            </div>
+          </div>
+          <div class="export-card">
+            <div class="export-card-header">
+              <i class="ri-chat-quote-line"></i>
+              <span>提示词导出</span>
+            </div>
+            <div class="export-card-body">
+              <button v-if="isAdmin" class="btn btn-primary btn-sm" @click="exportAdminPrompts">📥 导出全部提示词</button>
+              <button class="btn btn-ghost btn-sm" @click="exportMyPrompts">📥 导出我的提示词</button>
+              <p class="export-hint">JSON 格式，包含标签和文件夹</p>
+            </div>
           </div>
         </div>
       </div>
@@ -112,6 +141,56 @@ const stats = computed(() => {
   const d = data.value as any
   return d || { users: 0, bookmarks: 0, prompts: 0, folders: 0 }
 })
+
+// ── 数据导出 ──
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename
+  document.body.appendChild(a); a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+async function exportAdminBookmarks() {
+  try {
+    const blob = await $fetch('/api/admin/bookmarks/export', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, `favshub-bookmarks-all-${Date.now()}.html`)
+  } catch { alert('导出失败') }
+}
+
+async function exportMyBookmarks() {
+  try {
+    const blob = await $fetch('/api/bookmarks/export', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, `favshub-bookmarks-${Date.now()}.html`)
+  } catch { alert('导出失败') }
+}
+
+async function exportAdminPrompts() {
+  try {
+    const blob = await $fetch('/api/prompts/export?all=1', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, `favshub-prompts-all-${Date.now()}.json`)
+  } catch { alert('导出失败') }
+}
+
+async function exportMyPrompts() {
+  try {
+    const blob = await $fetch('/api/prompts/export', {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, `favshub-prompts-${Date.now()}.json`)
+  } catch { alert('导出失败') }
+}
 </script>
 
 <style scoped>
@@ -160,6 +239,49 @@ const stats = computed(() => {
 .sgi-value.green { color: #10b981; }
 .sgi-value.purple { color: #764ba2; }
 .sgi-value.orange { color: #f59e0b; }
+/* 数据导出区域 */
+.export-section { margin-bottom: 28px; }
+.export-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.export-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.export-card-header {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+.export-card-header i { color: #667eea; font-size: 18px; }
+.export-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.export-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #999;
+}
+.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
+.btn-primary { background: #667eea; color: #fff; }
+.btn-primary:hover { background: #5a6fd6; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
+.btn-ghost:hover { background: #f5f5f5; }
+
 .admin-nav { margin-bottom: 32px; }
 .nav-grid {
   display: grid;

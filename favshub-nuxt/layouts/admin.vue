@@ -40,6 +40,13 @@
         </NuxtLink>
       </nav>
       <div class="admin-sidebar-footer">
+        <div class="user-info" @click="showProfile = true" title="点击修改个人信息">
+          <div class="user-avatar">{{ (authStore.user?.username || 'U')[0].toUpperCase() }}</div>
+          <div class="user-details">
+            <span class="user-name">{{ authStore.user?.nickname || authStore.user?.username || '未知用户' }}</span>
+            <span class="user-role">{{ isAdmin ? '管理员' : '普通用户' }}</span>
+          </div>
+        </div>
         <NuxtLink to="/" class="nav-item">
           <i class="ri-arrow-left-line"></i><span>返回前台</span>
         </NuxtLink>
@@ -48,6 +55,46 @@
     <main class="admin-main">
       <slot />
     </main>
+
+    <!-- 个人信息编辑弹窗 -->
+    <Teleport to="body">
+      <div v-if="showProfile" class="profile-overlay" @click.self="showProfile = false">
+        <div class="profile-modal">
+          <div class="profile-header">
+            <h3>个人信息</h3>
+            <button class="profile-close" @click="showProfile = false">&times;</button>
+          </div>
+          <div class="profile-body">
+            <div v-if="profileMsg" :class="['profile-msg', profileMsgType]">{{ profileMsg }}</div>
+            <div class="profile-field">
+              <label>用户名</label>
+              <input :value="authStore.user?.username" disabled class="profile-input disabled">
+            </div>
+            <div class="profile-field">
+              <label>昵称</label>
+              <input v-model="profileForm.nickname" class="profile-input" placeholder="设置昵称">
+            </div>
+            <div class="profile-field">
+              <label>邮箱</label>
+              <input v-model="profileForm.email" type="email" class="profile-input" placeholder="your@email.com">
+            </div>
+            <div class="profile-divider"><span>修改密码（可选）</span></div>
+            <div class="profile-field">
+              <label>旧密码</label>
+              <input v-model="profileForm.old_password" type="password" class="profile-input" placeholder="输入旧密码">
+            </div>
+            <div class="profile-field">
+              <label>新密码</label>
+              <input v-model="profileForm.password" type="password" class="profile-input" placeholder="至少 6 位">
+            </div>
+            <div class="profile-actions">
+              <button class="btn-cancel" @click="showProfile = false">取消</button>
+              <button class="btn-save" :disabled="profileSaving" @click="saveProfile">{{ profileSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -58,7 +105,60 @@ const isAdmin = computed(() => authStore.isAdmin)
 const sidebarOpen = ref(false)
 function closeSidebar() { sidebarOpen.value = false }
 
-// 复用旧框架 admin 样式 + 图标字体
+// ── 个人信息编辑 ──────────────────────────────────────────────
+const showProfile = ref(false)
+const profileSaving = ref(false)
+const profileMsg = ref('')
+const profileMsgType = ref<'success' | 'error'>('success')
+const profileForm = reactive({
+  nickname: '',
+  email: '',
+  old_password: '',
+  password: '',
+})
+
+// 打开弹窗时填充当前值
+watch(showProfile, (val) => {
+  if (val) {
+    profileForm.nickname = authStore.user?.nickname || ''
+    profileForm.email = authStore.user?.email || ''
+    profileForm.old_password = ''
+    profileForm.password = ''
+    profileMsg.value = ''
+  }
+})
+
+async function saveProfile() {
+  profileSaving.value = true
+  profileMsg.value = ''
+  try {
+    const body: any = {
+      nickname: profileForm.nickname,
+      email: profileForm.email || null,
+    }
+    // 仅在填写了新密码时才提交密码字段
+    if (profileForm.password) {
+      body.old_password = profileForm.old_password
+      body.password = profileForm.password
+    }
+    const res = await $fetch<{ user: any }>('/api/auth/profile', { method: 'PUT', body })
+    // 更新 store 中的用户信息
+    if (res.user) {
+      authStore.$patch({ user: res.user })
+    }
+    profileMsg.value = '保存成功'
+    profileMsgType.value = 'success'
+    profileForm.old_password = ''
+    profileForm.password = ''
+    setTimeout(() => { showProfile.value = false }, 800)
+  } catch (err: any) {
+    profileMsg.value = err?.data?.error || err?.message || '保存失败'
+    profileMsgType.value = 'error'
+  } finally {
+    profileSaving.value = false
+  }
+}
+
 useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
@@ -124,6 +224,49 @@ useHead({
   padding: 16px 24px;
   border-top: 1px solid rgba(255,255,255,0.1);
 }
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.user-info:hover {
+  background: rgba(255,255,255,0.08);
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-role {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
 .admin-sidebar-footer .nav-item {
   padding: 0;
   color: rgba(255,255,255,0.5);
@@ -154,6 +297,139 @@ useHead({
 }
 .hamburger:active { background: rgba(255,255,255,0.1); }
 .hamburger svg { width: 22px; height: 22px; }
+
+/* ── Profile Dialog ── */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.profile-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+.profile-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #888;
+  padding: 0 4px;
+}
+.profile-body {
+  padding: 20px;
+}
+.profile-field {
+  margin-bottom: 14px;
+}
+.profile-field label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+}
+.profile-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.profile-input:focus {
+  border-color: #667eea;
+}
+.profile-input.disabled {
+  background: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+}
+.profile-divider {
+  text-align: center;
+  margin: 16px 0 12px;
+  position: relative;
+}
+.profile-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid #eee;
+}
+.profile-divider span {
+  background: #fff;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #999;
+  position: relative;
+}
+.profile-msg {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.profile-msg.success {
+  background: #d1fae5;
+  color: #065f46;
+}
+.profile-msg.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-save {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* ── Mobile responsive ── */
 @media (max-width: 768px) {

@@ -1,16 +1,19 @@
 /**
- * GET /api/admin/bookmarks — 获取所有书签（管理员视图）
- * 支持 ?q= 搜索标题, ?url= 搜索URL, ?folder_id= 按文件夹筛选
- * 支持 ?page=&limit= 分页
+ * GET /api/admin/bookmarks — 管理后台书签列表
+ * 管理员：全部书签
+ * 普通用户：仅自己的书签
  */
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  const user = requireAuth(event)
   const db = getRawDb()
   const query = getQuery(event)
+
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const q = typeof query.q === 'string' ? query.q.trim() : ''
   const url = typeof query.url === 'string' ? query.url.trim() : ''
@@ -20,6 +23,12 @@ export default defineEventHandler(async (event) => {
 
   const conditions: string[] = []
   const params: any[] = []
+
+  // 普通用户只看自己的书签
+  if (!isAdmin) {
+    conditions.push('b.user_id = ?')
+    params.push(user.id)
+  }
 
   if (q) {
     conditions.push('b.title LIKE ?')
@@ -40,26 +49,36 @@ export default defineEventHandler(async (event) => {
 
   const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
 
-  // 获取总数
   const countResult = db.prepare(`
-    SELECT COUNT(*) as total
-    FROM bookmarks b
-    ${where}
+    SELECT COUNT(*) as total FROM bookmarks b ${where}
   `).get(...params) as { total: number }
-
   const total = countResult.total
 
-  // 获取分页数据
   const offset = (page - 1) * limit
-  let bookmarks: any[] = db.prepare(`
+  const bookmarks = db.prepare(`
     SELECT b.*, f.name as folder_name, u.username
     FROM bookmarks b
     LEFT JOIN folders f ON b.folder_id = f.id
     LEFT JOIN users u ON b.user_id = u.id
     ${where}
-    ORDER BY b.user_id, b.folder_id, b.sort_order
+    ORDER BY b.folder_id, b.sort_order
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset)
 
-  return { bookmarks, total, page, limit }
+  // 文件夹：所有人都能看到（管理员的文件夹对普通用户只读，前端控制）
+  const folders = isAdmin
+    ? db.prepare(`
+        SELECT f.*, u.username,
+          (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
+        FROM folders f LEFT JOIN users u ON f.user_id = u.id
+        ORDER BY f.name
+      `).all()
+    : db.prepare(`
+        SELECT f.*, u.username,
+          (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id AND user_id = ?) as bookmark_count
+        FROM folders f LEFT JOIN users u ON f.user_id = u.id
+        ORDER BY f.name
+      `).all(user.id)
+
+  return { bookmarks, folders, total, page, limit, isAdmin }
 })

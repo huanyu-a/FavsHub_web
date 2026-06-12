@@ -62,14 +62,16 @@
             <input v-model="editForm.username" type="text">
           </div>
           <div class="form-group">
+            <label>昵称</label>
+            <input v-model="editForm.nickname" type="text" placeholder="可选">
+          </div>
+          <div class="form-group">
             <label>邮箱</label>
             <input v-model="editForm.email" type="email">
           </div>
-          <div class="form-group">
-            <label>
-              <input type="checkbox" v-model="editForm.is_admin">
-              管理员权限
-            </label>
+          <div class="form-group toggle-row">
+            <label>管理员权限</label>
+            <label class="switch"><input type="checkbox" v-model="editForm.is_admin"><span class="slider round"></span></label>
           </div>
           <div class="form-buttons">
             <button class="btn btn-ghost" @click="editingUser = null">取消</button>
@@ -104,7 +106,7 @@ const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>(
 const users = computed(() => data.value?.users || [])
 const searchQuery = ref('')
 const editingUser = ref<User | null>(null)
-const editForm = reactive({ username: '', email: '', is_admin: false })
+const editForm = reactive({ username: '', nickname: '', email: '', is_admin: false })
 
 const filteredUsers = computed(() => {
   if (!searchQuery.value) return users.value
@@ -115,6 +117,7 @@ const filteredUsers = computed(() => {
 function openEdit(user: User) {
   editingUser.value = user
   editForm.username = user.username
+  editForm.nickname = user.nickname || ''
   editForm.email = user.email || ''
   editForm.is_admin = !!user.is_admin
 }
@@ -123,7 +126,7 @@ async function saveUser() {
   if (!editingUser.value) return
   await $fetch(`/api/admin/users/${editingUser.value.id}`, {
     method: 'PUT',
-    body: { username: editForm.username, email: editForm.email, is_admin: editForm.is_admin ? 1 : 0 },
+    body: { username: editForm.username, nickname: editForm.nickname, email: editForm.email, is_admin: editForm.is_admin ? 1 : 0 },
   })
   editingUser.value = null
   await refresh()
@@ -185,7 +188,14 @@ tr:hover { background: #fafafa; }
 .form-group input[type="email"] { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
 .form-group input[type="text"]:focus,
 .form-group input[type="email"]:focus { border-color: #667eea; }
-.form-group input[type="checkbox"] { margin-right: 6px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.toggle-row > label:first-child { margin-bottom: 0; font-size: 13px; color: #666; }
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: #ccc; border-radius: 34px; cursor: pointer; transition: .4s; }
+.slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 4px; bottom: 4px; background: #fff; border-radius: 50%; transition: .4s; }
+.switch input:checked + .slider { background: #10b981; }
+.switch input:checked + .slider:before { transform: translateX(16px); }
 .form-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .loading { text-align: center; padding: 60px; color: #999; }
 .empty-state { text-align: center; padding: 40px; color: #888; }

@@ -1,5 +1,5 @@
 /**
- * 数据库迁移逻辑 — 完整移植自 wwwroot/server/db.js
+ * 数据库迁移逻辑
  * 包含：表创建、增量迁移（ensureColumn）、索引、系统用户、默认搜索引擎
  */
 import type Database from 'better-sqlite3'
@@ -146,6 +146,7 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''")
   ensureColumn(db, 'bookmarks', 'login_required', 'ALTER TABLE bookmarks ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'prompts', 'login_required', 'ALTER TABLE prompts ADD COLUMN login_required INTEGER DEFAULT 0')
+  ensureColumn(db, 'search_engines', 'user_id', "ALTER TABLE search_engines ADD COLUMN user_id INTEGER DEFAULT 0")
 }
 
 /**

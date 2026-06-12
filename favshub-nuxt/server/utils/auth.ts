@@ -1,6 +1,5 @@
 /**
  * 服务端认证中间件 — Nuxt/H3 event-based
- * 移植自 wwwroot/server/middleware/auth.js + admin.js
  */
 import type { H3Event } from 'h3'
 import { getHeader, getCookie, createError } from 'h3'

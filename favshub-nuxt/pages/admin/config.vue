@@ -26,6 +26,19 @@
           <div class="fg"><label>网站关键词</label><input v-model="tdk.keywords" placeholder="书签管理,提示词,AI,收藏夹" @input="saveTdk"><small>多个关键词用英文逗号分隔</small></div>
         </div>
       </div>
+
+      <div v-if="isAdmin" class="card">
+        <div class="card-header"><h3>系统设置</h3></div>
+        <div style="padding:20px;">
+          <div class="toggle-row">
+            <label>允许用户注册</label>
+            <label class="switch">
+              <input type="checkbox" v-model="sysSettings.allow_registration" @change="saveSysSettings">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -56,6 +69,21 @@ watchEffect(() => {
   }
 })
 
+const sysSettings = reactive({ allow_registration: true })
+let sysTimer: any = null
+function saveSysSettings() {
+  clearTimeout(sysTimer)
+  sysTimer = setTimeout(async () => {
+    try {
+      await $fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: { data: { allow_registration: sysSettings.allow_registration } }
+      })
+    } catch (e) { console.error('保存系统设置失败', e) }
+  }, 300)
+}
+
 const tdk = reactive({ title: '', description: '', keywords: '' })
 let tdkTimer: any = null
 function saveTdk() {
@@ -75,6 +103,12 @@ onMounted(async () => {
   try {
     const d = await $fetch<any>('/api/tdk')
     Object.assign(tdk, { title: d.title || '', description: d.description || '', keywords: d.keywords || '' })
+  } catch {}
+  try {
+    const d = await $fetch<any>('/api/admin/config', { headers: getAuthHeaders() })
+    if (d.systemData) {
+      sysSettings.allow_registration = d.systemData.allow_registration !== false
+    }
   } catch {}
 })
 </script>
@@ -98,4 +132,12 @@ onMounted(async () => {
 .fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
 .fg input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
 .fg small { font-size: 11px; color: #94a3b8; display: block; margin-top: 2px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.toggle-row > label:first-child { margin-bottom: 0; font-size: 13px; color: #666; }
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: #ccc; border-radius: 34px; cursor: pointer; transition: .4s; }
+.slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 4px; bottom: 4px; background: #fff; border-radius: 50%; transition: .4s; }
+.switch input:checked + .slider { background: #10b981; }
+.switch input:checked + .slider:before { transform: translateX(16px); }
 </style>

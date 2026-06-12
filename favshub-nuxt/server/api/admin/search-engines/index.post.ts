@@ -6,7 +6,7 @@ import { requireAuth } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  const user = requireAuth(event)
   const db = getRawDb()
 
   const body = await readBody(event)
@@ -18,9 +18,10 @@ export default defineEventHandler(async (event) => {
 
   const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM search_engines').get() as any
   const result = db.prepare(`
-    INSERT INTO search_engines (name, label, url, icon, category, sort_order, is_default)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO search_engines (user_id, name, label, url, icon, category, sort_order, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    user.id,
     name,
     label || name,
     url,

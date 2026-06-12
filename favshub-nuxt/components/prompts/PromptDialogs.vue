@@ -124,7 +124,7 @@
             <div class="form-row-2col">
               <div class="form-group">
                 <label><i class="ri-folder-line"></i> 文件夹</label>
-                <!-- 匹配旧版 #folderSelect .custom-select 结构 -->
+                <!-- 文件夹选择器 -->
                 <div id="folderSelect" class="custom-select" :class="{ open: folderSelectOpen }">
                   <div class="custom-select-trigger" :class="{ open: folderSelectOpen }" data-select-id="folderSelect" @click.stop="folderSelectOpen = !folderSelectOpen">
                     <span class="selected-text" :class="{ placeholder: !editForm.folder_id }">{{ selectedFolderName }}</span>

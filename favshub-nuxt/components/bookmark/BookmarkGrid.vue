@@ -113,7 +113,7 @@ function onContextMenu(event: MouseEvent, bookmark: any) {
   contextMenu.visible = true
 }
 
-// 书签宽度 → CSS 变量（旧版 --bookmark-width 驱动 grid 列宽）
+// 书签宽度 → CSS 变量（--bookmark-width 驱动 grid 列宽）
 watchEffect(() => {
   if (import.meta.client && props.bookmarkWidth) {
     document.documentElement.style.setProperty('--bookmark-width', props.bookmarkWidth + 'px')
@@ -145,7 +145,7 @@ watchEffect(() => {
 })
 
 /**
- * 按文件夹分组书签，匹配旧版 folder-group 结构
+ * 按文件夹分组书签
  */
 const folderGroups = computed(() => {
   const folders = props.folders || []
@@ -232,7 +232,7 @@ if (import.meta.client) {
   font-size: 14px;
 }
 
-/* 添加卡片：与旧版书签卡尺寸一致 */
+/* 添加卡片 */
 .add-bookmark-card {
   display: flex;
   flex-direction: column;

@@ -61,7 +61,7 @@
         @close="editDialogVisible = false"
       />
 
-      <!-- 确认删除弹窗（复用旧版 #confirm-dialog 样式） -->
+      <!-- 确认删除弹窗 -->
       <div v-if="deleteConfirmVisible" id="confirm-dialog" class="modal" style="display:flex;" @click.self="deleteConfirmVisible = false">
         <div class="modal-content">
           <h2 id="confirm-dialog-title">确认删除</h2>
@@ -79,7 +79,7 @@
       </footer>
     </main>
 
-    <!-- 侧边栏切换按钮（复用旧版 #toggle-sidebar 样式） -->
+    <!-- 侧边栏切换按钮 -->
     <button id="toggle-sidebar" @click="uiStore.toggleSidebar()" title="收起/展开侧边栏">
       {{ uiStore.sidebarOpen ? '<' : '>' }}
     </button>
@@ -193,7 +193,7 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 </script>
 
 <style scoped>
-/* 整体布局复用旧版：body.h-screen.flex.flex-col 行为；这里用 .home-shell 承载 */
+/* 整体布局：body.h-screen.flex.flex-col 行为；这里用 .home-shell 承载 */
 .home-shell {
   height: 100vh;
   display: flex;

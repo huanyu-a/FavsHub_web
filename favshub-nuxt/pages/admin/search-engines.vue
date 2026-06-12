@@ -29,8 +29,9 @@
             <td>{{ e.is_default ? '是' : '-' }}</td>
             <td>{{ e.sort_order || 0 }}</td>
             <td class="actions">
-              <button class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
-              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
+              <button v-if="e._canEdit" class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
+              <button v-if="e._canDelete" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
+              <span v-if="!e._canEdit && !e._canDelete" style="color:#aaa;font-size:12px;">🔒 只读</span>
             </td>
           </tr>
         </tbody>
@@ -54,7 +55,7 @@
             </select>
           </div>
           <div class="fg"><label>排序</label><input v-model.number="form.sort_order" type="number"></div>
-          <div class="fg"><label><input type="checkbox" v-model="form.is_default" :true-value="1" :false-value="0"> 设为默认搜索引擎</label></div>
+          <div class="fg toggle-row"><label>设为默认搜索引擎</label><label class="switch"><input type="checkbox" v-model="form.is_default" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="modalVisible = false">取消</button><button class="btn btn-primary" @click="save">保存</button></div>
         </div>
       </div>

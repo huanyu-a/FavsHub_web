@@ -69,7 +69,7 @@ function toggleExpand(e: Event) {
       <svg v-else xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
     </span>
   </li>
-  <!-- 子文件夹：嵌套 ul（与 li 同级，匹配旧版 DOM 结构） -->
+  <!-- 子文件夹：嵌套 ul -->
   <ul v-if="node._hasChildren && isExpanded && node.children.length > 0" class="pl-4 space-y-2">
     <FolderTreeItem
       v-for="child in node.children"

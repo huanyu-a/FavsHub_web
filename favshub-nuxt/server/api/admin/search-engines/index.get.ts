@@ -5,8 +5,12 @@ import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  const user = requireAuth(event)
   const db = getRawDb()
+
+  // 检查是否为管理员
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const engines = db.prepare(`
     SELECT * FROM search_engines
@@ -18,7 +22,14 @@ export default defineEventHandler(async (event) => {
         ELSE 4
       END,
       sort_order, id
-  `).all()
+  `).all() as any[]
 
-  return { engines }
+  // 为每个引擎添加权限信息
+  const enginesWithPerm = engines.map(e => ({
+    ...e,
+    _canEdit: isAdmin || e.user_id === user.id,
+    _canDelete: isAdmin || e.user_id === user.id,
+  }))
+
+  return { engines: enginesWithPerm, isAdmin }
 })

@@ -9,7 +9,7 @@ export interface AuthUser {
   username: string
   email?: string | null
   nickname?: string | null
-  is_admin?: number
+  is_admin?: boolean | number
   created_at?: number
 }
 
@@ -20,7 +20,7 @@ interface AuthState {
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => {
-    // 从 localStorage 恢复 token（兼容旧版 key）
+    // 从 localStorage 恢复 token
     let token: string | null = null
     if (typeof localStorage !== 'undefined') {
       token = localStorage.getItem('favshub_token') || localStorage.getItem('fh_local_favshub_token')
@@ -31,7 +31,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isLoggedIn: (state) => !!state.token,
     isGuest: (state) => !state.token,
-    isAdmin: (state) => state.user?.is_admin === 1,
+    isAdmin: (state) => !!state.user?.is_admin,
   },
 
   actions: {

@@ -1,11 +1,12 @@
 /**
  * PUT /api/folders/:id — 更新文件夹
+ * 普通用户禁止修改，仅管理员可操作
  */
 import { getRawDb } from '../../database'
-import { requireAuth } from '../../utils/auth'
+import { requireAdmin } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  requireAdmin(event)
   const params = getRouterParams(event)
   const body = await readBody(event)
   const { name, sort_order } = body || {}
@@ -16,18 +17,17 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // 验证文件夹归属
-  const folder = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(params.id, user.id) as any
+  const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(params.id) as any
   if (!folder) {
     throw createError({ statusCode: 404, data: { error: '文件夹不存在' } })
   }
 
   const tx = db.transaction(() => {
     if (name !== undefined) {
-      db.prepare('UPDATE folders SET name = ? WHERE id = ? AND user_id = ?').run(name, folder.id, user.id)
+      db.prepare('UPDATE folders SET name = ? WHERE id = ?').run(name, folder.id)
     }
     if (sort_order !== undefined) {
-      db.prepare('UPDATE folders SET sort_order = ? WHERE id = ? AND user_id = ?').run(sort_order, folder.id, user.id)
+      db.prepare('UPDATE folders SET sort_order = ? WHERE id = ?').run(sort_order, folder.id)
     }
   })
   tx()

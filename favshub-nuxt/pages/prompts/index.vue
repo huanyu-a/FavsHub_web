@@ -110,13 +110,13 @@
           </div>
         </template>
         <template v-else>
-          <div class="folder-context-item" @click="renamePromptFolder(folderMenu.folder!)">
+          <div v-if="authStore.isAdmin" class="folder-context-item" @click="renamePromptFolder(folderMenu.folder!)">
             <i class="ri-edit-line"></i> 重命名
           </div>
           <div class="folder-context-item" @click="openCreateSubFolder(folderMenu.folder!)">
             <i class="ri-folder-add-line"></i> 新建子文件夹
           </div>
-          <div class="folder-context-item danger" @click="deletePromptFolder(folderMenu.folder!)">
+          <div v-if="authStore.isAdmin" class="folder-context-item danger" @click="deletePromptFolder(folderMenu.folder!)">
             <i class="ri-delete-bin-line"></i> 删除
           </div>
         </template>
@@ -548,7 +548,7 @@ async function loadPrompts() {
     const data = await $fetch<{ prompts: Prompt[] }>(`/api/prompts${query ? '?' + query : ''}`)
     let results = data?.prompts || []
 
-    // 搜索时按相关性评分排序（复刻旧版 calculatePromptScore）
+    // 搜索时按相关性评分排序
     if (searchQuery.value && results.length > 0) {
       const keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(Boolean)
       if (keywords.length > 0) {
@@ -565,7 +565,7 @@ async function loadPrompts() {
 }
 
 /**
- * 复刻旧版 calculatePromptScore — 多字段加权相关性评分
+ * 多字段加权相关性评分
  * 支持 title/tags/description/folder_name/content 多字段匹配
  */
 function calculatePromptScore(prompt: any, keywords: string[]): number {
@@ -900,6 +900,23 @@ onMounted(async () => {
 </style>
 
 <style>
+/* 导出按钮 */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #555;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.btn-outline:hover { border-color: #667eea; color: #667eea; background: #eef2ff; }
+
 /* 右键菜单（Teleport 到 body，不可 scoped） */
 .folder-context-menu {
   position: fixed;

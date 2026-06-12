@@ -10,7 +10,7 @@ const baseUrl = ref('');
 const username = ref('');
 const password = ref('');
 const isLoggedIn = ref(false);
-const currentUser = ref<{ id: number; username: string; email?: string } | null>(null);
+const currentUser = ref<{ id: number; username: string; email?: string; is_admin?: boolean } | null>(null);
 const isLoggingIn = ref(false);
 const isRegistering = ref(false);
 const isTesting = ref(false);
@@ -18,7 +18,7 @@ const floatingBallEnabled = ref(false);
 
 interface LoginResponse {
   token: string;
-  user: { id: number; username: string; email?: string };
+  user: { id: number; username: string; email?: string; is_admin?: boolean };
 }
 
 async function loadSavedConfig() {

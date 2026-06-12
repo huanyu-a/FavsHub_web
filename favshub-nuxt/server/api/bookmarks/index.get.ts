@@ -1,7 +1,5 @@
 /**
  * GET /api/bookmarks — 获取书签列表（支持搜索和文件夹过滤）
- * 游客：只看管理员的公开书签
- * 登录用户：自己的全部 + 管理员的公开
  */
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
@@ -13,12 +11,20 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // 构建可见性条件
+  // 可见性：
+  //   游客 → 管理员公开书签
+  //   普通用户 → 自己的 + 管理员公开的
+  //   管理员 → 全部
   let visibilityClause: string
   const visParams: any[] = []
   if (user) {
-    visibilityClause = '(b.user_id = ? OR (b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1)))'
-    visParams.push(user.id)
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (dbUser?.is_admin) {
+      visibilityClause = '1=1'
+    } else {
+      visibilityClause = `(b.user_id = ? OR (b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
+      visParams.push(user.id)
+    }
   } else {
     visibilityClause = '(b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
   }
@@ -29,38 +35,35 @@ export default defineEventHandler(async (event) => {
   if (search && typeof search === 'string') {
     const keywords = search.split(/\s+/).filter((k: string) => k.length > 0)
     const conditions = keywords.map(() => {
-      return '(b.title LIKE ? OR b.url LIKE ? OR b.url LIKE ?)'
+      params.push(...Array(3).fill(`%${search}%`))
+      return `(b.title LIKE ? OR b.url LIKE ? OR b.description LIKE ?)`
     })
-    sql += ' AND (' + conditions.join(' OR ') + ')'
-    for (const kw of keywords) {
-      const q = `%${kw}%`
-      let domainQ = q
-      try {
-        const match = kw.match(/^[\w.-]+\.[\w]{2,}/)
-        if (match) domainQ = `%${match[0]}%`
-      } catch { /* ignore */ }
-      params.push(q, q, domainQ)
-    }
+    sql += ` AND (${conditions.join(' AND ')})`
   }
 
-  if (folder_id) {
+  if (folder_id && folder_id !== 'all') {
     sql += ' AND b.folder_id = ?'
-    params.push(folder_id)
+    params.push(folder_id as string)
   }
 
-  sql += ' ORDER BY b.sort_order, b.created_at'
+  sql += ' ORDER BY b.created_at DESC LIMIT 500'
+
   const bookmarks = db.prepare(sql).all(...params)
 
-  // 文件夹：同样的可见性逻辑
-  let folderSql: string
-  let folderParams: any[] = []
+  // 查询文件夹：普通用户看自己的 + 管理员的
+  let folders: any[]
   if (user) {
-    folderSql = `SELECT DISTINCT fo.* FROM folders fo WHERE (fo.user_id = ? OR (fo.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND fo.id IN (SELECT folder_id FROM bookmarks WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)))) ORDER BY fo.sort_order, fo.created_at`
-    folderParams = [user.id]
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (dbUser?.is_admin) {
+      folders = db.prepare('SELECT * FROM folders ORDER BY name').all()
+    } else {
+      folders = db.prepare(
+        'SELECT * FROM folders WHERE user_id = ? OR user_id IN (SELECT id FROM users WHERE is_admin = 1) ORDER BY name'
+      ).all(user.id)
+    }
   } else {
-    folderSql = `SELECT DISTINCT fo.* FROM folders fo WHERE fo.user_id IN (SELECT id FROM users WHERE is_admin = 1) AND fo.id IN (SELECT folder_id FROM bookmarks WHERE login_required = 0 AND user_id IN (SELECT id FROM users WHERE is_admin = 1)) ORDER BY fo.sort_order, fo.created_at`
+    folders = db.prepare('SELECT * FROM folders WHERE user_id IN (SELECT id FROM users WHERE is_admin = 1) ORDER BY name').all()
   }
-  const folders = db.prepare(folderSql).all(...folderParams)
 
   return { bookmarks, folders }
 })

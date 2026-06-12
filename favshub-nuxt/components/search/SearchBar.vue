@@ -38,7 +38,7 @@
         />
       </div>
 
-      <!-- 搜索建议区域（匹配旧版 .search-suggestions-wrapper） -->
+      <!-- 搜索建议区域 -->
       <div class="search-suggestions-wrapper" :style="{ display: showSuggestions && filteredSuggestions.length > 0 ? 'block' : 'none' }">
         <div class="line-container" id="line-container">
           <hr class="custom-hr">
@@ -98,7 +98,7 @@
       </div>
     </form>
 
-    <!-- 搜索引擎管理弹窗（复用旧版 #search-engines-dialog 结构） -->
+    <!-- 搜索引擎管理弹窗 -->
     <Teleport to="body">
       <div id="search-engines-dialog" class="engine-dialog-overlay" :class="{ visible: showEngineDialog }" v-if="showEngineDialog" @click.self="closeEngineDialog">
         <div class="engine-dialog-content">
@@ -721,7 +721,7 @@ onMounted(() => {
   margin-bottom: 12px;
   text-transform: uppercase;
 }
-/* 匹配旧版 .search-engine-options-container 6列网格 */
+/* 搜索引擎选项 6列网格 */
 .engine-dialog-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);

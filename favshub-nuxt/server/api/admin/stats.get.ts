@@ -39,6 +39,10 @@ export default defineEventHandler(async (event) => {
     }
   } catch { /* ignore */ }
 
+  const dbSizeFormatted = dbSize > 1024 * 1024
+    ? (dbSize / 1024 / 1024).toFixed(2) + ' MB'
+    : (dbSize / 1024).toFixed(1) + ' KB'
+
   return {
     users,
     bookmarks,
@@ -52,6 +56,6 @@ export default defineEventHandler(async (event) => {
     favoritePrompts,
     todayBookmarks,
     todayPrompts,
-    dbSize
+    dbSize: dbSizeFormatted
   }
 })

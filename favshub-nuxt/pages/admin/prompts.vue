@@ -84,8 +84,9 @@
             <td>{{ f.username || f.user_id }}</td>
             <td>{{ f.prompt_count || 0 }}</td>
             <td class="actions">
-              <button class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
-              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
+              <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
+              <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
+              <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒 只读</span>
             </td>
           </tr>
         </tbody>
@@ -106,7 +107,10 @@
             <td><span class="tag-chip" :style="{ background: t.color || '#e0e7ff' }">{{ t.name }}</span></td>
             <td>{{ t.color || '-' }}</td><td>{{ t.username || t.user_id }}</td>
             <td>{{ t.prompt_count || 0 }}</td>
-            <td class="actions"><button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button></td>
+            <td class="actions">
+              <button v-if="isAdmin || t.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button>
+              <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒 只读</span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -175,7 +179,7 @@
           <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
           <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
           <div class="fg"><label>文件夹</label><select v-model="ef.folder_id"><option :value="null">未分类</option><option v-for="f in flatPFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option></select></div>
-          <div class="fg"><label><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0"> 登录可见</label></div>
+          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
         </div>
       </div>
@@ -190,6 +194,7 @@ useHead({ title: '提示词管理' })
 
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
+const currentUserId = computed(() => authStore.user?.id)
 function getAuthHeaders(): Record<string, string> {
   return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
@@ -385,6 +390,14 @@ tr:hover { background: #fafafa; }
 .fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
 .fg input, .fg select, .fg textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
 .form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.toggle-row > label:first-child { margin-bottom: 0; font-size: 13px; color: #666; }
+.switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: #ccc; border-radius: 34px; cursor: pointer; transition: .4s; }
+.slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 4px; bottom: 4px; background: #fff; border-radius: 50%; transition: .4s; }
+.switch input:checked + .slider { background: #10b981; }
+.switch input:checked + .slider:before { transform: translateX(16px); }
 .expand-btn { cursor: pointer; width: 16px; display: inline-block; text-align: center; user-select: none; }
 .icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .icon-pick-option { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 18px; color: #6b7280; transition: all .15s; }

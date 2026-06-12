@@ -1,33 +1,21 @@
 /**
  * PUT /api/tags/:id — 更新标签
- * Body: { name?, color? }
+ * 普通用户禁止修改，仅管理员可操作
  */
 import { getRawDb } from '../../database'
-import { requireAuth } from '../../utils/auth'
+import { requireAdmin } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  requireAdmin(event)
   const { id } = getRouterParams(event)
   const body = await readBody(event)
   const { name, color } = body || {}
 
   const db = getRawDb()
 
-  // 验证标签归属
   const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(id) as any
   if (!tag) {
     throw createError({ statusCode: 404, data: { error: '标签不存在' } })
-  }
-  if (tag.user_id !== user.id) {
-    throw createError({ statusCode: 403, data: { error: '无权修改此标签' } })
-  }
-
-  // 检查名称唯一性
-  if (name && name.trim() && name.trim() !== tag.name) {
-    const dup = db.prepare('SELECT id FROM tags WHERE user_id = ? AND name = ? AND id != ?').get(user.id, name.trim(), id)
-    if (dup) {
-      throw createError({ statusCode: 409, data: { error: '同名标签已存在' } })
-    }
   }
 
   const updates: string[] = []

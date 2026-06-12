@@ -1,6 +1,5 @@
 /**
  * POST /api/auth/login — 登录
- * 移植自 wwwroot/server/routes/auth.js
  */
 import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
@@ -20,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as {
     id: number; username: string; email: string | null;
-    password_hash: string; nickname: string | null
+    password_hash: string; nickname: string | null; is_admin: number
   } | undefined
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
@@ -39,6 +38,6 @@ export default defineEventHandler(async (event) => {
 
   return {
     token,
-    user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname || '' },
+    user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname || '', is_admin: !!user.is_admin },
   }
 })
