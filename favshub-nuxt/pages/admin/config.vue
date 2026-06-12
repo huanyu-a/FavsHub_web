@@ -17,7 +17,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>网站 TDK 设置</h3></div>
         <div style="padding:20px;">
           <p class="hint">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
@@ -36,6 +36,7 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '系统配置' })
 
 const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 function getAuthHeaders(): Record<string, string> {
   return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
 }

@@ -94,10 +94,10 @@
           <button class="btn btn-secondary" @click="$emit('copy', viewingPrompt.content)">
             <i class="ri-file-copy-line"></i> 复制内容
           </button>
-          <button v-if="!isGuest" class="btn btn-primary" @click="$emit('edit', viewingPrompt)">
+          <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-primary" @click="$emit('edit', viewingPrompt)">
             <i class="ri-edit-line"></i> 编辑
           </button>
-          <button v-if="!isGuest" class="btn btn-danger" @click="$emit('delete', viewingPrompt)">
+          <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-danger" @click="$emit('delete', viewingPrompt)">
             <i class="ri-delete-bin-line"></i> 删除
           </button>
         </div>
@@ -331,6 +331,7 @@ const props = defineProps<{
   folderIcon?: string
   folderName?: string
   isGuest?: boolean
+  currentUserId?: number
   allTags?: { id: number; name: string; color?: string }[]
 }>()
 

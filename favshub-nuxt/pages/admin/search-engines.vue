@@ -30,7 +30,7 @@
             <td>{{ e.sort_order || 0 }}</td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
-              <button class="btn btn-danger btn-sm" @click="del(e)">删除</button>
+              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -66,6 +66,9 @@
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
 useHead({ title: '搜索引擎' })
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 const engines = ref<any[]>([])
 const loading = ref(false)

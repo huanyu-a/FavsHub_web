@@ -2,11 +2,11 @@
  * PUT /api/admin/search-engines/:id — 更新搜索引擎
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
+import { requireAuth } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  requireAuth(event)
   const db = getRawDb()
 
   const { id } = getRouterParams(event)

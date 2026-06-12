@@ -17,7 +17,7 @@
         <NuxtLink to="/admin" class="nav-item" :class="{ active: route.path === '/admin' }" @click="closeSidebar">
           <i class="ri-dashboard-line"></i><span>仪表盘</span>
         </NuxtLink>
-        <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
+        <NuxtLink v-if="isAdmin" to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
           <i class="ri-user-line"></i><span>用户管理</span>
         </NuxtLink>
         <NuxtLink to="/admin/bookmarks" class="nav-item" :class="{ active: route.path === '/admin/bookmarks' }" @click="closeSidebar">
@@ -29,13 +29,13 @@
         <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
           <i class="ri-search-line"></i><span>搜索引擎</span>
         </NuxtLink>
-        <NuxtLink to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
+        <NuxtLink v-if="isAdmin" to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
           <i class="ri-database-2-line"></i><span>备份管理</span>
         </NuxtLink>
         <NuxtLink to="/admin/settings" class="nav-item" :class="{ active: route.path === '/admin/settings' }" @click="closeSidebar">
           <i class="ri-user-settings-line"></i><span>用户设置</span>
         </NuxtLink>
-        <NuxtLink to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
+        <NuxtLink v-if="isAdmin" to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
           <i class="ri-settings-3-line"></i><span>系统配置</span>
         </NuxtLink>
       </nav>
@@ -53,6 +53,8 @@
 
 <script setup lang="ts">
 const route = useRoute()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 const sidebarOpen = ref(false)
 function closeSidebar() { sidebarOpen.value = false }
 

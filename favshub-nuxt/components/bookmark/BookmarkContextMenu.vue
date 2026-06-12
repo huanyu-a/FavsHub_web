@@ -19,7 +19,7 @@
           <span class="material-icons"><i class="ri-user-heart-line"></i></span>
           <span>在无痕窗口打开</span>
         </div>
-        <template v-if="!isGuest">
+        <template v-if="!isGuest && isOwn">
           <div class="custom-context-menu-divider"></div>
           <div class="custom-context-menu-item" @click="$emit('edit', bookmark); $emit('close')">
             <span class="material-icons"><i class="ri-edit-line"></i></span>
@@ -82,6 +82,7 @@ const props = defineProps<{
   x: number
   y: number
   isGuest?: boolean
+  isOwn?: boolean
 }>()
 
 const emit = defineEmits<{

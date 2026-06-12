@@ -59,6 +59,7 @@
       :x="contextMenu.x"
       :y="contextMenu.y"
       :is-guest="isGuest"
+      :is-own="contextMenu.bookmark ? contextMenu.bookmark.user_id === currentUserId : false"
       @edit="$emit('edit', $event)"
       @delete="$emit('delete', $event)"
       @close="contextMenu.visible = false"
@@ -79,6 +80,7 @@ const props = defineProps<{
   folders?: FolderInfo[]
   isLoading?: boolean
   isGuest?: boolean
+  currentUserId?: number
   bookmarkWidth?: number
   bookmarkCardHeight?: number
   bookmarkContainerWidth?: number

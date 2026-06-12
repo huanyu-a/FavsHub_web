@@ -25,9 +25,9 @@
         <input v-model="filterUrl" type="text" placeholder="搜索URL..." @input="debouncedLoad">
         <span class="info">共 {{ total }} 条</span>
         <button class="btn btn-primary btn-sm" @click="loadBookmarks">刷新</button>
-        <button class="btn btn-ghost btn-sm" @click="downloadAllFavicons">下载图标</button>
-        <button class="btn btn-ghost btn-sm" @click="retryFailed">重试失败</button>
-        <button class="btn btn-ghost btn-sm" @click="forceLocalize">强制本地化</button>
+        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="downloadAllFavicons">下载图标</button>
+        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="retryFailed">重试失败</button>
+        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="forceLocalize">强制本地化</button>
       </div>
       <div class="card">
         <table>
@@ -45,8 +45,8 @@
               <td><span class="badge" :class="bm.login_required ? 'badge-locked' : 'badge-public'">{{ bm.login_required ? '登录可见' : '公开' }}</span></td>
               <td class="actions">
                 <button class="btn btn-ghost btn-sm" @click="openEdit(bm)">编辑</button>
-                <button class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
-                <button class="btn btn-ghost btn-sm" @click="downloadIcon(bm.id)">图标</button>
+                <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
+                <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="downloadIcon(bm.id)">图标</button>
               </td>
             </tr>
           </tbody>
@@ -86,7 +86,7 @@
               <td>{{ f.bookmark_count || 0 }}</td>
               <td class="actions">
                 <button class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
-                <button class="btn btn-danger btn-sm" @click="delFolder(f)">删除</button>
+                <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delFolder(f)">删除</button>
               </td>
             </tr>
           </tbody>
@@ -145,6 +145,9 @@
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
 useHead({ title: '书签管理' })
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 const tab = ref('list')
 

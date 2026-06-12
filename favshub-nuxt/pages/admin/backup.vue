@@ -42,12 +42,12 @@
         <div v-if="schedule.lastBackupDate" class="info-item" style="margin-bottom: 14px;">
           <span class="info-label">上次备份</span><span>{{ formatDate(schedule.lastBackupDate) }}</span>
         </div>
-        <button class="btn btn-primary" @click="saveSchedule">保存计划</button>
+        <button v-if="isAdmin" class="btn btn-primary" @click="saveSchedule">保存计划</button>
       </div>
     </div>
 
     <!-- 手动备份 -->
-    <div class="card" style="margin-top: 20px;">
+    <div v-if="isAdmin" class="card" style="margin-top: 20px;">
       <div class="card-header">
         <h3>手动操作</h3>
         <div class="header-actions">
@@ -94,6 +94,9 @@
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
 useHead({ title: '备份管理' })
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })

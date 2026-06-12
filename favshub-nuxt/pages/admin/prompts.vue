@@ -47,7 +47,7 @@
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
               <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
-              <button class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
+              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -85,7 +85,7 @@
             <td>{{ f.prompt_count || 0 }}</td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
-              <button class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
+              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -106,7 +106,7 @@
             <td><span class="tag-chip" :style="{ background: t.color || '#e0e7ff' }">{{ t.name }}</span></td>
             <td>{{ t.color || '-' }}</td><td>{{ t.username || t.user_id }}</td>
             <td>{{ t.prompt_count || 0 }}</td>
-            <td class="actions"><button class="btn btn-danger btn-sm" @click="delTag(t)">删除</button></td>
+            <td class="actions"><button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button></td>
           </tr>
         </tbody>
       </table>
@@ -189,6 +189,7 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '提示词管理' })
 
 const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 function getAuthHeaders(): Record<string, string> {
   return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
 }

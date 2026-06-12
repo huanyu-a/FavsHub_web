@@ -1,9 +1,8 @@
 /**
  * 服务端中间件 — 保护 /admin 页面路由
- * 检查 cookie 中的 JWT token，未登录或非管理员则 302 跳转
+ * 检查 cookie 中的 JWT token，未登录则 302 跳转
  */
 import { verifyToken } from '../utils/jwt'
-import { getRawDb } from '../database'
 
 export default defineEventHandler((event) => {
   const path = getRequestURL(event).pathname
@@ -25,15 +24,5 @@ export default defineEventHandler((event) => {
     return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}`, 302)
   }
 
-  // 检查管理员权限
-  const config = useRuntimeConfig(event)
-  const adminUsers = (config.adminUsers || '').split(',').map(u => u.trim()).filter(Boolean)
-  if (adminUsers.includes(payload.username)) return
-
-  const db = getRawDb()
-  const row = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(payload.id) as { is_admin: number } | undefined
-  if (row?.is_admin) return
-
-  // 非管理员
-  return sendRedirect(event, '/', 302)
+  // 已登录即可访问
 })

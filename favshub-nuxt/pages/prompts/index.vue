@@ -144,12 +144,12 @@
 
         <div class="prompts-container">
           <div v-if="!isLoading && prompts.length > 0" class="prompts-grid" id="promptsGrid">
-            <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card" @click="viewPrompt(prompt)">
+            <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card" :class="{ 'read-only': !isGuest && prompt.user_id !== currentUserId }" @click="viewPrompt(prompt)">
               <div class="prompt-card-header">
                 <h3 class="prompt-title">{{ prompt.title }}</h3>
                 <div class="prompt-actions">
                   <button class="prompt-btn copy-btn" title="复制" @click.stop="copyContent(prompt.content)"><i class="ri-file-copy-line"></i></button>
-                  <button v-if="!isGuest" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
+                  <button v-if="!isGuest && prompt.user_id === currentUserId" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
                   <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
                 </div>
               </div>
@@ -198,6 +198,7 @@
         :folder-icon="folderFormIcon"
         :folder-name="newFolderName"
         :is-guest="isGuest"
+        :current-user-id="currentUserId"
         :all-tags="tags"
         @close-view="viewingPrompt = null"
         @close-edit="showEditDialog = false"
@@ -297,6 +298,8 @@ useAsyncData('prompts-tdk', async () => {
 })
 
 const { isGuest } = useAuth()
+const authStore = useAuthStore()
+const currentUserId = computed(() => authStore.user?.id)
 
 interface Prompt {
   id: string
@@ -682,6 +685,7 @@ function openCreate() {
 }
 
 function openEdit(prompt: Prompt) {
+  if (prompt.user_id !== currentUserId.value) return alert('无权编辑此提示词')
   isCreating.value = false
   editingPrompt.value = prompt
   editForm.title = prompt.title
@@ -738,6 +742,7 @@ async function savePrompt() {
 }
 
 async function toggleFavorite(prompt: Prompt) {
+  if (prompt.user_id !== currentUserId.value) return
   await $fetch(`/api/prompts/${prompt.id}`, {
     method: 'PUT',
     body: { is_favorite: prompt.is_favorite ? 0 : 1 },
@@ -746,6 +751,7 @@ async function toggleFavorite(prompt: Prompt) {
 }
 
 async function deletePrompt(prompt: Prompt) {
+  if (prompt.user_id !== currentUserId.value) return alert('无权删除此提示词')
   if (!confirm(`确定删除提示词「${prompt.title}」？`)) return
   await $fetch(`/api/prompts/${prompt.id}`, { method: 'DELETE' })
   viewingPrompt.value = null
@@ -880,6 +886,16 @@ onMounted(async () => {
 }
 :deep(.folder-arrow:hover) {
   color: #10b981;
+}
+/* 只读卡片（管理员创建） */
+.prompt-card.read-only {
+  opacity: 0.85;
+}
+.prompt-card.read-only .prompt-title::after {
+  content: '🔒';
+  font-size: 12px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 </style>
 

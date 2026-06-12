@@ -40,6 +40,7 @@
         :current-folder-id="bookmarksStore.currentFolderId"
         :is-loading="bookmarksStore.isLoading"
         :is-guest="authStore.isGuest"
+        :current-user-id="authStore.user?.id"
         :bookmark-width="settingsStore.get('bookmarkWidth', 200)"
         :bookmark-card-height="settingsStore.get('bookmarkCardHeight', 50)"
         :bookmark-container-width="settingsStore.get('bookmarkContainerWidth', 85)"

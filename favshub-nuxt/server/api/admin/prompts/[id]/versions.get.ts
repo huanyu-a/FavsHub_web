@@ -2,11 +2,11 @@
  * GET /api/admin/prompts/:id/versions — 获取提示词版本历史（管理员）
  */
 import { getRawDb } from '../../../../database'
-import { requireAdmin } from '../../../../utils/auth'
+import { requireAuth } from '../../../../utils/auth'
 import { createError, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  requireAuth(event)
   const db = getRawDb()
 
   const { id } = getRouterParams(event)

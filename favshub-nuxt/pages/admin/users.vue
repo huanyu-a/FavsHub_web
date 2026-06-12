@@ -37,19 +37,20 @@
               </span>
             </td>
             <td>{{ formatDate(user.created_at) }}</td>
-            <td class="actions">
+            <td v-if="isAdmin" class="actions">
               <button class="btn btn-ghost btn-sm" @click="openEdit(user)">编辑</button>
               <button class="btn btn-ghost btn-sm" @click="resetPassword(user)">重置密码</button>
               <button v-if="!user.is_admin" class="btn btn-danger btn-sm" @click="deleteUser(user)">删除</button>
             </td>
+            <td v-else>-</td>
           </tr>
         </tbody>
       </table>
       <div v-if="filteredUsers.length === 0" class="empty-state">暂无匹配用户</div>
     </div>
 
-    <!-- 编辑弹窗 -->
-    <div v-if="editingUser" class="modal-overlay" @click.self="editingUser = null">
+    <!-- 编辑弹窗 (仅管理员) -->
+    <div v-if="editingUser && isAdmin" class="modal-overlay" @click.self="editingUser = null">
       <div class="modal">
         <div class="modal-header">
           <h3>编辑用户</h3>
@@ -84,6 +85,9 @@
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 
 useHead({ title: '用户管理' })
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 interface User {
   id: number

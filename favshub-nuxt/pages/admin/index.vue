@@ -45,7 +45,7 @@
       <div class="admin-nav">
         <h3 class="settings-section-title">快捷操作</h3>
         <div class="nav-grid">
-          <NuxtLink to="/admin/users" class="nav-card">
+          <NuxtLink v-if="isAdmin" to="/admin/users" class="nav-card">
             <i class="ri-user-line nav-icon"></i>
             <span class="nav-label">用户管理</span>
           </NuxtLink>
@@ -61,7 +61,7 @@
             <i class="ri-search-line nav-icon"></i>
             <span class="nav-label">搜索引擎</span>
           </NuxtLink>
-          <NuxtLink to="/admin/backup" class="nav-card">
+          <NuxtLink v-if="isAdmin" to="/admin/backup" class="nav-card">
             <i class="ri-database-2-line nav-icon"></i>
             <span class="nav-label">备份管理</span>
           </NuxtLink>
@@ -69,7 +69,7 @@
             <i class="ri-user-settings-line nav-icon"></i>
             <span class="nav-label">用户设置</span>
           </NuxtLink>
-          <NuxtLink to="/admin/config" class="nav-card">
+          <NuxtLink v-if="isAdmin" to="/admin/config" class="nav-card">
             <i class="ri-settings-3-line nav-icon"></i>
             <span class="nav-label">系统配置</span>
           </NuxtLink>
@@ -86,6 +86,9 @@ definePageMeta({
 })
 
 useHead({ title: '仪表盘' })
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.isAdmin)
 
 interface AdminStats {
   users: number
