@@ -1,1 +1,30 @@
-/** * PUT /api/admin/config — 更新系统配置 * 注意：运行时配置在运行时无法直接修改，此接口主要用于更新数据库中的系统设置 */import { getRawDb } from '../../../database'import { requireAdmin } from '../../../utils/auth'import { createError, readBody } from 'h3'export default defineEventHandler(async (event) => {  requireAdmin(event)  const db = getRawDb()  const body = await readBody(event)  const { data } = body  if (!data || typeof data !== 'object') {    throw createError({ statusCode: 400, data: { error: 'data 必须是对象' } })  }  // 读取现有的系统设置（user_id = 0 表示系统级设置）  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any  const existing = row ? JSON.parse(row.data) : {}  const merged = { ...existing, ...data }  // 确保系统设置行存在  db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')  db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged))  return { data: merged }})
+/**
+ * PUT /api/admin/config — 更新系统配置
+ * 注意：运行时配置在运行时无法直接修改，此接口主要用于更新数据库中的系统设置
+ */
+import { getRawDb } from '../../../database'
+import { requireAdmin } from '../../../utils/auth'
+import { createError, readBody } from 'h3'
+
+export default defineEventHandler(async (event) => {
+  requireAdmin(event)
+  const db = getRawDb()
+
+  const body = await readBody(event)
+  const { data } = body
+
+  if (!data || typeof data !== 'object') {
+    throw createError({ statusCode: 400, data: { error: 'data 必须是对象' } })
+  }
+
+  // 读取现有的系统设置（user_id = 0 表示系统级设置）
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
+  const existing = row ? JSON.parse(row.data) : {}
+  const merged = { ...existing, ...data }
+
+  // 确保系统设置行存在
+  db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')
+  db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged))
+
+  return { data: merged }
+})
