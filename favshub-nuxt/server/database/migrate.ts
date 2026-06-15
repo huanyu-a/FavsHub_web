@@ -109,6 +109,12 @@ export function createTables(db: Database.Database) {
       is_default INTEGER DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s','now') * 1000)
     );
+
+    CREATE TABLE IF NOT EXISTS system_config (
+      key TEXT PRIMARY KEY,
+      value TEXT DEFAULT '',
+      updated_at INTEGER DEFAULT (strftime('%s','now') * 1000)
+    );
   `)
 }
 
@@ -201,6 +207,9 @@ export function seedDefaults(db: Database.Database) {
   // 系统默认设置行 (user_id=0)
   db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')
 
+  // 初始化 system_config 默认值 + 从 settings 迁移旧 TDK 数据
+  migrateSystemConfig(db)
+
   // 如果没有任何管理员，将第一个用户设为管理员
   const adminCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get() as { c: number }).c
   if (adminCount === 0) {
@@ -215,6 +224,56 @@ export function seedDefaults(db: Database.Database) {
   const engineCount = (db.prepare('SELECT COUNT(*) as c FROM search_engines').get() as { c: number }).c
   if (engineCount === 0) {
     seedDefaultSearchEngines(db)
+  }
+}
+
+/**
+ * 初始化/迁移 system_config 表数据
+ * 将 settings user_id=0 中的 TDK 和系统配置字段迁移到独立表
+ */
+function migrateSystemConfig(db: Database.Database) {
+  const defaults: Record<string, string> = {
+    siteTitle: 'FavsHub - 智能书签工作台',
+    siteDescription: 'FavsHub 智能书签工作台 - 高效管理浏览器书签、AI提示词，支持多端同步、智能搜索、自定义导航页',
+    siteKeywords: '书签管理,智能导航,AI提示词,工作台,FavsHub,浏览器书签同步,提示词管理',
+    promptproTitle: 'PromptPro - AI提示词管理系统',
+    promptproDescription: 'PromptPro 提示词管理系统 - 集中管理、分类整理、快速检索AI提示词，提升工作效率',
+    promptproKeywords: 'PromptPro,提示词管理,AI提示词,提示词分类,提示词模板,ChatGPT提示词',
+    allow_registration: 'true',
+  }
+
+  const upsert = db.prepare(
+    'INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)'
+  )
+
+  // 先插入默认值（如不存在）
+  for (const [k, v] of Object.entries(defaults)) {
+    upsert.run(k, v)
+  }
+
+  // 从 settings user_id=0 迁移旧数据（仅首次）
+  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as { data: string } | undefined
+  if (row) {
+    try {
+      const old = JSON.parse(row.data) as Record<string, any>
+      const migrateKeys = Object.keys(defaults)
+      let migrated = false
+      for (const k of migrateKeys) {
+        if (k in old && old[k] !== undefined && old[k] !== '') {
+          const val = String(old[k])
+          db.prepare('INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)').run(
+            k, val, Date.now()
+          )
+          delete old[k]
+          migrated = true
+        }
+      }
+      // 清理 settings 中已迁移的字段
+      if (migrated) {
+        db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(old))
+        console.log('[DB] 已将 TDK/系统配置从 settings 迁移到 system_config')
+      }
+    } catch { /* 解析失败忽略 */ }
   }
 }
 

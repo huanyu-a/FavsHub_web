@@ -31,10 +31,9 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // 检查是否允许注册
-  const settingRow = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
-  const sysSettings = settingRow ? JSON.parse(settingRow.data) : {}
-  if (sysSettings.allow_registration === false) {
+  // 检查是否允许注册（从 system_config 读取）
+  const regRow = db.prepare("SELECT value FROM system_config WHERE key = 'allow_registration'").get() as { value: string } | undefined
+  if (regRow && regRow.value === 'false') {
     throw createError({ statusCode: 403, data: { error: '注册功能已关闭，请联系管理员' } })
   }
 

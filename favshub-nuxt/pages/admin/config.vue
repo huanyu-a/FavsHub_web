@@ -21,9 +21,9 @@
         <div class="card-header"><h3>网站 TDK 设置</h3></div>
         <div style="padding:20px;">
           <p class="hint">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
-          <div class="fg"><label>网站标题</label><input v-model="tdk.title" placeholder="FavsHub - 智能书签管理" @input="saveTdk"></div>
-          <div class="fg"><label>网站描述</label><input v-model="tdk.description" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" @input="saveTdk"></div>
-          <div class="fg"><label>网站关键词</label><input v-model="tdk.keywords" placeholder="书签管理,提示词,AI,收藏夹" @input="saveTdk"><small>多个关键词用英文逗号分隔</small></div>
+          <div class="fg"><label>网站标题</label><input v-model="tdk.siteTitle" placeholder="FavsHub - 智能书签管理" @input="saveTdk"></div>
+          <div class="fg"><label>网站描述</label><input v-model="tdk.siteDescription" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" @input="saveTdk"></div>
+          <div class="fg"><label>网站关键词</label><input v-model="tdk.siteKeywords" placeholder="书签管理,提示词,AI,收藏夹" @input="saveTdk"><small>多个关键词用英文逗号分隔</small></div>
         </div>
       </div>
 
@@ -84,7 +84,7 @@ function saveSysSettings() {
   }, 300)
 }
 
-const tdk = reactive({ title: '', description: '', keywords: '' })
+const tdk = reactive({ siteTitle: '', siteDescription: '', siteKeywords: '' })
 let tdkTimer: any = null
 function saveTdk() {
   clearTimeout(tdkTimer)
@@ -102,12 +102,12 @@ function saveTdk() {
 onMounted(async () => {
   try {
     const d = await $fetch<any>('/api/tdk')
-    Object.assign(tdk, { title: d.title || '', description: d.description || '', keywords: d.keywords || '' })
+    Object.assign(tdk, { siteTitle: d.siteTitle || '', siteDescription: d.siteDescription || '', siteKeywords: d.siteKeywords || '' })
   } catch {}
   try {
     const d = await $fetch<any>('/api/admin/config', { headers: getAuthHeaders() })
     if (d.systemData) {
-      sysSettings.allow_registration = d.systemData.allow_registration !== false
+      sysSettings.allow_registration = d.systemData.allow_registration !== 'false'
     }
   } catch {}
 })

@@ -139,3 +139,11 @@ export const searchEngines = sqliteTable('search_engines', {
   isDefault: integer('is_default').default(0),
   createdAt: integer('created_at'),
 })
+
+// ─── system_config ────────────────────────────────────────────
+// 系统级配置（TDK、注册开关等），独立于用户设置
+export const systemConfig = sqliteTable('system_config', {
+  key: text('key').primaryKey(),
+  value: text('value').default(''),
+  updatedAt: integer('updated_at'),
+})

@@ -205,7 +205,7 @@ if (import.meta.client) {
 
 .bookmark-placeholder {
   width: 100%;
-  max-width: var(--bookmark-width, 180px);
+  max-width: var(--bookmark-width, 210px);
   height: 56px;
   background: rgba(0, 0, 0, 0.04);
   border-radius: 12px;
@@ -239,7 +239,7 @@ if (import.meta.client) {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: var(--bookmark-width, 180px);
+  max-width: var(--bookmark-width, 210px);
   min-height: 56px;
   border: 2px dashed #d1d5db;
   border-radius: 12px;

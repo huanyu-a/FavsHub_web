@@ -31,6 +31,8 @@ if (import.meta.client) {
 }
 
 // 全局资源：直接复用旧框架 CSS，保证主题样式 100% 一致
+const { data: tdk } = await useFetch('/api/tdk', { server: true, lazy: false })
+
 useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
@@ -45,7 +47,14 @@ useHead({
       innerHTML: `(function(){try{var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');var d=document.documentElement;if(t){d.setAttribute('data-guest','false');try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)d.setAttribute('data-admin','true')}catch(e){}}else{d.setAttribute('data-guest','true')}var th=localStorage.getItem('favshub_theme')||'light';if(th==='auto'){th=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}d.setAttribute('data-theme',th);var bg=localStorage.getItem('favshub_bg')||'gradient-background-7';d.classList.add(bg)}catch(e){}})()`,
     },
   ],
-  titleTemplate: (title) => title ? `${title} - FavsHub` : 'FavsHub - 智能书签工作台',
+  titleTemplate: (title) => {
+    const siteTitle = tdk.value?.siteTitle || 'FavsHub - 智能书签工作台'
+    return title ? `${title} - FavsHub` : siteTitle
+  },
+  meta: [
+    { name: 'description', content: computed(() => tdk.value?.siteDescription || '') },
+    { name: 'keywords', content: computed(() => tdk.value?.siteKeywords || '') },
+  ],
 })
 
 // 应用主题到 DOM（响应 store 变化）

@@ -17,10 +17,19 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
+  // 过滤系统级字段，普通用户不允许写入
+  const SYSTEM_ONLY_KEYS = ['siteTitle', 'siteDescription', 'siteKeywords', 'promptproTitle', 'promptproDescription', 'promptproKeywords', 'title', 'description', 'keywords', 'allow_registration']
+  const filtered: Record<string, any> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (!SYSTEM_ONLY_KEYS.includes(k)) {
+      filtered[k] = v
+    }
+  }
+
   // 读取现有设置并合并
   const existingRow = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(authUser.id) as { data: string } | undefined
   const existing = existingRow ? JSON.parse(existingRow.data) : {}
-  const merged = { ...existing, ...data }
+  const merged = { ...existing, ...filtered }
 
   // UPSERT 当前用户设置
   db.prepare(`

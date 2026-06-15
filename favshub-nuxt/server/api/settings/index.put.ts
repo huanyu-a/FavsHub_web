@@ -14,6 +14,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '请求体必须包含 data 对象' } })
   }
 
+  // 过滤系统级字段，普通用户不允许写入
+  const SYSTEM_ONLY_KEYS = ['siteTitle', 'siteDescription', 'siteKeywords', 'promptproTitle', 'promptproDescription', 'promptproKeywords', 'title', 'description', 'keywords', 'allow_registration']
+  const filtered: Record<string, any> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (!SYSTEM_ONLY_KEYS.includes(k)) {
+      filtered[k] = v
+    }
+  }
+
   const db = getRawDb()
 
   // 获取现有用户设置
@@ -24,7 +33,7 @@ export default defineEventHandler(async (event) => {
   } catch { /* ignore */ }
 
   // 合并
-  const merged = { ...existing, ...data }
+  const merged = { ...existing, ...filtered }
   const jsonStr = JSON.stringify(merged)
 
   // UPSERT

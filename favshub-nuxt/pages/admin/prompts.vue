@@ -140,9 +140,9 @@
     <div v-if="tab === 'tdk'" class="setting-card">
       <h3>提示词页面 TDK 设置</h3>
       <p class="hint">留空则使用系统 TDK 设置</p>
-      <div class="fg"><label>页面标题</label><input v-model="tdk.title" placeholder="提示词管理 - FavsHub" @input="saveTdk"></div>
-      <div class="fg"><label>页面描述</label><input v-model="tdk.description" placeholder="AI提示词管理平台" @input="saveTdk"></div>
-      <div class="fg"><label>关键词</label><input v-model="tdk.keywords" placeholder="提示词,AI,prompt" @input="saveTdk"></div>
+      <div class="fg"><label>页面标题</label><input v-model="tdk.promptproTitle" placeholder="PromptPro - 提示词管理" @input="saveTdk"></div>
+      <div class="fg"><label>页面描述</label><input v-model="tdk.promptproDescription" placeholder="AI提示词管理平台" @input="saveTdk"></div>
+      <div class="fg"><label>关键词</label><input v-model="tdk.promptproKeywords" placeholder="提示词,AI,prompt" @input="saveTdk"></div>
     </div>
 
     <!-- 文件夹编辑弹窗 -->
@@ -318,8 +318,8 @@ async function loadHistory() { hLoading.value = true; const d = await $fetch<any
 function viewHistory(p: any) { tab.value = 'history'; loadHistory() }
 
 // TDK
-const tdk = reactive({ title: '', description: '', keywords: '' })
-async function loadTdk() { const d = await $fetch<any>('/api/tdk', { headers: getAuthHeaders() }); Object.assign(tdk, { title: d.title || '', description: d.description || '', keywords: d.keywords || '' }) }
+const tdk = reactive({ promptproTitle: '', promptproDescription: '', promptproKeywords: '' })
+async function loadTdk() { const d = await $fetch<any>('/api/tdk', { headers: getAuthHeaders() }); Object.assign(tdk, { promptproTitle: d.promptproTitle || '', promptproDescription: d.promptproDescription || '', promptproKeywords: d.promptproKeywords || '' }) }
 let tdkTimer: any = null
 function saveTdk() { clearTimeout(tdkTimer); tdkTimer = setTimeout(() => $fetch('/api/admin/config', { method: 'PUT', headers: getAuthHeaders(), body: { data: { ...tdk } } }), 500) }
 

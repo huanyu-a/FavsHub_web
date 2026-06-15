@@ -12,10 +12,13 @@ export default defineEventHandler(async (event) => {
   const adminUsers = (config.adminUsers || '').split(',').map((u: string) => u.trim()).filter(Boolean)
   const dbPath = config.dbPath || join(process.cwd(), 'data', 'favshub.db')
 
-  // 读取系统级设置（user_id = 0）
+  // 从 system_config 表读取系统级配置
   const db = getRawDb()
-  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
-  const systemData = row ? JSON.parse(row.data) : {}
+  const rows = db.prepare('SELECT key, value FROM system_config').all() as { key: string; value: string }[]
+  const systemData: Record<string, string> = {}
+  for (const { key, value } of rows) {
+    systemData[key] = value
+  }
 
   return {
     adminUsers,

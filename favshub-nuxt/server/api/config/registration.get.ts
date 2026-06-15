@@ -5,7 +5,6 @@ import { getRawDb } from '../../database'
 
 export default defineEventHandler(() => {
   const db = getRawDb()
-  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
-  const settings = row ? JSON.parse(row.data) : {}
-  return { allowed: settings.allow_registration !== false }
+  const row = db.prepare("SELECT value FROM system_config WHERE key = 'allow_registration'").get() as { value: string } | undefined
+  return { allowed: !row || row.value !== 'false' }
 })

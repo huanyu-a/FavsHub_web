@@ -12,9 +12,9 @@ const SETTINGS_DEFAULTS: Record<string, any> = {
   sidepanelOpenInNewTab: false,
   sidepanelOpenInSidepanel: true,
   // Bookmark card dimensions
-  bookmarkWidth: 200,
+  bookmarkWidth: 210,
   bookmarkCardHeight: 50,
-  bookmarkContainerWidth: 85,
+  bookmarkContainerWidth: 90,
   // Layout toggles
   showSearchBox: true,
   showWelcomeMessage: true,
@@ -127,13 +127,19 @@ export const useSettingsStore = defineStore('settings', {
       try {
         const auth = useAuthStore()
         if (!auth.token) return
+        // 过滤系统级字段，只发送用户个人设置
+        const SYSTEM_ONLY_KEYS = ['siteTitle', 'siteDescription', 'siteKeywords', 'promptproTitle', 'promptproDescription', 'promptproKeywords', 'title', 'description', 'keywords', 'allow_registration']
+        const userData: Record<string, any> = {}
+        for (const [k, v] of Object.entries(this.settings)) {
+          if (!SYSTEM_ONLY_KEYS.includes(k)) userData[k] = v
+        }
         const res = await $fetch<{ data: Record<string, any> }>('/api/settings', {
           method: 'PUT',
           headers: { Authorization: `Bearer ${auth.token}` },
-          body: { data: this.settings },
+          body: { data: userData },
         })
-        // Reconcile with server response (server may normalise values)
-        this.settings = res.data
+        // 合并服务器响应，保留系统设置不被覆盖
+        this.settings = { ...this.settings, ...res.data }
       } catch {
         // Silently ignore — next set() call will retry
       }

@@ -269,6 +269,7 @@ onUnmounted(() => {
 
 useHead({
   title: 'PromptPro - 提示词管理',
+  titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
   link: [
     { rel: 'stylesheet', href: '/css/main-bundle.css' },
     { rel: 'stylesheet', href: '/css/index-sidebar-fix.css' },
@@ -281,20 +282,14 @@ useHead({
 })
 
 // PM8: Load TDK from API and apply to page head
-useAsyncData('prompts-tdk', async () => {
-  try {
-    const tdk = await $fetch<{ title?: string; description?: string; keywords?: string }>('/api/tdk')
-    if (tdk) {
-      useHead({
-        title: tdk.title ? `${tdk.title} - PromptPro` : 'PromptPro - 提示词管理',
-        meta: [
-          ...(tdk.description ? [{ name: 'description', content: tdk.description }] : []),
-          ...(tdk.keywords ? [{ name: 'keywords', content: tdk.keywords }] : []),
-        ],
-      })
-    }
-  } catch { /* ignore */ }
-  return true
+const { data: pageTdk } = await useFetch('/api/tdk', { server: true, lazy: false })
+
+useHead({
+  title: computed(() => pageTdk.value?.promptproTitle || 'PromptPro - 提示词管理'),
+  meta: [
+    { name: 'description', content: computed(() => pageTdk.value?.promptproDescription || '') },
+    { name: 'keywords', content: computed(() => pageTdk.value?.promptproKeywords || '') },
+  ],
 })
 
 const { isGuest } = useAuth()
@@ -307,6 +302,7 @@ interface Prompt {
   description?: string
   content: string
   folder_id?: string
+  user_id?: number
   is_favorite?: number
   current_version?: string
   login_required?: number

@@ -2134,7 +2134,7 @@ img.w-6.h-6.mr-2 {
   transition: opacity 0.3s ease-out, transform 0.3s ease-out;
   background: #ffffff6b;
   padding: 1rem 2rem 2rem 2rem;
-  width: 85%;
+  width: 90%;
   max-width: 1200px;
   margin: 2.5rem auto 2.5rem;
   border-radius: 12px;
@@ -5640,7 +5640,7 @@ body .default-folders-tabs.sidebar-expanded {
 
 .folder-bookmarks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--bookmark-width, 180px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--bookmark-width, 210px), 1fr));
   gap: 1rem;
   justify-items: center;
 }
@@ -5675,7 +5675,7 @@ body .default-folders-tabs.sidebar-expanded {
 /* 保�??书签?��???????��??�样�?*/
 .bookmark-card {
   width: 100%;
-  max-width: 180px;
+  max-width: 210px;
   text-decoration: none;
   color: inherit;
   transition: all 0.3s ease;

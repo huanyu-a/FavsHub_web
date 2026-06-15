@@ -1,6 +1,6 @@
 /**
  * PUT /api/admin/config — 更新系统配置
- * 注意：运行时配置在运行时无法直接修改，此接口主要用于更新数据库中的系统设置
+ * 写入 system_config 表（键值对存储），仅管理员可操作
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
@@ -17,14 +17,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: 'data 必须是对象' } })
   }
 
-  // 读取现有的系统设置（user_id = 0 表示系统级设置）
-  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as any
-  const existing = row ? JSON.parse(row.data) : {}
-  const merged = { ...existing, ...data }
+  // 逐个 key 写入 system_config 表（UPSERT）
+  const upsert = db.prepare(
+    'INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)'
+  )
+  const now = Date.now()
+  for (const [key, value] of Object.entries(data)) {
+    upsert.run(key, String(value ?? ''), now)
+  }
 
-  // 确保系统设置行存在
-  db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')
-  db.prepare('UPDATE settings SET data = ? WHERE user_id = 0').run(JSON.stringify(merged))
+  // 返回更新后的全量配置
+  const rows = db.prepare('SELECT key, value FROM system_config').all() as { key: string; value: string }[]
+  const merged: Record<string, string> = {}
+  for (const { key, value } of rows) {
+    merged[key] = value
+  }
 
   return { data: merged }
 })
