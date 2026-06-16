@@ -4,7 +4,6 @@
       <h2>管理后台</h2>
       <p>欢迎回来，{{ authStore.user?.nickname || authStore.user?.username || '用户' }}！{{ isAdmin ? '（管理员）' : '' }}</p>
     </header>
-
     <div v-if="isLoading" class="empty-state">加载中...</div>
     <template v-else>
       <!-- 统计分组卡片 -->
@@ -41,7 +40,6 @@
           </div>
         </div>
       </div>
-
       <!-- 数据导出 -->
       <div class="export-section">
         <h3 class="settings-section-title">数据导出</h3>
@@ -70,7 +68,6 @@
           </div>
         </div>
       </div>
-
       <div class="admin-nav">
         <h3 class="settings-section-title">快捷操作</h3>
         <div class="nav-grid">
@@ -107,18 +104,20 @@
     </template>
   </div>
 </template>
-
+/^<\/script>$/a
+/^  }$/a
+/^}$/a
+/^    <\/header>$/a
+/^    <\/template>$/a
+/^    <\/div>$/a
 <script setup lang="ts">
 definePageMeta({
   middleware: 'admin',
   layout: 'admin',
 })
-
 useHead({ title: '仪表盘' })
-
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
-
 interface AdminStats {
   users: number
   bookmarks: number
@@ -134,14 +133,11 @@ interface AdminStats {
   todayPrompts: number
   dbSize: string
 }
-
 const { data, pending: isLoading } = await useFetch('/api/admin/stats')
-
 const stats = computed(() => {
   const d = data.value as any
   return d || { users: 0, bookmarks: 0, prompts: 0, folders: 0 }
 })
-
 // ── 数据导出 ──
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -151,7 +147,6 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
-
 async function exportAdminBookmarks() {
   try {
     const blob = await $fetch('/api/admin/bookmarks/export', {
@@ -161,7 +156,6 @@ async function exportAdminBookmarks() {
     downloadBlob(blob as Blob, `favshub-bookmarks-all-${Date.now()}.html`)
   } catch { alert('导出失败') }
 }
-
 async function exportMyBookmarks() {
   try {
     const blob = await $fetch('/api/bookmarks/export', {
@@ -171,7 +165,6 @@ async function exportMyBookmarks() {
     downloadBlob(blob as Blob, `favshub-bookmarks-${Date.now()}.html`)
   } catch { alert('导出失败') }
 }
-
 async function exportAdminPrompts() {
   try {
     const blob = await $fetch('/api/prompts/export?all=1', {
@@ -181,7 +174,6 @@ async function exportAdminPrompts() {
     downloadBlob(blob as Blob, `favshub-prompts-all-${Date.now()}.json`)
   } catch { alert('导出失败') }
 }
-
 async function exportMyPrompts() {
   try {
     const blob = await $fetch('/api/prompts/export', {
@@ -192,130 +184,3 @@ async function exportMyPrompts() {
   } catch { alert('导出失败') }
 }
 </script>
-
-<style scoped>
-/* stat-card / .label / .value / .badge / .btn 等来自 /css/admin.css（admin 布局加载）。
-   此处仅页面容器与快捷操作网格。 */
-.admin-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px;
-}
-.stats-groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
-}
-.stat-group {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
-.stat-group-title {
-  padding: 12px 16px;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #555;
-  background: #f8f9fa;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.stat-group-title i { color: #667eea; font-size: 16px; }
-.stat-group-items { padding: 8px 0; }
-.stat-group-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-}
-.sgi-label { font-size: 13px; color: #666; }
-.sgi-value { font-size: 18px; font-weight: 700; color: #333; }
-.sgi-value.blue { color: #667eea; }
-.sgi-value.green { color: #10b981; }
-.sgi-value.purple { color: #764ba2; }
-.sgi-value.orange { color: #f59e0b; }
-/* 数据导出区域 */
-.export-section { margin-bottom: 28px; }
-.export-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-.export-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
-.export-card-header {
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-.export-card-header i { color: #667eea; font-size: 18px; }
-.export-card-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.export-hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #999;
-}
-.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
-.btn-primary { background: #667eea; color: #fff; }
-.btn-primary:hover { background: #5a6fd6; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.btn-ghost:hover { background: #f5f5f5; }
-
-.admin-nav { margin-bottom: 32px; }
-.nav-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-.nav-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px;
-  background: #fff;
-  border: 1px solid #e8e8e8;
-  border-radius: 10px;
-  text-decoration: none;
-  color: inherit;
-  transition: box-shadow 0.2s, transform 0.15s;
-}
-.nav-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
-}
-.nav-icon { font-size: 24px; color: #667eea; }
-.nav-label { font-size: 14px; color: #333; font-weight: 500; }
-
-@media (max-width: 768px) {
-  .admin-page { padding: 16px; }
-  .nav-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
-  .nav-card { padding: 14px; }
-  .nav-icon { font-size: 20px; }
-  .nav-label { font-size: 13px; }
-}
-@media (max-width: 480px) {
-  .nav-grid { grid-template-columns: 1fr 1fr; }
-}
-</style>

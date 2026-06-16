@@ -3,6 +3,7 @@
  */
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
+import { getConfigInt } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)
@@ -46,7 +47,7 @@ export default defineEventHandler(async (event) => {
     params.push(folder_id as string)
   }
 
-  sql += ' ORDER BY b.created_at DESC LIMIT 500'
+  sql += ` ORDER BY b.created_at DESC LIMIT ${getConfigInt('bookmarks_query_limit', 500)}`
 
   const bookmarks = db.prepare(sql).all(...params)
 

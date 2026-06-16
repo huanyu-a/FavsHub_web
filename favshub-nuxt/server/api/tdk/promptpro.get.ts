@@ -1,19 +1,12 @@
 /**
- * GET /api/tdk — 获取站点 TDK 配置（公开接口）
- * 仅返回首页 TDK（siteTitle/siteDescription/siteKeywords）
- * promptPro TDK 通过 /api/tdk/promptpro 单独获取，减少全局 payload
+ * GET /api/tdk/promptpro — 获取 PromptPro 页面 TDK 配置
+ * 仅在 prompts 页面使用，避免将 promptPro TDK 序列化到全局 payload
  */
-import { getRawDb } from '../database'
+import { getRawDb } from '../../database'
 
-// 内存缓存：5 分钟有效，避免每次 SSR 都查库
 let _cache: Record<string, string> | null = null
 let _cacheTime = 0
 const TTL = 5 * 60 * 1000
-
-export function invalidateTdkCache() {
-  _cache = null
-  _cacheTime = 0
-}
 
 export default cachedEventHandler(
   defineEventHandler(() => {
@@ -25,7 +18,7 @@ export default cachedEventHandler(
     const db = getRawDb()
     const rows = db.prepare(
       `SELECT key, value FROM system_config WHERE key IN (
-        'siteTitle', 'siteDescription', 'siteKeywords'
+        'promptproTitle', 'promptproDescription', 'promptproKeywords'
       )`
     ).all() as { key: string; value: string }[]
 
@@ -35,9 +28,9 @@ export default cachedEventHandler(
     }
 
     const tdk = {
-      siteTitle: result.siteTitle || '',
-      siteDescription: result.siteDescription || '',
-      siteKeywords: result.siteKeywords || '',
+      promptproTitle: result.promptproTitle || '',
+      promptproDescription: result.promptproDescription || '',
+      promptproKeywords: result.promptproKeywords || '',
     }
 
     _cache = tdk

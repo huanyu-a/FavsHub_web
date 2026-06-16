@@ -54,7 +54,12 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
-useHead({ title: 'FavsHub - 登录' })
+useHead({
+  title: 'FavsHub - 登录',
+  link: [
+    { rel: 'stylesheet', href: '/css/main-bundle.css' },
+  ],
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -116,106 +121,3 @@ async function handleRegister() {
 }
 </script>
 
-<style scoped>
-.login-page {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.login-container {
-  background: #fff;
-  border-radius: 16px;
-  padding: 48px 40px;
-  width: 400px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-}
-.login-logo {
-  text-align: center;
-  margin-bottom: 32px;
-}
-.login-logo img {
-  width: 48px;
-  height: 48px;
-}
-.login-logo h1 {
-  font-size: 24px;
-  margin-top: 8px;
-  color: #333;
-}
-.login-logo p {
-  color: #888;
-  font-size: 14px;
-  margin-top: 4px;
-}
-.tab-nav {
-  display: flex;
-  margin-bottom: 24px;
-  border-bottom: 2px solid #eee;
-}
-.tab-nav button {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  background: none;
-  font-size: 15px;
-  cursor: pointer;
-  color: #888;
-  transition: all 0.2s;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-}
-.tab-nav button.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
-  font-weight: 600;
-}
-.form-group {
-  margin-bottom: 16px;
-}
-.form-group label {
-  display: block;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 6px;
-}
-.form-group input {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 10px;
-  font-size: 14px;
-  transition: border-color 0.2s;
-  outline: none;
-}
-.form-group input:focus {
-  border-color: #667eea;
-}
-.submit-btn {
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-  margin-top: 8px;
-}
-.submit-btn:hover { opacity: 0.9; }
-.submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.error-msg {
-  color: #e74c3c;
-  font-size: 13px;
-  text-align: center;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: #ffeaea;
-  border-radius: 8px;
-}
-</style>

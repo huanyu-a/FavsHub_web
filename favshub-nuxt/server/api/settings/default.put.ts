@@ -5,6 +5,7 @@
  */
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
+import { SYSTEM_ONLY_KEYS } from '../../utils/constants'
 
 export default defineEventHandler(async (event) => {
   const authUser = requireAuth(event)
@@ -18,7 +19,6 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   // 过滤系统级字段，普通用户不允许写入
-  const SYSTEM_ONLY_KEYS = ['siteTitle', 'siteDescription', 'siteKeywords', 'promptproTitle', 'promptproDescription', 'promptproKeywords', 'title', 'description', 'keywords', 'allow_registration']
   const filtered: Record<string, any> = {}
   for (const [k, v] of Object.entries(data)) {
     if (!SYSTEM_ONLY_KEYS.includes(k)) {

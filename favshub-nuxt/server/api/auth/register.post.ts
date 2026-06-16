@@ -5,10 +5,11 @@ import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
 import { checkRateLimit } from '../../utils/rate-limit'
+import { getConfigInt, getConfig } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
   const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
-  checkRateLimit(`register:${ip}`, 10, 60_000)
+  checkRateLimit(`register:${ip}`, getConfigInt('rate_limit_register_max', 10), getConfigInt('rate_limit_register_window', 60_000))
   const body = await readBody(event)
   const { username, password, email, nickname } = body || {}
 
@@ -19,8 +20,8 @@ export default defineEventHandler(async (event) => {
   if (username.length < 2 || username.length > 32) {
     throw createError({ statusCode: 400, data: { error: '用户名长度 2-32 字符' } })
   }
-  if (password.length < 8) {
-    throw createError({ statusCode: 400, data: { error: '密码至少 8 位' } })
+  if (password.length < getConfigInt('min_password_length', 8)) {
+    throw createError({ statusCode: 400, data: { error: `密码至少 ${getConfigInt('min_password_length', 8)} 位` } })
   }
   if (nickname && nickname.length > 64) {
     throw createError({ statusCode: 400, data: { error: '昵称最长 64 字符' } })
@@ -32,8 +33,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   // 检查是否允许注册（从 system_config 读取）
-  const regRow = db.prepare("SELECT value FROM system_config WHERE key = 'allow_registration'").get() as { value: string } | undefined
-  if (regRow && regRow.value === 'false') {
+  if (getConfig('allow_registration') === 'false') {
     throw createError({ statusCode: 403, data: { error: '注册功能已关闭，请联系管理员' } })
   }
 
@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: getConfigInt('cookie_max_age', 60 * 60 * 24 * 7),
   })
 
   return {

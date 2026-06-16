@@ -28,7 +28,4 @@ const activeSegments = computed(() => Math.floor(yearProgress.value / 8.33))
 const progressPercent = computed(() => yearProgress.value.toFixed(2))
 </script>
 
-<style scoped>
-/* .year-progress-container / .year-progress / .progress-bar / .progress-percentage
-   全部来自 main-bundle.css。 */
-</style>
+

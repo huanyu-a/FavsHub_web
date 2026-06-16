@@ -39,6 +39,4 @@ onMounted(() => {
 onUnmounted(() => { if (timer) clearTimeout(timer) })
 </script>
 
-<style scoped>
-/* .welcome-search-container 与 #welcome-message 样式均来自 main-bundle.css（含暗色模式） */
-</style>
+

@@ -136,7 +136,4 @@ function handleSubmit() {
 }
 </script>
 
-<style scoped>
-/* #edit-dialog 及其 .modal-content / 输入框 / .edit-category-select* / .close-button /
-   .form-buttons / button 样式全部来自 main-bundle.css（含暗色模式）。 */
-</style>
+

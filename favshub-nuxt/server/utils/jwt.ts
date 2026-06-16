@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken'
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { getConfig } from './config'
 
 const SECRET_FILE = join(process.cwd(), 'data', '.jwt-secret')
 
@@ -73,8 +74,9 @@ export function getSecret(): string {
 /**
  * 签发 JWT token
  */
-export function signToken(payload: JwtPayload, expiresIn: string = '7d'): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: expiresIn as any })
+export function signToken(payload: JwtPayload, expiresIn?: string): string {
+  const expiry = expiresIn || getConfig('jwt_token_expiry') || '7d'
+  return jwt.sign(payload, getSecret(), { expiresIn: expiry as any })
 }
 
 /**

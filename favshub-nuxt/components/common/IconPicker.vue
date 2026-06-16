@@ -69,14 +69,3 @@ const filteredIcons = computed(() => {
 })
 </script>
 
-<style scoped>
-.icon-picker-wrapper { display: flex; flex-direction: column; gap: 8px; }
-.icon-picker-preview { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; }
-.icon-picker-clear { background: none; border: none; font-size: 18px; cursor: pointer; color: #999; }
-.icon-picker-search { padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; outline: none; }
-.icon-picker-search:focus { border-color: #667eea; }
-.icon-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 4px; max-height: 180px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
-.icon-picker-option { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; border: 1.5px solid transparent; cursor: pointer; font-size: 16px; color: #555; transition: all 0.15s; }
-.icon-picker-option:hover { border-color: #667eea; color: #667eea; background: rgba(102,126,234,0.05); }
-.icon-picker-option.active { border-color: #667eea; background: rgba(102,126,234,0.1); color: #667eea; }
-</style>

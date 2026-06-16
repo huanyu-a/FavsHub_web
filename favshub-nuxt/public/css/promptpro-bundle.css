@@ -4425,3 +4425,211 @@ body {
 .ri-verified-badge-fill:before { content: "\f3e8"; }
 .ri-verified-badge-line:before { content: "\f3e9"; }
 
+/* ══════════════════════════════════════════════════════════
+   Merged from pages/prompts/index.vue <style scoped>
+   ══════════════════════════════════════════════════════════ */
+.prompts-root {
+  height: 100vh;
+  overflow: visible;
+}
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #10b981;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10000;
+}
+.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
+/* 文件夹计数 badge（与 Sidebar.vue 保持一致） */
+.item-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+  padding: 0 4px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  margin-right: 4px;
+  line-height: 16px;
+}
+.bg-emerald-500 .item-count {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.2);
+}
+/* 展开/收缩箭头 */
+.folder-arrow {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 16px;
+  color: #94a3b8;
+  width: 20px;
+  text-align: center;
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.folder-arrow:hover {
+  color: #10b981;
+}
+/* 只读卡片（管理员创建） */
+.prompt-card.read-only {
+  opacity: 0.85;
+}
+.prompt-card.read-only .prompt-title::after {
+  content: '🔒';
+  font-size: 12px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Merged from pages/prompts/index.vue <style> (non-scoped)
+   ══════════════════════════════════════════════════════════ */
+/* 导出按钮 */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #555;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.btn-outline:hover { border-color: #667eea; color: #667eea; background: #eef2ff; }
+
+/* 右键菜单（Teleport 到 body，不可 scoped） */
+.folder-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  padding: 4px 0;
+  min-width: 160px;
+  font-size: 13px;
+}
+.folder-context-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  transition: background 0.15s;
+}
+.folder-context-item:hover {
+  background: #f1f5f9;
+}
+.folder-context-item.danger {
+  color: #ef4444;
+}
+.folder-context-item.danger:hover {
+  background: #fef2f2;
+}
+.folder-context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Merged from components/prompts/PromptDialogs.vue <style scoped>
+   (only selectors not already present in this file)
+   ══════════════════════════════════════════════════════════ */
+/* ── Generic icon button ── */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.btn-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--primary-color);
+}
+
+/* ── Version detail modal overlay ── */
+.version-modal {
+  display: flex; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 10001;
+  align-items: center; justify-content: center;
+}
+.version-header h3 { margin: 0; font-size: 15px; }
+.version-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Diff: prefix & line variants ── */
+.diff-prefix {
+  font-weight: 700;
+  margin-right: 4px;
+}
+.diff-line.add {
+  background: #dcfce7;
+}
+.diff-line.add .diff-line-content {
+  color: #16a34a;
+}
+.diff-line.del {
+  background: #fee2e2;
+}
+.diff-line.del .diff-line-content {
+  color: #dc2626;
+}
+
+/* ── Edit form grid ── */
+.edit-form-grid { display: flex; flex-direction: column; gap: 12px; }
+.form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.full-width { width: 100%; }
+.form-input-lg { font-size: 16px !important; font-weight: 600; }
+.form-textarea-code {
+  font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace !important;
+  font-size: 13px !important; line-height: 1.6 !important; tab-size: 2;
+}
+
+/* ── Tag remove (standalone selector) ── */
+.tag-remove { cursor: pointer; color: #999; font-size: 14px; }
+.tag-remove:hover { color: #e53e3e; }
+
+/* ── Icon picker ── */
+.icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.icon-pick-option {
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1.5px solid #e0e0e0; cursor: pointer; font-size: 18px;
+  color: #555; transition: all 0.15s;
+}
+.icon-pick-option:hover { border-color: #10b981; color: #10b981; }
+.icon-pick-option.active { border-color: #10b981; background: rgba(16,185,129,0.08); color: #10b981; }
+
+/* ── Responsive (merged from PromptDialogs) ── */
+@media (max-width: 768px) {
+  .vcol-grid { grid-template-columns: 1fr; }
+  .compare-info { flex-direction: column; gap: 12px; }
+  .compare-stats { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .form-row-2col { grid-template-columns: 1fr; }
+}
+

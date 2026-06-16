@@ -6,6 +6,7 @@ import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
 import { createError, readBody } from 'h3'
 import bcrypt from 'bcryptjs'
+import { getConfigInt } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -23,8 +24,8 @@ export default defineEventHandler(async (event) => {
     if (!dbUser || !bcrypt.compareSync(old_password, dbUser.password_hash)) {
       throw createError({ statusCode: 400, data: { error: '旧密码错误' } })
     }
-    if (password.length < 6) {
-      throw createError({ statusCode: 400, data: { error: '新密码至少 6 位' } })
+    if (password.length < getConfigInt('min_password_length', 8)) {
+      throw createError({ statusCode: 400, data: { error: `新密码至少 ${getConfigInt('min_password_length', 8)} 位` } })
     }
     const hashedPassword = bcrypt.hashSync(password, 10)
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, user.id)

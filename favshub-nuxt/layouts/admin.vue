@@ -55,7 +55,6 @@
     <main class="admin-main">
       <slot />
     </main>
-
     <!-- 个人信息编辑弹窗 -->
     <Teleport to="body">
       <div v-if="showProfile" class="profile-overlay" @click.self="showProfile = false">
@@ -97,14 +96,18 @@
     </Teleport>
   </div>
 </template>
-
+/^<\/script>$/a
+/^  }$/a
+/^}$/a
+/^    <\/header>$/a
+/^    <\/template>$/a
+/^    <\/div>$/a
 <script setup lang="ts">
 const route = useRoute()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarOpen = ref(false)
 function closeSidebar() { sidebarOpen.value = false }
-
 // ── 个人信息编辑 ──────────────────────────────────────────────
 const showProfile = ref(false)
 const profileSaving = ref(false)
@@ -116,7 +119,6 @@ const profileForm = reactive({
   old_password: '',
   password: '',
 })
-
 // 打开弹窗时填充当前值
 watch(showProfile, (val) => {
   if (val) {
@@ -127,7 +129,6 @@ watch(showProfile, (val) => {
     profileMsg.value = ''
   }
 })
-
 async function saveProfile() {
   profileSaving.value = true
   profileMsg.value = ''
@@ -158,7 +159,6 @@ async function saveProfile() {
     profileSaving.value = false
   }
 }
-
 useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
@@ -167,282 +167,3 @@ useHead({
   ],
 })
 </script>
-
-<style scoped>
-.admin-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background: #f5f5f7;
-}
-.admin-sidebar {
-  width: 220px;
-  background: #1a1a2e;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  overflow-y: auto;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-}
-.admin-sidebar-logo {
-  padding: 24px 24px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-.logo-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: inherit;
-}
-.logo-img { width: 32px; height: 32px; }
-.logo-text h1 { font-size: 20px; font-weight: 700; margin: 0; }
-.logo-text span { font-size: 12px; color: rgba(255,255,255,0.5); }
-.admin-sidebar-nav {
-  flex: 1;
-  padding: 16px 0;
-}
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 24px;
-  color: rgba(255,255,255,0.7);
-  text-decoration: none;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-.nav-item:hover, .nav-item.active {
-  color: #fff;
-  background: rgba(255,255,255,0.1);
-}
-.nav-item i { font-size: 18px; width: 20px; text-align: center; }
-.admin-sidebar-footer {
-  padding: 16px 24px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-}
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 8px;
-  transition: background 0.2s;
-}
-.user-info:hover {
-  background: rgba(255,255,255,0.08);
-}
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-  flex-shrink: 0;
-}
-.user-details {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.user-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(255,255,255,0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.user-role {
-  font-size: 11px;
-  color: rgba(255,255,255,0.4);
-}
-.admin-sidebar-footer .nav-item {
-  padding: 0;
-  color: rgba(255,255,255,0.5);
-  font-size: 13px;
-}
-.admin-sidebar-footer .nav-item:hover {
-  color: #fff;
-  background: none;
-}
-.admin-main {
-  flex: 1;
-  overflow-y: auto;
-  height: 100vh;
-  padding: 0;
-}
-.hamburger {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: rgba(255,255,255,0.8);
-  border-radius: 8px;
-  margin-left: auto;
-}
-.hamburger:active { background: rgba(255,255,255,0.1); }
-.hamburger svg { width: 22px; height: 22px; }
-
-/* ── Profile Dialog ── */
-.profile-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.profile-modal {
-  background: #fff;
-  border-radius: 12px;
-  width: 400px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  overflow: hidden;
-}
-.profile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-.profile-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-.profile-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #888;
-  padding: 0 4px;
-}
-.profile-body {
-  padding: 20px;
-}
-.profile-field {
-  margin-bottom: 14px;
-}
-.profile-field label {
-  display: block;
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 4px;
-}
-.profile-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-.profile-input:focus {
-  border-color: #667eea;
-}
-.profile-input.disabled {
-  background: #f5f5f5;
-  color: #999;
-  cursor: not-allowed;
-}
-.profile-divider {
-  text-align: center;
-  margin: 16px 0 12px;
-  position: relative;
-}
-.profile-divider::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  border-top: 1px solid #eee;
-}
-.profile-divider span {
-  background: #fff;
-  padding: 0 12px;
-  font-size: 12px;
-  color: #999;
-  position: relative;
-}
-.profile-msg {
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  margin-bottom: 12px;
-  text-align: center;
-}
-.profile-msg.success {
-  background: #d1fae5;
-  color: #065f46;
-}
-.profile-msg.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-.profile-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-.btn-cancel {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
-  color: #666;
-  font-size: 14px;
-  cursor: pointer;
-}
-.btn-save {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-}
-.btn-save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* ── Mobile responsive ── */
-@media (max-width: 768px) {
-  .admin-layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
-  .admin-sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 100; }
-  .admin-sidebar-logo { padding: 10px 16px; }
-  .logo-text h1 { font-size: 18px; }
-  .logo-text span { display: none; }
-  .hamburger { display: flex; }
-  .admin-sidebar-nav { display: none; padding: 8px 0; }
-  .admin-sidebar.open .admin-sidebar-nav { display: block; }
-  .nav-item { padding: 12px 16px; }
-  .admin-sidebar-footer { display: none; }
-  .admin-main { height: auto; overflow-y: visible; }
-}
-</style>

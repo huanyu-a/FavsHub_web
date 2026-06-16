@@ -37,7 +37,6 @@
         </tbody>
       </table>
     </div>
-
     <!-- 添加/编辑弹窗 -->
     <div v-if="modalVisible" class="modal-overlay" @click.self="modalVisible = false">
       <div class="modal">
@@ -62,104 +61,44 @@
     </div>
   </div>
 </template>
-
+/^<\/script>$/a
+/^  }$/a
+/^}$/a
+/^    <\/header>$/a
+/^    <\/template>$/a
+/^    <\/div>$/a
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
-
 useHead({ title: '搜索引擎' })
-
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
-
 const engines = ref<any[]>([])
 const loading = ref(false)
 const modalVisible = ref(false)
 const isNew = ref(true)
 const editingId = ref<number | null>(null)
 const form = reactive({ name: '', label: '', url: '', icon: '', category: 'SEARCH', sort_order: 0, is_default: 0 })
-
 async function load() {
   loading.value = true
   const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines')
   engines.value = d.engines || []
   loading.value = false
 }
-
 function openCreate() {
   isNew.value = true; editingId.value = null
   Object.assign(form, { name: '', label: '', url: '', icon: '', category: 'SEARCH', sort_order: 0, is_default: 0 })
   modalVisible.value = true
 }
-
 function openEdit(e: any) {
   isNew.value = false; editingId.value = e.id
   Object.assign(form, { name: e.name, label: e.label || e.name, url: e.url, icon: e.icon || '', category: e.category || 'SEARCH', sort_order: e.sort_order || 0, is_default: e.is_default || 0 })
   modalVisible.value = true
 }
-
 async function save() {
   if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', body: { ...form } }) }
   else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', body: { ...form } }) }
   modalVisible.value = false; load()
 }
-
 async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE' }); load() }
-
 onMounted(load)
 </script>
-
-<style scoped>
-.admin-page { max-width: 1200px; margin: 0 auto; padding: 32px; }
-.page-header { margin-bottom: 24px; }
-.page-header h1 { font-size: 22px; font-weight: 600; }
-.page-header p { color: #888; font-size: 14px; margin-top: 4px; }
-.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden; }
-.card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-.card-header h3 { font-size: 16px; margin: 0; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
-td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
-tr:hover { background: #fafafa; }
-.actions { display: flex; gap: 4px; }
-.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
-.btn-primary { background: #667eea; color: #fff; }
-.btn-primary:hover { background: #5a6fd6; }
-.btn-danger { background: #e74c3c; color: #fff; }
-.btn-danger:hover { background: #c0392b; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.btn-ghost:hover { background: #f5f5f5; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-.badge-search { background: #e0e7ff; color: #3730a3; }
-.badge-ai { background: #fef3c7; color: #92400e; }
-.badge-social { background: #d1fae5; color: #065f46; }
-.empty-state { text-align: center; padding: 40px; color: #888; }
-.modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; align-items: center; justify-content: center; }
-.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
-.modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-.modal-header h3 { margin: 0; font-size: 16px; }
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px 24px; }
-.fg { margin-bottom: 12px; }
-.fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
-.fg input, .fg select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-.form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-/* ── Mobile responsive ── */
-@media (max-width: 768px) {
-  .admin-page { padding: 16px; }
-  .page-header h1 { font-size: 18px; }
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .btn { padding: 8px 16px; font-size: 14px; }
-  .btn-sm { padding: 6px 12px; font-size: 13px; }
-  .modal { width: 95%; max-height: 90vh; }
-  .modal-header { padding: 14px 16px; }
-  .modal-body { padding: 14px 16px; }
-  .card-header { padding: 12px 16px; }
-  .card-header h3 { font-size: 14px; }
-}
-@media (max-width: 480px) {
-  .admin-page { padding: 12px; }
-  .page-header h1 { font-size: 16px; }
-}
-</style>

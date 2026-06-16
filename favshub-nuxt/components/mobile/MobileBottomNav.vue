@@ -85,13 +85,3 @@ function toggleTheme() {
 }
 </script>
 
-<style scoped>
-.mobile-search-sheet-body :deep(.search-container) {
-  width: 100%;
-}
-.mobile-search-sheet-body :deep(.search-form) {
-  margin: 0;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-</style>

@@ -3,6 +3,7 @@
  * 包含：表创建、增量迁移（ensureColumn）、索引、系统用户、默认搜索引擎
  */
 import type Database from 'better-sqlite3'
+import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 
 /**
  * 初始化 Schema — 创建所有基础表（如不存在）
@@ -232,15 +233,7 @@ export function seedDefaults(db: Database.Database) {
  * 将 settings user_id=0 中的 TDK 和系统配置字段迁移到独立表
  */
 function migrateSystemConfig(db: Database.Database) {
-  const defaults: Record<string, string> = {
-    siteTitle: 'FavsHub - 智能书签工作台',
-    siteDescription: 'FavsHub 智能书签工作台 - 高效管理浏览器书签、AI提示词，支持多端同步、智能搜索、自定义导航页',
-    siteKeywords: '书签管理,智能导航,AI提示词,工作台,FavsHub,浏览器书签同步,提示词管理',
-    promptproTitle: 'PromptPro - AI提示词管理系统',
-    promptproDescription: 'PromptPro 提示词管理系统 - 集中管理、分类整理、快速检索AI提示词，提升工作效率',
-    promptproKeywords: 'PromptPro,提示词管理,AI提示词,提示词分类,提示词模板,ChatGPT提示词',
-    allow_registration: 'true',
-  }
+  const defaults: Record<string, string> = { ...SYSTEM_CONFIG_DEFAULTS }
 
   const upsert = db.prepare(
     'INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)'

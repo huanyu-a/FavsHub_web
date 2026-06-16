@@ -14,22 +14,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getRawDb()
-
-  // 获取现有系统设置
-  const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as { data: string } | undefined
-  let settings: Record<string, any> = {}
-  try {
-    settings = row ? JSON.parse(row.data) : {}
-  } catch { /* ignore */ }
-
-  // 更新 baiduAppKey
-  settings.baiduAppKey = key
-
-  // UPSERT
-  db.prepare(`
-    INSERT INTO settings (user_id, data) VALUES (0, ?)
-    ON CONFLICT(user_id) DO UPDATE SET data = excluded.data
-  `).run(JSON.stringify(settings))
+  db.prepare(
+    'INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)'
+  ).run('baiduAppKey', key, Date.now())
 
   return { success: true }
 })

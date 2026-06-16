@@ -5,10 +5,11 @@ import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
 import { checkRateLimit } from '../../utils/rate-limit'
+import { getConfigInt } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
   const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
-  checkRateLimit(`login:${ip}`, 20, 60_000)
+  checkRateLimit(`login:${ip}`, getConfigInt('rate_limit_login_max', 20), getConfigInt('rate_limit_login_window', 60_000))
   const body = await readBody(event)
   const { username, password } = body || {}
 
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: getConfigInt('cookie_max_age', 60 * 60 * 24 * 7),
   })
 
   return {

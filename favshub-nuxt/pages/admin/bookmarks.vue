@@ -4,12 +4,10 @@
       <h1>书签管理</h1>
       <p>查看和管理所有用户的书签与文件夹</p>
     </header>
-
     <div class="tab-nav">
       <button :class="{ active: tab === 'list' }" @click="tab = 'list'">书签列表</button>
       <button :class="{ active: tab === 'folders' }" @click="tab = 'folders'">文件夹管理</button>
     </div>
-
     <!-- 书签列表 -->
     <div v-if="tab === 'list'">
       <div class="filter-bar">
@@ -59,7 +57,6 @@
         </div>
       </div>
     </div>
-
     <!-- 文件夹管理 -->
     <div v-if="tab === 'folders'">
       <div class="card">
@@ -95,7 +92,6 @@
         </table>
       </div>
     </div>
-
     <!-- 文件夹编辑弹窗 -->
     <div v-if="folderEditVisible" class="modal-overlay" @click.self="folderEditVisible = false">
       <div class="modal">
@@ -120,7 +116,6 @@
         </div>
       </div>
     </div>
-
     <!-- 编辑弹窗 -->
     <div v-if="editVisible" class="modal-overlay" @click.self="editVisible = false">
       <div class="modal">
@@ -142,18 +137,19 @@
     </div>
   </div>
 </template>
-
+/^<\/script>$/a
+/^  }$/a
+/^}$/a
+/^    <\/header>$/a
+/^    <\/template>$/a
+/^    <\/div>$/a
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
-
 useHead({ title: '书签管理' })
-
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
-
 const tab = ref('list')
-
 // Bookmark list state
 const bookmarks = ref<any[]>([])
 const loading = ref(false)
@@ -166,24 +162,20 @@ const filterUrl = ref('')
 const filterCategory = ref<number | null>(null)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pages = computed(() => { const a: number[] = []; for (let i = Math.max(1, page.value - 2); i <= Math.min(totalPages.value, page.value + 2); i++) a.push(i); return a })
-
 // Folder state
 interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; icon?: string; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
 const folderAll = ref<any[]>([])
 const folderLoading = ref(false)
 const allExpanded = ref(true)
 const collapsedIds = ref(new Set<number>())
-
 // Folder edit state
 const folderEditVisible = ref(false)
 const folderEditId = ref<number | null>(null)
 const folderEditForm = reactive({ name: '', parent_id: null as number | null, icon: '', user_id: null as number | null })
 import IconPicker from '~/components/common/IconPicker.vue'
-
 // Users list (for create mode)
 const users = ref<any[]>([])
 async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
-
 function buildTree(list: any[]): FolderNode[] {
   const map = new Map<number, FolderNode>()
   const roots: FolderNode[] = []
@@ -195,18 +187,14 @@ function buildTree(list: any[]): FolderNode[] {
   }
   return roots
 }
-
 function flattenTree(nodes: FolderNode[], depth: number): FolderNode[] {
   let r: FolderNode[] = []
   for (const n of nodes) { n._depth = depth; r.push(n); if (n.children.length > 0) r = r.concat(flattenTree(n.children, depth + 1)) }
   return r
 }
-
 const flatFolders = computed(() => flattenTree(buildTree(folderAll.value), 0))
-
 // 双层筛选：分类（顶级文件夹）和子文件夹
 const categories = computed(() => folderAll.value.filter(f => !f.parent_id))
-
 const subFolders = computed(() => {
   if (filterCategory.value === null) return flatFolders.value
   const catId = filterCategory.value
@@ -224,12 +212,10 @@ const subFolders = computed(() => {
   }
   return flatFolders.value.filter(f => descendantIds.has(f.id))
 })
-
 function onCategoryChange() {
   filterFolder.value = null
   loadBookmarks()
 }
-
 const displayFolders = computed(() => {
   const tree = buildTree(folderAll.value)
   const result: FolderNode[] = []
@@ -244,7 +230,6 @@ const displayFolders = computed(() => {
   walk(tree, 0)
   return result
 })
-
 async function loadBookmarks() {
   loading.value = true
   const p = new URLSearchParams({ page: String(page.value), limit: String(pageSize) })
@@ -256,17 +241,14 @@ async function loadBookmarks() {
   total.value = r.total || 0
   loading.value = false
 }
-
 let dt: any = null
 function debouncedLoad() { clearTimeout(dt); dt = setTimeout(loadBookmarks, 400) }
-
 async function loadFolders() {
   folderLoading.value = true
   const d = await $fetch<{ folders: any[] }>('/api/admin/folders')
   folderAll.value = d.folders || []
   folderLoading.value = false
 }
-
 function toggleAllFolders() {
   allExpanded.value = !allExpanded.value
   if (allExpanded.value) {
@@ -284,7 +266,6 @@ function toggleAllFolders() {
     collapsedIds.value = ids
   }
 }
-
 // Edit modal
 const editVisible = ref(false)
 const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0 })
@@ -295,7 +276,6 @@ async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favi
 async function downloadAllFavicons() { await $fetch('/api/admin/download-favicons', { method: 'POST' }) }
 async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', { method: 'POST' }) }
 async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST' }) }
-
 async function exportBookmarks() {
   try {
     const blob = await $fetch('/api/admin/bookmarks/export', {
@@ -310,7 +290,6 @@ async function exportBookmarks() {
     URL.revokeObjectURL(url)
   } catch { alert('导出失败') }
 }
-
 // Folder ops
 function openFolderCreate() {
   folderEditId.value = null
@@ -336,86 +315,5 @@ async function saveFolderEdit() {
   loadFolders()
 }
 async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE' }); loadFolders() }
-
 onMounted(() => { loadBookmarks(); loadFolders(); loadUsers() })
 </script>
-
-<style scoped>
-.admin-page { max-width: 1400px; margin: 0 auto; padding: 32px; }
-.page-header { margin-bottom: 24px; }
-.page-header h1 { font-size: 22px; font-weight: 600; }
-.page-header p { color: #888; font-size: 14px; margin-top: 4px; }
-.tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #eee; }
-.tab-nav button { padding: 10px 20px; border: none; background: none; font-size: 14px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-.tab-nav button.active { color: #667eea; border-bottom-color: #667eea; }
-.filter-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px; flex-wrap: wrap; }
-.filter-bar select, .filter-bar input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
-.filter-bar .info { font-size: 13px; color: #999; }
-.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden; }
-.card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-.card-header h3 { font-size: 16px; margin: 0; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
-td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
-tr:hover { background: #fafafa; }
-.actions { display: flex; gap: 4px; flex-wrap: wrap; }
-.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
-.btn-primary { background: #667eea; color: #fff; }
-.btn-primary:hover { background: #5a6fd6; }
-.btn-danger { background: #e74c3c; color: #fff; }
-.btn-danger:hover { background: #c0392b; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.btn-ghost:hover { background: #f5f5f5; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.badge-public { background: #f0fdf4; color: #166534; }
-.badge-locked { background: #fef3c7; color: #92400e; }
-.empty-state { text-align: center; padding: 40px; color: #888; }
-.pagination { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 16px; }
-.pagination button { padding: 6px 12px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
-.pagination button.active { background: #667eea; color: #fff; border-color: #667eea; }
-.pagination button:disabled { opacity: .4; cursor: not-allowed; }
-.expand-btn { cursor: pointer; width: 16px; display: inline-block; text-align: center; user-select: none; }
-.modal-overlay { display: flex; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; align-items: center; justify-content: center; }
-.modal { background: #fff; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
-.modal-header { padding: 20px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-.modal-header h3 { margin: 0; font-size: 16px; }
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.modal-body { padding: 20px 24px; }
-.fg { margin-bottom: 12px; }
-.fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
-.fg input, .fg select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-.form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
-.toggle-row > label:first-child { margin-bottom: 0; font-size: 13px; color: #666; }
-.switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.slider { position: absolute; inset: 0; background: #ccc; border-radius: 34px; cursor: pointer; transition: .4s; }
-.slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 4px; bottom: 4px; background: #fff; border-radius: 50%; transition: .4s; }
-.switch input:checked + .slider { background: #10b981; }
-.switch input:checked + .slider:before { transform: translateX(16px); }
-.icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.icon-pick-option { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 18px; color: #6b7280; transition: all .15s; }
-.icon-pick-option:hover { border-color: #667eea; color: #667eea; background: #f0f1ff; }
-.icon-pick-option.active { border-color: #667eea; color: #667eea; background: #eef2ff; }
-/* ── Mobile responsive ── */
-@media (max-width: 768px) {
-  .admin-page { padding: 16px; }
-  .page-header h1 { font-size: 18px; }
-  .filter-bar { padding: 10px 12px; gap: 8px; }
-  .filter-bar select, .filter-bar input { padding: 6px 8px; font-size: 12px; }
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  th, td { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .btn { padding: 8px 16px; font-size: 14px; }
-  .btn-sm { padding: 6px 12px; font-size: 13px; }
-  .modal { width: 95%; max-height: 90vh; }
-  .modal-header { padding: 14px 16px; }
-  .modal-body { padding: 14px 16px; }
-  .card-header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
-  .card-header h3 { font-size: 14px; }
-}
-@media (max-width: 480px) {
-  .admin-page { padding: 12px; }
-  .page-header h1 { font-size: 16px; }
-}
-</style>

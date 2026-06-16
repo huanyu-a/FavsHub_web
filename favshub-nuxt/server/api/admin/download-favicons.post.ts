@@ -4,6 +4,7 @@
  */
 import { getRawDb } from '../../database'
 import { requireAdmin } from '../../utils/auth'
+import { getConfig, getConfigInt } from '../../utils/config'
 import { existsSync, mkdirSync, createWriteStream } from 'node:fs'
 import { join } from 'node:path'
 import https from 'node:https'
@@ -21,14 +22,15 @@ function isPrivateIP(hostname: string): boolean {
 }
 
 function downloadFavicon(url: string, destPath: string, _redirectDepth = 0): Promise<void> {
-  const MAX_REDIRECTS = 3
+  const MAX_REDIRECTS = getConfigInt('favicon_max_redirects', 3)
+  const timeout = getConfigInt('favicon_download_timeout', 10000)
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(url)
       if (u.protocol !== 'https:') return reject(new Error('仅支持 HTTPS 协议'))
       if (isPrivateIP(u.hostname)) return reject(new Error('不允许访问内网地址'))
 
-      const req = https.get(url, { timeout: 10000 }, (response) => {
+      const req = https.get(url, { timeout }, (response) => {
         if (response.statusCode! >= 300 && response.statusCode! < 400 && response.headers.location) {
           if (_redirectDepth >= MAX_REDIRECTS) return reject(new Error('重定向次数超限'))
           const redirectUrl = response.headers.location.startsWith('http')
@@ -91,7 +93,9 @@ export default defineEventHandler(async (event) => {
       continue
     }
 
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`
+    const sourceUrl = getConfig('favicon_source_url') || 'https://www.google.com/s2/favicons?domain={domain}&sz={size}'
+    const sz = getConfig('favicon_size') || '32'
+    const faviconUrl = sourceUrl.replace('{domain}', hostname).replace('{size}', sz)
     try {
       await downloadFavicon(faviconUrl, destPath)
       updateByHostname.run(localPath, `%://${hostname}/%`)

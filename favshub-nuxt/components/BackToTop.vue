@@ -66,7 +66,4 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
-/* #back-to-top-container / #back-to-top / #back-to-top.show / #scroll-percent
-   全部来自 main-bundle.css（含暗色模式与环形进度动画）。 */
-</style>
+

@@ -166,31 +166,3 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-/* .bookmark-card / .card / .favicon / .card-content / .card-title 全部来自 main-bundle.css。
-   下面仅补充编辑/删除按钮样式。 */
-.bookmark-card { position: relative; }
-
-.card-favicon-img {
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-.card-icon-text {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  font-weight: 700;
-  color: #4a90d9;
-  background: rgba(74, 144, 217, 0.12);
-  border-radius: 6px;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-</style>

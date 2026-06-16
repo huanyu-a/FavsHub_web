@@ -125,7 +125,6 @@ input:checked + .slider:before { transform: translateX(16px); }
 .slider-container input[type="range"]::-moz-range-thumb {
   width: 18px; height: 18px; background: #10b981; border-radius: 50%; cursor: pointer; border: none;
 }
-.value-display { white-space: nowrap; font-size: 14px; color: #4a5568; min-width: 48px; text-align: right; font-weight: 500; }
 .preview-text { margin-top: 12px; font-size: 13px; color: #4a5568; }
 .preview-text span:last-child { color: #10b981; font-weight: 500; }
 
@@ -172,4 +171,241 @@ input:checked + .slider:before { transform: translateX(16px); }
   .stat-card .value { font-size: 20px; }
   .stat-card .label { font-size: 12px; }
   .page-header h2 { font-size: 16px; }
+}
+
+/* ========================================
+   以下为各 admin 页面合并样式
+   ======================================== */
+
+/* --- 自定义范围滑块（补充） --- */
+.value-display { white-space: nowrap; font-size: 14px; color: #4a5568; min-width: 48px; text-align: right; font-weight: 500; }
+
+/* --- 通用页面容器 --- */
+.admin-page { max-width: 1200px; margin: 0 auto; padding: 32px; }
+.page-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+.page-title { font-size: 22px; font-weight: 600; margin: 0; color: #333; }
+
+/* --- 共享表单组件（多页面弹窗使用） --- */
+.fg { margin-bottom: 12px; flex: 1; }
+.fg label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+.fg input, .fg select, .fg textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+.fg small { font-size: 11px; color: #94a3b8; display: block; margin-top: 2px; }
+.fg-row { display: flex; gap: 12px; }
+.fg-row .fg { flex: 1; min-width: 0; }
+.form-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.toggle-row > label:first-child { margin-bottom: 0; font-size: 13px; color: #666; }
+
+/* --- 提示文字 --- */
+.hint { font-size: 13px; color: #888; margin-bottom: 16px; }
+.hint code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+/* --- 标签导航（prompts / bookmarks） --- */
+.tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #eee; flex-wrap: wrap; }
+.tab-nav button { padding: 10px 18px; border: none; background: none; font-size: 14px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s; }
+.tab-nav button:hover { color: #555; }
+.tab-nav button.active { color: #667eea; border-bottom-color: #667eea; }
+
+/* --- 树形展开按钮（prompts / bookmarks folders） --- */
+.expand-btn { cursor: pointer; width: 16px; display: inline-block; text-align: center; user-select: none; }
+
+/* --- 标签芯片（prompts） --- */
+.tag-chip { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 11px; margin: 1px; }
+
+/* --- 徽章补充（prompts / bookmarks / search-engines） --- */
+.badge-locked { background: #fef3c7; color: #92400e; }
+.badge-search { background: #e0e7ff; color: #3730a3; }
+.badge-ai { background: #fef3c7; color: #92400e; }
+.badge-social { background: #d1fae5; color: #065f46; }
+
+/* --- 禁用态按钮 --- */
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* --- 表格行悬停（补充 tr:hover 通用选择器） --- */
+tr:hover { background: #fafafa; }
+
+/* --- 加载与消息（backup） --- */
+.loading-sm { text-align: center; padding: 16px; color: #999; font-size: 13px; }
+.loading { text-align: center; padding: 60px; color: #999; }
+.message { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 14px; text-align: center; }
+.message.success { background: #d1fae5; color: #065f46; }
+.message.error { background: #fee2e2; color: #991b1b; }
+
+/* --- 头部操作区（backup / users） --- */
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.search-input { padding: 8px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; min-width: 250px; }
+.search-input:focus { border-color: #667eea; }
+
+/* --- 备份信息网格（backup） --- */
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.info-card { padding: 20px; }
+.info-card h3 { font-size: 16px; margin: 0 0 16px; color: #333; }
+.info-list { display: flex; flex-direction: column; gap: 10px; }
+.info-item { display: flex; justify-content: space-between; font-size: 14px; }
+.info-label { color: #888; }
+.filename { font-family: monospace; font-size: 13px; }
+.time-picker { display: flex; align-items: center; gap: 6px; }
+.time-picker input { width: 70px; text-align: center; }
+
+/* --- 仪表盘统计分组（index） --- */
+.stats-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.stat-group { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+.stat-group-title { padding: 12px 16px; margin: 0; font-size: 13px; font-weight: 600; color: #555; background: #f8f9fa; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 6px; }
+.stat-group-title i { color: #667eea; font-size: 16px; }
+.stat-group-items { padding: 8px 0; }
+.stat-group-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; }
+.sgi-label { font-size: 13px; color: #666; }
+.sgi-value { font-size: 18px; font-weight: 700; color: #333; }
+.sgi-value.blue { color: #667eea; }
+.sgi-value.green { color: #10b981; }
+.sgi-value.purple { color: #764ba2; }
+.sgi-value.orange { color: #f59e0b; }
+
+/* --- 仪表盘数据导出（index） --- */
+.export-section { margin-bottom: 28px; }
+.export-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.export-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+.export-card-header { padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #333; }
+.export-card-header i { color: #667eea; font-size: 18px; }
+.export-card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.export-hint { margin: 4px 0 0; font-size: 12px; color: #999; }
+
+/* --- 仪表盘快捷导航（index） --- */
+.admin-nav { margin-bottom: 32px; }
+.nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.nav-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; text-decoration: none; color: inherit; transition: box-shadow 0.2s, transform 0.15s; }
+.nav-card:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); transform: translateY(-2px); }
+.nav-icon { font-size: 24px; color: #667eea; }
+.nav-label { font-size: 14px; color: #333; font-weight: 500; }
+
+/* --- 书签筛选栏（bookmarks） --- */
+.filter-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.filter-bar .info { font-size: 13px; color: #999; }
+
+/* --- 设置页补充（settings） --- */
+.section-title { font-size: 14px; font-weight: 600; color: #555; margin: 16px 0 10px; }
+.estimate { font-style: normal; color: #10b981; font-size: 12px; margin-left: 4px; }
+.setting-option span { font-size: 14px; color: #555; }
+.bg-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.bg-option { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+.bg-option:hover { transform: scale(1.08); border-color: #ccc; }
+.bg-option.active { border-color: #10b981; }
+.bg-option.bg-none { background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #999; }
+input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff; }
+
+/* --- 图标选择器（prompts / bookmarks modals） --- */
+.icon-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.icon-pick-option { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 18px; color: #6b7280; transition: all .15s; }
+.icon-pick-option:hover { border-color: #667eea; color: #667eea; background: #f0f1ff; }
+.icon-pick-option.active { border-color: #667eea; color: #667eea; background: #eef2ff; }
+
+/* --- 弹窗 overlay 通用激活（补充 .modal-overlay 始终显示时的页面用法） --- */
+.admin-page .modal-overlay { display: flex; }
+
+/* --- 用户管理页布局（users） --- */
+.page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+/* --- 弹窗内表单增强（backup / users 使用 .form-group 更大间距） --- */
+.form-group.toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.form-group input[type="email"] { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
+.form-group input[type="email"]:focus { border-color: #667eea; }
+
+/* --- 开关切换样式（从各页面合并，覆盖 .slider 全局范围滑块样式） --- */
+.switch .slider { cursor: pointer; border-radius: 34px; }
+.switch .slider:before { border-radius: 50%; }
+
+/* ========================================
+   Admin Layout 布局样式
+   ======================================== */
+.admin-layout { display: flex; height: 100vh; overflow: hidden; background: #f5f5f7; }
+.admin-layout .admin-sidebar { width: 220px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; position: sticky; top: 0; height: 100vh; }
+.admin-layout .admin-sidebar-logo { padding: 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.admin-layout .logo-link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.admin-layout .logo-img { width: 32px; height: 32px; }
+.admin-layout .logo-text h1 { font-size: 20px; font-weight: 700; margin: 0; }
+.admin-layout .logo-text span { font-size: 12px; color: rgba(255,255,255,0.5); }
+.admin-layout .admin-sidebar-nav { flex: 1; padding: 16px 0; }
+.admin-layout .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 24px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 14px; transition: all 0.2s; }
+.admin-layout .nav-item:hover, .admin-layout .nav-item.active { color: #fff; background: rgba(255,255,255,0.1); }
+.admin-layout .nav-item i { font-size: 18px; width: 20px; text-align: center; }
+.admin-layout .admin-sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); }
+.admin-layout .user-info { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 6px; border-radius: 8px; transition: background 0.2s; }
+.admin-layout .user-info:hover { background: rgba(255,255,255,0.08); }
+.admin-layout .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.admin-layout .user-details { display: flex; flex-direction: column; overflow: hidden; }
+.admin-layout .user-name { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-layout .user-role { font-size: 11px; color: rgba(255,255,255,0.4); }
+.admin-layout .admin-sidebar-footer .nav-item { padding: 0; color: rgba(255,255,255,0.5); font-size: 13px; }
+.admin-layout .admin-sidebar-footer .nav-item:hover { color: #fff; background: none; }
+.admin-layout .admin-main { flex: 1; overflow-y: auto; height: 100vh; padding: 0; }
+.admin-layout .hamburger { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; background: none; cursor: pointer; color: rgba(255,255,255,0.8); border-radius: 8px; margin-left: auto; }
+.admin-layout .hamburger:active { background: rgba(255,255,255,0.1); }
+.admin-layout .hamburger svg { width: 22px; height: 22px; }
+
+/* --- Layout: Profile Dialog --- */
+.admin-layout .profile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.admin-layout .profile-modal { background: #fff; border-radius: 12px; width: 400px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
+.admin-layout .profile-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
+.admin-layout .profile-header h3 { margin: 0; font-size: 16px; font-weight: 600; color: #333; }
+.admin-layout .profile-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; padding: 0 4px; }
+.admin-layout .profile-body { padding: 20px; }
+.admin-layout .profile-field { margin-bottom: 14px; }
+.admin-layout .profile-field label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+.admin-layout .profile-input { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; box-sizing: border-box; transition: border-color 0.2s; }
+.admin-layout .profile-input:focus { border-color: #667eea; }
+.admin-layout .profile-input.disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
+.admin-layout .profile-divider { text-align: center; margin: 16px 0 12px; position: relative; }
+.admin-layout .profile-divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #eee; }
+.admin-layout .profile-divider span { background: #fff; padding: 0 12px; font-size: 12px; color: #999; position: relative; }
+.admin-layout .profile-msg { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; text-align: center; }
+.admin-layout .profile-msg.success { background: #d1fae5; color: #065f46; }
+.admin-layout .profile-msg.error { background: #fee2e2; color: #991b1b; }
+.admin-layout .profile-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.admin-layout .btn-cancel { padding: 8px 16px; border: 1px solid #ddd; border-radius: 6px; background: #fff; color: #666; font-size: 14px; cursor: pointer; }
+.admin-layout .btn-save { padding: 8px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 14px; cursor: pointer; }
+.admin-layout .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ========================================
+   页面级移动端响应式补充
+   ======================================== */
+@media (max-width: 768px) {
+  .admin-page { padding: 16px; }
+  .page-header h1 { font-size: 18px; }
+  .page-title { font-size: 18px; }
+  .stats-groups { grid-template-columns: 1fr; }
+  .nav-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .nav-card { padding: 14px; }
+  .nav-icon { font-size: 20px; }
+  .nav-label { font-size: 13px; }
+  .tab-nav button { padding: 8px 12px; font-size: 13px; }
+  .filter-bar { padding: 10px 12px; gap: 8px; }
+  .filter-bar select, .filter-bar input { padding: 6px 8px; font-size: 12px; }
+  .search-input { min-width: 180px; font-size: 13px; }
+  .setting-card { padding: 14px; }
+  .setting-option { padding: 10px; }
+
+  /* Layout responsive */
+  .admin-layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+  .admin-layout .admin-sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 100; }
+  .admin-layout .admin-sidebar-logo { padding: 10px 16px; }
+  .admin-layout .logo-text h1 { font-size: 18px; }
+  .admin-layout .logo-text span { display: none; }
+  .admin-layout .hamburger { display: flex; }
+  .admin-layout .admin-sidebar-nav { display: none; padding: 8px 0; }
+  .admin-layout .admin-sidebar.open .admin-sidebar-nav { display: block; }
+  .admin-layout .nav-item { padding: 12px 16px; }
+  .admin-layout .admin-sidebar-footer { display: none; }
+  .admin-layout .admin-main { height: auto; overflow-y: visible; }
+}
+
+@media (max-width: 480px) {
+  .admin-page { padding: 12px; }
+  .page-header h1 { font-size: 16px; }
+  .page-title { font-size: 16px; }
+  .nav-grid { grid-template-columns: 1fr 1fr; }
+  .export-cards { grid-template-columns: 1fr; }
+  .search-input { min-width: 100%; }
+  .page-header { flex-direction: column; align-items: flex-start; }
 }

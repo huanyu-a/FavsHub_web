@@ -3,7 +3,6 @@
     <header class="page-header">
       <h1 class="page-title">备份管理</h1>
     </header>
-
     <!-- 备份信息 -->
     <div class="info-grid">
       <div class="card info-card">
@@ -18,7 +17,6 @@
         </div>
         <div v-else class="loading-sm">加载中...</div>
       </div>
-
       <div class="card info-card">
         <h3>备份计划</h3>
         <div class="form-group">
@@ -45,7 +43,6 @@
         <button v-if="isAdmin" class="btn btn-primary" @click="saveSchedule">保存计划</button>
       </div>
     </div>
-
     <!-- 手动备份 -->
     <div v-if="isAdmin" class="card" style="margin-top: 20px;">
       <div class="card-header">
@@ -60,7 +57,6 @@
         </div>
       </div>
     </div>
-
     <!-- 备份文件列表 -->
     <div class="card" style="margin-top: 20px;">
       <div class="card-header">
@@ -85,19 +81,20 @@
         </tbody>
       </table>
     </div>
-
     <div v-if="message" :class="['message', messageType]">{{ message }}</div>
   </div>
 </template>
-
+/^<\/script>$/a
+/^  }$/a
+/^}$/a
+/^    <\/header>$/a
+/^    <\/template>$/a
+/^    <\/div>$/a
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
-
 useHead({ title: '备份管理' })
-
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
-
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })
 const backupFiles = ref<any[]>([])
@@ -105,18 +102,15 @@ const backupLoading = ref(false)
 const filesLoading = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
-
 async function loadInfo() {
   try { info.value = await $fetch('/api/admin/backup/info') } catch {}
 }
-
 async function loadSchedule() {
   try {
     const data = await $fetch<any>('/api/admin/backup-schedule')
     if (data) Object.assign(schedule, data)
   } catch {}
 }
-
 async function loadFiles() {
   filesLoading.value = true
   try {
@@ -125,14 +119,12 @@ async function loadFiles() {
   } catch { backupFiles.value = [] }
   filesLoading.value = false
 }
-
 async function saveSchedule() {
   try {
     await $fetch('/api/admin/backup-schedule', { method: 'PUT', body: schedule })
     showMessage('备份计划已保存')
   } catch { showMessage('保存失败', 'error') }
 }
-
 async function manualBackup() {
   backupLoading.value = true
   try {
@@ -142,85 +134,37 @@ async function manualBackup() {
   } catch { showMessage('备份失败', 'error') }
   backupLoading.value = false
 }
-
 function downloadBackup() {
   window.open('/api/admin/backup/download', '_blank')
 }
-
 function downloadFile(name: string) {
   window.open(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, '_blank')
 }
-
 async function downloadFavicons() {
   try {
     const res = await $fetch<any>('/api/admin/download-favicons', { method: 'POST' })
     showMessage(`下载完成：${res?.downloaded || 0} 个`)
   } catch { showMessage('下载失败', 'error') }
 }
-
 async function retryFavicons() {
   try {
     const res = await $fetch<any>('/api/admin/retry-failed-favicons', { method: 'POST' })
     showMessage(`重试完成：${res?.retried || 0} 个`)
   } catch { showMessage('重试失败', 'error') }
 }
-
 function refreshFiles() { loadFiles() }
-
 function showMessage(msg: string, type: 'success' | 'error' = 'success') {
   message.value = msg
   messageType.value = type
   setTimeout(() => { message.value = '' }, 3000)
 }
-
 function formatDate(ts?: number | string) {
   if (!ts) return '-'
   return new Date(ts).toLocaleString('zh-CN')
 }
-
 onMounted(() => {
   loadInfo()
   loadSchedule()
   loadFiles()
 })
 </script>
-
-<style scoped>
-.admin-page { max-width: 1200px; margin: 0 auto; padding: 32px; }
-.page-header { margin-bottom: 24px; }
-.page-title { font-size: 22px; font-weight: 600; margin: 0; color: #333; }
-.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-.card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
-.info-card { padding: 20px; }
-.info-card h3 { font-size: 16px; margin: 0 0 16px; color: #333; }
-.info-list { display: flex; flex-direction: column; gap: 10px; }
-.info-item { display: flex; justify-content: space-between; font-size: 14px; }
-.info-label { color: #888; }
-.card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-.card-header h3 { font-size: 16px; margin: 0; }
-.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.data-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px 16px; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
-td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
-.filename { font-family: monospace; font-size: 13px; }
-.form-group { margin-bottom: 14px; }
-.form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 6px; }
-.form-group select,
-.form-group input { width: 100%; padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }
-.form-group select:focus,
-.form-group input:focus { border-color: #667eea; }
-.time-picker { display: flex; align-items: center; gap: 6px; }
-.time-picker input { width: 70px; text-align: center; }
-.btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; }
-.btn-primary { background: #667eea; color: #fff; }
-.btn-primary:hover { background: #5a6fd6; }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { background: none; border: 1px solid #ddd; color: #666; }
-.btn-ghost:hover { background: #f5f5f5; }
-.loading-sm { text-align: center; padding: 16px; color: #999; font-size: 13px; }
-.empty-state { text-align: center; padding: 40px; color: #888; }
-.message { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-size: 14px; text-align: center; }
-.message.success { background: #d1fae5; color: #065f46; }
-.message.error { background: #fee2e2; color: #991b1b; }
-</style>

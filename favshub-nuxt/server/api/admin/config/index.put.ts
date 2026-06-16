@@ -4,6 +4,7 @@
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
+import { invalidateTdkCache } from '../../tdk.get'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -25,6 +26,9 @@ export default defineEventHandler(async (event) => {
   for (const [key, value] of Object.entries(data)) {
     upsert.run(key, String(value ?? ''), now)
   }
+
+  // TDK 数据可能已变更，清除缓存
+  invalidateTdkCache()
 
   // 返回更新后的全量配置
   const rows = db.prepare('SELECT key, value FROM system_config').all() as { key: string; value: string }[]

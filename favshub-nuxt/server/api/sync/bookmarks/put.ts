@@ -3,8 +3,11 @@
  */
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
+import { getConfigInt } from '../../../utils/config'
 
-const MAX_BOOKMARKS_PER_SYNC = 20000
+function getMaxBookmarksPerSync(): number {
+  return getConfigInt('max_bookmarks_per_sync', 20000)
+}
 
 function resolveFolderPath(folderPath: string | null, options: {
   userId: number
@@ -51,8 +54,9 @@ export default defineEventHandler(async (event) => {
   if (!Array.isArray(bookmarks)) {
     throw createError({ statusCode: 400, data: { error: 'bookmarks 必须是数组' } })
   }
-  if (bookmarks.length > MAX_BOOKMARKS_PER_SYNC) {
-    throw createError({ statusCode: 400, data: { error: `单次同步上限 ${MAX_BOOKMARKS_PER_SYNC} 条，当前 ${bookmarks.length} 条` } })
+  const maxBookmarks = getMaxBookmarksPerSync()
+  if (bookmarks.length > maxBookmarks) {
+    throw createError({ statusCode: 400, data: { error: `单次同步上限 ${maxBookmarks} 条，当前 ${bookmarks.length} 条` } })
   }
   if (bookmarks.length === 0 && !force) {
     throw createError({ statusCode: 400, data: { error: 'bookmarks 不能为空数组，如需清空所有书签请传 force: true' } })

@@ -31,14 +31,21 @@ if (import.meta.client) {
 }
 
 // 全局资源：直接复用旧框架 CSS，保证主题样式 100% 一致
-const { data: tdk } = await useFetch('/api/tdk', { server: true, lazy: false })
+const { data: tdk } = await useFetch('/api/tdk', {
+  server: true,
+  lazy: false,
+  getCachedData: (key, nuxtApp) => {
+    // 客户端导航时复用已缓存的 TDK，避免重复请求
+    return nuxtApp.payload?.data?.[key] || undefined
+  },
+})
 
 useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css' },
-    { rel: 'stylesheet', href: '/css/index-sidebar-fix.css' },
-    { rel: 'stylesheet', href: '/css/mobile-responsive.css' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260616' },
+    { rel: 'stylesheet', href: '/css/index-sidebar-fix.css?v=20260616' },
+    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],
   // 同步脚本：渲染前从 localStorage 恢复 auth 状态 + 主题到 <html>，消除 SSR 闪烁
@@ -59,6 +66,15 @@ useHead({
 
 // 应用主题到 DOM（响应 store 变化）
 if (import.meta.client) {
+  // 响应 TDK 变化，更新页面标题（titleTemplate 在 useHead 中非响应式）
+  watch(() => tdk.value?.siteTitle, (newTitle) => {
+    if (newTitle) {
+      const current = document.title
+      const pagePart = current.includes(' - ') ? current.split(' - ')[0] : ''
+      document.title = pagePart ? `${pagePart} - FavsHub` : newTitle
+    }
+  })
+
   watch(() => uiStore.theme, (t) => {
     if (t === 'auto') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -98,20 +114,3 @@ if (import.meta.client) {
 }
 </script>
 
-<style>
-/* ================================================================
-   仅保留跨组件的「登录态可见性」辅助类。
-   其余主题样式（含暗色模式）全部由旧框架 CSS (main-bundle.css) 提供。
-   注意：禁止使用 :global()，Nuxt/Vite 会错误编译导致整页隐藏。
-   ================================================================ */
-.app-shell { min-height: 100vh; }
-
-/* 默认：游客可见控件隐藏，登录控件显示（避免 SSR 闪烁） */
-.client-only-guest { display: none !important; }
-.client-only-user  { display: inline-flex; }
-.client-only-admin { display: none !important; }
-
-html[data-guest="true"] .client-only-guest { display: inline-flex !important; }
-html[data-guest="true"] .client-only-user  { display: none !important; }
-html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
-</style>

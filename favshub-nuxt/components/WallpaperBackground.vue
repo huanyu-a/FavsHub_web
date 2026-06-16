@@ -44,14 +44,3 @@ if (import.meta.client) {
 }
 </script>
 
-<style scoped>
-.wallpaper-background {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  pointer-events: none;
-}
-</style>

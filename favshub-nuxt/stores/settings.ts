@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useAuthStore } from '~/stores/auth'
+import { SYSTEM_ONLY_KEYS } from '~/server/utils/constants'
 
 /** Common default settings matching the legacy FavsHubSettings.DEFAULTS */
 const SETTINGS_DEFAULTS: Record<string, any> = {
@@ -128,7 +129,6 @@ export const useSettingsStore = defineStore('settings', {
         const auth = useAuthStore()
         if (!auth.token) return
         // 过滤系统级字段，只发送用户个人设置
-        const SYSTEM_ONLY_KEYS = ['siteTitle', 'siteDescription', 'siteKeywords', 'promptproTitle', 'promptproDescription', 'promptproKeywords', 'title', 'description', 'keywords', 'allow_registration']
         const userData: Record<string, any> = {}
         for (const [k, v] of Object.entries(this.settings)) {
           if (!SYSTEM_ONLY_KEYS.includes(k)) userData[k] = v
