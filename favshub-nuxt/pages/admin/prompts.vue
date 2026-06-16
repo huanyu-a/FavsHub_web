@@ -64,29 +64,31 @@
           <button class="btn btn-ghost btn-sm" @click="loadPFolders">刷新</button>
         </div>
       </div>
-      <table>
-        <thead><tr><th>名称</th><th>父文件夹</th><th>用户</th><th>提示词数</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr v-if="pfLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
-          <tr v-else-if="displayPFolders.length === 0"><td colspan="5" class="empty-state">暂无数据</td></tr>
-          <tr v-for="f in displayPFolders" :key="f.id">
-            <td :style="{ paddingLeft: (f._depth * 20 + 16) + 'px' }">
-              <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)">{{ pCollapsedIds.has(f.id) ? '▶' : '▼' }}</span>
-              <span v-else style="display:inline-block;width:16px;"></span>
-              <i v-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:#667eea;"></i>
-              {{ f.name }}
-            </td>
-            <td>{{ f.parent_name || '-' }}</td>
-            <td>{{ f.username || f.user_id }}</td>
-            <td>{{ f.prompt_count || 0 }}</td>
-            <td class="actions">
-              <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
-              <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
-              <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒 只读</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-if="pfLoading" class="empty-state">加载中...</div>
+      <div v-else-if="displayPFolders.length === 0" class="empty-state">暂无数据</div>
+      <div v-else ref="pFolderListRef" class="folder-drag-list">
+        <div
+          v-for="f in displayPFolders"
+          :key="f.id"
+          :data-id="f.id"
+          class="folder-drag-item"
+          :style="{ paddingLeft: (f._depth * 20 + 12) + 'px' }"
+        >
+          <span class="folder-drag-handle" title="拖拽排序">⠿</span>
+          <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)">{{ pCollapsedIds.has(f.id) ? '▶' : '▼' }}</span>
+          <span v-else style="display:inline-block;width:16px;"></span>
+          <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
+          <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:#667eea;"></i>
+          <span class="folder-drag-name">{{ f.name }}</span>
+          <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
+          <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.prompt_count || 0 }}个</span>
+          <span class="folder-drag-actions">
+            <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
+            <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
+            <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒</span>
+          </span>
+        </div>
+      </div>
     </div>
     <!-- 标签 -->
     <div v-if="tab === 'tags'" class="card">
@@ -157,6 +159,8 @@
           <div class="fg"><label>图标</label>
             <IconPicker v-model="folderEditForm.icon" />
           </div>
+          <div class="fg"><label>排序</label><input v-model.number="folderEditForm.sort_order" type="number" min="0" placeholder="0"></div>
+          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="folderEditForm.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="folderEditVisible = false">取消</button><button class="btn btn-primary" @click="saveFolderEdit">保存</button></div>
         </div>
       </div>
@@ -186,6 +190,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '提示词管理' })
+function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
@@ -221,7 +226,7 @@ const pFolders = ref<any[]>([])
 const pfLoading = ref(false)
 const folderEditVisible = ref(false)
 const folderEditId = ref<string | null>(null)
-const folderEditForm = reactive({ name: '', parent_id: null as string | null, icon: '', user_id: null as number | null })
+const folderEditForm = reactive({ name: '', parent_id: null as string | null, icon: '', user_id: null as number | null, sort_order: 0, login_required: 0 })
 import IconPicker from '~/components/common/IconPicker.vue'
 // Users list (for create mode)
 const users = ref<any[]>([])
@@ -248,6 +253,8 @@ const flatPFolders = computed(() => flattenPTree(buildPTree(pFolders.value), 0))
 // Collapse/expand state
 const allPExpanded = ref(true)
 const pCollapsedIds = ref(new Set<string>())
+const pFolderListRef = ref<HTMLElement | null>(null)
+let pFolderSortable: any = null
 const displayPFolders = computed(() => {
   const tree = buildPTree(pFolders.value)
   const result: PFolderNode[] = []
@@ -274,15 +281,15 @@ function toggleAllPFolders() {
   }
 }
 async function loadPFolders() { pfLoading.value = true; const d = await $fetch<{ folders: any[] }>('/api/admin/prompt-folders', { headers: getAuthHeaders() }); pFolders.value = d.folders || []; pfLoading.value = false }
-function createPFolder() { Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: users.value[0]?.id || null }); folderEditId.value = null; folderEditVisible.value = true }
-function openFolderEdit(f: any) { Object.assign(folderEditForm, { name: f.name, parent_id: f.parent_id || null, icon: f.icon || '', user_id: f.user_id }); folderEditId.value = f.id; folderEditVisible.value = true }
+function createPFolder() { Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: users.value[0]?.id || null, sort_order: 0, login_required: 0 }); folderEditId.value = null; folderEditVisible.value = true }
+function openFolderEdit(f: any) { Object.assign(folderEditForm, { name: f.name, parent_id: f.parent_id || null, icon: f.icon || '', user_id: f.user_id, sort_order: f.sort_order || 0, login_required: f.login_required || 0 }); folderEditId.value = f.id; folderEditVisible.value = true }
 async function saveFolderEdit() {
   if (!folderEditForm.name.trim()) return alert('请输入文件夹名称')
   if (folderEditId.value) {
-    await $fetch(`/api/admin/prompt-folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null } })
+    await $fetch(`/api/admin/prompt-folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   } else {
     if (!folderEditForm.user_id) return alert('请选择用户')
-    await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, user_id: folderEditForm.user_id } })
+    await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, user_id: folderEditForm.user_id, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   }
   folderEditVisible.value = false
   loadPFolders()
@@ -315,5 +322,61 @@ const importFile = ref<HTMLInputElement | null>(null)
 function triggerImport() { importFile.value?.click() }
 async function exportJSON() { const d = await $fetch<any>('/api/admin/prompts?limit=10000', { headers: getAuthHeaders() }); const blob = new Blob([JSON.stringify(d.prompts || [], null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'prompts-export.json'; a.click() }
 async function importJSON(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; const text = await f.text(); const items = JSON.parse(text); if (Array.isArray(items)) { await $fetch('/api/admin/sync-prompts', { method: 'POST', headers: getAuthHeaders(), body: { items } }); loadPrompts(); loadStats() } }
+// 拖拽排序
+async function onPFolderReorder(oldIndex: number, newIndex: number) {
+  if (oldIndex === newIndex) return
+  const list = [...displayPFolders.value]
+  const [moved] = list.splice(oldIndex, 1)
+  list.splice(newIndex, 0, moved)
+  const items: { id: string; sort_order: number }[] = []
+  const parentOrder = new Map<string, number>()
+  for (const f of list) {
+    const key = String(f.parent_id || 'root')
+    const order = (parentOrder.get(key) || 0) + 1
+    parentOrder.set(key, order)
+    items.push({ id: f.id, sort_order: order })
+  }
+  try {
+    await $fetch('/api/admin/prompt-folders/reorder', { method: 'PUT', headers: getAuthHeaders(), body: { items } })
+    await loadPFolders()
+  } catch (e) { console.error('排序失败', e) }
+}
+function initPFolderSortable() {
+  if (pFolderSortable) { pFolderSortable.destroy(); pFolderSortable = null }
+  const el = pFolderListRef.value
+  if (!el) return
+  import('sortablejs').then(({ default: Sortable }) => {
+    pFolderSortable = Sortable.create(el, {
+      handle: '.folder-drag-handle',
+      animation: 200,
+      ghostClass: 'sortable-ghost',
+      onEnd(evt: any) {
+        if (evt.oldIndex !== evt.newIndex) {
+          onPFolderReorder(evt.oldIndex, evt.newIndex)
+        }
+      }
+    })
+  })
+}
+watch(displayPFolders, () => { nextTick(initPFolderSortable) }, { deep: true })
 onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHistory(); loadTdk(); loadUsers() })
 </script>
+
+<style scoped>
+.folder-drag-list { display: flex; flex-direction: column; gap: 2px; }
+.folder-drag-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; background: var(--bg-secondary, #f8f9fa);
+  border-radius: 6px; cursor: default; transition: background 0.15s;
+}
+.folder-drag-item:hover { background: var(--bg-tertiary, #e9ecef); }
+.folder-drag-handle {
+  cursor: grab; color: #999; font-size: 14px; user-select: none;
+  width: 16px; text-align: center; flex-shrink: 0;
+}
+.folder-drag-handle:active { cursor: grabbing; }
+.folder-drag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-drag-meta { color: #999; font-size: 12px; white-space: nowrap; }
+.folder-drag-actions { display: flex; gap: 4px; flex-shrink: 0; }
+:deep(.sortable-ghost) { opacity: 0.4; background: #c8ebfb !important; }
+</style>

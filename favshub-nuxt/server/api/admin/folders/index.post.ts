@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   const body = await readBody(event)
-  const { name, user_id, parent_id, icon } = body
+  const { name, user_id, parent_id, icon, sort_order, login_required } = body
 
   if (!name) {
     throw createError({ statusCode: 400, data: { error: '文件夹名称不能为空' } })
@@ -32,12 +32,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM folders WHERE user_id = ?').get(user_id) as any
-  const result = db.prepare('INSERT INTO folders (user_id, name, parent_id, icon, sort_order) VALUES (?, ?, ?, ?, ?)').run(
+  const result = db.prepare('INSERT INTO folders (user_id, name, parent_id, icon, sort_order, login_required) VALUES (?, ?, ?, ?, ?, ?)').run(
     user_id,
     name,
     parent_id || null,
     icon || null,
-    (maxOrder?.m || 0) + 1
+    sort_order !== undefined ? sort_order : (maxOrder?.m || 0) + 1,
+    login_required ? 1 : 0
   )
 
   const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(result.lastInsertRowid)

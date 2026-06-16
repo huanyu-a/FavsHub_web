@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
         FROM prompt_folders pf
         LEFT JOIN users u ON pf.user_id = u.id
         LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
-        ORDER BY pf.user_id, pf.name
+        ORDER BY pf.user_id, pf.parent_id NULLS FIRST, pf.sort_order
       `).all()
     : db.prepare(`
         SELECT pf.*, u.username,
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
         FROM prompt_folders pf
         LEFT JOIN users u ON pf.user_id = u.id
         LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
-        ORDER BY pf.user_id, pf.name
+        ORDER BY pf.user_id, pf.parent_id NULLS FIRST, pf.sort_order
       `).all(user.id)
 
   return { folders, isAdmin }

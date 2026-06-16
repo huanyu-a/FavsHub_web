@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event)
-  const { name, parent_id, icon } = body
+  const { name, parent_id, icon, sort_order, login_required } = body
 
   if (name !== undefined) {
     db.prepare('UPDATE prompt_folders SET name = ? WHERE id = ?').run(name, id)
@@ -33,6 +33,12 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, data: { error: '不能将文件夹设为自己的子文件夹' } })
     }
     db.prepare('UPDATE prompt_folders SET parent_id = ? WHERE id = ?').run(parent_id || null, id)
+  }
+  if (sort_order !== undefined) {
+    db.prepare('UPDATE prompt_folders SET sort_order = ? WHERE id = ?').run(sort_order, id)
+  }
+  if (login_required !== undefined) {
+    db.prepare('UPDATE prompt_folders SET login_required = ? WHERE id = ?').run(login_required ? 1 : 0, id)
   }
 
   db.prepare('UPDATE prompt_folders SET updated_at = ? WHERE id = ?').run(Date.now(), id)

@@ -29,14 +29,6 @@
 
         <!-- 导航目录 -->
         <div class="sidebar-folders-panel">
-          <div class="sidebar-panel-header">
-            <span class="sidebar-section-kicker">导航目录</span>
-            <div class="sidebar-panel-actions">
-              <button class="sidebar-panel-action-btn client-only-user" title="新建文件夹" @click="openCreateRootFolder">
-                <i class="ri-folder-add-line"></i>
-              </button>
-            </div>
-          </div>
           <ul id="categories-list">
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
@@ -271,13 +263,7 @@ useHead({
   title: 'PromptPro - 提示词管理',
   titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
   link: [
-    { rel: 'stylesheet', href: '/css/main-bundle.css' },
-    { rel: 'stylesheet', href: '/css/index-sidebar-fix.css' },
     { rel: 'stylesheet', href: '/css/promptpro-bundle.css' },
-    { rel: 'stylesheet', href: '/css/promptpro-card-styles.css' },
-    { rel: 'stylesheet', href: '/css/promptpro-light-theme.css' },
-    { rel: 'stylesheet', href: '/css/promptpro-dark-theme.css' },
-    { rel: 'stylesheet', href: '/css/promptpro-page.css' },
   ],
 })
 
@@ -330,7 +316,7 @@ const folders = ref<Folder[]>([])
 const tags = ref<Tag[]>([])
 const isLoading = ref(false)
 const searchQuery = ref('')
-const activeFolderId = ref<string | null>(null)
+const activeFolderId = useState<string | null>('activePromptFolderId', () => null)
 const activeTagIds = ref<number[]>([])
 const expandedFolderIds = ref(new Set<string>())
 
@@ -822,6 +808,11 @@ function formatDate(ts?: number) {
   if (!ts) return ''
   return new Date(ts).toLocaleDateString('zh-CN').replace(/\//g, '-')
 }
+
+// 监听文件夹变化（来自移动端底部导航）
+watch(activeFolderId, () => {
+  loadPrompts()
+})
 
 onMounted(async () => {
   await Promise.all([loadPrompts(), loadFolders(), loadTags()])

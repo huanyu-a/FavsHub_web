@@ -154,6 +154,9 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'bookmarks', 'login_required', 'ALTER TABLE bookmarks ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'prompts', 'login_required', 'ALTER TABLE prompts ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'search_engines', 'user_id', "ALTER TABLE search_engines ADD COLUMN user_id INTEGER DEFAULT 0")
+  ensureColumn(db, 'prompt_folders', 'sort_order', 'ALTER TABLE prompt_folders ADD COLUMN sort_order INTEGER DEFAULT 0')
+  ensureColumn(db, 'folders', 'login_required', 'ALTER TABLE folders ADD COLUMN login_required INTEGER DEFAULT 0')
+  ensureColumn(db, 'prompt_folders', 'login_required', 'ALTER TABLE prompt_folders ADD COLUMN login_required INTEGER DEFAULT 0')
 }
 
 /**

@@ -1,6 +1,7 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
     <slot />
+    <FloatingNav />
     <MobileHeader />
     <MobileOverlay />
     <MobileBottomNav />
@@ -44,7 +45,6 @@ useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260616' },
-    { rel: 'stylesheet', href: '/css/index-sidebar-fix.css?v=20260616' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],

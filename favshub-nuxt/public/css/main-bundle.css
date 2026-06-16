@@ -1177,15 +1177,6 @@ aside ul li.bg-emerald-500 span {
   position: relative;
 }
 
-/* 添�?��???��容器?���? */
-.folder-item span:last-child {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  margin-right: 24px; /* 为右侧箭头图?????�出空�??*/
-}
-
 /* 确�?�图????��定�?�置 */
 .folder-item .material-icons {
   flex-shrink: 0;
@@ -1212,15 +1203,15 @@ span.material-icons.ml-auto {
 
 /* Custom width for aside */
 .custom-width {
-  width: 18rem; /* Adjusted width */
+  width: 20rem; /* Increased width for better folder name display */
 }
 
 #sidebar-container.collapsed {
-  margin-left: -18rem;
+  margin-left: -20rem;
 }
 
 #toggle-sidebar {
-  left: 16.75rem;
+  left: 18.75rem;
 }
 
 aside.custom-width {
@@ -1235,6 +1226,7 @@ aside.custom-width {
 
 .sidebar-shell {
   min-height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1417,6 +1409,13 @@ aside .settings-icon {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#categories-list li {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 #categories-list::-webkit-scrollbar {
@@ -3065,7 +3064,7 @@ input:checked+.slider:before {
 }
 
 [data-theme="dark"] .search-engine-option-content {
-  color: #E2E8F0;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .search-engine-option-icon {
@@ -4425,8 +4424,8 @@ main.flex-1 {
 [data-theme="dark"] .search-input,
 [data-theme="dark"] .search-form,
 [data-theme="dark"] .search-suggestions {
-  background-color: rgba(30, 41, 59, 0.7);
-  color: #E2E8F0;
+  background-color: rgba(30, 41, 59, 0.5);
+  color: #CBD5E1;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -4448,7 +4447,7 @@ main.flex-1 {
 }
 
 [data-theme="dark"] .breadcrumb-item:last-child {
-  color: #E2E8F0;
+  color: #CBD5E1;
   background-color: rgba(51, 65, 85, 0.6);
 }
 
@@ -4459,10 +4458,6 @@ main.flex-1 {
 
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .custom-hr {
-  border-color: rgba(255, 255, 255, 0.06);
-}
-
-[data-theme="dark"] .custom-hr {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -4472,16 +4467,16 @@ main.flex-1 {
 }
 
 [data-theme="dark"] .search-suggestions li {
-  color: #E5E7EB;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .search-suggestions li:hover {
-  background-color: rgba(51, 65, 85, 0.8);
-  color: #FFFFFF;
+  background-color: rgba(51, 65, 85, 0.6);
+  color: #F1F5F9;
 }
 
 [data-theme="dark"] .tab {
-  color: #D1D5DB;
+  color: #CBD5E1;
   background-color: rgba(51, 65, 85, 0.6);
 }
 
@@ -4490,11 +4485,11 @@ main.flex-1 {
 }
 
 [data-theme="dark"] .suggestion-icon path {
-  fill: #9CA3AF;
+  fill: #94A3B8;
 }
 
 [data-theme="dark"] li:hover .suggestion-icon path {
-  fill: #E5E7EB;
+  fill: #CBD5E1;
 }
 
 /* === Category Tabs (搜索建议分类切换) === */
@@ -4557,57 +4552,57 @@ main.flex-1 {
 }
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .links-icons {
-  background-color: rgba(30, 41, 59, 0.8);
+  background-color: rgba(30, 41, 59, 0.5);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .links-icons a {
-  color: #D1D5DB;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .links-icons a:hover {
-  color: #FFFFFF;
-  background-color: rgba(255, 255, 255, 0.08);
+  color: #F1F5F9;
+  background-color: rgba(51, 65, 85, 0.6);
 }
 
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .settings-icon {
-  background-color: rgba(30, 41, 59, 0.8);
+  background-color: rgba(30, 41, 59, 0.5);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .settings-icon a {
-  color: #D1D5DB;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .settings-icon a:hover {
-  color: #FFFFFF;
-  background-color: rgba(255, 255, 255, 0.08);
+  color: #F1F5F9;
+  background-color: rgba(51, 65, 85, 0.6);
 }
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .quick-link-item {
-  background-color: rgba(30, 41, 59, 0.8);
+  background-color: rgba(30, 41, 59, 0.5);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] #toggle-sidebar {
-  background-color: rgba(30, 41, 59, 0.8);
+  background-color: rgba(30, 41, 59, 0.5);
   border-color: rgba(255, 255, 255, 0.08);
-  color: #D1D5DB;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] #toggle-sidebar:hover {
-  background-color: rgba(51, 65, 85, 0.9);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  background-color: rgba(51, 65, 85, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #F1F5F9;
 }
 
 /* 暗色模式 - 图标区域 */
 [data-theme="dark"] .custom-context-menu {
   background-color: rgba(30, 41, 59, 0.95);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #E5E7EB;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #CBD5E1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
@@ -4616,12 +4611,12 @@ main.flex-1 {
 }
 
 [data-theme="dark"] .custom-context-menu-item {
-  color: #E5E7EB;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .custom-context-menu-item:hover {
-  background-color: rgba(51, 65, 85, 0.8);
-  color: #FFFFFF;
+  background-color: rgba(51, 65, 85, 0.6);
+  color: #F1F5F9;
 }
 
 /* 暗色模式 - 图标区域 */
@@ -6685,8 +6680,8 @@ body.nav-compact-mode {
 [data-theme="dark"] .sidebar-folders-panel,
 [data-theme="dark"] .sidebar-toolbar,
 [data-theme="dark"] aside .settings-icon {
-  background: rgba(30, 41, 59, 0.74);
-  border-color: rgba(148, 163, 184, 0.12);
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.28);
 }
 
@@ -6700,7 +6695,7 @@ body.nav-compact-mode {
 
 [data-theme="dark"] .sidebar-brand-title,
 [data-theme="dark"] aside .settings-icon a {
-  color: #f8fafc;
+  color: #F1F5F9;
 }
 
 [data-theme="dark"] .sidebar-brand-subtitle,
@@ -6708,7 +6703,7 @@ body.nav-compact-mode {
 [data-theme="dark"] .sidebar-theme-btn,
 [data-theme="dark"] .sidebar-hub-link,
 [data-theme="dark"] .sidebar-toolbar-icon {
-  color: #cbd5e1;
+  color: #CBD5E1;
 }
 
 [data-theme="dark"] .sidebar-hub-nav {
@@ -6736,7 +6731,7 @@ body.nav-compact-mode {
 
 [data-theme="dark"] .sidebar-hub-link.active {
   background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
+  color: #F1F5F9;
   box-shadow: 0 8px 20px rgba(2, 6, 23, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -6761,20 +6756,20 @@ aside .settings-update-tip .tip-arrow {
 }
 
 [data-theme="dark"] .unified-navbar {
-    background: rgba(31, 41, 55, 0.72);
-    border-bottom-color: rgba(255, 255, 255, 0.06);
+    background: rgba(30, 41, 59, 0.5);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="dark"] .unified-navbar .nav-brand {
-    color: #e5e7eb;
+    color: #CBD5E1;
 }
 
 [data-theme="dark"] .unified-navbar .nav-menu {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(51, 65, 85, 0.4);
 }
 
 [data-theme="dark"] .unified-navbar .nav-link {
-    color: #FFFFFF;
+    color: #CBD5E1;
 }
 
 [data-theme="dark"] .unified-navbar .nav-link:hover {
@@ -7075,11 +7070,6 @@ aside .settings-update-tip .tip-arrow {
     display: flex;
     align-items: center;
     gap: 4px;
-}
-
-.folder-item {
-    color: #10b981; /* Green for folder */
-    font-weight: 500;
 }
 
 .folder-item i {
@@ -7730,13 +7720,13 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
   background: rgba(30, 41, 59, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-[data-theme="dark"] .engine-dialog-title { color: #e2e8f0; }
-[data-theme="dark"] .engine-dialog-category-title { color: #94a3b8; }
-[data-theme="dark"] .engine-dialog-item:hover { background: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .engine-dialog-title { color: #CBD5E1; }
+[data-theme="dark"] .engine-dialog-category-title { color: #94A3B8; }
+[data-theme="dark"] .engine-dialog-item:hover { background: rgba(51, 65, 85, 0.6); }
 [data-theme="dark"] .engine-dialog-item.selected { background: rgba(100, 126, 234, 0.2); }
-[data-theme="dark"] .engine-dialog-item-name { color: #e2e8f0; }
-[data-theme="dark"] .engine-dialog-close { color: #94a3b8; }
-[data-theme="dark"] .engine-dialog-close:hover { color: #e2e8f0; }
+[data-theme="dark"] .engine-dialog-item-name { color: #CBD5E1; }
+[data-theme="dark"] .engine-dialog-close { color: #94A3B8; }
+[data-theme="dark"] .engine-dialog-close:hover { color: #CBD5E1; }
 
 /* ---- from: components/sidebar/Sidebar.vue (global, Teleport to body) ---- */
 .folder-context-menu {
@@ -8198,3 +8188,55 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 .login-page .submit-btn:hover { opacity: 0.9; }
 .login-page .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .login-page .error-msg { color: #e74c3c; font-size: 13px; text-align: center; margin-bottom: 12px; padding: 8px; background: #ffeaea; border-radius: 8px; }
+
+/* Login page dark mode */
+[data-theme="dark"] .login-page { background: linear-gradient(135deg, #0B1120 0%, #1E293B 100%); }
+[data-theme="dark"] .login-container { background: rgba(30, 41, 59, 0.5); box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .login-logo h1 { color: #F1F5F9; }
+[data-theme="dark"] .login-logo p { color: #94A3B8; }
+[data-theme="dark"] .login-page .tab-nav { border-bottom-color: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .login-page .tab-nav button { color: #94A3B8; }
+[data-theme="dark"] .login-page .tab-nav button.active { color: #667eea; border-bottom-color: #667eea; }
+[data-theme="dark"] .login-page .form-group label { color: #94A3B8; }
+[data-theme="dark"] .login-page .form-group input { background: rgba(15, 23, 42, 0.5); border-color: rgba(255, 255, 255, 0.08); color: #CBD5E1; }
+[data-theme="dark"] .login-page .form-group input::placeholder { color: #64748B; }
+[data-theme="dark"] .login-page .form-group input:focus { border-color: #667eea; background: rgba(15, 23, 42, 0.7); }
+[data-theme="dark"] .login-page .error-msg { color: #F87171; background: rgba(248, 113, 113, 0.1); }
+
+/* ==========================================
+   Merged from: index-sidebar-fix.css
+   ==========================================
+/* Fix for Sidebar Folder Color in index.html */
+
+#categories-list .folder-item {
+    color: #1F2937;
+    font-weight: bold;
+}
+
+#categories-list .folder-item:hover {
+    color: #111827;
+}
+
+#categories-list .folder-item i {
+    color: inherit !important;
+}
+
+/* bg-emerald-500 样式由 main-bundle.css 定义 */
+
+/* 暗色模式 - 左侧导航白色文字 */
+[data-theme="dark"] #categories-list .folder-item {
+    color: #FFFFFF !important;
+}
+
+[data-theme="dark"] #categories-list .folder-item:hover {
+    color: #FFFFFF !important;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] #categories-list .folder-item.active {
+    color: #10B981 !important;
+}
+
+[data-theme="dark"] #categories-list .folder-item i {
+    color: inherit !important;
+}

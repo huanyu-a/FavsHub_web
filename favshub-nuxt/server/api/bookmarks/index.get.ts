@@ -5,6 +5,20 @@ import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
 import { getConfigInt } from '../../utils/config'
 
+/** 根据继承规则过滤文件夹（子文件夹继承父文件夹的 login_required） */
+function filterByInheritance(folders: any[]): any[] {
+  function isLocked(f: any, visited = new Set<number>()): boolean {
+    if (f.login_required) return true
+    if (f.parent_id == null) return false
+    if (visited.has(f.parent_id)) return false
+    visited.add(f.parent_id)
+    const parent = folders.find(p => p.id === f.parent_id)
+    if (!parent) return false
+    return isLocked(parent, visited)
+  }
+  return folders.filter(f => !isLocked(f))
+}
+
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)
   const query = getQuery(event)
@@ -51,19 +65,40 @@ export default defineEventHandler(async (event) => {
 
   const bookmarks = db.prepare(sql).all(...params)
 
-  // 查询文件夹：普通用户看自己的 + 管理员的
+  // 查询文件夹：按 login_required 过滤可见性（含继承）
   let folders: any[]
   if (user) {
     const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
     if (dbUser?.is_admin) {
-      folders = db.prepare('SELECT * FROM folders ORDER BY name').all()
+      // 管理员看全部
+      folders = db.prepare('SELECT * FROM folders ORDER BY parent_id NULLS FIRST, sort_order').all()
     } else {
-      folders = db.prepare(
-        'SELECT * FROM folders WHERE user_id = ? OR user_id IN (SELECT id FROM users WHERE is_admin = 1) ORDER BY name'
-      ).all(user.id)
+      // 登录用户：自己的全部 + 管理员的（继承过滤）
+      const allAdminFolders = db.prepare(
+        `SELECT * FROM folders
+         WHERE user_id IN (SELECT id FROM users WHERE is_admin = 1)
+         ORDER BY parent_id NULLS FIRST, sort_order`
+      ).all() as any[]
+      const myFolders = db.prepare(
+        'SELECT * FROM folders WHERE user_id = ? ORDER BY parent_id NULLS FIRST, sort_order'
+      ).all(user.id) as any[]
+      const visibleAdminFolders = filterByInheritance(allAdminFolders)
+      const myIds = new Set(myFolders.map(f => f.id))
+      const merged = [...myFolders, ...visibleAdminFolders.filter(f => !myIds.has(f.id))]
+      folders = merged.sort((a: any, b: any) => {
+        const ap = a.parent_id ?? 0, bp = b.parent_id ?? 0
+        if (ap !== bp) return ap - bp
+        return (a.sort_order || 0) - (b.sort_order || 0)
+      })
     }
   } else {
-    folders = db.prepare('SELECT * FROM folders WHERE user_id IN (SELECT id FROM users WHERE is_admin = 1) ORDER BY name').all()
+    // 游客：只看管理员的公开文件夹（继承过滤）
+    const allAdminFolders = db.prepare(
+      `SELECT * FROM folders
+       WHERE user_id IN (SELECT id FROM users WHERE is_admin = 1)
+       ORDER BY parent_id NULLS FIRST, sort_order`
+    ).all() as any[]
+    folders = filterByInheritance(allAdminFolders)
   }
 
   return { bookmarks, folders }
