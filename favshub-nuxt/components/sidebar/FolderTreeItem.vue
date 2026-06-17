@@ -63,7 +63,7 @@ function toggleExpand(e: Event) {
     @contextmenu.prevent="emit('contextmenu-folder', $event, node)"
   >
     <span v-if="isEmoji" style="font-size:16px;margin-right:4px;flex-shrink:0;width:20px;text-align:center;">{{ node.icon }}</span>
-    <i v-else :class="iconClass" style="font-size:16px;color:#667eea;margin-right:4px;flex-shrink:0;width:20px;text-align:center;"></i>
+    <i v-else :class="iconClass" style="font-size:16px;color:var(--primary-color);margin-right:4px;flex-shrink:0;width:20px;text-align:center;"></i>
     <span :title="node.name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;">{{ node.name }}</span>
     <span v-if="node.login_required" title="登录可见" style="flex-shrink:0;font-size:11px;margin-left:2px;">🔒</span>
     <span

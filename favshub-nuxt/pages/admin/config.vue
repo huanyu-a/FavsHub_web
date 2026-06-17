@@ -86,12 +86,7 @@
     </div>
   </div>
 </template>
-/^<\/script>$/a
-/^  }$/a
-/^}$/a
-/^    <\/header>$/a
-/^    <\/template>$/a
-/^    <\/div>$/a
+
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '系统配置' })

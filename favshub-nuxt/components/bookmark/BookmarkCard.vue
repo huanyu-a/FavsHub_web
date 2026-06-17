@@ -155,10 +155,13 @@ onMounted(() => {
       }
     } catch { /* ignore */ }
   }
-  // Watch for theme changes
+  // Watch for theme changes (re-read cache each time to avoid stale closure)
   const observer = new MutationObserver(() => {
-    if (cardRef.value && cached) {
-      try { applyColors(cardRef.value, JSON.parse(cached)) } catch {}
+    if (cardRef.value) {
+      try {
+        const fresh = localStorage.getItem(cacheKey)
+        if (fresh) applyColors(cardRef.value, JSON.parse(fresh))
+      } catch {}
     }
   })
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })

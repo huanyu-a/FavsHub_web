@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 const { isGuest, isAdmin } = useAuth()
-const uiStore = useUIStore()
+const { initThemeWatchers } = useTheme()
 const { isMobile, drawerOpen } = useMobile()
 
 // Apply mobile-drawer-open class to sidebar when drawer is open
@@ -44,7 +44,7 @@ const { data: tdk } = await useFetch('/api/tdk', {
 useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260616' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260617' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],
@@ -69,42 +69,9 @@ if (import.meta.client) {
     }
   })
 
-  watch(() => uiStore.theme, (t) => {
-    if (t === 'auto') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
-    } else {
-      document.documentElement.setAttribute('data-theme', t)
-    }
-  }, { immediate: true })
-
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (uiStore.theme === 'auto') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
-    }
-  })
-
-  // 响应背景设置变化，更新 <html> 类名和 localStorage
-  const settingsStore = useSettingsStore()
-  watch(() => settingsStore.get('theme'), (t: string) => {
-    if (t && t !== uiStore.theme) {
-      uiStore.theme = t as 'light' | 'dark' | 'auto'
-    }
-  })
-  watch(() => settingsStore.get('selectedBackground'), (bg: string) => {
-    const html = document.documentElement
-    // 移除旧的 gradient-background-* 类
-    const oldClasses = Array.from(html.classList).filter(c => c.startsWith('gradient-background'))
-    if (oldClasses.length) html.classList.remove(...oldClasses)
-    // 应用新类名
-    if (bg && bg.startsWith('gradient-background')) {
-      html.classList.add(bg)
-      localStorage.setItem('favshub_bg', bg)
-    } else {
-      localStorage.removeItem('favshub_bg')
-    }
-  }, { immediate: true })
+  // 主题监听（应用 DOM + 系统偏好 + settings 同步 + 背景渐变）
+  // 集中在 composables/useTheme.ts，修复 hydrate 阶段 FOUC（信任 SSR 注入，不覆盖）
+  initThemeWatchers()
 }
 </script>
 

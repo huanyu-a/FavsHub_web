@@ -36,7 +36,7 @@ const SETTINGS_DEFAULTS: Record<string, any> = {
   selectedSearchEngine: '',
   customSearchEngines: [],
   // Background
-  selectedBackground: '',
+  selectedBackground: 'gradient-background-7',
   solidBackground: '',
   useDefaultBackground: '',
   // Welcome message text

@@ -78,7 +78,7 @@
           <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)">{{ pCollapsedIds.has(f.id) ? '▶' : '▼' }}</span>
           <span v-else style="display:inline-block;width:16px;"></span>
           <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
-          <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:#667eea;"></i>
+          <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary-color);"></i>
           <span class="folder-drag-name">{{ f.name }}</span>
           <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
           <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.prompt_count || 0 }}个</span>
@@ -181,12 +181,7 @@
     </div>
   </div>
 </template>
-/^<\/script>$/a
-/^  }$/a
-/^}$/a
-/^    <\/header>$/a
-/^    <\/template>$/a
-/^    <\/div>$/a
+
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '提示词管理' })
@@ -378,5 +373,5 @@ onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHi
 .folder-drag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-drag-meta { color: #999; font-size: 12px; white-space: nowrap; }
 .folder-drag-actions { display: flex; gap: 4px; flex-shrink: 0; }
-:deep(.sortable-ghost) { opacity: 0.4; background: #c8ebfb !important; }
+:deep(.sortable-ghost) { opacity: 0.4; background: rgba(16,185,129,0.2) !important; }
 </style>

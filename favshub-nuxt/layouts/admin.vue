@@ -47,6 +47,9 @@
             <span class="user-role">{{ isAdmin ? '管理员' : '普通用户' }}</span>
           </div>
         </div>
+        <button class="nav-item" type="button" style="border:none;background:none;width:100%;font:inherit;text-align:left;cursor:pointer;" @click="cycleTheme" :title="'当前主题: ' + themeLabel">
+          <i :class="themeIcon"></i><span>{{ themeLabel }}</span>
+        </button>
         <NuxtLink to="/" class="nav-item">
           <i class="ri-arrow-left-line"></i><span>返回前台</span>
         </NuxtLink>
@@ -96,12 +99,7 @@
     </Teleport>
   </div>
 </template>
-/^<\/script>$/a
-/^  }$/a
-/^}$/a
-/^    <\/header>$/a
-/^    <\/template>$/a
-/^    <\/div>$/a
+
 <script setup lang="ts">
 const route = useRoute()
 const authStore = useAuthStore()
@@ -159,11 +157,26 @@ async function saveProfile() {
     profileSaving.value = false
   }
 }
+// ── 主题切换逻辑（集中在 composables/useTheme.ts）──
+const uiStore = useUIStore()
+const { initThemeWatchers, cycleTheme, themeLabel } = useTheme()
+
+// 三态主题图标：light=太阳 / dark=月亮 / auto=电脑
+const themeIcon = computed(() => {
+  const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-mac-line' }
+  return icons[uiStore.theme] || 'ri-sun-line'
+})
+
+if (import.meta.client) {
+  initThemeWatchers()
+}
+
 useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260617' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260617' },
   ],
 })
 </script>

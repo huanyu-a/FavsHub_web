@@ -2,7 +2,7 @@
   <div class="icon-picker-wrapper">
     <div v-if="modelValue" class="icon-picker-preview">
       <span v-if="isEmoji(modelValue)" class="icon-picker-emoji">{{ modelValue }}</span>
-      <i v-else :class="modelValue" style="font-size:24px;color:var(--primary-color,#667eea)"></i>
+      <i v-else :class="modelValue" style="font-size:24px;color:var(--primary-color,#10B981)"></i>
       <button class="icon-picker-clear" type="button" @click="$emit('update:modelValue', '')">&times;</button>
     </div>
     <input v-model="search" type="text" class="icon-picker-search" placeholder="搜索图标...">
@@ -137,9 +137,9 @@ const filteredIcons = computed(() => {
 }
 
 .icon-picker-tabs button.active {
-  background: var(--primary-color, #667eea);
+  background: var(--primary-color, #10B981);
   color: #fff;
-  border-color: var(--primary-color, #667eea);
+  border-color: var(--primary-color, #10B981);
 }
 
 .icon-picker-option.emoji {

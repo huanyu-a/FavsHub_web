@@ -1,7 +1,8 @@
 /* ==========================================
-   PromptPro - macOS 风格样弝�?   ========================================== */
+   PromptPro - macOS 风格样式
+   ========================================== */
 
-/* 全局坘針 - 统一酝色方案 */
+/* 全局变量 - 统一配色方案 */
 :root {
     --primary-color: #10B981;
     --primary-hover: #059669;
@@ -12,10 +13,10 @@
     --success-color: #10B981;
     --danger-color: #EF4444;
     --warning-color: #F59E0B;
-    --bg-color: #FDF8F0;
+    --bg-color: #F8F7F4;
     --bg-gradient-start: #FDFBF5;
     --bg-gradient-end: #FDFBF5;
-    --card-bg: rgba(255, 255, 255, 0.9);
+    --card-bg: #ffffff;
     --sidebar-bg: rgba(252, 250, 245, 0.95);
     --text-primary: #1F2937;
     --text-secondary: #6B7280;
@@ -33,7 +34,7 @@
     --font-mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 
-/* 針置样弝 */
+/* 重置样式 */
 * {
     margin: 0;
     padding: 0;
@@ -312,7 +313,7 @@ body {
 
 .meta-tag i {
     font-size: 12px;
-    color: #10b981;
+    color: var(--primary-color);
 }
 
 .prompt-footer {
@@ -433,7 +434,7 @@ body {
     max-width: 1100px;
 }
 
-/* macOS 窗坣控制按钮样弝 */
+/* macOS 窗口控制按钮样式 */
 .modal-header {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border-color);
@@ -935,7 +936,7 @@ body {
     line-height: 1.5;
 }
 
-/* 下拉选项样弝 */
+/* 下拉选项样式 */
 .form-group select option {
     padding: 8px 12px;
 }
@@ -4437,7 +4438,7 @@ body {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #10b981;
+  background: var(--primary-color);
   color: #fff;
   padding: 8px 20px;
   border-radius: 8px;
@@ -4480,7 +4481,7 @@ body {
   justify-content: center;
 }
 .folder-arrow:hover {
-  color: #10b981;
+  color: var(--primary-color);
 }
 /* 只读卡片（管理员创建） */
 .prompt-card.read-only {
@@ -4511,7 +4512,7 @@ body {
   cursor: pointer;
   transition: border-color .2s, color .2s, background .2s;
 }
-.btn-outline:hover { border-color: #667eea; color: #667eea; background: #eef2ff; }
+.btn-outline:hover { border-color: var(--primary-color); color: var(--primary-color); background: #eef2ff; }
 
 /* 右键菜单（Teleport 到 body，不可 scoped） */
 .folder-context-menu {
@@ -4620,8 +4621,8 @@ body {
   border-radius: 8px; border: 1.5px solid #e0e0e0; cursor: pointer; font-size: 18px;
   color: #555; transition: all 0.15s;
 }
-.icon-pick-option:hover { border-color: #10b981; color: #10b981; }
-.icon-pick-option.active { border-color: #10b981; background: rgba(16,185,129,0.08); color: #10b981; }
+.icon-pick-option:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.icon-pick-option.active { border-color: var(--primary-color); background: rgba(16,185,129,0.08); color: var(--primary-color); }
 
 /* ── Responsive (merged from PromptDialogs) ── */
 @media (max-width: 768px) {
@@ -4641,8 +4642,8 @@ body {
 
 /* Card Container */
 .prompt-card {
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 16px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -4763,7 +4764,7 @@ body {
 
 .tag i {
     font-size: 12px;
-    color: #10b981;
+    color: var(--primary-color);
 }
 
 /* Meta Footer */
@@ -4792,7 +4793,7 @@ body {
 
 /* Folder Tag - Unique Class Name to avoid conflict */
 .prompt-folder-tag {
-    color: #10b981 !important; /* Theme Green */
+    color: var(--primary-color) !important; /* Theme Green */
     font-weight: 600;
     background: rgba(16, 185, 129, 0.1) !important; /* Light green background */
     padding: 2px 8px;
@@ -4803,7 +4804,7 @@ body {
 }
 
 .prompt-folder-tag i {
-    color: #10b981 !important; /* Force Icon Green */
+    color: var(--primary-color) !important; /* Force Icon Green */
     font-size: 14px;
 }
 
@@ -4819,7 +4820,7 @@ body {
 .version-badge {
     font-family: 'SF Mono', 'Consolas', monospace;
     font-size: 11px;
-    color: #10b981; /* Theme Green - matching primary color */
+    color: var(--primary-color); /* Theme Green - matching primary color */
     background: rgba(16, 185, 129, 0.1); /* Theme Light Green Bg */
     padding: 2px 6px;
     border-radius: 4px;
@@ -5240,8 +5241,8 @@ body {
     --success-color: #34D399;
     --danger-color: #F87171;
     --warning-color: #FBBF24;
-    --bg-color: #0F1419;
-    --bg-gradient-start: #0F1419;
+    --bg-color: #0B1120;
+    --bg-gradient-start: #0B1120;
     --bg-gradient-end: #1A1F2E;
     --card-bg: rgba(30, 35, 45, 0.95);
     --sidebar-bg: rgba(20, 25, 35, 0.98);
@@ -5256,7 +5257,7 @@ body {
 
 /* 暗色模式 - 主体背景 */
 [data-theme="dark"] body {
-    background: linear-gradient(135deg, #0F1419 0%, #1A1F2E 100%);
+    background: linear-gradient(135deg, #0B1120 0%, #1A1F2E 100%);
     color: var(--text-primary);
 }
 
@@ -5305,7 +5306,7 @@ body {
 }
 [data-theme="dark"] .sidebar-panel-action-btn:hover {
     background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
+    color: var(--primary-color);
 }
 [data-theme="dark"] .sidebar-tag-chip {
     background: rgba(255, 255, 255, 0.06);
@@ -5314,13 +5315,13 @@ body {
 }
 [data-theme="dark"] .sidebar-tag-chip:hover {
     background: rgba(16, 185, 129, 0.12);
-    color: #10b981;
+    color: var(--primary-color);
     transform: translateY(-1px);
     box-shadow: 0 3px 10px rgba(16, 185, 129, 0.15);
 }
 [data-theme="dark"] .sidebar-tag-chip.active {
     background: rgba(16, 185, 129, 0.18);
-    color: #10b981;
+    color: var(--primary-color);
     border-color: rgba(16, 185, 129, 0.35);
     box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15);
 }
@@ -5641,7 +5642,7 @@ body {
 
 [data-theme="dark"] .vtag-cur {
     background: var(--secondary-color);
-    color: #0F1419;
+    color: #0B1120;
 }
 
 [data-theme="dark"] .vcol-time {
@@ -6501,7 +6502,7 @@ aside.sidebar {
 }
 .sidebar-panel-action-btn:hover {
     background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    color: var(--primary-color);
 }
 
 /* 列表容器 —— 覆盖 main-bundle.css 的 padding-bottom */
@@ -6583,7 +6584,7 @@ aside.sidebar {
     color: #94a3b8;
 }
 .folder-item [data-toggle-folder]:hover {
-    color: #10b981;
+    color: var(--primary-color);
 }
 
 /* 标签区块标题 —— 独立一行 */
@@ -6632,7 +6633,7 @@ aside.sidebar {
 }
 .sidebar-tag-chip:hover {
     background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    color: var(--primary-color);
     border-color: rgba(16, 185, 129, 0.2);
     transform: translateY(-1px);
     box-shadow: 0 3px 10px rgba(16, 185, 129, 0.12);
@@ -6640,7 +6641,7 @@ aside.sidebar {
 .sidebar-tag-chip.active {
     background: rgba(16, 185, 129, 0.15);
     border-color: rgba(16, 185, 129, 0.3);
-    color: #10b981;
+    color: var(--primary-color);
     font-weight: 600;
     box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
 }
@@ -6700,7 +6701,7 @@ aside.sidebar {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-box:focus-within {
-    border-color: #10b981;
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 .search-box i {
@@ -6807,7 +6808,7 @@ aside.sidebar {
 
 /* ========== 版本号 ========== */
 .version-badge {
-    color: #10b981 !important;
+    color: var(--primary-color) !important;
     background: rgba(16, 185, 129, 0.1) !important;
 }
 

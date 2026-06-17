@@ -37,7 +37,7 @@
               @click="$emit('select-folder', null)"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:#667eea;flex-shrink:0;width:20px;text-align:center;"></i>
+              <i class="ri-apps-line" style="font-size:16px;color:var(--primary-color);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
               <span class="item-count" style="position:absolute;right:8px;">{{ totalBookmarkCount }}</span>
               <span
@@ -123,10 +123,10 @@
                     <i class="ri-dashboard-line"></i>
                     <span>管理后台</span>
                   </NuxtLink>
-                  <div class="user-menu-item" @click="toggleTheme">
-                    <i :class="isDark ? 'ri-sun-line' : 'ri-moon-line'"></i>
+                  <div class="user-menu-item" @click="cycleTheme">
+                    <i :class="themeIcon"></i>
                     <span>外观</span>
-                    <span class="user-menu-toggle">{{ isDark ? '深色' : '浅色' }}</span>
+                    <span class="user-menu-toggle">{{ themeLabel }}</span>
                   </div>
                 </div>
 
@@ -182,11 +182,13 @@ const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const bookmarksStore = useBookmarksStore()
 const router = useRouter()
+const { cycleTheme, themeLabel } = useTheme()
 
-const isDark = computed(() =>
-  uiStore.theme === 'dark' ||
-  (uiStore.theme === 'auto' && import.meta.client && window.matchMedia('(prefers-color-scheme: dark)').matches)
-)
+// 三态主题图标：light=太阳 / dark=月亮 / auto=电脑
+const themeIcon = computed(() => {
+  const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-mac-line' }
+  return icons[uiStore.theme] || 'ri-sun-line'
+})
 
 // ── 用户面板 ────────────────────────────────────────────────
 const showUserMenu = ref(false)
@@ -407,10 +409,6 @@ if (import.meta.client) {
   })
 }
 
-function toggleTheme() {
-  uiStore.setTheme(isDark.value ? 'light' : 'dark')
-}
-
 function handleLogout() {
   authStore.logout()
   router.push('/login')
@@ -534,7 +532,7 @@ function handleLogout() {
 }
 
 .user-menu-role.admin {
-  color: #667eea;
+  color: var(--primary-color);
 }
 
 .user-menu-role.guest {

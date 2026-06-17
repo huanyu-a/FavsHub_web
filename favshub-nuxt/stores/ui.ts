@@ -29,8 +29,8 @@ export const useUIStore = defineStore('ui', {
      * - 'light' / 'dark' — applied directly
      * - 'auto' — reads `prefers-color-scheme` from the browser
      *
-     * Also listens for OS-level theme changes when in 'auto' mode so the
-     * page updates without a reload.
+     * 约定：只设置 documentElement（<html>），不设置 <body>。
+     * CSS 中 [data-theme="dark"] body 等后代选择器通过 html 属性命中。
      */
     applyTheme() {
       if (import.meta.server) return
@@ -46,36 +46,6 @@ export const useUIStore = defineStore('ui', {
       }
 
       document.documentElement.setAttribute('data-theme', effective)
-      document.body.setAttribute('data-theme', effective)
-    },
-
-    /**
-     * Call once during app init to:
-     * 1. Read the persisted theme from settings store
-     * 2. Apply it to the DOM
-     * 3. Start listening for OS-level theme changes (auto mode only)
-     */
-    initTheme() {
-      if (import.meta.server) return
-
-      // Sync with persisted settings
-      const settings = useSettingsStore()
-      let stored = settings.get('theme') as 'light' | 'dark' | 'auto' | undefined
-      // 优先使用 localStorage 镜像（首屏脚本已据此设置 data-theme）
-      try {
-        const ls = localStorage.getItem('favshub_theme') as 'light' | 'dark' | 'auto' | null
-        if (ls) stored = ls
-      } catch {}
-      this.theme = stored || 'auto'
-      try { localStorage.setItem('favshub_theme', this.theme) } catch {}
-      this.applyTheme()
-
-      // React to OS-level scheme changes when the user preference is 'auto'
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (this.theme === 'auto') {
-          this.applyTheme()
-        }
-      })
     },
   },
 })

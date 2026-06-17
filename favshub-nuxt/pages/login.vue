@@ -57,7 +57,7 @@ definePageMeta({ layout: false })
 useHead({
   title: 'FavsHub - 登录',
   link: [
-    { rel: 'stylesheet', href: '/css/main-bundle.css' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260617' },
   ],
 })
 

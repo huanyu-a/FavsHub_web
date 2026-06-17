@@ -16,7 +16,7 @@
       <span class="mobile-nav-icon">🔍</span>
       <span class="mobile-nav-label">搜索</span>
     </button>
-    <button class="mobile-nav-item" type="button" @click="toggleTheme">
+    <button class="mobile-nav-item" type="button" @click="cycleTheme">
       <span class="mobile-nav-icon">{{ themeIcon }}</span>
       <span class="mobile-nav-label">主题</span>
     </button>
@@ -197,11 +197,11 @@ onMounted(() => {
   searchEngineStore.fetchEngines()
 })
 
-const themeIcon = computed(() => uiStore.theme === 'dark' ? '🌙' : '☀️')
+const { cycleTheme } = useTheme()
 
-function toggleTheme() {
-  const next = uiStore.theme === 'dark' ? 'light' : 'dark'
-  uiStore.setTheme(next)
-}
+const themeIcon = computed(() => {
+  const icons: Record<string, string> = { light: '☀️', dark: '🌙', auto: '🖥️' }
+  return icons[uiStore.theme] || '☀️'
+})
 </script>
 

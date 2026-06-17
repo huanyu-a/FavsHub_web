@@ -38,7 +38,7 @@
               @click="selectAndToggleAll"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:#667eea;flex-shrink:0;width:20px;text-align:center;"></i>
+              <i class="ri-apps-line" style="font-size:16px;color:var(--primary-color);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
               <span class="item-count" style="position:absolute;right:8px;">{{ allPromptCount }}</span>
               <span
@@ -263,7 +263,7 @@ useHead({
   title: 'PromptPro - 提示词管理',
   titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260617' },
   ],
 })
 

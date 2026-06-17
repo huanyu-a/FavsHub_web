@@ -72,29 +72,25 @@
     </div>
   </div>
 </template>
-/^<\/script>$/a
-/^  }$/a
-/^}$/a
-/^    <\/header>$/a
-/^    <\/template>$/a
-/^    <\/div>$/a
+
 <script setup lang="ts">
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '个人设置' })
 const backgrounds = [
-  { value: 'gradient-background-1', label: '渐变1', style: { background: 'linear-gradient(0deg, #e2e8f0 0%, #d6deeb 50%, #cbd5e1 100%)' } },
-  { value: 'gradient-background-2', label: '渐变2', style: { background: 'linear-gradient(0deg, #a5f3fc 0%, #b2e7fd 50%, #bfdbfe 100%)' } },
-  { value: 'gradient-background-3', label: '渐变3', style: { background: 'linear-gradient(0deg, #fbcee8 0%, #f2d2f4 50%, #e9d5ff 100%)' } },
-  { value: 'gradient-background-4', label: '渐变4', style: { background: 'linear-gradient(0deg, #b6e8a6 0%, #b6e8a6 100%)' } },
-  { value: 'gradient-background-5', label: '渐变5', style: { background: 'linear-gradient(0deg, #efef42 0%, #efef42 100%)' } },
-  { value: 'gradient-background-6', label: '渐变6', style: { background: 'linear-gradient(0deg, #d7c8eb 0%, #d7c8eb 100%)' } },
-  { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #fbebbc 0%, #fbebbc 100%)' } },
+  { value: 'gradient-background-1', label: '渐变1', style: { background: 'linear-gradient(0deg, rgba(226,232,240,0) 0%, #cbd5e1 100%)' } },
+  { value: 'gradient-background-2', label: '渐变2', style: { background: 'linear-gradient(0deg, rgba(165,243,252,0) 0%, #f4fbff 50%, #bfdbfe 100%)' } },
+  { value: 'gradient-background-3', label: '渐变3', style: { background: 'linear-gradient(0deg, rgba(251,206,232,0) 0%, #f2d2f4 50%, #e9d5ff 100%)' } },
+  { value: 'gradient-background-4', label: '渐变4', style: { background: 'linear-gradient(0deg, #f2f8f0 0%, #f2f8f0 100%)' } },
+  { value: 'gradient-background-5', label: '渐变5', style: { background: 'linear-gradient(0deg, #fcfcf7 0%, #fcfcf7 100%)' } },
+  { value: 'gradient-background-6', label: '渐变6', style: { background: 'linear-gradient(0deg, #f4f1f8 0%, #f4f1f8 100%)' } },
+  { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #f8f7f4 0%, #f8f7f4 100%)' } },
 ]
 const settingsStore = useSettingsStore()
+const uiStore = useUIStore()
 // 从 settingsStore 初始化表单
 const form = reactive<Record<string, any>>({
   theme: settingsStore.get('theme', 'auto'),
-  selectedBackground: settingsStore.get('selectedBackground', ''),
+  selectedBackground: settingsStore.get('selectedBackground', 'gradient-background-7'),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),
   showFooter: settingsStore.get('showFooter', true),
@@ -114,6 +110,9 @@ const form = reactive<Record<string, any>>({
 })
 function save() {
   settingsStore.setMany({ ...form })
+  // 主题字段需额外通过 uiStore.setTheme 应用到 DOM + 写 localStorage
+  // 确保 SSR 首屏脚本下次能读到正确的主题值
+  uiStore.setTheme(form.theme)
 }
 // 每行卡片数量预估（基于 1440px 视口宽度）
 const cardsPerRow = computed(() => {
