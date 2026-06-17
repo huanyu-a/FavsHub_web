@@ -4310,7 +4310,7 @@ main.flex-1 {
 }
 
 /* 暗色模式 - 确保html和body背景色正确 */
-[data-theme="dark"] html {
+[data-theme="dark"] {
   background-color: #0B1120;
 }
 
@@ -4319,7 +4319,7 @@ main.flex-1 {
 }
 
 /* 暗色模式 - 图标区域 */
-[data-theme="dark"] html[class*="gradient-background"] {
+[data-theme="dark"][class*="gradient-background"] {
   background: transparent !important;
 }
 
@@ -4866,9 +4866,9 @@ main {
   text-rendering: optimizeLegibility;
 }
 
-/* ??��?�模式�?��????�景渐�?��??*/
-[data-theme="dark"] html[class*="gradient-background"] {
-  background: transparent !important;  /* 移除 html ?????�景，�??body ?????�景?���?*/
+/* 暗色模式 - 移除html上的背景渐变，保留body背景 */
+[data-theme="dark"][class*="gradient-background"] {
+  background: transparent !important;
 }
 
 /* ??��?�模式�?�确�?body ??�景?��优�??�? */
@@ -7575,7 +7575,7 @@ aside .settings-update-tip .tip-arrow {
   color-scheme: dark !important;
 }
 
-[data-theme="dark"] html,
+[data-theme="dark"],
 [data-theme="dark"] body,
 [data-theme="dark"] main,
 [data-theme="dark"] .bg-gray-50,

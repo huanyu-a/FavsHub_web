@@ -48,12 +48,6 @@ useHead({
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],
-  // 同步脚本：渲染前从 localStorage 恢复 auth 状态 + 主题到 <html>，消除 SSR 闪烁
-  script: [
-    {
-      innerHTML: `(function(){try{var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');var d=document.documentElement;if(t){d.setAttribute('data-guest','false');try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)d.setAttribute('data-admin','true')}catch(e){}}else{d.setAttribute('data-guest','true')}var th=localStorage.getItem('favshub_theme')||'light';if(th==='auto'){th=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}d.setAttribute('data-theme',th);var bg=localStorage.getItem('favshub_bg')||'gradient-background-7';d.classList.add(bg)}catch(e){}})()`,
-    },
-  ],
   titleTemplate: (title) => {
     const siteTitle = tdk.value?.siteTitle || 'FavsHub - 智能书签工作台'
     return title ? `${title} - FavsHub` : siteTitle
