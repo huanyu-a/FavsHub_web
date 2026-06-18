@@ -3,6 +3,10 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  experimental: {
+    viewTransition: true,
+  },
+
   modules: [
     '@pinia/nuxt',
   ],
@@ -35,6 +39,8 @@ export default defineNuxtConfig({
           'X-Frame-Options': 'DENY',
           'Referrer-Policy': 'strict-origin-when-cross-origin',
           'X-XSS-Protection': '1; mode=block',
+          // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
+          'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
         },
       },
     },

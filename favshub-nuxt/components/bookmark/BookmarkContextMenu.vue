@@ -64,7 +64,7 @@
           <button class="qr-close" @click="deleteConfirmVisible = false">&times;</button>
         </div>
         <div class="qr-body" style="text-align:center;">
-          <p style="margin:8px 0 16px;color:#555;">确定要删除「{{ bookmark?.title }}」吗？</p>
+          <p style="margin:8px 0 16px;color:var(--text-secondary);">确定要删除「{{ bookmark?.title }}」吗？</p>
           <div style="display:flex;justify-content:flex-end;gap:8px;">
             <button class="qr-btn-cancel" @click="deleteConfirmVisible = false">取消</button>
             <button class="qr-btn-danger" @click="executeDelete">删除</button>

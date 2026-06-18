@@ -1,6 +1,6 @@
 <template>
-  <div class="modal" style="display:flex;" @click.self="$emit('close')">
-    <div class="modal-content login-dialog-content">
+  <div class="login-dialog-overlay" @click.self="$emit('close')">
+    <div class="login-dialog-content">
       <span class="close-button" @click="$emit('close')">&times;</span>
       <div class="login-logo">
         <img src="/images/logo.svg" alt="FavsHub">
@@ -108,11 +108,24 @@ async function handleRegister() {
 </script>
 
 <style scoped>
+.login-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  z-index: 1002;
+}
 .login-dialog-content {
+  position: relative;
   max-width: 420px;
   width: 90vw;
   padding: 40px;
   text-align: center;
+  background: var(--surface-raised);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xl);
 }
 .login-logo {
   margin-bottom: 24px;
@@ -130,6 +143,16 @@ async function handleRegister() {
   color: var(--text-tertiary);
   font-size: 13px;
   margin-top: 4px;
+}
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  z-index: 1;
+  line-height: 1;
 }
 .tab-nav {
   display: flex;

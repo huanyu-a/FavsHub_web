@@ -38,7 +38,7 @@
               <h4>版本历史</h4>
               <div class="versions-list">
                 <div v-if="versionsLoading" class="loading"><i class="ri-loader-4-line spin"></i><p>加载中...</p></div>
-                <p v-else-if="allVersions.length === 0" style="color: var(--text-secondary, #94a3b8); padding: 0.5rem 0; font-size: 0.8125rem;">
+                <p v-else-if="allVersions.length === 0" style="color: var(--text-secondary); padding: 0.5rem 0; font-size: 0.8125rem;">
                   <i class="ri-file-warning-line"></i> 无版本记录
                 </p>
                 <div v-else class="version-collapse">
@@ -265,10 +265,10 @@
             <button class="modal-close" @click="restoreTarget = null"><i class="ri-close-line"></i></button>
           </div>
           <div class="modal-body">
-            <p style="margin-bottom: 1rem; color: var(--text-secondary, #64748b);">
+            <p style="margin-bottom: 1rem; color: var(--text-secondary);">
               确定要还原到版本 <strong>v{{ restoreTarget.version_number }}</strong> 吗？
             </p>
-            <p style="color: var(--text-secondary, #94a3b8); font-size: 0.875rem;">
+            <p style="color: var(--text-secondary); font-size: 0.875rem;">
               还原后，当前内容将被替换为该版本的内容，当前版本将作为历史版本保留。
             </p>
           </div>

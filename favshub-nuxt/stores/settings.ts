@@ -70,8 +70,26 @@ export const useSettingsStore = defineStore('settings', {
         if (token) headers.Authorization = `Bearer ${token}`
         const res = await $fetch<{ data: Record<string, any> }>('/api/settings', { headers })
         this.settings = { ...SETTINGS_DEFAULTS, ...res.data }
+        // 显式应用背景（useTheme watcher 可能因对象替换不触发）
+        if (import.meta.client) {
+          this._applyBackground()
+        }
       } finally {
         this.isLoading = false
+      }
+    },
+
+    /** 将 selectedBackground 同步到 <html> class */
+    _applyBackground() {
+      const bg = this.settings.selectedBackground || SETTINGS_DEFAULTS.selectedBackground
+      const html = document.documentElement
+      const oldClasses = Array.from(html.classList).filter(c => c.startsWith('gradient-background'))
+      if (oldClasses.length) html.classList.remove(...oldClasses)
+      if (bg && bg.startsWith('gradient-background')) {
+        html.classList.add(bg)
+        try { localStorage.setItem('favshub_bg', bg) } catch {}
+      } else {
+        try { localStorage.removeItem('favshub_bg') } catch {}
       }
     },
 
@@ -103,6 +121,15 @@ export const useSettingsStore = defineStore('settings', {
     setMany(data: Record<string, any>) {
       Object.assign(this.settings, data)
       this._schedulePersist()
+    },
+
+    /**
+     * Write multiple settings and persist immediately (no debounce).
+     */
+    async setManyNow(data: Record<string, any>) {
+      Object.assign(this.settings, data)
+      if (import.meta.client) this._applyBackground()
+      await this._persistToBackend()
     },
 
     // ── Backend persistence (debounced) ────────────────────────

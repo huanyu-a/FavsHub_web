@@ -56,8 +56,8 @@ function toggleExpand(e: Event) {
 <template>
   <!-- 文件夹项：li 节点 -->
   <li
-    class="cursor-pointer py-2 px-1 mb-2 hover:bg-emerald-500 rounded-lg flex items-center folder-item"
-    :class="{ 'bg-emerald-500': isSelected }"
+    class="folder-tree-item"
+    :class="{ selected: isSelected }"
     :style="{ paddingLeft, position: 'relative' }"
     @click="onClick"
     @contextmenu.prevent="emit('contextmenu-folder', $event, node)"
@@ -90,3 +90,24 @@ function toggleExpand(e: Event) {
     />
   </ul>
 </template>
+
+<style scoped>
+.folder-tree-item {
+  cursor: pointer;
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 0.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+}
+
+.folder-tree-item:hover {
+  background: var(--surface-selected);
+}
+
+.folder-tree-item.selected {
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+</style>

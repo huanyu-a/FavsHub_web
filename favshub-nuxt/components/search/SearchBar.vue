@@ -73,7 +73,7 @@
                 </svg>
               </template>
               <template v-else>
-                <i class="ri-bookmark-line" style="font-size:14px;color:#999;"></i>
+                <i class="ri-bookmark-line" style="font-size:14px;color:var(--text-tertiary);"></i>
               </template>
             </span>
             <span class="suggestion-text">{{ s.text }}</span>

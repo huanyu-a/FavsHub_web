@@ -128,7 +128,7 @@ const filteredIcons = computed(() => {
 .icon-picker-tabs button {
   flex: 1;
   padding: 6px 12px;
-  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+  border: 1px solid var(--border-color);
   background: transparent;
   border-radius: 6px;
   cursor: pointer;
@@ -137,9 +137,9 @@ const filteredIcons = computed(() => {
 }
 
 .icon-picker-tabs button.active {
-  background: var(--primary-color, #10B981);
+  background: var(--primary-color);
   color: #fff;
-  border-color: var(--primary-color, #10B981);
+  border-color: var(--primary-color);
 }
 
 .icon-picker-option.emoji {

@@ -17,9 +17,9 @@
             :class="{ active: form.selectedBackground === bg.value }"
             :style="bg.style"
             :title="bg.label"
-            @click="form.selectedBackground = bg.value; form.backgroundType = 'gradient'; save()"
+            @click="form.selectedBackground = bg.value; form.backgroundType = bg.type; if (bg.type === 'solid') form.solidBackground = bg.style.background; save()"
           />
-          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; form.backgroundType = 'none'; save()">无</div>
+          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; form.backgroundType = 'none'; form.solidBackground = ''; save()">无</div>
         </div>
         <h4 class="section-title">界面元素</h4>
         <div class="setting-option"><span>显示搜索框</span><label class="switch"><input type="checkbox" v-model="form.showSearchBox" @change="save"><span class="slider round"></span></label></div>
@@ -66,22 +66,32 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ middleware: 'admin', layout: 'admin' })
+definePageMeta({ middleware: 'admin', layout: 'admin', ssr: false })
 useHead({ title: '个人设置' })
 const backgrounds = [
-  { value: 'gradient-background-1', label: '渐变1', style: { background: 'linear-gradient(0deg, rgba(226,232,240,0) 0%, #cbd5e1 100%)' } },
-  { value: 'gradient-background-2', label: '渐变2', style: { background: 'linear-gradient(0deg, rgba(165,243,252,0) 0%, #f4fbff 50%, #bfdbfe 100%)' } },
-  { value: 'gradient-background-3', label: '渐变3', style: { background: 'linear-gradient(0deg, rgba(251,206,232,0) 0%, #f2d2f4 50%, #e9d5ff 100%)' } },
-  { value: 'gradient-background-4', label: '渐变4', style: { background: 'linear-gradient(0deg, #f2f8f0 0%, #f2f8f0 100%)' } },
-  { value: 'gradient-background-5', label: '渐变5', style: { background: 'linear-gradient(0deg, #fcfcf7 0%, #fcfcf7 100%)' } },
-  { value: 'gradient-background-6', label: '渐变6', style: { background: 'linear-gradient(0deg, #f4f1f8 0%, #f4f1f8 100%)' } },
-  { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #f8f7f4 0%, #f8f7f4 100%)' } },
+  { value: 'solid-white', label: '纯白', type: 'solid', style: { background: '#ffffff' } },
+  { value: 'solid-black', label: '纯黑', type: 'solid', style: { background: '#000000' } },
+  { value: 'gradient-background-1', label: '渐变1', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(226,232,240,0) 0%, #cbd5e1 100%)' } },
+  { value: 'gradient-background-2', label: '渐变2', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(165,243,252,0) 0%, #f4fbff 50%, #bfdbfe 100%)' } },
+  { value: 'gradient-background-3', label: '渐变3', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(251,206,232,0) 0%, #f2d2f4 50%, #e9d5ff 100%)' } },
+  { value: 'gradient-background-4', label: '渐变4', type: 'gradient', style: { background: 'linear-gradient(0deg, #f2f8f0 0%, #f2f8f0 100%)' } },
+  { value: 'gradient-background-5', label: '渐变5', type: 'gradient', style: { background: 'linear-gradient(0deg, #fcfcf7 0%, #fcfcf7 100%)' } },
+  { value: 'gradient-background-6', label: '渐变6', type: 'gradient', style: { background: 'linear-gradient(0deg, #f4f1f8 0%, #f4f1f8 100%)' } },
+  { value: 'gradient-background-7', label: '渐变7', type: 'gradient', style: { background: 'linear-gradient(0deg, #f8f7f4 0%, #f8f7f4 100%)' } },
 ]
 const settingsStore = useSettingsStore()
+
+// 确保设置已加载（auth-init 插件已 fetch，此处兜底）
+if (!settingsStore.isLoading && Object.keys(settingsStore.settings).length === 0) {
+  const auth = useAuthStore()
+  await settingsStore.fetchSettings(auth.token || undefined)
+}
+
 // 从 settingsStore 初始化表单
 const form = reactive<Record<string, any>>({
   selectedBackground: settingsStore.get('selectedBackground', 'gradient-background-7'),
   backgroundType: settingsStore.get('backgroundType', 'none'),
+  solidBackground: settingsStore.get('solidBackground', ''),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),
   showFooter: settingsStore.get('showFooter', true),
@@ -100,7 +110,7 @@ const form = reactive<Record<string, any>>({
   bookmarkContainerWidth: settingsStore.get('bookmarkContainerWidth', 85),
 })
 function save() {
-  settingsStore.setMany({ ...form })
+  settingsStore.setManyNow({ ...form })
 }
 // 每行卡片数量预估（基于 1440px 视口宽度）
 const cardsPerRow = computed(() => {

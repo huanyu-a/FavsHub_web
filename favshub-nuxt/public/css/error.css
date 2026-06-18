@@ -1,8 +1,19 @@
 /* error.vue 不加载 main-bundle.css，需在此声明 CSS 变量 */
+/* 使用 light-dark() + color-scheme 自动切换主题 */
 :root {
-  --primary-color: #10B981;
-  --primary-hover: #059669;
+  color-scheme: light dark;
+  --primary-color: light-dark(#10B981, #34D399);
+  --primary-hover: light-dark(#059669, #10B981);
+  --surface-raised: light-dark(rgba(255,255,255,0.95), rgba(30,41,59,0.98));
+  --text-primary: light-dark(#333, rgba(255,255,255,0.6));
+  --text-secondary: light-dark(#888, rgba(255,255,255,0.5));
+  --border: light-dark(#ddd, rgba(255,255,255,0.12));
+  --text-ghost: light-dark(#666, rgba(255,255,255,0.7));
+  --shadow-lg: light-dark(0 20px 60px rgba(0,0,0,0.2), 0 20px 60px rgba(0,0,0,0.4));
 }
+
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="dark"]  { color-scheme: dark; }
 
 .error-page {
   min-height: 100vh;
@@ -15,9 +26,9 @@
 .error-container {
   text-align: center;
   padding: 48px;
-  background: rgba(255,255,255,0.95);
+  background: var(--surface-raised);
   border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-lg);
   max-width: 480px;
   width: 90%;
 }
@@ -32,12 +43,12 @@
 }
 .error-page h1 {
   font-size: 24px;
-  color: #333;
+  color: var(--text-primary);
   margin: 0 0 12px;
 }
 .error-message {
   font-size: 14px;
-  color: #888;
+  color: var(--text-secondary);
   margin: 0 0 32px;
 }
 .error-actions {
@@ -60,26 +71,10 @@
 .error-page .btn-ghost {
   padding: 12px 32px;
   background: none;
-  border: 1.5px solid #ddd;
-  color: #666;
+  border: 1.5px solid var(--border);
+  color: var(--text-ghost);
   border-radius: 10px;
   font-size: 15px;
   cursor: pointer;
 }
 .error-page .btn-ghost:hover { border-color: var(--primary-color); color: var(--primary-color); }
-
-/* 深色模式 */
-[data-theme="dark"] .error-container {
-  background: rgba(30, 30, 30, 0.8);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-}
-[data-theme="dark"] .error-page h1 { color: rgba(255, 255, 255, 0.6); }
-[data-theme="dark"] .error-message { color: rgba(255, 255, 255, 0.5); }
-[data-theme="dark"] .error-page .btn-ghost {
-  border-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-}
-[data-theme="dark"] .error-page .btn-ghost:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}

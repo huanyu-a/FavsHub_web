@@ -1,7 +1,6 @@
 <template>
   <div class="home-shell">
     <!-- 壁纸背景 -->
-    <WallpaperBackground />
 
     <!-- 侧边栏（自带 #sidebar-container 包裹） -->
     <Sidebar
@@ -74,7 +73,7 @@
       </div>
 
       <!-- 页脚：年度进度条 -->
-      <footer v-if="settingsStore.get('showFooter', true)" class="bg-gray-50 text-center p-4 border-t border-gray-200 mt-auto">
+      <footer v-if="settingsStore.get('showFooter', true)" class="page-footer">
         <YearProgress />
       </footer>
     </main>
@@ -99,7 +98,6 @@ import BookmarkGrid from '~/components/bookmark/BookmarkGrid.vue'
 import BookmarkEditDialog from '~/components/bookmark/BookmarkEditDialog.vue'
 import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
-import WallpaperBackground from '~/components/WallpaperBackground.vue'
 import BackToTop from '~/components/BackToTop.vue'
 
 const authStore = useAuthStore()
@@ -191,4 +189,14 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   await bookmarksStore.reorderBookmarks(items)
 }
 </script>
+
+<style scoped>
+.page-footer {
+  background: var(--surface-sunken);
+  text-align: center;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+</style>
 

@@ -1,26 +1,85 @@
 /**
- * Nitro plugin: 消除页面加载时的白色闪烁
+ * Nitro plugin: 消除页面加载时的白色闪烁（cookie 驱动版）
  *
- * 两层防护：
- * 1. SSR 默认 <style> — 未登录 / 首次访问用户看到正确的默认背景（浅色 #F8F7F4）
- * 2. 阻塞 <script> — 读 localStorage，document.write 写入用户实际偏好色，覆盖默认
+ * 优先级：
+ * 1. cookie（用户已选过主题）→ SSR 直接注入正确主题，零闪烁
+ * 2. Sec-CH-Prefers-Color-Scheme 请求头 → auto 模式也能 SSR 精确
+ * 3. 无 cookie + 无头 → 默认浅色 + 客户端 anti-flash 脚本兜底
  *
- * 已登录深色用户：默认浅色 → JS 立即覆盖深色，无绘制间隙
- * 未登录 / 新用户：默认浅色直接就是终态
+ * 不再使用 document.write — 改用 document.createElement('style') 注入。
+ * cookie 由客户端 utils/themeCookie.ts 双写（localStorage 镜像）。
+ *
+ * 注意：gradient-background-N 是整段渐变，不纳入本文件处理，
+ * 仅在无 cookie 兜底脚本中通过 class + 颜色映射近似覆盖。
  */
 export default defineNitroPlugin((nitroApp) => {
-  nitroApp.hooks.hook('render:html', (html) => {
-    // SSR 默认背景：未登录/新用户直接得到正确的浅色背景
-    const defaultCSS = `<style>html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:#F8F7F4;color-scheme:light}</style>`
+  nitroApp.hooks.hook('render:html', (html, { event }) => {
+    // ── 读 cookie（无 event 时跳过，如 prerender） ──
+    const themeCookie = event ? getCookie(event, 'fh_theme') : undefined
+    const bgCookie = event ? getCookie(event, 'fh_bg') : undefined
 
-    // 阻塞脚本：读本地偏好 → document.write 注入实际主题色（高优先级覆盖默认）
-    // 默认 'auto'（与 stores/ui.ts、stores/settings.ts 的默认值一致），auto 时根据系统偏好解析
-    // 注入的 <style id="__fh_anti_flash"> 仅用于首屏防闪，hydrate 后由客户端移除，
-    // 之后背景完全交给 main-bundle.css 的 [data-theme] 规则托管（否则系统切换/手动切换时
-    // 这段硬编码背景会以 ID 特异性钉死旧色，导致切换不生效需刷新）。
-    const initScript = `<script>(function(){var h=document.documentElement;try{var th=localStorage.getItem('favshub_theme')||'auto';if(th==='auto'){th=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}h.setAttribute('data-theme',th);var bgc;if(th==='dark'){bgc='#0B1120'}else{var bg=localStorage.getItem('favshub_bg')||'gradient-background-7';h.classList.add(bg);var m={'gradient-background-1':'#CBD5E1','gradient-background-2':'#BFDBFE','gradient-background-3':'#E9D5FF','gradient-background-4':'#F2F8F0','gradient-background-5':'#FCFCF7','gradient-background-6':'#F4F1F8','gradient-background-7':'#F8F7F4'};bgc=m[bg]||'#F8F7F4'}document.write('<style id="__fh_anti_flash">html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:'+bgc+';color-scheme:'+th+'}</style>');var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');if(t){h.setAttribute('data-guest','false');try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}else{h.setAttribute('data-guest','true')}}catch(e){}})()</script>`
+    const theme = (themeCookie === 'light' || themeCookie === 'dark' || themeCookie === 'auto')
+      ? themeCookie
+      : null
 
-    html.head.unshift(initScript)
-    html.head.unshift(defaultCSS)
+    const bg = bgCookie || null
+
+    // ── 有 cookie → SSR 直接注入精确主题 ──
+    if (theme) {
+      let effective: 'light' | 'dark' = 'light'
+      let colorScheme = 'light'
+
+      if (theme === 'auto') {
+        // 读 Client Hint 精确判断；无头则默认 light
+        const prefersDark = event
+          ? getRequestHeader(event, 'Sec-CH-Prefers-Color-Scheme') === 'dark'
+          : false
+        effective = prefersDark ? 'dark' : 'light'
+        colorScheme = 'light dark' // auto 双值，让浏览器跟随系统
+      } else {
+        effective = theme
+        colorScheme = theme
+      }
+
+      html.htmlAttrs.push(`data-theme="${effective}"`)
+      html.htmlAttrs.push(`style="color-scheme:${colorScheme}"`)
+
+      // 替换 defaultCSS：精确背景色
+      const bgColor = effective === 'dark' ? '#0B1120' : '#F8F7F4'
+      html.head.unshift(
+        `<style id="__fh_anti_flash">html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:${bgColor}}</style>`
+      )
+      return // 有 cookie，不需要兜底脚本
+    }
+
+    // ── 无 cookie → 默认浅色 + 客户端兜底脚本 ──
+    html.head.unshift(
+      `<style id="__fh_anti_flash">html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:#F8F7F4;color-scheme:light}</style>`
+    )
+
+    // 非阻塞脚本：无 document.write，用 createElement 注入
+    // 仅处理 SSR 无法覆盖的场景（首访无 cookie）
+    html.head.unshift(`<script>(function(){
+var h=document.documentElement,s=document.createElement('style');
+s.id='__fh_anti_flash';
+try{
+var th=localStorage.getItem('favshub_theme')||'auto';
+if(th==='auto'){th=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}
+h.setAttribute('data-theme',th);
+var bgc=th==='dark'?'#0B1120':(function(){
+var bg=localStorage.getItem('favshub_bg')||'gradient-background-7';
+h.classList.add(bg);
+var m={'gradient-background-1':'#CBD5E1','gradient-background-2':'#BFDBFE','gradient-background-3':'#E9D5FF','gradient-background-4':'#F2F8F0','gradient-background-5':'#FCFCF7','gradient-background-6':'#F4F1F8','gradient-background-7':'#F8F7F4'};
+return m[bg]||'#F8F7F4'
+})();
+s.textContent='html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:'+bgc+';color-scheme:'+th+'}';
+var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');
+if(t){h.setAttribute('data-guest','false');
+try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}
+else{h.setAttribute('data-guest','true')}
+}catch(e){}
+document.head.appendChild(s);
+// 清理由 0.theme-init.client.ts 的 app:mounted hook 负责
+})()</script>`)
   })
 })

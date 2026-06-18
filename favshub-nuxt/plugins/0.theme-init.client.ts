@@ -11,6 +11,10 @@
  *   useTheme().initThemeWatchers() 不会执行，此插件是这些页面唯一的 store 同步入口。
  * - 只反同步 store，不重写 DOM（信任 SSR 注入，避免 FOUC）。
  *
+ * 职责一-b：cookie 迁移
+ * - 已有 localStorage 偏好但无 cookie 的老用户，首次加载时自动写入 cookie，
+ *   使后续请求走 SSR 直出路径。
+ *
  * 职责二：app 挂载后移除 SSR 注入的防闪内联 <style id="__fh_anti_flash">
  * - 那段 style 把背景色以硬编码 + ID 特异性钉在 #__nuxt/main/#sidebar-container 上，
  *   仅用于首屏 CSS 加载前防白闪。
@@ -19,6 +23,7 @@
  * - app:mounted 时全局样式表已注入，再等一帧渲染后移除，无闪烁窗口。
  */
 import { useUIStore } from '~/stores/ui'
+import { getThemeCookie, setThemeCookie, setBackgroundCookie, getBackgroundCookie } from '~/utils/themeCookie'
 
 export default defineNuxtPlugin((nuxtApp) => {
   const ui = useUIStore()
@@ -31,14 +36,24 @@ export default defineNuxtPlugin((nuxtApp) => {
       const dom = document.documentElement.getAttribute('data-theme')
       if (dom === 'dark' || dom === 'light') ui.theme = dom
     }
+
+    // cookie 迁移：老用户有 localStorage 但无 cookie → 补写 cookie
+    if (ls && !getThemeCookie()) {
+      setThemeCookie(ls)
+    }
+    const bgLs = localStorage.getItem('favshub_bg')
+    if (bgLs && !getBackgroundCookie()) {
+      setBackgroundCookie(bgLs)
+    }
   } catch {
     // localStorage 不可用时保持 store 默认 'auto'
   }
 
   // app 挂载后，等一帧确保 main-bundle.css 已应用，再移除防闪 style
+  // 无 cookie 路径可能产生两个同 id 元素（SSR + 脚本），全部清除
   nuxtApp.hook('app:mounted', () => {
     requestAnimationFrame(() => {
-      document.getElementById('__fh_anti_flash')?.remove()
+      document.querySelectorAll('#__fh_anti_flash').forEach(el => el.remove())
     })
   })
 })

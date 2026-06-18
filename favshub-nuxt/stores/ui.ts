@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSettingsStore } from '~/stores/settings'
+import { setThemeCookie } from '~/utils/themeCookie'
 
 export const useUIStore = defineStore('ui', {
   state: () => ({
@@ -14,9 +15,10 @@ export const useUIStore = defineStore('ui', {
 
     setTheme(t: 'light' | 'dark' | 'auto') {
       this.theme = t
-      // 镜像到 localStorage，供 layouts/default.vue 的首屏同步脚本读取，消除主题闪烁
       if (import.meta.client) {
         try { localStorage.setItem('favshub_theme', t) } catch {}
+        // 双写 cookie，供 SSR 读取（后续请求直出正确主题）
+        try { setThemeCookie(t) } catch {}
       }
       // 同步到后端设置（登录用户）
       try { useSettingsStore().set('theme', t) } catch {}

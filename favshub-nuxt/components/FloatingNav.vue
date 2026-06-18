@@ -100,15 +100,7 @@ function sendExtensionMessage(action: string, extraParams: Record<string, any> =
 }
 
 .floating-nav-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-[data-theme="dark"] .floating-nav-item:hover {
-  background: rgba(51, 65, 85, 0.6);
-}
-
-[data-theme="dark"] .floating-nav {
-  background: transparent;
+  background: var(--surface-hover);
 }
 
 .floating-nav-icon {
@@ -118,12 +110,8 @@ function sendExtensionMessage(action: string, extraParams: Record<string, any> =
 
 .floating-nav-label {
   font-size: 10px;
-  color: var(--text-primary, #1e293b);
+  color: var(--text-primary);
   text-align: center;
   white-space: nowrap;
-}
-
-[data-theme="dark"] .floating-nav-label {
-  color: #CBD5E1;
 }
 </style>

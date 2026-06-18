@@ -1,0 +1,77 @@
+/**
+ * @property 注册 — 让 CSS 自定义属性可被 transition / View Transitions 插值
+ *
+ * 必须在 tokens.css 之前加载（@property 注册不影响值，只声明类型）。
+ * initial-value 仅作为 fallback，实际值由 tokens.css 的 light-dark() 提供。
+ */
+@property --primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #10B981;
+}
+
+@property --primary-hover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #059669;
+}
+
+@property --surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #F8F7F4;
+}
+
+@property --surface-raised {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --surface-sunken {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #F1F0EC;
+}
+
+@property --text-primary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1F2937;
+}
+
+@property --text-secondary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6B7280;
+}
+
+@property --border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0.06);
+}
+
+@property --overlay {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(0, 0, 0, 0.4);
+}
+
+@property --accent-blue {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3B82F6;
+}
+
+@property --accent-red {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #EF4444;
+}
+
+@property --accent-yellow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #F59E0B;
+}

@@ -2,6 +2,7 @@ import { useUIStore } from '~/stores/ui'
 import { useSettingsStore } from '~/stores/settings'
 import { useAuthStore } from '~/stores/auth'
 import { onScopeDispose } from 'vue'
+import { setBackgroundCookie } from '~/utils/themeCookie'
 
 type Theme = 'light' | 'dark' | 'auto'
 type EffectiveTheme = 'light' | 'dark'
@@ -34,12 +35,20 @@ export function useTheme() {
   function applyTheme() {
     if (import.meta.server) return
     const effective = resolveTheme(uiStore.theme)
-    document.documentElement.setAttribute('data-theme', effective)
+    const html = document.documentElement
+    html.setAttribute('data-theme', effective)
+    html.style.colorScheme = effective
   }
 
   /** 设置主题（完整流程：store + localStorage + 后端 + DOM） */
   function setTheme(t: Theme) {
-    uiStore.setTheme(t)
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      uiStore.setTheme(t)
+      return
+    }
+    document.startViewTransition(() => {
+      uiStore.setTheme(t)
+    })
   }
 
   /** 三态循环切换：light → dark → auto → light */
@@ -87,7 +96,9 @@ export function useTheme() {
     // 2. 响应 uiStore.theme 变化 → 应用到 DOM（非 immediate，不覆盖 SSR 注入）
     watch(() => uiStore.theme, (t) => {
       const effective = resolveTheme(t)
-      document.documentElement.setAttribute('data-theme', effective)
+      const html = document.documentElement
+      html.setAttribute('data-theme', effective)
+      html.style.colorScheme = effective
     })
 
     // 3. 监听系统主题变化（auto 模式下响应）
@@ -95,7 +106,9 @@ export function useTheme() {
     const handler = () => {
       if (uiStore.theme === 'auto') {
         const effective = resolveTheme('auto')
-        document.documentElement.setAttribute('data-theme', effective)
+        const html = document.documentElement
+        html.setAttribute('data-theme', effective)
+        html.style.colorScheme = effective
       }
     }
     mql.addEventListener('change', handler)
@@ -128,6 +141,7 @@ export function useTheme() {
       if (bg && bg.startsWith('gradient-background')) {
         html.classList.add(bg)
         try { localStorage.setItem('favshub_bg', bg) } catch {}
+        try { setBackgroundCookie(bg) } catch {}
       } else {
         try { localStorage.removeItem('favshub_bg') } catch {}
       }
