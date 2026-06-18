@@ -63,7 +63,7 @@ tbody tr:hover { background: var(--surface-hover); }
 /* 弹窗 */
 .modal-overlay { display: none; position: fixed; inset: 0; background: var(--overlay); z-index: 1000; align-items: center; justify-content: center; }
 .modal-overlay.active { display: flex; }
-.modal { display: block; background: var(--surface-raised); border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow-xl); }
+.modal { display: block; position: static; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; background: var(--surface-raised); border-radius: 12px; box-shadow: var(--shadow-xl); }
 .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .modal-header h3 { font-size: 16px; }
 .modal-body { padding: 20px 24px; }
