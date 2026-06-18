@@ -8,14 +8,6 @@
       <!-- 主题与外观 -->
       <div class="setting-card">
         <h3>主题与外观</h3>
-        <div class="setting-row">
-          <label>默认主题</label>
-          <select v-model="form.theme" @change="save">
-            <option value="auto">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select>
-        </div>
         <h4 class="section-title">纯色背景</h4>
         <div class="bg-options">
           <div
@@ -25,9 +17,9 @@
             :class="{ active: form.selectedBackground === bg.value }"
             :style="bg.style"
             :title="bg.label"
-            @click="form.selectedBackground = bg.value; save()"
+            @click="form.selectedBackground = bg.value; form.backgroundType = 'gradient'; save()"
           />
-          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; save()">无</div>
+          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; form.backgroundType = 'none'; save()">无</div>
         </div>
         <h4 class="section-title">界面元素</h4>
         <div class="setting-option"><span>显示搜索框</span><label class="switch"><input type="checkbox" v-model="form.showSearchBox" @change="save"><span class="slider round"></span></label></div>
@@ -86,11 +78,10 @@ const backgrounds = [
   { value: 'gradient-background-7', label: '渐变7', style: { background: 'linear-gradient(0deg, #f8f7f4 0%, #f8f7f4 100%)' } },
 ]
 const settingsStore = useSettingsStore()
-const uiStore = useUIStore()
 // 从 settingsStore 初始化表单
 const form = reactive<Record<string, any>>({
-  theme: settingsStore.get('theme', 'auto'),
   selectedBackground: settingsStore.get('selectedBackground', 'gradient-background-7'),
+  backgroundType: settingsStore.get('backgroundType', 'none'),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),
   showFooter: settingsStore.get('showFooter', true),
@@ -110,9 +101,6 @@ const form = reactive<Record<string, any>>({
 })
 function save() {
   settingsStore.setMany({ ...form })
-  // 主题字段需额外通过 uiStore.setTheme 应用到 DOM + 写 localStorage
-  // 确保 SSR 首屏脚本下次能读到正确的主题值
-  uiStore.setTheme(form.theme)
 }
 // 每行卡片数量预估（基于 1440px 视口宽度）
 const cardsPerRow = computed(() => {

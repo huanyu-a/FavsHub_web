@@ -9,7 +9,7 @@
       </div>
       <div class="tab-nav">
         <button :class="{ active: tab === 'login' }" @click="switchTab('login')">登录</button>
-        <button :class="{ active: tab === 'register' }" @click="switchTab('register')">注册</button>
+        <button v-if="registrationAllowed" :class="{ active: tab === 'register' }" @click="switchTab('register')">注册</button>
       </div>
       <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
 
@@ -61,6 +61,16 @@ const router = useRouter()
 const tab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 const errorMsg = ref('')
+const registrationAllowed = ref(true)
+
+// 检查是否允许注册
+const { data: regConfig } = await useFetch<{ allowed: boolean }>('/api/config/registration')
+if (regConfig.value) {
+  registrationAllowed.value = regConfig.value.allowed
+  if (!registrationAllowed.value && tab.value === 'register') {
+    tab.value = 'login'
+  }
+}
 
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', email: '', password: '' })

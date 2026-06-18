@@ -12,6 +12,11 @@ const backgroundStyle = computed(() => {
   const selected = settingsStore.get('selectedBackground', '')
   const solid = settingsStore.get('solidBackground', '')
 
+  // 渐变背景由 useTheme.ts 通过 <html> class 应用，此处不处理
+  if (bgType === 'gradient') {
+    return null
+  }
+
   if (bgType === 'solid' && solid) {
     return { background: solid }
   }
@@ -22,10 +27,6 @@ const backgroundStyle = computed(() => {
 
   if (bgType === 'image' && selected) {
     return { backgroundImage: `url(${selected})` }
-  }
-
-  if (bgType === 'none' || !bgType) {
-    return null
   }
 
   return null
