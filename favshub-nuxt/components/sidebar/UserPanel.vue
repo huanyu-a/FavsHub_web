@@ -39,10 +39,10 @@
           <div class="user-menu-divider"></div>
 
           <div class="user-menu-items">
-            <NuxtLink v-if="authStore.isGuest" to="/login" class="user-menu-item" @click="showUserMenu = false">
+            <div v-if="authStore.isGuest" class="user-menu-item" @click="showLogin = true; showUserMenu = false">
               <i class="ri-login-box-line"></i>
               <span>登录</span>
-            </NuxtLink>
+            </div>
             <a v-else href="#" class="user-menu-item danger" @click.prevent="handleLogout">
               <i class="ri-logout-box-r-line"></i>
               <span>退出登录</span>
@@ -51,6 +51,8 @@
         </div>
       </Transition>
     </div>
+
+    <LoginDialog v-if="showLogin" @close="showLogin = false" />
   </div>
 </template>
 
@@ -59,6 +61,8 @@ const authStore = useAuthStore()
 const uiStore = useUIStore()
 const router = useRouter()
 const { cycleTheme, themeLabel } = useTheme()
+
+const showLogin = ref(false)
 
 const themeIcon = computed(() => {
   const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-mac-line' }
