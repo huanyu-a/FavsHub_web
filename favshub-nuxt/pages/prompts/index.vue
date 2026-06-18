@@ -1,7 +1,7 @@
 <template>
   <div id="sidebar-container" class="flex prompts-root">
     <!-- 侧边栏 -->
-    <aside class="custom-width p-4 overflow-auto border-r border-gray-200 relative">
+    <aside class="custom-width p-4 overflow-auto relative">
       <div class="sidebar-shell">
         <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
           <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
@@ -33,7 +33,7 @@
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
               class="folder-item"
-              :class="{ 'bg-emerald-500': !activeFolderId }"
+              :class="{ 'selected-folder': !activeFolderId }"
               style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
               @click="selectAndToggleAll"
               @contextmenu.prevent="onAllContextMenu"
@@ -52,10 +52,10 @@
             <!-- 收藏 -->
             <li
               class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
-              :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
+              :class="{ 'selected-folder': activeFolderId === '_favorites' }"
               @click="activeFolderId = '_favorites'; loadPrompts()"
             >
-              <i class="ri-star-line" style="font-size:16px;color:#f59e0b;margin-right:8px;width:20px;text-align:center;"></i>
+              <i class="ri-star-line" style="font-size:16px;color:var(--warning);margin-right:8px;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">收藏</span>
             </li>
             <!-- 文件夹树：使用 FolderTreeItem 组件 -->
@@ -82,7 +82,52 @@
               :class="{ active: activeTagIds.includes(tag.id) }"
               @click="toggleTag(tag.id)"
             >{{ tag.name }}</span>
-            <span v-if="tags.length === 0" style="font-size:12px;color:#94a3b8;padding:4px;">暂无标签</span>
+            <span v-if="tags.length === 0" style="font-size:12px;color:var(--text-tertiary);padding:4px;">暂无标签</span>
+          </div>
+        </div>
+
+        <!-- 用户面板 -->
+        <div class="sidebar-bottom">
+          <div class="sidebar-user-panel" ref="userMenuRef">
+            <div class="sidebar-user-bar" @click="showUserMenu = !showUserMenu">
+              <div class="sidebar-user-avatar">{{ userInitial }}</div>
+              <span class="sidebar-user-name">{{ displayName }}</span>
+            </div>
+            <Transition name="user-menu">
+              <div v-if="showUserMenu" class="sidebar-user-menu">
+                <div class="user-menu-header">
+                  <div class="user-menu-avatar">{{ userInitial }}</div>
+                  <div class="user-menu-info">
+                    <span class="user-menu-name">{{ displayName }}</span>
+                    <span v-if="authStore.isAdmin" class="user-menu-role admin">管理员</span>
+                    <span v-else-if="authStore.isLoggedIn" class="user-menu-role">普通用户</span>
+                    <span v-else class="user-menu-role guest">游客</span>
+                  </div>
+                </div>
+                <div class="user-menu-divider"></div>
+                <div class="user-menu-items">
+                  <NuxtLink to="/admin/settings" class="user-menu-item" @click="showUserMenu = false">
+                    <i class="ri-settings-3-line"></i><span>设置</span>
+                  </NuxtLink>
+                  <NuxtLink v-if="authStore.isAdmin" to="/admin" target="_blank" class="user-menu-item" @click="showUserMenu = false">
+                    <i class="ri-dashboard-line"></i><span>管理后台</span>
+                  </NuxtLink>
+                  <div class="user-menu-item" @click="cycleTheme">
+                    <i :class="themeIcon"></i><span>外观</span>
+                    <span class="user-menu-toggle">{{ themeLabel }}</span>
+                  </div>
+                </div>
+                <div class="user-menu-divider"></div>
+                <div class="user-menu-items">
+                  <NuxtLink v-if="authStore.isGuest" to="/login" class="user-menu-item" @click="showUserMenu = false">
+                    <i class="ri-login-box-line"></i><span>登录</span>
+                  </NuxtLink>
+                  <a v-else href="#" class="user-menu-item danger" @click.prevent="handleLogout">
+                    <i class="ri-logout-box-r-line"></i><span>退出登录</span>
+                  </a>
+                </div>
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -280,7 +325,38 @@ useHead({
 
 const { isGuest } = useAuth()
 const authStore = useAuthStore()
+const uiStore = useUIStore()
+const router = useRouter()
 const currentUserId = computed(() => authStore.user?.id)
+
+// ── 用户面板 ────────────────────────────────────────────────
+const { cycleTheme, themeLabel } = useTheme()
+const themeIcon = computed(() => {
+  const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-mac-line' }
+  return icons[uiStore.theme] || 'ri-sun-line'
+})
+const showUserMenu = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
+const userInitial = computed(() => {
+  const name = authStore.user?.nickname || authStore.user?.username || 'U'
+  return name[0].toUpperCase()
+})
+const displayName = computed(() => {
+  if (authStore.isGuest) return '未登录'
+  return authStore.user?.nickname || authStore.user?.username || '用户'
+})
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
+}
+if (import.meta.client) {
+  const handleClickOutside = (e: MouseEvent) => {
+    if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
+      showUserMenu.value = false
+    }
+  }
+  document.addEventListener('click', handleClickOutside)
+}
 
 interface Prompt {
   id: string
@@ -818,3 +894,153 @@ onMounted(async () => {
   await Promise.all([loadPrompts(), loadFolders(), loadTags()])
 })
 </script>
+
+<style scoped>
+.selected-folder {
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+
+/* ── 用户面板 ─────────────────────────────────────────────── */
+.sidebar-user-panel {
+  position: relative;
+}
+.sidebar-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+.sidebar-user-bar:hover {
+  background: var(--surface-hover);
+}
+.sidebar-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.sidebar-user-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-user-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px 0;
+  z-index: 1000;
+}
+.user-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.user-menu-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.user-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-menu-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.user-menu-role {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.user-menu-role.admin {
+  color: var(--primary-color);
+}
+.user-menu-role.guest {
+  color: var(--text-tertiary);
+}
+.user-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+.user-menu-items {
+  padding: 2px 0;
+}
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+  text-decoration: none;
+}
+.user-menu-item:hover {
+  background: var(--surface-hover);
+}
+.user-menu-item i {
+  font-size: 16px;
+  color: var(--text-secondary);
+  width: 20px;
+  text-align: center;
+}
+.user-menu-item.danger {
+  color: var(--danger);
+}
+.user-menu-item.danger i {
+  color: var(--danger);
+}
+.user-menu-toggle {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.user-menu-enter-active,
+.user-menu-leave-active {
+  transition: opacity 0.15s, transform 0.15s;
+}
+.user-menu-enter-from,
+.user-menu-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
