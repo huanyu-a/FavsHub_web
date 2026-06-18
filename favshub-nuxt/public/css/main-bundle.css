@@ -1508,16 +1508,18 @@ main {
   flex-grow: 1; /* Allow main content to grow and fill available space */
 }
 
-/* Card styles */
-.card {
+/* Card styles — sidebar bookmark cards only */
+aside .card,
+.sidebar-folders-panel .card,
+.bookmarks-container .card {
   display: flex;
-  flex-direction: row; /* Arrange items in a row */
-  align-items: center; /* Vertically center items */
+  flex-direction: row;
+  align-items: center;
   width: 100%;
   border-radius: 8px;
   padding: 0.75rem;
   overflow: hidden;
-  transition: background-color 0.3s; /* Smooth transition for background color */
+  transition: background-color 0.3s;
   height: 48px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   backface-visibility: hidden;
@@ -1538,26 +1540,32 @@ main {
     }
   }
 }
-.card:hover {
-  background-color: var(--surface-hover); /* Add hover effect */
-  cursor: pointer; /* Change cursor to pointer on hover */
+aside .card:hover,
+.sidebar-folders-panel .card:hover,
+.bookmarks-container .card:hover {
+  background-color: var(--surface-hover);
+  cursor: pointer;
 }
 
-.card-content {
+aside .card-content,
+.sidebar-folders-panel .card-content,
+.bookmarks-container .card-content {
   display: flex;
-  flex-direction: column; /* Arrange text items in a column */
-  overflow: auto; /* Allow scrolling */
-  max-height: 100px; /* Adjust as needed to ensure content fits within card */
+  flex-direction: column;
+  overflow: auto;
+  max-height: 100px;
 }
 
-.card-title {
-  font-size: 13px; /* 增大???题�?��?? */
-  font-weight: 600; /* Ensure the font weight matches the left-side bookmarks */
+aside .card-title,
+.sidebar-folders-panel .card-title,
+.bookmarks-container .card-title {
+  font-size: 13px;
+  font-weight: 600;
   margin-bottom: 0rem;
   overflow: hidden;
-  text-overflow: ellipsis; 
-  line-height: 1.3; /* 设置行�?? */
-  max-height: 2.6em; /* Ensure title does not overflow */
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  max-height: 2.6em;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1565,23 +1573,28 @@ main {
 }
 .favicon {
   flex-shrink: 0;
-  /* ?��止图???被缩�?*/
 }
-.card-title:hover {
-  color: var(--text-primary); /* Match the color with the left-side bookmarks */
+aside .card-title:hover,
+.sidebar-folders-panel .card-title:hover,
+.bookmarks-container .card-title:hover {
+  color: var(--text-primary);
 }
-.card-link {
-  font-size: 0.75rem; /* 增大字�?? */
-  color: var(--text-tertiary); /* Light gray color */
+aside .card-link,
+.sidebar-folders-panel .card-link,
+.bookmarks-container .card-link {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Ensure link does not overflow */
+  text-overflow: ellipsis;
 }
 
-.card-link:hover {
-  color: var(--accent-blue); /* Change link color on hover */
-  text-decoration: none; /* Remove underline on hover */
+aside .card-link:hover,
+.sidebar-folders-panel .card-link:hover,
+.bookmarks-container .card-link:hover {
+  color: var(--accent-blue);
+  text-decoration: none;
 }
 
 .bookmark-folder.card {
@@ -4989,7 +5002,9 @@ body .default-folders-tabs.sidebar-expanded {
   cursor: grabbing;
 }
 
-.card {
+aside .card,
+.sidebar-folders-panel .card,
+.bookmarks-container .card {
   display: flex;
   align-items: center;
   padding: 0.75rem;
@@ -5001,7 +5016,9 @@ body .default-folders-tabs.sidebar-expanded {
   width: 100%;
 }
 
-.card:hover {
+aside .card:hover,
+.sidebar-folders-panel .card:hover,
+.bookmarks-container .card:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 4px 12px var(--overlay);
 }
