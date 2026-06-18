@@ -36,7 +36,7 @@
             <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.title }}</td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.description || '-' }}</td>
             <td>{{ p.folder_name || '-' }}</td>
-            <td><span v-for="t in (p.tags || [])" :key="t.id || t" class="tag-chip" :style="{ background: (typeof t === 'object' ? t.color : null) || '#e0e7ff' }">{{ typeof t === 'object' ? t.name : t }}</span></td>
+            <td><span v-for="t in (p.tags || [])" :key="t.id || t" class="tag-chip" :style="{ background: (typeof t === 'object' ? t.color : null) || 'var(--primary-light)' }">{{ typeof t === 'object' ? t.name : t }}</span></td>
             <td>{{ p.username || p.user_id }}</td>
             <td>{{ p.current_version || '1.0.0' }}</td>
             <td>{{ p.updated_at ? new Date(p.updated_at).toLocaleString() : '-' }}</td>
@@ -85,7 +85,7 @@
           <span class="folder-drag-actions">
             <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
             <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
-            <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒</span>
+            <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒</span>
           </span>
         </div>
       </div>
@@ -101,12 +101,12 @@
           <tr v-if="tagLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
           <tr v-else-if="tags.length === 0"><td colspan="5" class="empty-state">暂无数据</td></tr>
           <tr v-for="t in tags" :key="t.id">
-            <td><span class="tag-chip" :style="{ background: t.color || '#e0e7ff' }">{{ t.name }}</span></td>
+            <td><span class="tag-chip" :style="{ background: t.color || 'var(--primary-light)' }">{{ t.name }}</span></td>
             <td>{{ t.color || '-' }}</td><td>{{ t.username || t.user_id }}</td>
             <td>{{ t.prompt_count || 0 }}</td>
             <td class="actions">
               <button v-if="isAdmin || t.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button>
-              <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:#aaa;font-size:12px;">🔒 只读</span>
+              <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
             </td>
           </tr>
         </tbody>
@@ -140,7 +140,7 @@
       <div class="fg"><label>关键词</label><input v-model="tdk.promptproKeywords" placeholder="提示词,AI,prompt" @input="saveTdk"></div>
     </div>
     <!-- 文件夹编辑弹窗 -->
-    <div v-if="folderEditVisible" class="modal-overlay" @click.self="folderEditVisible = false">
+    <div v-show="folderEditVisible" :class="['modal-overlay', { active: folderEditVisible }]" @click.self="folderEditVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>{{ folderEditId ? '编辑文件夹' : '新建文件夹' }}</h3><button class="modal-close" @click="folderEditVisible = false">&times;</button></div>
         <div class="modal-body">
@@ -166,7 +166,7 @@
       </div>
     </div>
     <!-- 编辑弹窗 -->
-    <div v-if="editVisible" class="modal-overlay" @click.self="editVisible = false">
+    <div v-show="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>编辑提示词</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
         <div class="modal-body">
@@ -361,17 +361,17 @@ onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHi
 .folder-drag-list { display: flex; flex-direction: column; gap: 2px; }
 .folder-drag-item {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; background: var(--bg-secondary, #f8f9fa);
+  padding: 8px 12px; background: var(--bg-secondary);
   border-radius: 6px; cursor: default; transition: background 0.15s;
 }
-.folder-drag-item:hover { background: var(--bg-tertiary, #e9ecef); }
+.folder-drag-item:hover { background: var(--bg-tertiary); }
 .folder-drag-handle {
-  cursor: grab; color: #999; font-size: 14px; user-select: none;
+  cursor: grab; color: var(--text-tertiary); font-size: 14px; user-select: none;
   width: 16px; text-align: center; flex-shrink: 0;
 }
 .folder-drag-handle:active { cursor: grabbing; }
 .folder-drag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-drag-meta { color: #999; font-size: 12px; white-space: nowrap; }
+.folder-drag-meta { color: var(--text-tertiary); font-size: 12px; white-space: nowrap; }
 .folder-drag-actions { display: flex; gap: 4px; flex-shrink: 0; }
-:deep(.sortable-ghost) { opacity: 0.4; background: rgba(16,185,129,0.2) !important; }
+:deep(.sortable-ghost) { opacity: 0.4; background: var(--primary-light) !important; }
 </style>

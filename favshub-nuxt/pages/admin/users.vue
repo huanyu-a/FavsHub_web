@@ -48,7 +48,7 @@
       <div v-if="filteredUsers.length === 0" class="empty-state">暂无匹配用户</div>
     </div>
     <!-- 编辑弹窗 (仅管理员) -->
-    <div v-if="editingUser && isAdmin" class="modal-overlay" @click.self="editingUser = null">
+    <div v-show="editingUser && isAdmin" :class="['modal-overlay', { active: editingUser && isAdmin }]" @click.self="editingUser = null">
       <div class="modal">
         <div class="modal-header">
           <h3>编辑用户</h3>

@@ -31,14 +31,14 @@
             <td class="actions">
               <button v-if="e._canEdit" class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
               <button v-if="e._canDelete" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
-              <span v-if="!e._canEdit && !e._canDelete" style="color:#aaa;font-size:12px;">🔒 只读</span>
+              <span v-if="!e._canEdit && !e._canDelete" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
     <!-- 添加/编辑弹窗 -->
-    <div v-if="modalVisible" class="modal-overlay" @click.self="modalVisible = false">
+    <div v-show="modalVisible" :class="['modal-overlay', { active: modalVisible }]" @click.self="modalVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>{{ isNew ? '添加搜索引擎' : '编辑搜索引擎' }}</h3><button class="modal-close" @click="modalVisible = false">&times;</button></div>
         <div class="modal-body">
