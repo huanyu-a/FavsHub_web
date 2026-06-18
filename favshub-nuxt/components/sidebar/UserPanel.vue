@@ -52,7 +52,9 @@
       </Transition>
     </div>
 
-    <LoginDialog v-if="showLogin" @close="showLogin = false" />
+    <Teleport to="body">
+      <LoginDialog v-if="showLogin" @close="showLogin = false" />
+    </Teleport>
   </div>
 </template>
 
