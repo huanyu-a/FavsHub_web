@@ -1228,8 +1228,7 @@ aside.custom-width {
   background: var(--sidebar-bg);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
-  border-right-color: var(--border);
-  box-shadow: inset -1px 0 0 light-dark(rgba(255,255,255,0.35), rgba(255,255,255,0.05));
+  border-right: 1px solid var(--border);
   padding: 1rem 1rem 1rem 1rem;
 }
 
