@@ -1,8 +1,5 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
-    <ClientOnly>
-      <WallpaperBackground />
-    </ClientOnly>
     <slot />
     <FloatingNav />
     <MobileHeader />
