@@ -175,8 +175,8 @@ useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
     { rel: 'stylesheet', href: '/css/tokens-register.css' },
-    { rel: 'stylesheet', href: '/css/tokens.css' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260617' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260619' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260619' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     { rel: 'stylesheet', href: '/css/admin.css?v=20260617' },
   ],

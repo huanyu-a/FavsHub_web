@@ -1,6 +1,20 @@
 import { defineStore } from 'pinia'
 import { useAuthStore } from '~/stores/auth'
-import { SYSTEM_ONLY_KEYS } from '~/server/utils/constants'
+
+/** 系统级配置字段名 — 仅管理员可写入，普通用户 set() 时自动过滤 */
+const SYSTEM_ONLY_KEYS = [
+  'siteTitle', 'siteDescription', 'siteKeywords',
+  'promptproTitle', 'promptproDescription', 'promptproKeywords',
+  'title', 'description', 'keywords',
+  'allow_registration', 'baiduAppKey',
+  'backup_enabled', 'backup_hour', 'backup_minute', 'backup_keep_copies',
+  'favicon_source_url', 'favicon_size', 'favicon_download_timeout', 'favicon_max_redirects',
+  'jwt_token_expiry', 'cookie_max_age',
+  'rate_limit_login_max', 'rate_limit_login_window',
+  'rate_limit_register_max', 'rate_limit_register_window',
+  'min_password_length',
+  'max_bookmarks_per_sync', 'bookmarks_query_limit',
+]
 
 /** Common default settings matching the legacy FavsHubSettings.DEFAULTS */
 const SETTINGS_DEFAULTS: Record<string, any> = {

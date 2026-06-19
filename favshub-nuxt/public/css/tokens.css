@@ -114,7 +114,8 @@ html[data-theme="dark"]  { color-scheme: dark; }
   --bg-card:       var(--surface-raised);
 }
 
-/* ── 页面底色：anti-flash 清理后由 token 驱动 ── */
-html, body, #__nuxt {
+/* ── 页面底色：anti-flash 清理后由 token 驱动 ──
+   注意：不包含 #__nuxt，否则会遮盖 html 上的渐变背景 ── */
+html, body {
   background: var(--surface);
 }

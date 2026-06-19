@@ -48,8 +48,8 @@ useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'stylesheet', href: '/css/tokens-register.css' },
-    { rel: 'stylesheet', href: '/css/tokens.css' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260617' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260619' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260619' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],

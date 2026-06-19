@@ -8,9 +8,14 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { getConfig } from './config'
 
-const SECRET_FILE = join(process.cwd(), 'data', '.jwt-secret')
-
 let _secret: string | null = null
+
+/**
+ * 获取密钥文件路径（延迟计算，避免 module-level process.cwd() 在 Nitro 打包时不可靠）
+ */
+function getSecretFilePath(): string {
+  return join(process.cwd(), 'data', '.jwt-secret')
+}
 
 /**
  * 获取或创建 JWT Secret
@@ -24,10 +29,12 @@ function loadOrCreateSecret(envSecret?: string): string {
     return _secret
   }
 
+  const secretFile = getSecretFilePath()
+
   // 2. 从持久化文件读取
   try {
-    if (existsSync(SECRET_FILE)) {
-      const saved = readFileSync(SECRET_FILE, 'utf8').trim()
+    if (existsSync(secretFile)) {
+      const saved = readFileSync(secretFile, 'utf8').trim()
       if (saved.length >= 32) {
         _secret = saved
         return _secret
@@ -38,10 +45,10 @@ function loadOrCreateSecret(envSecret?: string): string {
   // 3. 生成新密钥并持久化
   const newSecret = randomBytes(48).toString('base64')
   try {
-    const dir = dirname(SECRET_FILE)
+    const dir = dirname(secretFile)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(SECRET_FILE, newSecret, { mode: 0o600 })
-    console.log('[Auth] 已自动生成 JWT 密钥，存储于 ' + SECRET_FILE)
+    writeFileSync(secretFile, newSecret, { mode: 0o600 })
+    console.log('[Auth] 已自动生成 JWT 密钥，存储于 ' + secretFile)
   } catch (err: any) {
     console.warn('[Auth] 无法持久化 JWT 密钥到文件，密钥仅在本次进程有效:', err.message)
   }

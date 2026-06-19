@@ -7097,3 +7097,65 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 
 
 
+
+/* ═══════════════════════════════════════════════════════════════
+   渐变背景规则 — 放在 @layer 外部以获得更高优先级
+   tokens.css 的 html,body,#__nuxt { background: var(--surface) }
+   是非分层规则，会覆盖 @layer 内的同名规则，因此这些必须在层外
+   ═══════════════════════════════════════════════════════════════ */
+
+html.gradient-background-1 {
+  background: linear-gradient(0deg, rgba(226, 232, 240, 0) 0%, rgba(203, 213, 225, 1) 100%);
+}
+
+html.gradient-background-2 {
+  background: linear-gradient(0deg, rgba(165, 243, 252, 0) 0%, rgba(244, 251, 255, 1) 50%, rgba(191, 219, 254, 1) 100%);
+}
+
+html.gradient-background-3 {
+  background: linear-gradient(0deg, rgba(251, 206, 232, 0) 0%, rgba(242, 210, 244, 1) 50%, rgba(233, 213, 255, 1) 100%);
+}
+
+html.gradient-background-4 {
+  background: linear-gradient(0deg, rgba(242, 248, 240, 1) 0%, rgba(242, 248, 240, 1) 100%);
+}
+
+html.gradient-background-5 {
+  background: linear-gradient(0deg, rgba(252, 252, 247, 1) 0%, rgba(252, 252, 247, 1) 100%);
+}
+
+html.gradient-background-6 {
+  background: linear-gradient(0deg, rgba(244, 241, 248, 1) 0%, rgba(244, 241, 248, 1) 100%);
+}
+
+html.gradient-background-7 {
+  background: linear-gradient(0deg, rgba(248, 247, 244, 1) 0%, rgba(248, 247, 244, 1) 100%);
+}
+
+.gradient-background-1 {
+  background: linear-gradient(0deg, rgba(226, 232, 240, 0) 0%, rgba(203, 213, 225, 1) 100%);
+}
+
+.gradient-background-2 {
+  background: linear-gradient(0deg, rgba(165, 243, 252, 0) 0%, rgba(244, 251, 255, 1) 50%, rgba(191, 219, 254, 1) 100%);
+}
+
+.gradient-background-3 {
+  background: linear-gradient(0deg, rgba(251, 206, 232, 0) 0%, rgba(242, 210, 244, 1) 50%, rgba(233, 213, 255, 1) 100%);
+}
+
+.gradient-background-4 {
+  background: linear-gradient(0deg, rgba(242, 248, 240, 1) 0%, rgba(242, 248, 240, 1) 100%);
+}
+
+.gradient-background-5 {
+  background: linear-gradient(0deg, rgba(252, 252, 247, 1) 0%, rgba(252, 252, 247, 1) 100%);
+}
+
+.gradient-background-6 {
+  background: linear-gradient(0deg, rgba(244, 241, 248, 1) 0%, rgba(244, 241, 248, 1) 100%);
+}
+
+.gradient-background-7 {
+  background: linear-gradient(0deg, rgba(248, 247, 244, 1) 0%, rgba(248, 247, 244, 1) 100%);
+}
