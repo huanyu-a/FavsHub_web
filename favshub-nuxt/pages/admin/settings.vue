@@ -17,9 +17,9 @@
             :class="{ active: form.selectedBackground === bg.value }"
             :style="bg.style"
             :title="bg.label"
-            @click="form.selectedBackground = bg.value; form.backgroundType = bg.type; if (bg.type === 'solid') form.solidBackground = bg.style.background; save()"
+            @click="form.selectedBackground = bg.value; form.backgroundType = bg.type; save()"
           />
-          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; form.backgroundType = 'none'; form.solidBackground = ''; save()">无</div>
+          <div class="bg-option bg-none" :class="{ active: !form.selectedBackground }" title="无背景" @click="form.selectedBackground = ''; form.backgroundType = 'none'; save()">无</div>
         </div>
         <h4 class="section-title">界面元素</h4>
         <div class="setting-option"><span>显示搜索框</span><label class="switch"><input type="checkbox" v-model="form.showSearchBox" @change="save"><span class="slider round"></span></label></div>
@@ -69,8 +69,6 @@
 definePageMeta({ middleware: 'admin', layout: 'admin', ssr: false })
 useHead({ title: '个人设置' })
 const backgrounds = [
-  { value: 'solid-white', label: '纯白', type: 'solid', style: { background: '#ffffff' } },
-  { value: 'solid-black', label: '纯黑', type: 'solid', style: { background: '#000000' } },
   { value: 'gradient-background-1', label: '渐变1', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(226,232,240,0) 0%, #cbd5e1 100%)' } },
   { value: 'gradient-background-2', label: '渐变2', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(165,243,252,0) 0%, #f4fbff 50%, #bfdbfe 100%)' } },
   { value: 'gradient-background-3', label: '渐变3', type: 'gradient', style: { background: 'linear-gradient(0deg, rgba(251,206,232,0) 0%, #f2d2f4 50%, #e9d5ff 100%)' } },
@@ -91,7 +89,6 @@ if (!settingsStore.isLoading && Object.keys(settingsStore.settings).length === 0
 const form = reactive<Record<string, any>>({
   selectedBackground: settingsStore.get('selectedBackground', 'gradient-background-7'),
   backgroundType: settingsStore.get('backgroundType', 'none'),
-  solidBackground: settingsStore.get('solidBackground', ''),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),
   showFooter: settingsStore.get('showFooter', true),

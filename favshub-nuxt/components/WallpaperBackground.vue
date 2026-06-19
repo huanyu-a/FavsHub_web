@@ -10,15 +10,10 @@ const bingUrl = ref('')
 const backgroundStyle = computed(() => {
   const bgType = settingsStore.get('backgroundType', 'none')
   const selected = settingsStore.get('selectedBackground', '')
-  const solid = settingsStore.get('solidBackground', '')
 
   // 渐变背景由 useTheme.ts 通过 <html> class 应用，此处不处理
   if (bgType === 'gradient') {
     return null
-  }
-
-  if (bgType === 'solid' && solid) {
-    return { background: solid }
   }
 
   if (bgType === 'bing') {
