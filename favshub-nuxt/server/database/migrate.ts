@@ -3,6 +3,7 @@
  * 包含：表创建、增量迁移（ensureColumn）、索引、系统用户、默认搜索引擎
  */
 import type Database from 'better-sqlite3'
+import bcrypt from 'bcryptjs'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 
 /**
@@ -208,6 +209,10 @@ export function seedDefaults(db: Database.Database) {
   db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin) VALUES (0, ?, ?, 1)').run('_system', '')
   db.prepare('UPDATE users SET is_admin = 1 WHERE id = 0').run()
 
+  // 1号管理员 admin_favs — 首次部署时预置（默认密码 admin123，请尽快修改）
+  const adminHash = bcrypt.hashSync('admin123', 10)
+  db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin, nickname) VALUES (1, ?, ?, 1, ?)').run('admin_favs', adminHash, '管理员')
+
   // 系统默认设置行 (user_id=0)
   db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')
 
@@ -282,35 +287,35 @@ function seedDefaultSearchEngines(db: Database.Database) {
   )
 
   const defaultEngines: [string, string, string, string, string, number, number][] = [
-    ['google', '谷歌', 'https://www.google.com/search?q=', '/images/google-logo.svg', 'SEARCH', 1, 1],
-    ['bing', '必应', 'https://www.bing.com/search?q=', '/images/bing-logo.png', 'SEARCH', 2, 1],
-    ['baidu', '百度', 'https://www.baidu.com/s?wd=', '/images/baidu-logo.svg', 'SEARCH', 3, 1],
-    ['baidu_m', '百度移动', 'https://m.baidu.com/s?wd=', '/images/baidu-logo.svg', 'SEARCH', 4, 0],
-    ['toutiao', '头条', 'https://so.toutiao.com/search?dvpf=pc&keyword=', '/images/toutiao-logo.png', 'SEARCH', 5, 0],
-    ['sougou', '搜狗', 'https://www.sogou.com/web?query=', '/images/sougou-logo.png', 'SEARCH', 6, 0],
-    ['360', '360', 'https://www.so.com/s?q=', '/images/360-logo.png', 'SEARCH', 7, 0],
-    ['shenma', '神马', 'https://yz.m.sm.cn/s?q=', '/images/shenma-logo.png', 'SEARCH', 8, 0],
-    ['duckduckgo', 'DuckDuckGo', 'https://duckduckgo.com/?q=', '/images/duckduckgo-logo.svg', 'SEARCH', 9, 0],
-    ['yahoo', '雅虎', 'https://search.yahoo.com/search?p=', '/images/yahoo-logo.svg', 'SEARCH', 10, 0],
-    ['yandex', 'Yandex', 'https://yandex.com/search/?text=', '/images/yandex-logo.svg', 'SEARCH', 11, 0],
-    ['chatgpt', 'ChatGPT', 'https://chat.openai.com/?q=', '/images/chatgpt-logo.svg', 'AI', 1, 1],
-    ['claude', 'Claude', 'https://claude.ai/?q=', '/images/claude-logo.svg', 'AI', 2, 0],
-    ['perplexity', 'Perplexity', 'https://www.perplexity.ai/?q=', '/images/perplexity-logo.svg', 'AI', 3, 0],
-    ['kimi', 'Kimi', 'https://kimi.moonshot.cn/?q=', '/images/kimi-logo.svg', 'AI', 4, 0],
-    ['doubao', '豆包', 'https://www.doubao.com/?q=', '/images/doubao-logo.png', 'AI', 5, 0],
-    ['zhida', '知乎直答', 'https://zhida.zhihu.com/search?q=', '/images/zhida-logo.png', 'AI', 6, 0],
-    ['qwen', '千问', 'https://www.qianwen.com/chat/?q=', '/images/qwen-logo.png', 'AI', 7, 0],
-    ['deepseek', 'Deepseek', 'https://chat.deepseek.com/?q=', '/images/deepseek-logo.svg', 'AI', 8, 0],
-    ['grok', 'Grok', 'https://grok.com/?q=', '/images/grok-logo.svg', 'AI', 9, 0],
-    ['metaso', '秘塔', 'https://metaso.cn/?q=', '/images/metaso-logo.png', 'AI', 10, 0],
-    ['felo', 'Felo', 'https://felo.ai/search?q=', '/images/felo-logo.svg', 'AI', 11, 0],
-    ['semanticscholar', 'Semantic', 'https://www.semanticscholar.org/search?q=', '/images/semanticscholar-logo.png', 'AI', 12, 0],
-    ['xiaohongshu', '小红书', 'https://www.xiaohongshu.com/search_result?keyword=', '/images/xiaohongshu-logo.svg', 'SOCIAL', 1, 0],
-    ['jike', '即刻', 'https://web.okjike.com/search?keyword=', '/images/jike-logo.svg', 'SOCIAL', 2, 0],
-    ['zhihu', '知乎', 'https://www.zhihu.com/search?q=', '/images/zhihu-logo.svg', 'SOCIAL', 3, 0],
-    ['douban', '豆瓣', 'https://www.douban.com/search?q=', '/images/douban-logo.svg', 'SOCIAL', 4, 0],
-    ['bilibili', '哔哩哔哩', 'https://search.bilibili.com/all?keyword=', '/images/bilibili-logo.svg', 'SOCIAL', 5, 0],
-    ['github', 'GitHub', 'https://github.com/search?q=', '/images/github-logo.svg', 'SOCIAL', 6, 0],
+    ['google', '谷歌', 'https://www.google.com/search?q=%s', '/images/google-logo.svg', 'SEARCH', 1, 1],
+    ['bing', '必应', 'https://www.bing.com/search?q=%s', '/images/bing-logo.png', 'SEARCH', 2, 1],
+    ['baidu', '百度', 'https://www.baidu.com/s?wd=%s', '/images/baidu-logo.svg', 'SEARCH', 3, 1],
+    ['baidu_m', '百度移动', 'https://m.baidu.com/s?wd=%s', '/images/baidu-logo.svg', 'SEARCH', 4, 0],
+    ['toutiao', '头条', 'https://so.toutiao.com/search?dvpf=pc&keyword=%s', '/images/toutiao-logo.png', 'SEARCH', 5, 0],
+    ['sougou', '搜狗', 'https://www.sogou.com/web?query=%s', '/images/sougou-logo.png', 'SEARCH', 6, 0],
+    ['360', '360', 'https://www.so.com/s?q=%s', '/images/360-logo.png', 'SEARCH', 7, 0],
+    ['shenma', '神马', 'https://yz.m.sm.cn/s?q=%s', '/images/shenma-logo.png', 'SEARCH', 8, 0],
+    ['duckduckgo', 'DuckDuckGo', 'https://duckduckgo.com/?q=%s', '/images/duckduckgo-logo.svg', 'SEARCH', 9, 0],
+    ['yahoo', '雅虎', 'https://search.yahoo.com/search?p=%s', '/images/yahoo-logo.svg', 'SEARCH', 10, 0],
+    ['yandex', 'Yandex', 'https://yandex.com/search/?text=%s', '/images/yandex-logo.svg', 'SEARCH', 11, 0],
+    ['chatgpt', 'ChatGPT', 'https://chat.openai.com/?q=%s', '/images/chatgpt-logo.svg', 'AI', 1, 1],
+    ['claude', 'Claude', 'https://claude.ai/?q=%s', '/images/claude-logo.svg', 'AI', 2, 0],
+    ['perplexity', 'Perplexity', 'https://www.perplexity.ai/?q=%s', '/images/perplexity-logo.svg', 'AI', 3, 0],
+    ['kimi', 'Kimi', 'https://kimi.moonshot.cn/?q=%s', '/images/kimi-logo.svg', 'AI', 4, 0],
+    ['doubao', '豆包', 'https://www.doubao.com/?q=%s', '/images/doubao-logo.png', 'AI', 5, 0],
+    ['zhida', '知乎直答', 'https://zhida.zhihu.com/search?q=%s', '/images/zhida-logo.png', 'AI', 6, 0],
+    ['qwen', '千问', 'https://www.qianwen.com/chat/?q=%s', '/images/qwen-logo.png', 'AI', 7, 0],
+    ['deepseek', 'Deepseek', 'https://chat.deepseek.com/?q=%s', '/images/deepseek-logo.svg', 'AI', 8, 0],
+    ['grok', 'Grok', 'https://grok.com/?q=%s', '/images/grok-logo.svg', 'AI', 9, 0],
+    ['metaso', '秘塔', 'https://metaso.cn/?q=%s', '/images/metaso-logo.png', 'AI', 10, 0],
+    ['felo', 'Felo', 'https://felo.ai/search?q=%s', '/images/felo-logo.svg', 'AI', 11, 0],
+    ['semanticscholar', 'Semantic', 'https://www.semanticscholar.org/search?q=%s', '/images/semanticscholar-logo.png', 'AI', 12, 0],
+    ['xiaohongshu', '小红书', 'https://www.xiaohongshu.com/search_result?keyword=%s', '/images/xiaohongshu-logo.svg', 'SOCIAL', 1, 0],
+    ['jike', '即刻', 'https://web.okjike.com/search?keyword=%s', '/images/jike-logo.svg', 'SOCIAL', 2, 0],
+    ['zhihu', '知乎', 'https://www.zhihu.com/search?q=%s', '/images/zhihu-logo.svg', 'SOCIAL', 3, 0],
+    ['douban', '豆瓣', 'https://www.douban.com/search?q=%s', '/images/douban-logo.svg', 'SOCIAL', 4, 0],
+    ['bilibili', '哔哩哔哩', 'https://search.bilibili.com/all?keyword=%s', '/images/bilibili-logo.svg', 'SOCIAL', 5, 0],
+    ['github', 'GitHub', 'https://github.com/search?q=%s', '/images/github-logo.svg', 'SOCIAL', 6, 0],
   ]
 
   const insertMany = db.transaction((engines: typeof defaultEngines) => {
