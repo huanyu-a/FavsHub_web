@@ -8,7 +8,7 @@ cd "$SCRIPT_DIR"
 # 生成随机项目名后缀（首次部署时）
 ENV_FILE="$SCRIPT_DIR/.env"
 if [ ! -f "$ENV_FILE" ] || ! grep -q "^COMPOSE_PROJECT_NAME=" "$ENV_FILE"; then
-    RAND_SUFFIX=$(head -c 4 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 4)
+    RAND_SUFFIX=$(head -c 16 /dev/urandom | base64 | tr -dc 'a-z0-9' | head -c 4)
     PROJECT_NAME="favshub_${RAND_SUFFIX}"
     echo "COMPOSE_PROJECT_NAME=$PROJECT_NAME" > "$ENV_FILE"
     echo "Generated project name: $PROJECT_NAME"
