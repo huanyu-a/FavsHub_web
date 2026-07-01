@@ -13,16 +13,17 @@
         </div>
       </div>
       <table>
-        <thead><tr><th>ID</th><th>名称</th><th>标签</th><th>URL</th><th>分类</th><th>默认</th><th>排序</th><th>操作</th></tr></thead>
+        <thead><tr><th>ID</th><th>图标</th><th>名称</th><th>标签</th><th>URL</th><th>分类</th><th>默认</th><th>排序</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-if="loading"><td colspan="8" class="empty-state">加载中...</td></tr>
-          <tr v-else-if="engines.length === 0"><td colspan="8" class="empty-state">暂无数据</td></tr>
+          <tr v-if="loading"><td colspan="9" class="empty-state">加载中...</td></tr>
+          <tr v-else-if="engines.length === 0"><td colspan="9" class="empty-state">暂无数据</td></tr>
           <tr v-for="e in engines" :key="e.id">
             <td>{{ e.id }}</td>
-            <td>
-              <img v-if="e.icon" :src="e.icon" width="16" height="16" style="vertical-align:middle;margin-right:4px;" @error="(ev) => (ev.target as HTMLElement).style.display='none'">
-              {{ e.name }}
+            <td class="icon-cell">
+              <img v-if="e.icon" :src="e.icon" width="20" height="20" @error="(ev) => (ev.target as HTMLElement).style.display='none'">
+              <span v-else class="icon-placeholder">—</span>
             </td>
+            <td>{{ e.name }}</td>
             <td>{{ e.label || e.name }}</td>
             <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.url }}</td>
             <td><span class="badge" :class="'badge-' + (e.category || 'SEARCH').toLowerCase()">{{ e.category || 'SEARCH' }}</span></td>
@@ -97,3 +98,18 @@ async function save() {
 async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE' }); load() }
 onMounted(load)
 </script>
+
+<style scoped>
+.icon-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+.icon-cell img {
+  display: inline-block;
+  object-fit: contain;
+}
+.icon-placeholder {
+  color: var(--text-tertiary, #999);
+  font-size: 12px;
+}
+</style>

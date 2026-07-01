@@ -12,9 +12,18 @@
 const { isGuest, isAdmin } = useAuth()
 const { initThemeWatchers } = useTheme()
 const { isMobile, drawerOpen } = useMobile()
+const route = useRoute()
 
 // Apply mobile-drawer-open class to sidebar when drawer is open
 if (import.meta.client) {
+  // 检测 Chrome 侧边栏模式（?context=side_panel）
+  if (route.query.context === 'side_panel') {
+    document.body.classList.add('is-sidepanel')
+    // 也给 Nuxt 的 sidebar-container 加上 class，触发对应 CSS 规则
+    const nuxtSidebar = document.getElementById('sidebar-container')
+    if (nuxtSidebar) nuxtSidebar.classList.add('is-sidepanel')
+  }
+
   watch(drawerOpen, (open) => {
     const sidebar = document.querySelector('aside.custom-width, aside.sidebar')
     if (sidebar) {

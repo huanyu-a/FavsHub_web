@@ -8,6 +8,7 @@ import tailwindcss from '@tailwindcss/vite'
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   manifest: {
+    name: 'FavsHub-Ext',
     permissions: ['storage', 'tabs', 'contextMenus', 'notifications', 'bookmarks', 'sidePanel', 'commands', 'favicon', 'history', 'scripting'],
     host_permissions: ['http://*/*', 'https://*/*'],
     side_panel: {

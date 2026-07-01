@@ -2,10 +2,10 @@
  * GET /api/admin/users — 用户列表（含书签/Prompt 数量）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
 
   const users = db.prepare(`

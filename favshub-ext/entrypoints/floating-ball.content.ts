@@ -1,5 +1,10 @@
 import { enableFloatingBallStorage, baseUrlStorage, tokenStorage } from '@/utils/storage';
 
+/** 通过 background script 发起请求（绕过 CORS / Mixed Content 限制） */
+async function proxyFetch(url: string, options?: RequestInit): Promise<{ status: number; body: string }> {
+  return browser.runtime.sendMessage({ action: 'proxyFetch', url, options });
+}
+
 /** Escape HTML special characters to prevent XSS */
 function escapeHtml(str: string): string {
   const map: Record<string, string> = {
@@ -70,22 +75,29 @@ export default defineContentScript({
     }
 
     // ---- 获取搜索引擎列表 ----
-    let engines: Array<{ name: string; label: string; url: string; icon: string; category: string }> = [];
+    let engines: Array<{ name: string; label: string; url: string; icon: string; category: string; is_default?: number }> = [];
     try {
       const token = await tokenStorage.getValue();
-      const resp = await fetch(`${serverUrl}/api/search-engines`, {
+      const resp = await proxyFetch(`${serverUrl}/api/search-engines`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const data = await resp.json();
+      const data = JSON.parse(resp.body);
       engines = data.data?.engines || data.engines || data.data || [];
     } catch {}
 
-    const defaultEngine = getCurrentSearchEngine();
+    // 过滤：只显示 is_default 的引擎（与网站搜索栏一致），如果全都没标记则显示全部
+    const visibleEngines = engines.some(e => e.is_default)
+      ? engines.filter(e => e.is_default)
+      : engines;
+
+    // 优先用 is_default，否则回退到当前域名匹配
+    const currentEngineName = getCurrentSearchEngine();
+    const defaultEngineName = visibleEngines.find(e => e.is_default)?.name || currentEngineName;
 
     function buildEngineListHtml(): string {
-      if (!engines.length) return '';
-      return engines.map((eng) => {
-        const sel = eng.name.toLowerCase() === defaultEngine ? ' class="selected"' : '';
+      if (!visibleEngines.length) return '';
+      return visibleEngines.map((eng) => {
+        const sel = eng.name.toLowerCase() === defaultEngineName.toLowerCase() ? ' class="selected"' : '';
         let iconSrc = '';
         if (eng.icon) {
           if (eng.icon.startsWith('http') && isSafeUrl(eng.icon)) iconSrc = eng.icon;
@@ -107,10 +119,10 @@ export default defineContentScript({
       try {
         const token = await tokenStorage.getValue();
         if (!token) return '';
-        const resp = await fetch(`${serverUrl}/api/bookmarks`, {
+        const resp = await proxyFetch(`${serverUrl}/api/bookmarks`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const json = await resp.json();
+        const json = JSON.parse(resp.body);
         const bookmarks = json.bookmarks || json.data || [];
         if (!Array.isArray(bookmarks) || !bookmarks.length) return '';
         return bookmarks.slice(0, 20).map((b: any) => {
@@ -137,14 +149,40 @@ export default defineContentScript({
 
     // ---- 悬浮按钮 ----
     const floatingButton = document.createElement('div');
-    floatingButton.id = 'floating-button';
-    const iconUrl = chrome.runtime.getURL('icon/48.png');
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'floating-button-icon';
-    iconDiv.style.backgroundImage = 'url("' + iconUrl + '")';
-    iconDiv.style.backgroundSize = 'cover';
-    iconDiv.style.backgroundPosition = 'center';
-    floatingButton.appendChild(iconDiv);
+    floatingButton.id = 'favshub-float-btn';
+    // 获取扩展图标 — 通过 background 转换 data URL（content script 无法直接访问 chrome-extension://）
+    let iconDataUrl = '';
+    try {
+      const resp = await browser.runtime.sendMessage({ action: 'getIconUrl', path: '/icon/48.png' });
+      if (resp?.url) iconDataUrl = resp.url;
+    } catch {
+      // background 不可用时回退
+      try {
+        const iconUrl = chrome.runtime.getURL('/icon/48.png');
+        if (iconUrl && !iconUrl.includes('invalid')) {
+          const fetchResp = await fetch(iconUrl);
+          const blob = await fetchResp.blob();
+          iconDataUrl = await new Promise<string>(resolve => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.readAsDataURL(blob);
+          });
+        }
+      } catch {}
+    }
+    if (iconDataUrl) {
+      const iconImg = document.createElement('img');
+      iconImg.className = 'floating-button-icon';
+      iconImg.alt = 'FavsHub';
+      iconImg.src = iconDataUrl;
+      floatingButton.appendChild(iconImg);
+    } else {
+      // Fallback
+      const fallback = document.createElement('span');
+      fallback.className = 'floating-button-icon';
+      fallback.textContent = '⭐';
+      floatingButton.appendChild(fallback);
+    }
 
     const tooltipDiv = document.createElement('div');
     tooltipDiv.className = 'floating-tooltip';
@@ -173,15 +211,15 @@ export default defineContentScript({
 
     // ---- 侧边栏面板 ----
     const sidebarContainer = document.createElement('div');
-    sidebarContainer.id = 'sidebar-container';
+    sidebarContainer.id = 'favshub-sidebar';
     sidebarContainer.classList.add('collapsed');
 
     const searchSwitcher = document.createElement('aside');
-    searchSwitcher.id = 'search-switcher';
+    searchSwitcher.id = 'favshub-search-switch';
     const engineHtml = buildEngineListHtml();
     searchSwitcher.innerHTML = `
       <ul>${engineHtml}</ul>
-      <ul id="bookmark-list"><li style="padding:8px 16px;color:#999;font-size:13px;">加载中...</li></ul>
+      <ul id="favshub-bookmark-list"><li style="padding:8px 16px;color:#999;font-size:13px;">加载中...</li></ul>
     `;
     sidebarContainer.appendChild(searchSwitcher);
 
@@ -190,43 +228,43 @@ export default defineContentScript({
 
     // ---- 加载书签 ----
     loadBookmarks().then((html) => {
-      const list = document.getElementById('bookmark-list');
+      const list = sidebarContainer.querySelector('#favshub-bookmark-list');
       if (list) list.innerHTML = html || '<li style="padding:8px 16px;color:#999;font-size:13px;">暂无书签</li>';
     });
 
     // ---- 样式（所有选择器加 #favshub-ext 前缀，防止泄漏） ----
     const styleSheet = document.createElement('style');
     styleSheet.textContent = `
-      #favshub-ext #sidebar-container {
-        position: fixed; top: 0; right: 0; width: 280px; height: 100vh;
+      #favshub-ext #favshub-sidebar {
+        position: fixed !important; top: 0; right: 0; width: 280px !important; height: 100vh;
         background-color: #ffffff; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
         transition: transform 0.3s ease; transform: translateX(100%);
-        z-index: 2147483647; padding: 8px; overflow-y: auto;
+        z-index: 2147483647 !important; padding: 8px; overflow-y: auto;
       }
-      #favshub-ext #sidebar-container.collapsed { transform: translateX(100%); }
-      #favshub-ext #sidebar-container:not(.collapsed) { transform: translateX(0); }
+      #favshub-ext #favshub-sidebar.collapsed { transform: translateX(100%) !important; }
+      #favshub-ext #favshub-sidebar:not(.collapsed) { transform: translateX(0) !important; }
 
-      #favshub-ext #floating-button {
-        position: fixed; width: 40px; height: 40px; top: 20%; right: 0;
+      #favshub-ext #favshub-float-btn {
+        position: fixed !important; width: 40px; height: 40px; top: 20%; right: 0;
         border-radius: 20px 0 0 20px;
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer; z-index: 2147483647; font-size: 16px;
+        cursor: pointer; z-index: 2147483647 !important;
         user-select: none; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
         transition: width 0.2s;
       }
-      #favshub-ext #floating-button:hover { width: 60px; }
-      #favshub-ext .floating-button-icon { width: 24px; height: 24px; margin: 0 0 0 4px !important; flex-shrink: 0; }
+      #favshub-ext #favshub-float-btn:hover { width: 60px; }
+      #favshub-ext .floating-button-icon { max-width: 24px; max-height: 24px; flex-shrink: 0; pointer-events: none; display: block; }
 
-      #favshub-ext #search-switcher { height: 100%; display: flex; flex-direction: column; align-items: flex-start; width: 100%; background-color: #ffffff; overflow: auto; padding: 20px 0 0 0; }
-      #favshub-ext #search-switcher ul { list-style-type: none; padding: 0; width: 100%; margin: 0; }
-      #favshub-ext #search-switcher ul li {
+      #favshub-ext #favshub-search-switch { height: 100%; display: flex; flex-direction: column; align-items: flex-start; width: 100%; background-color: #ffffff; overflow: auto; padding: 20px 0 0 0; }
+      #favshub-ext #favshub-search-switch ul { list-style-type: none; padding: 0; width: 100%; margin: 0; }
+      #favshub-ext #favshub-search-switch ul li {
         display: flex; position: relative; font-size: 14px; font-weight: 600; color: #1a202c;
         line-height: 20px; padding: 8px 16px; margin: 4px 8px !important;
         align-items: center; cursor: pointer; border-radius: 8px;
         transition: background-color 0.3s, color 0.3s;
       }
-      #favshub-ext #search-switcher ul li:hover { background-color: #f0f0f0; color: #4285f4; }
-      #favshub-ext #search-switcher ul li.selected { background-color: #e2e8f0; font-weight: bold; color: #4285f4; }
+      #favshub-ext #favshub-search-switch ul li:hover { background-color: #f0f0f0; color: #4285f4; }
+      #favshub-ext #favshub-search-switch ul li.selected { background-color: #e2e8f0; font-weight: bold; color: #4285f4; }
 
       #favshub-ext .search-icon { height: 16px; margin: 0 8px 0 0; }
       #favshub-ext .search-icon-placeholder {
@@ -241,7 +279,7 @@ export default defineContentScript({
       #favshub-ext .bookmark-icon { width: 16px; height: 16px; margin: 0 8px 0 0 !important; }
       #favshub-ext .bookmark-link { display: flex; align-items: center; width: 100%; text-decoration: none; color: inherit; }
       #favshub-ext .bookmark-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 600; color: #1a202c !important; line-height: 20px; }
-      #favshub-ext #bookmark-list { padding: 16px 0 60px 0 !important; }
+      #favshub-ext #favshub-bookmark-list { padding: 16px 0 60px 0 !important; }
 
       #favshub-ext .floating-tooltip {
         position: absolute; right: 50px; top: 50%; transform: translateY(-50%);
@@ -250,7 +288,7 @@ export default defineContentScript({
         opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
         z-index: 2147483647;
       }
-      #favshub-ext #floating-button:hover .floating-tooltip { opacity: 1; visibility: visible; }
+      #favshub-ext #favshub-float-btn:hover .floating-tooltip { opacity: 1; visibility: visible; }
       #favshub-ext .floating-tooltip:after {
         content: ''; position: absolute; right: -6px; top: 50%;
         transform: translateY(-50%) rotate(45deg); width: 12px; height: 12px;
@@ -271,11 +309,11 @@ export default defineContentScript({
       #favshub-ext * { user-select: none; -webkit-user-select: none; }
 
       @media (prefers-color-scheme: dark) {
-        #favshub-ext #sidebar-container, #favshub-ext #search-switcher { background-color: #1e1e2e; }
-        #favshub-ext #floating-button { }
-        #favshub-ext #floating-button:hover { }
-        #favshub-ext #search-switcher ul li, #favshub-ext .bookmark-title { color: #e0e0e0 !important; }
-        #favshub-ext #search-switcher ul li:hover { background-color: rgba(255,255,255,0.1); color: #4285f4 !important; }
+        #favshub-ext #favshub-sidebar, #favshub-ext #favshub-search-switch { background-color: #1e1e2e; }
+        #favshub-ext #favshub-float-btn { }
+        #favshub-ext #favshub-float-btn:hover { }
+        #favshub-ext #favshub-search-switch ul li, #favshub-ext .bookmark-title { color: #e0e0e0 !important; }
+        #favshub-ext #favshub-search-switch ul li:hover { background-color: rgba(255,255,255,0.1); color: #4285f4 !important; }
         #favshub-ext .bookmark-item:hover { background-color: rgba(255,255,255,0.1); }
         #favshub-ext .floating-tooltip { background: #1f2937; }
         #favshub-ext .floating-tooltip:after { background: #1f2937; }

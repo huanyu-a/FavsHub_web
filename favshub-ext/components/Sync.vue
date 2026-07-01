@@ -5,7 +5,8 @@ import PopupLayout from '@/components/PopupLayout.vue';
 import PageTitle from '@/components/title.vue';
 import { request } from '@/utils/request';
 import { tokenStorage } from '@/utils/storage';
-import { syncZMarkToBrowser } from '@/utils/browser-sync';
+import { faviconWarmingStateStorage } from '@/utils/storage-session';
+import { syncFavsHubToBrowser } from '@/utils/browser-sync';
 import { flattenBookmarks } from '@/utils/flatten-bookmarks';
 
 const message = useMessage();
@@ -13,13 +14,155 @@ const isSyncing = ref(false);
 const syncResult = ref('');
 const faviconProgress = ref('');
 
+// ===== favicon 预加载（状态持久化到 session storage，跨 tab 共享）=====
+const faviconWarming = ref(false);
+const faviconWarmingProgress = ref('');
+const faviconWarmingTotal = ref(0);
+const faviconWarmingCurrent = ref(0);
+const faviconWarmingPaused = ref(false);
+const faviconWarmingStopped = ref(false);
+
+// 挂载时恢复状态
+onMounted(async () => {
+  const s = await faviconWarmingStateStorage.getValue();
+  if (s.running) {
+    faviconWarming.value = true;
+    faviconWarmingTotal.value = s.total;
+    faviconWarmingCurrent.value = s.current;
+    faviconWarmingPaused.value = s.paused;
+    faviconWarmingProgress.value = s.progressMsg;
+  }
+});
+
+// 状态变更时写入 storage
+function syncState() {
+  faviconWarmingStateStorage.setValue({
+    running: faviconWarming.value,
+    paused: faviconWarmingPaused.value,
+    total: faviconWarmingTotal.value,
+    current: faviconWarmingCurrent.value,
+    progressMsg: faviconWarmingProgress.value,
+  });
+}
+
+function pauseFaviconWarming() {
+  faviconWarmingPaused.value = true;
+  syncState();
+}
+function resumeFaviconWarming() {
+  faviconWarmingPaused.value = false;
+  syncState();
+}
+function stopFaviconWarming() {
+  faviconWarmingStopped.value = true;
+  faviconWarmingPaused.value = false;
+}
+
+function waitIfPaused(): Promise<boolean> {
+  return new Promise(resolve => {
+    const check = () => {
+      if (faviconWarmingStopped.value) return resolve(true);
+      if (!faviconWarmingPaused.value) return resolve(false);
+      setTimeout(check, 200);
+    };
+    check();
+  });
+}
+
+function getFaviconUrl(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+  } catch {
+    return '';
+  }
+}
+
+async function handleWarmFavicons() {
+  const bookmarkTree = await chrome.bookmarks.getTree();
+  const bookmarks = flattenBookmarks(bookmarkTree, getFaviconUrl);
+
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const bm of bookmarks) {
+    try {
+      const hostname = new URL(bm.url).hostname;
+      if (seen.has(hostname)) continue;
+      seen.add(hostname);
+      urls.push(bm.url);
+    } catch { /* skip */ }
+  }
+
+  if (!urls.length) {
+    message.warning('没有可预加载的书签');
+    return;
+  }
+
+  faviconWarming.value = true;
+  faviconWarmingStopped.value = false;
+  faviconWarmingPaused.value = false;
+  faviconWarmingTotal.value = urls.length;
+  faviconWarmingCurrent.value = 0;
+  faviconWarmingProgress.value = `正在预加载 ${urls.length} 个站点图标...`;
+  syncState();
+
+  const BATCH = 5;
+  const LOAD_MS = 3000;
+
+  outer:
+  for (let i = 0; i < urls.length; i += BATCH) {
+    if (faviconWarmingStopped.value) break;
+
+    const batch = urls.slice(i, i + BATCH);
+    faviconWarmingProgress.value = `正在预加载 ${Math.min(i + BATCH, urls.length)}/${urls.length}...`;
+    syncState();
+
+    const tabIds: number[] = [];
+    for (const url of batch) {
+      if (faviconWarmingStopped.value) break outer;
+      try {
+        const tab = await chrome.tabs.create({ url, active: false });
+        if (tab.id) tabIds.push(tab.id);
+      } catch { /* skip */ }
+    }
+
+    const end = Date.now() + LOAD_MS;
+    while (Date.now() < end) {
+      if (faviconWarmingStopped.value) break outer;
+      if (faviconWarmingPaused.value) {
+        faviconWarmingProgress.value = `已暂停 ${faviconWarmingCurrent.value}/${faviconWarmingTotal.value}`;
+        syncState();
+        if (await waitIfPaused()) break outer;
+        faviconWarmingProgress.value = '';
+        syncState();
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    for (const id of tabIds) {
+      try { await chrome.tabs.remove(id); } catch { /* already closed */ }
+    }
+
+    faviconWarmingCurrent.value = Math.min(i + BATCH, urls.length);
+    syncState();
+  }
+
+  const finalMsg = faviconWarmingStopped.value
+    ? `已停止，完成 ${faviconWarmingCurrent.value}/${faviconWarmingTotal.value}`
+    : `预加载完成，共 ${faviconWarmingTotal.value} 个站点`;
+  faviconWarmingProgress.value = finalMsg;
+  syncState();
+  setTimeout(() => {
+    faviconWarmingProgress.value = '';
+    faviconWarming.value = false;
+    syncState();
+  }, 3000);
+}
+
 // ===== 服务器 → 浏览器 =====
 const isDownloading = ref(false);
 const downloadResult = ref('');
 
-/**
- * 从服务端拉取书签，增量合并到浏览器书签栏
- */
 async function handleDownloadToBrowser() {
   const token = await tokenStorage.getValue();
   if (!token) {
@@ -31,7 +174,7 @@ async function handleDownloadToBrowser() {
   downloadResult.value = '';
 
   try {
-    const stats = await syncZMarkToBrowser();
+    const stats = await syncFavsHubToBrowser();
     const parts: string[] = [];
     if (stats.added > 0) parts.push(`新增 ${stats.added}`);
     if (stats.updated > 0) parts.push(`更新 ${stats.updated}`);
@@ -52,7 +195,7 @@ async function handleDownloadToBrowser() {
   }
 }
 
-// 获取浏览器缓存的 favicon，转为 base64
+// ===== 浏览器 → 服务器 =====
 async function fetchExtensionFavicon(pageUrl: string): Promise<string | null> {
   try {
     const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
@@ -61,7 +204,7 @@ async function fetchExtensionFavicon(pageUrl: string): Promise<string | null> {
     const resp = await fetch(faviconUrl.toString());
     if (!resp.ok) return null;
     const blob = await resp.blob();
-    if (blob.size < 50) return null; // 太小可能是默认图标
+    if (blob.size < 50) return null;
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
@@ -69,15 +212,6 @@ async function fetchExtensionFavicon(pageUrl: string): Promise<string | null> {
     });
   } catch {
     return null;
-  }
-}
-
-function getFaviconUrl(url: string): string {
-  try {
-    const hostname = new URL(url).hostname;
-    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-  } catch {
-    return '';
   }
 }
 
@@ -101,7 +235,6 @@ async function handleSync() {
       return;
     }
 
-    // 使用 PUT 增量合并（不会删除服务端其他来源的数据）
     const result = await request<{
       success: boolean;
       added: number;
@@ -124,7 +257,6 @@ async function handleSync() {
       syncResult.value = `已合并 ${result.total} 条书签：${parts.join('、')}`;
     }
 
-    // 第二步：下载浏览器缓存的 favicon 到服务器
     faviconProgress.value = '正在下载书签图标...';
     const favicons: { url: string; base64: string }[] = [];
     const urlSet = new Set<string>();
@@ -213,6 +345,52 @@ async function handleSync() {
 
           <div v-if="downloadResult" class="mt-3 text-center text-xs text-slate-500">
             {{ downloadResult }}
+          </div>
+        </section>
+
+        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-slate-900">预加载书签图标</h2>
+            <p class="mt-1 text-xs leading-5 text-slate-500">
+              后台打开各站点页面让 Chrome 自动获取并缓存 favicon，完成后书签栏将显示网站图标。
+            </p>
+          </div>
+
+          <n-button
+            v-if="!faviconWarming"
+            type="warning" block @click="handleWarmFavicons"
+          >
+            开始预加载图标
+          </n-button>
+
+          <template v-else>
+            <n-progress
+              type="line"
+              :percentage="faviconWarmingTotal ? Math.round(faviconWarmingCurrent / faviconWarmingTotal * 100) : 0"
+              :show-indicator="true"
+              status="info"
+            />
+            <div class="mt-2 flex items-center justify-center gap-2">
+              <n-button
+                v-if="!faviconWarmingPaused"
+                size="tiny" secondary @click="pauseFaviconWarming"
+              >
+                ⏸ 暂停
+              </n-button>
+              <n-button
+                v-else
+                size="tiny" type="primary" secondary @click="resumeFaviconWarming"
+              >
+                ▶ 继续
+              </n-button>
+              <n-button size="tiny" type="error" secondary @click="stopFaviconWarming">
+                ⏹ 停止
+              </n-button>
+            </div>
+          </template>
+
+          <div v-if="faviconWarmingProgress" class="mt-2 text-center text-xs text-blue-500">
+            {{ faviconWarmingProgress }}
           </div>
         </section>
       </div>

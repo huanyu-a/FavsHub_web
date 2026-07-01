@@ -46,7 +46,13 @@ export default defineNuxtConfig({
     },
   },
 
-  routeRules: {},
+  routeRules: {
+    '/images/**': {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
+    },
+  },
 
   devServer: {
     port: 3000,

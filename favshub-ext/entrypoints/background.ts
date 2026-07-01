@@ -260,6 +260,38 @@ export default defineBackground(() => {
         sendResponse({ connected: true });
         return true;
 
+      case 'proxyFetch': {
+        // 允许 content script 通过 background 发起请求（绕过 CORS / Mixed Content）
+        const { url, options } = message;
+        fetch(url, options)
+          .then(async (resp) => {
+            const body = await resp.text();
+            sendResponse({ status: resp.status, body });
+          })
+          .catch((err) => sendResponse({ error: String(err) }));
+        return true;
+      }
+
+      case 'getIconUrl': {
+        // 将图标转为 data URL，避免 content script 中 chrome-extension:// 加载失败
+        const iconPath = message.path || '/icon/48.png';
+        try {
+          const url = chrome.runtime.getURL(iconPath);
+          fetch(url)
+            .then(r => r.arrayBuffer())
+            .then(buf => {
+              const bytes = new Uint8Array(buf);
+              let binary = '';
+              for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+              sendResponse({ url: 'data:image/png;base64,' + btoa(binary) });
+            })
+            .catch(() => sendResponse({ url: '' }));
+        } catch {
+          sendResponse({ url: '' });
+        }
+        return true;
+      }
+
       case 'open_side_panel':
         browser.sidePanel.open({ windowId: _sender.tab?.windowId })
           .then(() => sendResponse({ success: true }))

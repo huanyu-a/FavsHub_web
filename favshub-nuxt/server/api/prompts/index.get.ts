@@ -48,9 +48,9 @@ export default defineEventHandler(async (event) => {
     sql += ' AND p.is_favorite = 1'
   }
 
-  // ── 多关键词搜索（OR 逻辑） ─────────────────────────────────
+  // ── 多关键词搜索（AND 逻辑） ─────────────────────────────────
   // 每个关键词独立一组：(title LIKE ? OR description LIKE ? OR content LIKE ? OR tag子查询)
-  // 多个关键词之间 OR 连接
+  // 多个关键词之间 AND 连接（要求所有关键词都匹配）
   if (search && typeof search === 'string') {
     const keywords = search.split(/\s+/).filter((k: string) => k.length > 0)
     if (keywords.length > 0) {
@@ -65,8 +65,8 @@ export default defineEventHandler(async (event) => {
         params.push(like, like, like, like)
       }
 
-      // 多个关键词之间 OR 连接（匹配任一关键词即返回）
-      sql += ` AND (${keywordGroups.join(' OR ')})`
+      // 多个关键词之间 AND 连接（全部关键词匹配才返回）
+      sql += ` AND (${keywordGroups.join(' AND ')})`
     }
   }
 

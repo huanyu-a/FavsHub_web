@@ -17,7 +17,6 @@
         :alt="bookmark.title"
         class="card-favicon-img"
         loading="lazy"
-        crossorigin="anonymous"
         @load="onIconLoad"
         @error="onIconError"
       >

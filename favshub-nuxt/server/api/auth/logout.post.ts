@@ -5,6 +5,7 @@ export default defineEventHandler((event) => {
   setCookie(event, 'favshub_token', '', {
     path: '/',
     httpOnly: true,
+    secure: true,
     sameSite: 'lax',
     maxAge: 0,
   })

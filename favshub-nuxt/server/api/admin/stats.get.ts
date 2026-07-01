@@ -2,12 +2,12 @@
  * GET /api/admin/stats — 系统统计数据
  */
 import { getRawDb } from '../../database'
-import { requireAuth } from '../../utils/auth'
+import { requireAdmin } from '../../utils/auth'
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
 
   const users = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count

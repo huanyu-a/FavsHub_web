@@ -1,5 +1,8 @@
 /**
  * POST /api/sync/favicons — 上传 favicon base64 数据
+ *
+ * 优先从 Google Favicon API 下载真实图标，
+ * 仅在 Google 下载失败时使用浏览器缓存的 base64 数据。
  */
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
@@ -25,24 +28,56 @@ export default defineEventHandler(async (event) => {
   const faviconDir = join(process.cwd(), 'public', 'images', 'favicons')
   if (!existsSync(faviconDir)) mkdirSync(faviconDir, { recursive: true })
 
-  const updateStmt = db.prepare('UPDATE bookmarks SET icon = ? WHERE user_id = ? AND url = ?')
+  // 按域名去重，同一域名只下载一次
+  const updateByHostname = db.prepare(
+    'UPDATE bookmarks SET icon = ? WHERE user_id = ? AND url LIKE ?'
+  )
+  const seenHostnames = new Set<string>()
   let count = 0
 
   for (const item of favicons) {
     try {
       const hostname = new URL(item.url).hostname
+      if (seenHostnames.has(hostname)) continue
+      seenHostnames.add(hostname)
+
       const filename = hostname + '.png'
       const filepath = join(faviconDir, filename)
       const localPath = `/images/favicons/${filename}`
 
-      // 解码 base64 并写入文件
-      const base64Data = item.base64.replace(/^data:image\/\w+;base64,/, '')
-      const buf = Buffer.from(base64Data, 'base64')
-      if (buf.length > 512 * 1024) continue // 跳过超过 512KB 的图标
-      writeFileSync(filepath, buf)
+      // 优先从 Google Favicon API 下载真实图标
+      let buf: Buffer | null = null
+      try {
+        const googleUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`
+        const resp = await fetch(googleUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(5000),
+        })
+        if (resp.ok) {
+          const arrayBuf = await resp.arrayBuffer()
+          const candidate = Buffer.from(arrayBuf)
+          // Google 返回的默认图标约 232 字节（灰色 globe），跳过
+          if (candidate.length > 300) {
+            buf = candidate
+          }
+        }
+      } catch { /* Google 下载失败，继续使用浏览器缓存 */ }
 
-      // 更新数据库（仅更新当前用户的图标，防止跨用户污染）
-      updateStmt.run(localPath, userId, item.url)
+      // Google 下载失败或返回默认图标，使用浏览器缓存的 base64
+      if (!buf && item.base64) {
+        const base64Data = item.base64.replace(/^data:image\/\w+;base64,/, '')
+        const candidate = Buffer.from(base64Data, 'base64')
+        // 跳过 Chrome 默认图标（~601 字节的灰色 globe）
+        if (candidate.length > 300) {
+          buf = candidate
+        }
+      }
+
+      if (!buf) continue // 没有有效图标，跳过
+
+      writeFileSync(filepath, buf)
+      // 更新该域名下所有书签的图标（同域名共享一个图标文件）
+      updateByHostname.run(localPath, userId, `%://${hostname}/%`)
       count++
     } catch (e: any) {
       console.warn('[favicon] 保存失败:', item.url, e.message)

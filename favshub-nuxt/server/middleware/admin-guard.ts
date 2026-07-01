@@ -20,7 +20,7 @@ export default defineEventHandler((event) => {
   const payload = verifyToken(token)
   if (!payload) {
     // token 无效，清除 cookie 并跳转登录
-    setCookie(event, 'favshub_token', '', { path: '/', maxAge: 0, httpOnly: true, sameSite: 'lax' })
+    setCookie(event, 'favshub_token', '', { path: '/', maxAge: 0, httpOnly: true, secure: true, sameSite: 'lax' })
     return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}`, 302)
   }
 

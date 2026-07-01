@@ -33,6 +33,12 @@ export default defineEventHandler(async (event) => {
 
   // 修改昵称
   if (nickname !== undefined) {
+    if (nickname === null || nickname === '') {
+      throw createError({ statusCode: 400, data: { error: '昵称不能为空' } })
+    }
+    if (nickname.length > 64) {
+      throw createError({ statusCode: 400, data: { error: '昵称最长 64 字符' } })
+    }
     db.prepare('UPDATE users SET nickname = ? WHERE id = ?').run(nickname, user.id)
   }
 

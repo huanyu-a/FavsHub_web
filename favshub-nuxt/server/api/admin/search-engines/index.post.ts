@@ -2,11 +2,11 @@
  * POST /api/admin/search-engines — 创建搜索引擎
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  const user = requireAdmin(event)
   const db = getRawDb()
 
   const body = await readBody(event)

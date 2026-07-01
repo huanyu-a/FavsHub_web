@@ -4,7 +4,7 @@
  */
 import { getRawDb } from '../database'
 import { getConfig, getConfigInt } from '../utils/config'
-import { existsSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, readdirSync, unlinkSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const BACKUP_DIR = join(process.cwd(), 'data', 'backups')
@@ -48,7 +48,6 @@ function cleanOldCopies(keepCopies: number) {
       .reverse()
     // 保留最新的 keepCopies 份，删除多余的
     for (let i = keepCopies; i < files.length; i++) {
-      const { unlinkSync } = require('node:fs')
       unlinkSync(join(BACKUP_DIR, files[i]))
       console.log(`[Backup] 清理旧备份: ${files[i]}`)
     }
@@ -90,7 +89,6 @@ export default defineNitroPlugin(() => {
   const OLD_CONFIG_FILE = join(process.cwd(), 'data', '.backup-config.json')
   try {
     if (existsSync(OLD_CONFIG_FILE)) {
-      const { readFileSync } = require('node:fs')
       const saved = JSON.parse(readFileSync(OLD_CONFIG_FILE, 'utf8'))
       if (saved.lastBackupDate) lastBackupDate = saved.lastBackupDate
     }

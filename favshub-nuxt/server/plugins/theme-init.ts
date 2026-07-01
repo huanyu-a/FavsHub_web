@@ -44,6 +44,17 @@ export default defineNitroPlugin((nitroApp) => {
       html.htmlAttrs.push(`data-theme="${effective}"`)
       html.htmlAttrs.push(`style="color-scheme:${colorScheme}"`)
 
+      // 服务端解码 auth token 注入 data-admin（仅用于 UI 样式，非安全守卫）
+      const authToken = getCookie(event, 'favshub_token')
+      if (authToken) {
+        try {
+          const payload = JSON.parse(Buffer.from(authToken.split('.')[1], 'base64url').toString())
+          if (payload.isAdmin) {
+            html.htmlAttrs.push('data-admin="true"')
+          }
+        } catch (_) {}
+      }
+
       // 替换 defaultCSS：精确背景色
       const bgColor = effective === 'dark' ? '#0B1120' : '#F8F7F4'
       html.head.unshift(
@@ -74,8 +85,7 @@ return m[bg]||'#F8F7F4'
 })();
 s.textContent='html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:'+bgc+';color-scheme:'+th+'}';
 var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');
-if(t){h.setAttribute('data-guest','false');
-try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}
+if(t){h.setAttribute('data-guest','false');try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}
 else{h.setAttribute('data-guest','true')}
 }catch(e){}
 document.head.appendChild(s);

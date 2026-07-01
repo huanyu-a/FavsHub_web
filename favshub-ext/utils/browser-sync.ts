@@ -38,7 +38,7 @@ const CONTAINER_NAMES = new Set([
 /**
  * 从服务端增量合并书签到浏览器（不再清空重建）
  */
-export async function syncZMarkToBrowser(): Promise<SyncStats> {
+export async function syncFavsHubToBrowser(): Promise<SyncStats> {
   // ===== 阶段 0：数据获取 =====
   const [foldersRes, bmRes] = await Promise.all([
     request<{ folders: FavsHubFolder[] }>('/api/folders'),
@@ -100,7 +100,7 @@ export async function syncZMarkToBrowser(): Promise<SyncStats> {
   const serverMap = new Map<string, DiffBookmarkEntry>();
   for (const bm of bookmarks) {
     const container = bm.container || 'bar';
-    const relativePath = getRelativePath(bm.folder_id, container);
+    const relativePath = bm.folder_id != null ? getFolderPath(bm.folder_id) : '';
     const key = `${container}/${relativePath}/${bm.url}`;
     serverMap.set(key, {
       key,
@@ -271,23 +271,6 @@ export async function syncZMarkToBrowser(): Promise<SyncStats> {
   await saveSnapshot(newSnapshot);
 
   return { added, updated, removed, isFirstSync: diff.isFirstSync };
-}
-
-/**
- * 获取书签的相对路径（不含容器名前缀）
- */
-function getRelativePath(folderId: number | null, _container: string): string {
-  // folderId 指向的文件夹路径中，第一段是容器名文件夹，需要去掉
-  // 但服务端的文件夹结构可能是 收藏夹栏/子文件夹/孙文件夹
-  // 我们需要返回 子文件夹/孙文件夹（去掉第一段容器名）
-  // 不过从 server 数据中无法直接判断哪段是容器名
-  // 所以这里直接使用空字符串表示根级书签，或文件夹名表示子文件夹
-  // 实际的 key 构建中，container 已经单独提取，folderPath 只需要文件夹层级
-  if (folderId === null) return '';
-
-  // 这里简化处理：返回空（根级），实际的文件夹匹配通过 browserFolderMap 来处理
-  // 完整的 folderPath 需要从 folderMap 构建
-  return '';
 }
 
 /**

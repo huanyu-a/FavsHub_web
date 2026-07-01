@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
   setCookie(event, 'favshub_token', token, {
     path: '/',
     httpOnly: true,
+    secure: true,
     sameSite: 'lax',
     maxAge: getConfigInt('cookie_max_age', 60 * 60 * 24 * 7),
   })

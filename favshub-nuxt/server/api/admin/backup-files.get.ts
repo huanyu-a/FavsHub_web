@@ -1,12 +1,12 @@
 /**
  * GET /api/admin/backup-files — 获取备份文件列表
  */
-import { requireAuth } from '../../utils/auth'
+import { requireAdmin } from '../../utils/auth'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const backupDir = join(process.cwd(), 'data', 'backups')
   if (!existsSync(backupDir)) return { files: [] }
 

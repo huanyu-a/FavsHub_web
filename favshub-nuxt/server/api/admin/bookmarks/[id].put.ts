@@ -2,11 +2,11 @@
  * PUT /api/admin/bookmarks/:id — 更新书签（管理员）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
 
   const { id } = getRouterParams(event)
