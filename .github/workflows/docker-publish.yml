@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'favshub-nuxt/**'
-      - '.github/workflows/docker-publish.yml'
+      - 'favshub-nuxt/VERSION'
   workflow_dispatch:
 
 env:
@@ -22,6 +21,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VER=$(cat favshub-nuxt/VERSION | tr -d '[:space:]')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+          echo "Version: $VER"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -68,9 +74,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
             type=sha,format=short
-            type=ref,event=branch
-            latest
 
       - name: Build and push
         uses: docker/build-push-action@v6
