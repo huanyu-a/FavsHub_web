@@ -17,8 +17,7 @@ else
     echo "Using existing project name: $PROJECT_NAME"
 fi
 
-# 拉取最新镜像并重启
-docker compose pull
+# 启动服务（如需更新镜像请先手动执行: docker compose pull）
 docker compose up -d --remove-orphans
 
 echo ""

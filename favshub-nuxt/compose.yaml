@@ -1,6 +1,7 @@
 services:
   favshub:
     image: ghcr.io/huanyu-a/favshub:latest
+    pull_policy: if_not_present
     environment:
       - TZ=Asia/Shanghai
       - NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-please-change-this-to-a-random-string}
