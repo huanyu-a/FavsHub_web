@@ -27,9 +27,11 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   // 可见性：
-  //   游客 → 管理员公开书签
+  //   游客 → 管理员公开书签（自身公开 + 所属文件夹公开）
   //   普通用户 → 自己的 + 管理员公开的
   //   管理员 → 全部
+  //
+  // 注意：login_required 从文件夹继承 — 父文件夹设为登录可见时，子文件夹内的书签也登录可见
   let visibilityClause: string
   const visParams: any[] = []
   if (user) {
@@ -44,14 +46,43 @@ export default defineEventHandler(async (event) => {
     visibilityClause = '(b.login_required = 0 AND b.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
   }
 
+  // 收集因文件夹 login_required 继承而被锁定的文件夹 ID（非管理员需要排除这些文件夹内的书签）
+  const lockedFolderIds = new Set<number>()
+  if (!user || !(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined)?.is_admin) {
+    const allFolders = db.prepare('SELECT id, parent_id, login_required FROM folders').all() as { id: number; parent_id: number | null; login_required: number }[]
+    function isLocked(f: typeof allFolders[0], visited = new Set<number>()): boolean {
+      if (f.login_required) return true
+      if (f.parent_id == null) return false
+      if (visited.has(f.parent_id)) return false
+      visited.add(f.parent_id)
+      const parent = allFolders.find(p => p.id === f.parent_id)
+      if (!parent) return false
+      return isLocked(parent, visited)
+    }
+    for (const f of allFolders) {
+      if (isLocked(f)) lockedFolderIds.add(f.id)
+    }
+  }
+
   let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause}`
   const params: any[] = [...visParams]
 
+  // 非管理员排除"文件夹继承 login_required"的书签（但登录用户仍可看自己文件夹里的）
+  if (lockedFolderIds.size > 0) {
+    if (user) {
+      sql += ` AND (b.user_id = ? OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      params.push(user.id, ...lockedFolderIds)
+    } else {
+      sql += ` AND b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')})`
+      params.push(...lockedFolderIds)
+    }
+  }
+
   if (search && typeof search === 'string') {
     const keywords = search.split(/\s+/).filter((k: string) => k.length > 0)
-    const conditions = keywords.map(() => {
-      params.push(...Array(3).fill(`%${search}%`))
-      return `(b.title LIKE ? OR b.url LIKE ? OR b.description LIKE ?)`
+    const conditions = keywords.map((k) => {
+      params.push(`%${k}%`, `%${k}%`)
+      return `(b.title LIKE ? OR b.url LIKE ?)`
     })
     sql += ` AND (${conditions.join(' AND ')})`
   }
