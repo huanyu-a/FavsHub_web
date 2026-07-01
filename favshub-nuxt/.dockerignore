@@ -1,0 +1,16 @@
+.git
+.vscode
+.idea
+.nuxt
+.gitignore
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+node_modules
+data
+compose.yaml
+Dockerfile
+.dockerignore
+build.sh

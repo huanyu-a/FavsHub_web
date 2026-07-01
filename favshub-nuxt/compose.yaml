@@ -1,0 +1,20 @@
+services:
+  favshub:
+    container_name: favshub
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - TZ=Asia/Shanghai
+      - NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-please-change-this-to-a-random-string}
+      - NUXT_DB_PATH=/opt/favshub/data/favshub.db
+      - NUXT_CORS_ORIGIN=${NUXT_CORS_ORIGIN:-*}
+      - NUXT_ADMIN_USERS=${NUXT_ADMIN_USERS:-}
+    dns:
+      - 119.29.29.29
+      - 223.5.5.5
+    volumes:
+      - ./data:/opt/favshub/data
+    ports:
+      - "3090:3000"
+    restart: always
