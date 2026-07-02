@@ -33,9 +33,40 @@ export default defineEventHandler(async (event) => {
     visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
   }
 
+  // ── 文件夹 login_required 继承过滤（与 bookmarks 一致）────────
+  // 非管理员需要排除"文件夹继承 login_required"的提示词
+  // 注意：folder_id IS NULL 的提示词（未分类）不受文件夹锁定影响，必须保留
+  const lockedFolderIds = new Set<string>()
+  if (!user || !(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined)?.is_admin) {
+    const allFolders = db.prepare('SELECT id, parent_id, login_required FROM prompt_folders').all() as { id: string; parent_id: string | null; login_required: number }[]
+    function isPromptFolderLocked(f: typeof allFolders[0], visited = new Set<string>()): boolean {
+      if (f.login_required) return true
+      if (f.parent_id == null) return false
+      if (visited.has(f.parent_id)) return false
+      visited.add(f.parent_id)
+      const parent = allFolders.find(p => p.id === f.parent_id)
+      if (!parent) return false
+      return isPromptFolderLocked(parent, visited)
+    }
+    for (const f of allFolders) {
+      if (isPromptFolderLocked(f)) lockedFolderIds.add(f.id)
+    }
+  }
+
   // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
   let sql = `SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE ${visibilityClause}`
   const params: any[] = [...visParams]
+
+  // 文件夹 login_required 继承过滤（NULL folder_id 安全处理）
+  if (lockedFolderIds.size > 0) {
+    if (user) {
+      sql += ` AND (p.user_id = ? OR p.folder_id IS NULL OR p.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      params.push(user.id, ...lockedFolderIds)
+    } else {
+      sql += ` AND (p.folder_id IS NULL OR p.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      params.push(...lockedFolderIds)
+    }
+  }
 
   // ── 文件夹过滤 ──────────────────────────────────────────────
   if (folder_id) {

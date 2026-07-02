@@ -18,11 +18,12 @@ export default defineEventHandler(async (event) => {
     if (dbUser?.is_admin) {
       relations = db.prepare(`SELECT pt.* FROM prompt_tags pt`).all()
     } else {
+      // 普通用户：自己的 + 管理员公开的（与 prompts 列表可见性一致）
       relations = db.prepare(`
         SELECT pt.*
         FROM prompt_tags pt
         INNER JOIN prompts p ON pt.prompt_id = p.id
-        WHERE p.user_id = ?
+        WHERE p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))
       `).all(user.id)
     }
   } else {

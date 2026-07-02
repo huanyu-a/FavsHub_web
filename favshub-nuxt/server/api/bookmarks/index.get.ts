@@ -68,12 +68,13 @@ export default defineEventHandler(async (event) => {
   const params: any[] = [...visParams]
 
   // 非管理员排除"文件夹继承 login_required"的书签（但登录用户仍可看自己文件夹里的）
+  // 注意：folder_id IS NULL 的书签（未分类）不受文件夹锁定影响，必须保留
   if (lockedFolderIds.size > 0) {
     if (user) {
-      sql += ` AND (b.user_id = ? OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      sql += ` AND (b.user_id = ? OR b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
       params.push(user.id, ...lockedFolderIds)
     } else {
-      sql += ` AND b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')})`
+      sql += ` AND (b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
       params.push(...lockedFolderIds)
     }
   }
