@@ -14,4 +14,5 @@ NUL
 wwwroot/server/data/
 wwwroot/server/node_modules/
 bak/
-.claude/
+tmp_*
+cookies.txt

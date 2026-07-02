@@ -234,6 +234,12 @@ export function seedDefaults(db: Database.Database) {
   if (engineCount === 0) {
     seedDefaultSearchEngines(db)
   }
+
+  // 默认提示词（如果表为空）
+  const promptCount = (db.prepare('SELECT COUNT(*) as c FROM prompts').get() as { c: number }).c
+  if (promptCount === 0) {
+    seedDefaultPrompts(db)
+  }
 }
 
 /**
@@ -323,6 +329,125 @@ function seedDefaultSearchEngines(db: Database.Database) {
   })
   insertMany(defaultEngines)
   console.log(`[DB] 已插入 ${defaultEngines.length} 个默认搜索引擎`)
+}
+
+/**
+ * 插入 3 条默认提示词（含文件夹 + 初始版本）
+ */
+function seedDefaultPrompts(db: Database.Database) {
+  const now = Date.now()
+  const folderId = `${now}_default`
+  const userId = 1 // admin
+
+  // 创建默认文件夹
+  db.prepare(
+    'INSERT OR IGNORE INTO prompt_folders (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(folderId, userId, '默认', now, now)
+
+  const inserts = [
+    {
+      id: `${now}_001`,
+      title: '代码审查助手',
+      description: '对代码进行专业审查，发现潜在问题并给出优化建议',
+      content: `你是一名资深代码审查专家，精通多种编程语言和软件工程最佳实践。
+
+## 任务
+请对以下代码进行全面的 Code Review，从以下维度分析：
+
+1. **正确性** — 逻辑是否正确，边界条件是否处理到位
+2. **安全性** — 是否存在 SQL 注入、XSS、敏感信息泄露等安全漏洞
+3. **性能** — 是否有不必要的循环、重复计算、内存泄漏
+4. **可读性** — 命名是否清晰、结构是否合理、注释是否恰当
+5. **最佳实践** — 是否符合该语言/框架的惯用写法
+
+## 输出格式
+对每个问题标注严重程度（🔴严重 / 🟡建议 / 🟢优化），给出具体行号和修改方案。`,
+      tags: '编程,代码审查,开发工具',
+    },
+    {
+      id: `${now}_002`,
+      title: '中英翻译专家',
+      description: '高质量中英文互译，保持专业术语准确和语境自然',
+      content: `你是一名专业的中英双语翻译专家，擅长技术文档、商务文案和学术论文翻译。
+
+## 翻译原则
+- 忠实原文，不增不减核心信息
+- 专业术语使用行业标准译法
+- 中文翻译符合中文表达习惯，不出现"翻译腔"
+- 英文翻译符合英语母语者表达习惯
+
+## 输出格式
+1. 先输出翻译结果
+2. 然后列出关键术语对照表（如有）
+3. 如有需要说明的翻译选择，简要注释
+
+请开始翻译以下内容：`,
+      tags: '翻译,语言工具,写作',
+    },
+    {
+      id: `${now}_003`,
+      title: 'API 文档生成器',
+      description: '根据代码自动生成清晰的 API 接口文档',
+      content: `你是一名技术文档撰写专家，擅长将代码转化为清晰易读的 API 文档。
+
+## 文档规范
+请为以下 API 接口生成文档，包含：
+
+1. **接口概述** — 一句话描述功能
+2. **请求信息**
+   - Method & URL
+   - Headers（含认证方式）
+   - Body 参数（名称、类型、必填、说明、示例）
+   - Query 参数（同上）
+3. **响应信息**
+   - 成功响应示例（JSON）
+   - 错误响应示例
+   - 状态码说明表
+4. **调用示例** — cURL 或其他语言的请求示例
+5. **注意事项** — 限流、幂等性、版本等特殊说明
+
+## 输出格式
+使用 Markdown 格式输出，结构清晰，便于直接复制到文档系统。`,
+      tags: '开发工具,文档,API',
+    },
+  ]
+
+  const insertPrompt = db.prepare(
+    `INSERT OR IGNORE INTO prompts (id, user_id, title, description, content, folder_id, is_favorite, version_count, current_version, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+  const insertVersion = db.prepare(
+    `INSERT OR IGNORE INTO prompt_versions (id, prompt_id, content, version_number, created_at)
+     VALUES (?, ?, ?, ?, ?)`
+  )
+
+  const insertAll = db.transaction(() => {
+    for (const p of inserts) {
+      insertPrompt.run(p.id, userId, p.title, p.description, p.content, folderId, 0, 1, '1.0.0', now, now)
+      insertVersion.run(`${p.id}_v1`, p.id, p.content, '1.0.0', now)
+    }
+    // 创建 3 个标签
+    const tags = ['编程', '翻译', '开发工具']
+    for (const tagName of tags) {
+      const tagId = `${now}_tag_${tagName}`
+      db.prepare('INSERT OR IGNORE INTO tags (id, user_id, name, created_at) VALUES (?, ?, ?, ?)').run(tagId, userId, tagName, now)
+      const tagObj = db.prepare('SELECT id FROM tags WHERE name = ? AND user_id = ?').get(tagName, userId) as { id: string } | undefined
+      if (!tagObj) continue
+      // 关联到对应的 prompt
+      if (tagName === '编程') {
+        db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)').run(inserts[0].id, tagObj.id, now)
+      }
+      if (tagName === '翻译') {
+        db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)').run(inserts[1].id, tagObj.id, now)
+      }
+      if (tagName === '开发工具') {
+        db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)').run(inserts[0].id, tagObj.id, now)
+        db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)').run(inserts[2].id, tagObj.id, now)
+      }
+    }
+  })
+  insertAll()
+  console.log(`[DB] 已插入 ${inserts.length} 条默认提示词`)
 }
 
 /**

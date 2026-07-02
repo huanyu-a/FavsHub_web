@@ -395,26 +395,31 @@ body {
     justify-content: center;
 }
 
-.modal-content {
+/* 使用 .modal .modal-content 提高特异性，覆盖 main-bundle.css 的同名规则 */
+.modal .modal-content {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
     background: var(--surface-raised);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
     border-radius: var(--radius-xl);
     max-width: 600px;
-    width: 100%;
     max-height: 85vh;
     overflow: hidden;
     box-shadow: var(--shadow-xl);
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
+    padding: 0;
 }
 
-.modal-large {
+.modal .modal-large {
     max-width: 900px;
 }
 
-.modal-xlarge {
+.modal .modal-xlarge {
     max-width: 1100px;
 }
 
@@ -3897,13 +3902,32 @@ body {
 
 /* ── Edit form grid ── */
 .edit-form-grid { display: flex; flex-direction: column; gap: 12px; }
+.edit-form-grid .form-group input,
+.edit-form-grid .form-group textarea,
+.edit-form-grid .form-group select,
+.edit-form-grid .form-group .custom-select {
+  width: 100%;
+  box-sizing: border-box;
+}
+.edit-form-grid .form-group textarea {
+  height: 280px;
+  resize: vertical;
+  min-height: 200px;
+  max-height: 450px;
+}
 .form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-2col > .form-group { min-width: 0; }
 .full-width { width: 100%; }
 .form-input-lg { font-size: 16px !important; font-weight: 600; }
 .form-textarea-code {
   font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace !important;
   font-size: 13px !important; line-height: 1.6 !important; tab-size: 2;
 }
+
+/* 标签选择器：固定最小高度，带滚动 */
+.tag-selector { position: relative; min-height: 42px; }
+.tag-selector .tag-list { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.tag-input { width: 100%; box-sizing: border-box; }
 
 /* ── Tag remove (standalone selector) ── */
 .tag-remove { cursor: pointer; color: var(--text-tertiary); font-size: 14px; }
@@ -5168,6 +5192,7 @@ aside.sidebar {
 }
 
 /* ========== 模态框修复 ========== */
+/* 重置 main-bundle.css 的绝对定位，使用 flex 父容器居中 */
 .modal {
     display: none !important;
 }
@@ -5181,9 +5206,7 @@ aside.sidebar {
     top: auto !important;
     left: auto !important;
     transform: none !important;
-    width: 100% !important;
-    max-width: 900px !important;
-    margin: 0 auto !important;
+    /* 不设 width，让各弹窗自行通过 max-width 控制 */
 }
 #promptModal .modal-content {
     position: relative !important;
