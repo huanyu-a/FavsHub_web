@@ -148,6 +148,9 @@ useHead({ title: '书签管理' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
+function getAuthHeaders() {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
 const tab = ref('list')
 function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }
 // Bookmark list state
@@ -177,7 +180,7 @@ const folderEditForm = reactive({ name: '', parent_id: null as number | null, ic
 import IconPicker from '~/components/common/IconPicker.vue'
 // Users list (for create mode)
 const users = ref<any[]>([])
-async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
+async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users', { headers: getAuthHeaders() }); users.value = r.users || [] } catch { users.value = [] } }
 function buildTree(list: any[]): FolderNode[] {
   const map = new Map<number, FolderNode>()
   const roots: FolderNode[] = []
@@ -238,7 +241,7 @@ async function loadBookmarks() {
   if (filterFolder.value) p.set('folder_id', String(filterFolder.value))
   if (filterTitle.value) p.set('q', filterTitle.value)
   if (filterUrl.value) p.set('url', filterUrl.value)
-  const r = await $fetch<any>(`/api/admin/bookmarks?${p}`)
+  const r = await $fetch<any>(`/api/admin/bookmarks?${p}`, { headers: getAuthHeaders() })
   bookmarks.value = r.bookmarks || []
   total.value = r.total || 0
   loading.value = false
@@ -247,7 +250,7 @@ let dt: any = null
 function debouncedLoad() { clearTimeout(dt); dt = setTimeout(loadBookmarks, 400) }
 async function loadFolders() {
   folderLoading.value = true
-  const d = await $fetch<{ folders: any[] }>('/api/admin/folders')
+  const d = await $fetch<{ folders: any[] }>('/api/admin/folders', { headers: getAuthHeaders() })
   folderAll.value = d.folders || []
   folderLoading.value = false
 }
@@ -272,12 +275,12 @@ function toggleAllFolders() {
 const editVisible = ref(false)
 const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0 })
 function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0 }); editVisible.value = true }
-async function saveEdit() { await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', body: { ...ef } }); editVisible.value = false; loadBookmarks() }
-async function delBm(bm: any) { if (!confirm(`删除「${bm.title}」？`)) return; await $fetch(`/api/admin/bookmarks/${bm.id}`, { method: 'DELETE' }); loadBookmarks() }
-async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favicon/${id}`, { method: 'POST' }); loadBookmarks() }
-async function downloadAllFavicons() { await $fetch('/api/admin/download-favicons', { method: 'POST' }) }
-async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', { method: 'POST' }) }
-async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST' }) }
+async function saveEdit() { await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...ef } }); editVisible.value = false; loadBookmarks() }
+async function delBm(bm: any) { if (!confirm(`删除「${bm.title}」？`)) return; await $fetch(`/api/admin/bookmarks/${bm.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadBookmarks() }
+async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favicon/${id}`, { method: 'POST', headers: getAuthHeaders() }); loadBookmarks() }
+async function downloadAllFavicons() { await $fetch('/api/admin/download-favicons', { method: 'POST', headers: getAuthHeaders() }) }
+async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', { method: 'POST', headers: getAuthHeaders() }) }
+async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST', headers: getAuthHeaders() }) }
 async function exportBookmarks() {
   try {
     const blob = await $fetch('/api/admin/bookmarks/export', {
@@ -307,16 +310,16 @@ async function saveFolderEdit() {
   if (!folderEditForm.name.trim()) return alert('名称不能为空')
   if (folderEditId.value) {
     // Edit mode — PUT
-    await $fetch(`/api/admin/folders/${folderEditId.value}`, { method: 'PUT', body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    await $fetch(`/api/admin/folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   } else {
     // Create mode — POST
     if (!folderEditForm.user_id) return alert('请选择用户')
-    await $fetch('/api/admin/folders', { method: 'POST', body: { name: folderEditForm.name, user_id: folderEditForm.user_id, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    await $fetch('/api/admin/folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, user_id: folderEditForm.user_id, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   }
   folderEditVisible.value = false
   loadFolders()
 }
-async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE' }); loadFolders() }
+async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadFolders() }
 // 拖拽排序
 async function onFolderReorder(oldIndex: number, newIndex: number) {
   if (oldIndex === newIndex) return
@@ -334,7 +337,7 @@ async function onFolderReorder(oldIndex: number, newIndex: number) {
     items.push({ id: f.id, sort_order: order })
   }
   try {
-    await $fetch('/api/admin/folders/reorder', { method: 'PUT', body: { items } })
+    await $fetch('/api/admin/folders/reorder', { method: 'PUT', headers: getAuthHeaders(), body: { items } })
     await loadFolders()
   } catch (e) { console.error('排序失败', e) }
 }

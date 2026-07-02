@@ -29,3 +29,5 @@ data/
 *.db
 *.db-wal
 *.db-shm
+# Local deployment docs (not committed)
+DEPLOY.md

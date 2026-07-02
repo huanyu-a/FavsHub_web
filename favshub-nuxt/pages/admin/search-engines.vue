@@ -68,6 +68,9 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '搜索引擎' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
+function getAuthHeaders() {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
 const engines = ref<any[]>([])
 const loading = ref(false)
 const modalVisible = ref(false)
@@ -76,7 +79,7 @@ const editingId = ref<number | null>(null)
 const form = reactive({ name: '', label: '', url: '', icon: '', category: 'SEARCH', sort_order: 0, is_default: 0 })
 async function load() {
   loading.value = true
-  const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines')
+  const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders() })
   engines.value = d.engines || []
   loading.value = false
 }
@@ -91,11 +94,11 @@ function openEdit(e: any) {
   modalVisible.value = true
 }
 async function save() {
-  if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', body: { ...form } }) }
-  else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', body: { ...form } }) }
+  if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body: { ...form } }) }
+  else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form } }) }
   modalVisible.value = false; load()
 }
-async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE' }); load() }
+async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders() }); load() }
 onMounted(load)
 </script>
 

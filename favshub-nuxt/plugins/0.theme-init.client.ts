@@ -27,16 +27,10 @@ import { getThemeCookie, setThemeCookie, setBackgroundCookie, getBackgroundCooki
 
 export default defineNuxtPlugin((nuxtApp) => {
   const ui = useUIStore()
+
+  // 仅做 cookie 迁移（不修改 store，避免 hydration mismatch）
   try {
     const ls = localStorage.getItem('favshub_theme') as 'light' | 'dark' | 'auto' | null
-    if (ls && ['light', 'dark', 'auto'].includes(ls)) {
-      ui.theme = ls
-    } else {
-      // 无 localStorage 记录：从 SSR 已注入的 data-theme 推断（解析后的 light/dark）
-      const dom = document.documentElement.getAttribute('data-theme')
-      if (dom === 'dark' || dom === 'light') ui.theme = dom
-    }
-
     // cookie 迁移：老用户有 localStorage 但无 cookie → 补写 cookie
     if (ls && !getThemeCookie()) {
       setThemeCookie(ls)
@@ -46,12 +40,24 @@ export default defineNuxtPlugin((nuxtApp) => {
       setBackgroundCookie(bgLs)
     }
   } catch {
-    // localStorage 不可用时保持 store 默认 'auto'
+    // localStorage 不可用时跳过
   }
 
-  // app 挂载后，等一帧确保 main-bundle.css 已应用，再移除防闪 style
-  // 无 cookie 路径可能产生两个同 id 元素（SSR + 脚本），全部清除
+  // hydration 完成后同步主题到 store（此时 DOM 已由 SSR 正确设置）
   nuxtApp.hook('app:mounted', () => {
+    try {
+      const ls = localStorage.getItem('favshub_theme') as 'light' | 'dark' | 'auto' | null
+      if (ls && ['light', 'dark', 'auto'].includes(ls)) {
+        ui.theme = ls
+      } else {
+        const dom = document.documentElement.getAttribute('data-theme')
+        if (dom === 'dark' || dom === 'light') ui.theme = dom
+      }
+    } catch {
+      // 保持 store 默认 'auto'
+    }
+
+    // 等一帧确保 CSS 已应用，再移除防闪 style
     requestAnimationFrame(() => {
       document.querySelectorAll('#__fh_anti_flash').forEach(el => el.remove())
     })

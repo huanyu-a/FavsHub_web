@@ -96,7 +96,10 @@ interface User {
   bookmark_count?: number
   prompt_count?: number
 }
-const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users')
+function getAuthHeaders() {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users', { headers: getAuthHeaders() })
 const users = computed(() => data.value?.users || [])
 const searchQuery = ref('')
 const editingUser = ref<User | null>(null)
@@ -117,6 +120,7 @@ async function saveUser() {
   if (!editingUser.value) return
   await $fetch(`/api/admin/users/${editingUser.value.id}`, {
     method: 'PUT',
+    headers: getAuthHeaders(),
     body: { username: editForm.username, nickname: editForm.nickname, email: editForm.email, is_admin: editForm.is_admin ? 1 : 0 },
   })
   editingUser.value = null
@@ -126,13 +130,14 @@ async function resetPassword(user: User) {
   if (!confirm(`确定重置 ${user.username} 的密码为 123456？`)) return
   await $fetch(`/api/admin/users/${user.id}`, {
     method: 'PUT',
+    headers: getAuthHeaders(),
     body: { password: '123456' },
   })
   alert('密码已重置为 123456')
 }
 async function deleteUser(user: User) {
   if (!confirm(`确定删除用户 ${user.username}？`)) return
-  await $fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+  await $fetch(`/api/admin/users/${user.id}`, { method: 'DELETE', headers: getAuthHeaders() })
   await refresh()
 }
 function formatDate(ts?: number) {

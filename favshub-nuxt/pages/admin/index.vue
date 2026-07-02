@@ -128,7 +128,10 @@ interface AdminStats {
   todayPrompts: number
   dbSize: string
 }
-const { data, pending: isLoading } = await useFetch('/api/admin/stats')
+function getAuthHeaders() {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+const { data, pending: isLoading } = await useFetch('/api/admin/stats', { headers: getAuthHeaders() })
 const stats = computed(() => {
   const d = data.value as any
   return d || { users: 0, bookmarks: 0, prompts: 0, folders: 0 }

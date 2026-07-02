@@ -90,6 +90,9 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '备份管理' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
+function getAuthHeaders() {
+  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })
 const backupFiles = ref<any[]>([])
@@ -98,52 +101,52 @@ const filesLoading = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
 async function loadInfo() {
-  try { info.value = await $fetch('/api/admin/backup/info') } catch {}
+  try { info.value = await $fetch('/api/admin/backup/info', { headers: getAuthHeaders() }) } catch {}
 }
 async function loadSchedule() {
   try {
-    const data = await $fetch<any>('/api/admin/backup-schedule')
+    const data = await $fetch<any>('/api/admin/backup-schedule', { headers: getAuthHeaders() })
     if (data) Object.assign(schedule, data)
   } catch {}
 }
 async function loadFiles() {
   filesLoading.value = true
   try {
-    const data = await $fetch<any>('/api/admin/backup-files')
+    const data = await $fetch<any>('/api/admin/backup-files', { headers: getAuthHeaders() })
     backupFiles.value = data?.files || []
   } catch { backupFiles.value = [] }
   filesLoading.value = false
 }
 async function saveSchedule() {
   try {
-    await $fetch('/api/admin/backup-schedule', { method: 'PUT', body: schedule })
+    await $fetch('/api/admin/backup-schedule', { method: 'PUT', headers: getAuthHeaders(), body: schedule })
     showMessage('备份计划已保存')
   } catch { showMessage('保存失败', 'error') }
 }
 async function manualBackup() {
   backupLoading.value = true
   try {
-    await $fetch('/api/admin/manual-backup', { method: 'POST' })
+    await $fetch('/api/admin/manual-backup', { method: 'POST', headers: getAuthHeaders() })
     showMessage('备份完成')
     await loadFiles()
   } catch { showMessage('备份失败', 'error') }
   backupLoading.value = false
 }
 function downloadBackup() {
-  window.open('/api/admin/backup/download', '_blank')
+  window.open(`/api/admin/backup/download?token=${encodeURIComponent(authStore.token || '')}`, '_blank')
 }
 function downloadFile(name: string) {
-  window.open(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, '_blank')
+  window.open(`/api/admin/backup/download?file=${encodeURIComponent(name)}&token=${encodeURIComponent(authStore.token || '')}`, '_blank')
 }
 async function downloadFavicons() {
   try {
-    const res = await $fetch<any>('/api/admin/download-favicons', { method: 'POST' })
+    const res = await $fetch<any>('/api/admin/download-favicons', { method: 'POST', headers: getAuthHeaders() })
     showMessage(`下载完成：${res?.downloaded || 0} 个`)
   } catch { showMessage('下载失败', 'error') }
 }
 async function retryFavicons() {
   try {
-    const res = await $fetch<any>('/api/admin/retry-failed-favicons', { method: 'POST' })
+    const res = await $fetch<any>('/api/admin/retry-failed-favicons', { method: 'POST', headers: getAuthHeaders() })
     showMessage(`重试完成：${res?.retried || 0} 个`)
   } catch { showMessage('重试失败', 'error') }
 }

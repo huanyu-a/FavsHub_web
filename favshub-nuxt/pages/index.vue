@@ -125,10 +125,32 @@ const displayBookmarks = computed(() => {
   return result
 })
 
-onMounted(async () => {
-  await bookmarksStore.fetchBookmarks(authStore.token || undefined)
-  await searchEngineStore.fetchEngines()
-  await settingsStore.fetchSettings(authStore.token || undefined)
+// ── SSR 数据预取 + 客户端 hydration ──────────────────────
+// 使用 useFetch 而非 store 的 $fetch，确保 SSR 正确转发请求上下文
+
+const { data: bookmarksData } = await useFetch('/api/bookmarks', {
+  headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+})
+const { data: enginesData } = await useFetch('/api/search-engines')
+const { data: settingsData } = await useFetch('/api/settings', {
+  headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+})
+
+// 同步到 store
+watchEffect(() => {
+  const bm = bookmarksData.value as any
+  if (bm?.bookmarks) {
+    bookmarksStore.bookmarks = bm.bookmarks
+    bookmarksStore.folders = bm.folders || []
+  }
+  const eng = enginesData.value as any
+  if (eng?.engines) {
+    searchEngineStore.engines = eng.engines
+  }
+  const set = settingsData.value as any
+  if (set?.data) {
+    settingsStore.settings = { ...settingsStore.defaults, ...set.data }
+  }
 })
 
 function selectFolder(id: number | null) {

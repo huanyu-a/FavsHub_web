@@ -202,7 +202,7 @@ function saveLimits() {
 onMounted(async () => {
   // 加载 TDK
   try {
-    const d = await $fetch<any>('/api/tdk')
+    const d = await $fetch<any>('/api/tdk', { headers: getAuthHeaders() })
     Object.assign(tdk, { siteTitle: d.siteTitle || '', siteDescription: d.siteDescription || '', siteKeywords: d.siteKeywords || '' })
   } catch {}
   // 加载所有系统配置

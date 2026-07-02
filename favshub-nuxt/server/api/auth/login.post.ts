@@ -30,10 +30,12 @@ export default defineEventHandler(async (event) => {
   const token = signToken({ id: user.id, username: user.username })
 
   // 服务端设置 httpOnly cookie（防止 XSS 读取）
+  // secure 标志仅在 HTTPS 下启用，支持 HTTP 开发环境
+  const isSecure = getRequestProtocol(event) === 'https'
   setCookie(event, 'favshub_token', token, {
     path: '/',
     httpOnly: true,
-    secure: true,
+    secure: isSecure,
     sameSite: 'lax',
     maxAge: getConfigInt('cookie_max_age', 60 * 60 * 24 * 7),
   })
