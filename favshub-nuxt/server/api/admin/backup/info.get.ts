@@ -2,12 +2,12 @@
  * GET /api/admin/backup/info — 获取备份状态信息
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
   const config = useRuntimeConfig(event)
   const dbPath = config.dbPath || join(process.cwd(), 'data', 'favshub.db')

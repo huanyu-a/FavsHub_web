@@ -129,11 +129,13 @@ const displayBookmarks = computed(() => {
 // 使用 useFetch 而非 store 的 $fetch，确保 SSR 正确转发请求上下文
 
 const { data: bookmarksData } = await useFetch('/api/bookmarks', {
-  headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+  headers: authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {},
+  credentials: 'include',
 })
 const { data: enginesData } = await useFetch('/api/search-engines')
 const { data: settingsData } = await useFetch('/api/settings', {
-  headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+  headers: authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {},
+  credentials: 'include',
 })
 
 // 同步到 store
@@ -214,7 +216,6 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 
 <style scoped>
 .page-footer {
-  background: var(--surface-sunken);
   text-align: center;
   padding: 1rem;
   border-top: 1px solid var(--border);

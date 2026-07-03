@@ -8,7 +8,7 @@ export const SYSTEM_ONLY_KEYS = [
   'promptproTitle', 'promptproDescription', 'promptproKeywords',
   'title', 'description', 'keywords',
   // System
-  'allow_registration', 'baiduAppKey',
+  'allow_registration',
   // Backup
   'backup_enabled', 'backup_hour', 'backup_minute', 'backup_keep_copies',
   // Favicon
@@ -17,7 +17,7 @@ export const SYSTEM_ONLY_KEYS = [
   'jwt_token_expiry', 'cookie_max_age',
   'rate_limit_login_max', 'rate_limit_login_window',
   'rate_limit_register_max', 'rate_limit_register_window',
-  'min_password_length',
+  'min_password_length', 'trust_proxy',
   // Data limits
   'max_bookmarks_per_sync', 'bookmarks_query_limit',
 ]
@@ -35,7 +35,6 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   promptproKeywords: 'PromptPro,提示词管理,AI提示词,提示词分类,提示词模板,ChatGPT提示词',
   // System
   allow_registration: 'true',
-  baiduAppKey: '',
   // Backup
   backup_enabled: 'false',
   backup_hour: '3',
@@ -54,6 +53,7 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   rate_limit_register_max: '10',
   rate_limit_register_window: '60000',
   min_password_length: '8',
+  trust_proxy: 'false',
   // Data limits
   max_bookmarks_per_sync: '20000',
   bookmarks_query_limit: '500',

@@ -1,20 +1,47 @@
 /**
- * Nitro plugin: 消除页面加载时的白色闪烁（cookie 驱动版）
+ * Nitro plugin: SSR 注入主题属性（零闪烁）
+ *
+ * 仅在 <html> 上注入 data-theme / color-scheme / class，
+ * 不再用内联 <style> 硬编码背景色——背景由 CSS 规则自然接管：
+ *   - themes.css 中 html[data-theme="light"].theme-bg-xxx { background: ... }
+ *   - themes.css 中 html[data-theme="dark"].theme-bg-xxx { background: ... }
+ *
+ * 新主题体系：浅色主题在浅色模式生效，深色主题在深色模式生效。
+ * SSR 直接注入 theme-bg-* class，CSS 选择器负责模式匹配。
  *
  * 优先级：
- * 1. cookie（用户已选过主题）→ SSR 直接注入正确主题，零闪烁
+ * 1. cookie（用户已选过主题）→ SSR 直接注入正确主题 + 背景类
  * 2. Sec-CH-Prefers-Color-Scheme 请求头 → auto 模式也能 SSR 精确
- * 3. 无 cookie + 无头 → 默认浅色 + 客户端 anti-flash 脚本兜底
- *
- * 不再使用 document.write — 改用 document.createElement('style') 注入。
- * cookie 由客户端 utils/themeCookie.ts 双写（localStorage 镜像）。
- *
- * 注意：gradient-background-N 是整段渐变，不纳入本文件处理，
- * 仅在无 cookie 兜底脚本中通过 class + 颜色映射近似覆盖。
+ * 3. 无 cookie → 默认浅色 + 客户端兜底脚本
  */
+
+/** 所有有效主题 class（含旧 gradient-background-* 自动迁移） */
+const VALID_THEMES: Record<string, true> = {
+  // 原有 7 套浅色主题
+  'theme-bg-1': true, 'theme-bg-2': true, 'theme-bg-3': true,
+  'theme-bg-4': true, 'theme-bg-5': true, 'theme-bg-6': true,
+  'theme-bg-7': true,
+  // TMD 浅色主题
+  'theme-bg-chen-guang': true, 'theme-bg-tian-qing': true,
+  'theme-bg-hu-po': true, 'theme-bg-na-tie': true,
+  // TMD 深色主题
+  'theme-bg-mo-ye': true, 'theme-bg-xing-yun': true,
+  'theme-bg-ji-guang': true, 'theme-bg-zi-teng': true,
+}
+
+/** 将旧 gradient-background-N 迁移为 theme-bg-N */
+function normalizeBg(bg: string | undefined): string | null {
+  if (!bg) return null
+  const m = bg.match(/^gradient-background-(\d+)$/)
+  if (m) return `theme-bg-${m[1]}`
+  if (VALID_THEMES[bg]) return bg
+  return null
+}
+
+const DEFAULT_BG = 'theme-bg-7'
+
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('render:html', (html, { event }) => {
-    // ── 读 cookie（无 event 时跳过，如 prerender） ──
     const themeCookie = event ? getCookie(event, 'fh_theme') : undefined
     const bgCookie = event ? getCookie(event, 'fh_bg') : undefined
 
@@ -22,20 +49,19 @@ export default defineNitroPlugin((nitroApp) => {
       ? themeCookie
       : null
 
-    const bg = bgCookie || null
+    const bg = normalizeBg(bgCookie)
 
-    // ── 有 cookie → SSR 直接注入精确主题 ──
+    // ── 有 cookie → SSR 直接注入 html 属性 ──
     if (theme) {
       let effective: 'light' | 'dark' = 'light'
       let colorScheme = 'light'
 
       if (theme === 'auto') {
-        // 读 Client Hint 精确判断；无头则默认 light
         const prefersDark = event
           ? getRequestHeader(event, 'Sec-CH-Prefers-Color-Scheme') === 'dark'
           : false
         effective = prefersDark ? 'dark' : 'light'
-        colorScheme = 'light dark' // auto 双值，让浏览器跟随系统
+        colorScheme = 'light dark'
       } else {
         effective = theme
         colorScheme = theme
@@ -44,7 +70,11 @@ export default defineNitroPlugin((nitroApp) => {
       html.htmlAttrs.push(`data-theme="${effective}"`)
       html.htmlAttrs.push(`style="color-scheme:${colorScheme}"`)
 
-      // 服务端解码 auth token 注入 data-admin（仅用于 UI 样式，非安全守卫）
+      // 注入 theme-bg-* class（CSS 选择器负责模式匹配）
+      const bgClass = bg || DEFAULT_BG
+      html.htmlAttrs.push(`class="${bgClass}"`)
+
+      // 服务端解码 auth token 注入 data-admin
       const authToken = getCookie(event, 'favshub_token')
       if (authToken) {
         try {
@@ -54,42 +84,25 @@ export default defineNitroPlugin((nitroApp) => {
           }
         } catch (_) {}
       }
-
-      // 替换 defaultCSS：精确背景色
-      const bgColor = effective === 'dark' ? '#0B1120' : '#F8F7F4'
-      html.head.unshift(
-        `<style id="__fh_anti_flash">html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:${bgColor}}</style>`
-      )
-      return // 有 cookie，不需要兜底脚本
+      return
     }
 
-    // ── 无 cookie → 默认浅色 + 客户端兜底脚本 ──
-    html.head.unshift(
-      `<style id="__fh_anti_flash">html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:#F8F7F4;color-scheme:light}</style>`
-    )
-
-    // 非阻塞脚本：无 document.write，用 createElement 注入
-    // 仅处理 SSR 无法覆盖的场景（首访无 cookie）
+    // ── 无 cookie → 客户端兜底脚本（首访用户） ──
     html.head.unshift(`<script>(function(){
-var h=document.documentElement,s=document.createElement('style');
-s.id='__fh_anti_flash';
+var h=document.documentElement;
 try{
 var th=localStorage.getItem('favshub_theme')||'auto';
 if(th==='auto'){th=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}
 h.setAttribute('data-theme',th);
-var bgc=th==='dark'?'#0B1120':(function(){
-var bg=localStorage.getItem('favshub_bg')||'gradient-background-7';
+h.style.colorScheme=th;
+var bg=localStorage.getItem('favshub_bg')||'${DEFAULT_BG}';
+// 迁移旧 gradient-background-N → theme-bg-N
+var m=bg.match(/^gradient-background-(\\d+)$/);
+if(m) bg='theme-bg-'+m[1];
 h.classList.add(bg);
-var m={'gradient-background-1':'#CBD5E1','gradient-background-2':'#BFDBFE','gradient-background-3':'#E9D5FF','gradient-background-4':'#F2F8F0','gradient-background-5':'#FCFCF7','gradient-background-6':'#F4F1F8','gradient-background-7':'#F8F7F4'};
-return m[bg]||'#F8F7F4'
-})();
-s.textContent='html,body,#__nuxt,aside,main,#sidebar-container,.custom-width{background:'+bgc+';color-scheme:'+th+'}';
-var t=localStorage.getItem('favshub_token')||localStorage.getItem('fh_local_favshub_token');
-if(t){h.setAttribute('data-guest','false');try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}
-else{h.setAttribute('data-guest','true')}
+var t=localStorage.getItem('favshub_token');
+if(t&&t!=='cookie_auth'){try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}
 }catch(e){}
-document.head.appendChild(s);
-// 清理由 0.theme-init.client.ts 的 app:mounted hook 负责
 })()</script>`)
   })
 })

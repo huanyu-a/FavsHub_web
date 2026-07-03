@@ -61,7 +61,7 @@ function sendExtensionMessage(action: string, extraParams: Record<string, any> =
       }
     }
     window.addEventListener('message', handler)
-    window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, '*')
+    window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, window.location.origin)
     setTimeout(() => { window.removeEventListener('message', handler); resolve(null) }, 3000)
   })
 }

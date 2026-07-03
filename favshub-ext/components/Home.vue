@@ -124,7 +124,17 @@ function onFaviconError(e: Event, title: string) {
   if (fallback) fallback.style.display = 'flex';
 }
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function openLink(url: string) {
+  if (!url || !isSafeUrl(url)) return;
   chrome.tabs.create({ url });
 }
 

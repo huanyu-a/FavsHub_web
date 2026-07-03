@@ -144,8 +144,8 @@ if (import.meta.client) {
   left: 0;
   right: 0;
   margin-bottom: 6px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   padding: 8px 0;
@@ -185,14 +185,14 @@ if (import.meta.client) {
   color: var(--text-secondary);
 }
 .user-menu-role.admin {
-  color: var(--primary-color);
+  color: var(--primary);
 }
 .user-menu-role.guest {
   color: var(--text-tertiary);
 }
 .user-menu-divider {
   height: 1px;
-  background: var(--border-color);
+  background: var(--border);
   margin: 4px 0;
 }
 .user-menu-items {
@@ -228,7 +228,7 @@ if (import.meta.client) {
   margin-left: auto;
   font-size: 12px;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
+  background: var(--surface-sunken);
   padding: 2px 8px;
   border-radius: 4px;
 }

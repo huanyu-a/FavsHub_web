@@ -37,7 +37,7 @@
               @click="$emit('select-folder', null)"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:var(--primary-color);flex-shrink:0;width:20px;text-align:center;"></i>
+              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
               <span class="item-count" style="position:absolute;right:8px;">{{ totalBookmarkCount }}</span>
               <span

@@ -2,11 +2,11 @@
  * POST /api/admin/folders — 创建文件夹（管理员）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
 
   const body = await readBody(event)

@@ -47,9 +47,6 @@
             <span class="user-role">{{ isAdmin ? '管理员' : '普通用户' }}</span>
           </div>
         </div>
-        <button class="nav-item" type="button" style="border:none;background:none;width:100%;font:inherit;text-align:left;cursor:pointer;" @click="cycleTheme" :title="'当前主题: ' + themeLabel">
-          <i :class="themeIcon"></i><span>{{ themeLabel }}</span>
-        </button>
         <NuxtLink to="/" class="nav-item">
           <i class="ri-arrow-left-line"></i><span>返回前台</span>
         </NuxtLink>
@@ -158,14 +155,7 @@ async function saveProfile() {
   }
 }
 // ── 主题切换逻辑（集中在 composables/useTheme.ts）──
-const uiStore = useUIStore()
-const { initThemeWatchers, cycleTheme, themeLabel } = useTheme()
-
-// 三态主题图标：light=太阳 / dark=月亮 / auto=电脑
-const themeIcon = computed(() => {
-  const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-mac-line' }
-  return icons[uiStore.theme] || 'ri-sun-line'
-})
+const { initThemeWatchers } = useTheme()
 
 if (import.meta.client) {
   initThemeWatchers()
@@ -174,11 +164,11 @@ if (import.meta.client) {
 useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
-    { rel: 'stylesheet', href: '/css/tokens-register.css' },
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260619' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260619' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703b' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260617' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260703' },
   ],
 })
 </script>

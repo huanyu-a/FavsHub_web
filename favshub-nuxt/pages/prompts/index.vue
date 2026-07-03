@@ -6,7 +6,7 @@
         <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
           <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
             <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
-            <div class="sidebar-brand-copy" style="display:flex;flex-direction:column;gap:2px;">
+            <div class="sidebar-brand-copy">
               <span class="sidebar-brand-title">PromptPro</span>
               <span class="sidebar-brand-subtitle">Prompt Manager</span>
             </div>
@@ -33,12 +33,12 @@
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
               class="folder-item"
-              :class="{ 'selected-folder': !activeFolderId }"
+              :class="{ 'bg-emerald-500': !activeFolderId }"
               style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
               @click="selectAndToggleAll"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:var(--primary-color);flex-shrink:0;width:20px;text-align:center;"></i>
+              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
               <span class="item-count" style="position:absolute;right:8px;">{{ allPromptCount }}</span>
               <span
@@ -52,7 +52,7 @@
             <!-- 收藏 -->
             <li
               class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
-              :class="{ 'selected-folder': activeFolderId === '_favorites' }"
+              :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
               @click="activeFolderId = '_favorites'; loadPrompts()"
             >
               <i class="ri-star-line" style="font-size:16px;color:var(--warning);margin-right:8px;width:20px;text-align:center;"></i>
@@ -266,7 +266,7 @@ useHead({
   title: 'PromptPro - 提示词管理',
   titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260617' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260703' },
   ],
 })
 
@@ -823,8 +823,4 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.selected-folder {
-  background: var(--primary);
-  color: var(--text-inverse);
-}
 </style>

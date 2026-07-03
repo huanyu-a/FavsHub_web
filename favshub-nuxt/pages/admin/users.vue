@@ -97,9 +97,9 @@ interface User {
   prompt_count?: number
 }
 function getAuthHeaders() {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
-const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users', { headers: getAuthHeaders() })
+const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users', { headers: getAuthHeaders(), credentials: 'include' })
 const users = computed(() => data.value?.users || [])
 const searchQuery = ref('')
 const editingUser = ref<User | null>(null)
@@ -121,23 +121,37 @@ async function saveUser() {
   await $fetch(`/api/admin/users/${editingUser.value.id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
+    credentials: 'include',
     body: { username: editForm.username, nickname: editForm.nickname, email: editForm.email, is_admin: editForm.is_admin ? 1 : 0 },
   })
   editingUser.value = null
   await refresh()
 }
 async function resetPassword(user: User) {
-  if (!confirm(`确定重置 ${user.username} 的密码为 123456？`)) return
-  await $fetch(`/api/admin/users/${user.id}`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: { password: '123456' },
-  })
-  alert('密码已重置为 123456')
+  if (!confirm(`确定重置 ${user.username} 的密码？将生成随机密码。`)) return
+  // 生成随机密码（排除易混字符）
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let randomPwd = ''
+  const arr = new Uint8Array(12)
+  crypto.getRandomValues(arr)
+  for (let i = 0; i < 12; i++) {
+    randomPwd += charset[arr[i] % charset.length]
+  }
+  try {
+    await $fetch(`/api/admin/users/${user.id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: { password: randomPwd },
+    })
+    alert(`密码已重置为：${randomPwd}\n请告知用户尽快登录修改密码。`)
+  } catch (err: any) {
+    alert(err?.data?.error || '重置失败')
+  }
 }
 async function deleteUser(user: User) {
   if (!confirm(`确定删除用户 ${user.username}？`)) return
-  await $fetch(`/api/admin/users/${user.id}`, { method: 'DELETE', headers: getAuthHeaders() })
+  await $fetch(`/api/admin/users/${user.id}`, { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' })
   await refresh()
 }
 function formatDate(ts?: number) {

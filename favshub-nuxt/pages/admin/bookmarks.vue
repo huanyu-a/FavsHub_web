@@ -37,7 +37,7 @@
             <tr v-for="bm in bookmarks" :key="bm.id">
               <td>{{ bm.id }}</td>
               <td><img v-if="bm.icon" :src="bm.icon" width="20" height="20" style="object-fit:contain;" @error="(e) => (e.target as HTMLElement).style.display='none'"></td>
-              <td><a :href="bm.url" target="_blank" rel="noopener" style="color:var(--primary-color);">{{ bm.title }}</a></td>
+              <td><a :href="bm.url" target="_blank" rel="noopener" style="color:var(--primary);">{{ bm.title }}</a></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ bm.url }}</td>
               <td>{{ bm.folder_name || '-' }}</td>
               <td>{{ bm.username || bm.user_id }}</td>
@@ -81,7 +81,7 @@
             <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)">{{ collapsedIds.has(f.id) ? '▶' : '▼' }}</span>
             <span v-else style="display:inline-block;width:16px;"></span>
             <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
-            <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary-color);"></i>
+            <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary);"></i>
             <span class="folder-drag-name">{{ f.name }}</span>
             <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
             <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.bookmark_count || 0 }}个</span>
@@ -149,7 +149,7 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
 function getAuthHeaders() {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
 const tab = ref('list')
 function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }
@@ -284,8 +284,9 @@ async function forceLocalize() { await $fetch('/api/admin/force-localize-icons',
 async function exportBookmarks() {
   try {
     const blob = await $fetch('/api/admin/bookmarks/export', {
-      headers: { Authorization: `Bearer ${authStore.token}` },
+      headers: getAuthHeaders(),
       responseType: 'blob',
+      credentials: 'include',
     })
     const url = URL.createObjectURL(blob as Blob)
     const a = document.createElement('a')
@@ -366,10 +367,10 @@ onMounted(() => { loadBookmarks(); loadFolders(); loadUsers() })
 .folder-drag-list { display: flex; flex-direction: column; gap: 2px; }
 .folder-drag-item {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; background: var(--bg-secondary);
+  padding: 8px 12px; background: var(--surface-sunken);
   border-radius: 6px; cursor: default; transition: background 0.15s;
 }
-.folder-drag-item:hover { background: var(--bg-tertiary); }
+.folder-drag-item:hover { background: var(--surface-hover); }
 .folder-drag-handle {
   cursor: grab; color: var(--text-tertiary); font-size: 14px; user-select: none;
   width: 16px; text-align: center; flex-shrink: 0;

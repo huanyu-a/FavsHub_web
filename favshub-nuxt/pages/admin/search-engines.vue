@@ -69,7 +69,7 @@ useHead({ title: '搜索引擎' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 function getAuthHeaders() {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
 const engines = ref<any[]>([])
 const loading = ref(false)
@@ -79,7 +79,7 @@ const editingId = ref<number | null>(null)
 const form = reactive({ name: '', label: '', url: '', icon: '', category: 'SEARCH', sort_order: 0, is_default: 0 })
 async function load() {
   loading.value = true
-  const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders() })
+  const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders(), credentials: 'include' })
   engines.value = d.engines || []
   loading.value = false
 }
@@ -94,11 +94,11 @@ function openEdit(e: any) {
   modalVisible.value = true
 }
 async function save() {
-  if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body: { ...form } }) }
-  else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form } }) }
+if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' }) }
+else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' }) }
   modalVisible.value = false; load()
 }
-async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders() }); load() }
+async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' }); load() }
 onMounted(load)
 </script>
 

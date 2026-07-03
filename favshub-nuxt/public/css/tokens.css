@@ -1,55 +1,85 @@
 /**
  * 语义 Token 层 — 主题引擎现代化地基
  *
+ * 包含 @property 注册（原 tokens-register.css）和语义变量定义。
  * 所有颜色用 light-dark() 定义，按 color-scheme 自动取值。
  * 组件只需引用 var(--token)，不再需要 [data-theme="dark"] 覆盖。
  *
- * 加载顺序：tokens-register.css → tokens.css → main-bundle.css / promptpro-bundle.css
- * tokens-register.css 的 @property 声明让这些 token 可被 transition 插值。
- *
- * 浏览器要求：color-scheme + light-dark() baseline 2024+，@property baseline 2024+
+ * 加载顺序：tokens.css → themes.css → main-bundle.css / promptpro-bundle.css
  *
  * @layer 级联层声明：
- * - tokens：语义变量（本文件，无 wrapper）
- * - reset/base：全局重置 + 基础排版（预留）
+ * - tokens：语义变量（本文件）
+ * - base：全局底色
  * - components：组件样式（main-bundle.css, promptpro-bundle.css, admin.css）
  * - utilities：响应式/工具类（mobile-responsive.css）
  * - overrides：需要赢过 scoped 样式的 !important 规则（预留）
- *
- * 层序：utilities > components，mobile 覆盖自动生效。
- * !important 仍保留用于对抗内联样式和 Vue scoped 样式。
  */
 @layer tokens, reset, base, components, utilities, overrides;
 
+/* ════════════════════════════════════════════
+   @property 注册 — 让 CSS 自定义属性可被 transition / View Transitions 插值
+   initial-value 仅作为 fallback，实际值由下方 :root 的 light-dark() 提供。
+   ════════════════════════════════════════════ */
+@property --primary          { syntax: '<color>'; inherits: true; initial-value: #4F46E5; }
+@property --primary-hover    { syntax: '<color>'; inherits: true; initial-value: #4338CA; }
+@property --primary-light    { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.08); }
+@property --primary-medium   { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.15); }
+@property --primary-dark     { syntax: '<color>'; inherits: true; initial-value: #3730A3; }
+@property --surface          { syntax: '<color>'; inherits: true; initial-value: #F8F7F4; }
+@property --surface-raised   { syntax: '<color>'; inherits: true; initial-value: #FCFBF9; }
+@property --surface-sunken   { syntax: '<color>'; inherits: true; initial-value: #F1F0EC; }
+@property --surface-hover    { syntax: '<color>'; inherits: true; initial-value: #F5F5F0; }
+@property --surface-active   { syntax: '<color>'; inherits: true; initial-value: #E5E5E0; }
+@property --surface-selected { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.10); }
+@property --sidebar-bg       { syntax: '<color>'; inherits: true; initial-value: rgba(252,251,249,0.95); }
+@property --text-primary     { syntax: '<color>'; inherits: true; initial-value: #1F2937; }
+@property --text-secondary   { syntax: '<color>'; inherits: true; initial-value: #4B5563; }
+@property --text-tertiary    { syntax: '<color>'; inherits: true; initial-value: #9CA3AF; }
+@property --text-inverse     { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
+@property --border           { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.06); }
+@property --border-focus     { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.4); }
+@property --divider          { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.06); }
+@property --overlay          { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.4); }
+@property --accent-blue      { syntax: '<color>'; inherits: true; initial-value: #3B82F6; }
+@property --accent-purple    { syntax: '<color>'; inherits: true; initial-value: #764BA2; }
+@property --accent-red       { syntax: '<color>'; inherits: true; initial-value: #EF4444; }
+@property --accent-yellow    { syntax: '<color>'; inherits: true; initial-value: #F59E0B; }
+@property --success          { syntax: '<color>'; inherits: true; initial-value: #10B981; }
+@property --danger           { syntax: '<color>'; inherits: true; initial-value: #EF4444; }
+@property --warning          { syntax: '<color>'; inherits: true; initial-value: #F59E0B; }
+
+/* ════════════════════════════════════════════
+   语义变量 — 默认值与 theme-bg-7（浅色）/ theme-bg-mo-ye（深色）一致
+   ════════════════════════════════════════════ */
 :root {
   color-scheme: light dark;
 
-  /* ── 品牌色 ── */
-  --primary:        light-dark(#10B981, #34D399);
-  --primary-hover:  light-dark(#059669, #10B981);
-  --primary-light:  light-dark(rgba(16,185,129,0.08), rgba(52,211,153,0.12));
-  --primary-medium: light-dark(rgba(16,185,129,0.15), rgba(52,211,153,0.2));
-  --primary-dark:   light-dark(#047857, #059669);
+  /* ── 强调色（由 themes.css 覆盖） ── */
+  --primary:        light-dark(#4F46E5, #60A5FA);
+  --primary-hover:  light-dark(#4338CA, #3B82F6);
+  --primary-light:  light-dark(rgba(79,70,229,0.08), rgba(96,165,250,0.12));
+  --primary-medium: light-dark(rgba(79,70,229,0.15), rgba(96,165,250,0.2));
+  --primary-dark:   light-dark(#3730A3, #2563EB);
 
   /* ── 面色 ── */
-  --surface:          light-dark(#F8F7F4, #0B1120);   /* 页面底 */
-  --surface-raised:   light-dark(#ffffff, #1E293B);   /* 卡片/弹层 */
-  --surface-sunken:   light-dark(#F1F0EC, #0F172A);   /* 输入框/凹区 */
-  --surface-hover:    light-dark(#f5f5f5, rgba(51,65,85,0.6));
-  --surface-active:   light-dark(#e5e5e5, rgba(71,85,105,0.8));
-  --surface-selected: light-dark(rgba(16,185,129,0.08), rgba(16,185,129,0.15));
-  --sidebar-bg:       light-dark(rgba(252,250,245,0.95), rgba(15,23,42,0.95));
+  --surface:          light-dark(#F8F7F4, #0F172A);
+  --surface-raised:   light-dark(#FCFBF9, #1E293B);
+  --surface-sunken:   light-dark(#F1F0EC, #0B1120);
+  --surface-hover:    light-dark(#F5F5F0, rgba(51,65,85,0.6));
+  --surface-active:   light-dark(#E5E5E0, rgba(71,85,105,0.8));
+  --surface-selected: light-dark(rgba(79,70,229,0.10), rgba(96,165,250,0.15));
+  --sidebar-bg:       light-dark(rgba(252,251,249,0.95), rgba(15,23,42,0.95));
 
   /* ── 文字色 ── */
-  --text-primary:   light-dark(#1F2937, #E5E7EB);
-  --text-secondary: light-dark(#6B7280, #9CA3AF);
-  --text-tertiary:  light-dark(#9CA3AF, #6B7280);
-  --text-inverse:   light-dark(#ffffff, #1F2937);
+  --text-primary:   light-dark(#1F2937, #E2E8F0);
+  --text-secondary: light-dark(#4B5563, #94A3B8);
+  --text-tertiary:  light-dark(#9CA3AF, #64748B);
+  --text-inverse:   light-dark(#ffffff, #0F172A);
 
   /* ── 边框 / 分割线 ── */
-  --border:       light-dark(rgba(0,0,0,0.06), rgba(255,255,255,0.08));
-  --border-focus: light-dark(rgba(16,185,129,0.4), rgba(52,211,153,0.4));
-  --divider:      light-dark(rgba(0,0,0,0.06), rgba(255,255,255,0.06));
+  --border:       light-dark(rgba(31,41,55,0.08), #334155);
+  --border-focus: light-dark(rgba(79,70,229,0.4), rgba(96,165,250,0.4));
+  --divider:      light-dark(rgba(31,41,55,0.06), rgba(255,255,255,0.06));
 
   /* ── 阴影 ── */
   --shadow-sm:  light-dark(0 1px 3px rgba(0,0,0,0.05),  0 1px 3px rgba(0,0,0,0.3));
@@ -66,9 +96,11 @@
   --accent-purple: light-dark(#764ba2, #a78bfa);
   --accent-red:    light-dark(#EF4444, #F87171);
   --accent-yellow: light-dark(#F59E0B, #FBBF24);
-  --success:       light-dark(#10B981, #34D399);
-  --danger:        light-dark(#EF4444, #F87171);
-  --warning:       light-dark(#F59E0B, #FBBF24);
+
+  /* ── 语义状态色（独立于强调色，不随主题变） ── */
+  --success:       light-dark(#10B981, #3FB950);
+  --danger:        light-dark(#EF4444, #F85149);
+  --warning:       light-dark(#F59E0B, #D29922);
 
   /* ── 圆角 ── */
   --radius-sm: 8px;
@@ -85,37 +117,11 @@
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"]  { color-scheme: dark; }
 
-/*
- * ── 向后兼容别名 ──
- * 现有 CSS 用 --primary-color / --bg-color / --card-bg 等名称。
- * 在组件全部迁移到新 token 名之前，保留这些别名指向新 token。
- * 全部迁移完成后删除。
- */
-:root {
-  --primary-color: var(--primary);
-  --bg-color:      var(--surface);
-  --bg-dark:       #0B1120;          /* 仅 JS 硬编码引用，不纳入 light-dark */
-  --card-bg:       var(--surface-raised);
-  --card-bg-dark:  #1E293B;          /* 同上 */
-  --text-primary-dark:  var(--text-primary);   /* 别名，删旧名后消失 */
-  --text-secondary-dark: var(--text-secondary);
-  --border-color:  var(--border);
-  --border-color-dark: var(--border);
-  --shadow-sm:     var(--shadow-sm);
-  --shadow-md:     var(--shadow-md);
-  --shadow-lg:     var(--shadow-lg);
-  --shadow-xl:     var(--shadow-xl);
-  --sidebar-bg:    var(--sidebar-bg);
+/* 别名已全部迁移到规范变量名，向后兼容块移除 */
 
-  /* Sidebar.vue 等组件使用的旧名 */
-  --bg-primary:    var(--surface-raised);
-  --bg-secondary:  var(--surface-sunken);
-  --bg-tertiary:   var(--surface-hover);
-  --bg-card:       var(--surface-raised);
-}
-
-/* ── 页面底色：anti-flash 清理后由 token 驱动 ──
-   注意：不包含 #__nuxt，否则会遮盖 html 上的渐变背景 ── */
-html, body {
-  background: var(--surface);
+/* ── 页面底色：由 token 驱动，@layer base 让组件层可覆盖 ── */
+@layer base {
+  html, body {
+    background: var(--surface);
+  }
 }

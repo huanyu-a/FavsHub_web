@@ -6,7 +6,7 @@
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
 
-const SENSITIVE_KEYS = ['baiduAppKey']
+const SENSITIVE_KEYS: string[] = []
 
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)

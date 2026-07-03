@@ -1,0 +1,349 @@
+/**
+ * FavsHub 主题配色方案 — 15 套完整主题
+ *
+ * 设计原则：
+ * 1. 每套主题拥有独立的 --primary 强调色
+ * 2. --surface-raised 与 --surface 保持同一色系
+ * 3. 只覆盖与 :root 默认值不同的变量，其余继承 tokens.css
+ *
+ * 加载顺序：tokens.css → themes.css → main-bundle.css
+ */
+
+/* ════════════════════════════════════════════
+   浅色主题共享值（themes 1-3 使用 Slate 文字色系）
+   ════════════════════════════════════════════ */
+html[data-theme="light"].theme-bg-1,
+html[data-theme="light"].theme-bg-2,
+html[data-theme="light"].theme-bg-3 {
+  --text-primary:   #1E293B;
+  --text-secondary: #475569;
+  --text-tertiary:  #94A3B8;
+  --divider:        rgba(30,41,59,0.06);
+  --overlay:        rgba(15,23,42,0.35);
+  --accent-purple:  #8B5CF6;
+  --shadow-sm:      0 1px 3px rgba(15,23,42,0.10);
+  --shadow-md:      0 4px 12px rgba(15,23,42,0.14);
+  --shadow-lg:      0 12px 40px rgba(15,23,42,0.18);
+  --shadow-xl:      0 20px 60px rgba(15,23,42,0.22);
+}
+
+/* ════════════════════════════════════════════
+   浅色主题（11 套）— 仅覆盖与默认值不同的变量
+   ════════════════════════════════════════════ */
+
+/* ── 1. 薄雾灰 — Slate 灰底 + Teal ── */
+html[data-theme="light"].theme-bg-1 {
+  --surface:          #CBD5E1;
+  --surface-raised:   #E2E8F0;
+  --surface-sunken:   #94A3B8;
+  --surface-hover:    #C0C9D6;
+  --surface-active:   #B4BDCB;
+  --surface-selected: rgba(13,148,136,0.10);
+  --sidebar-bg:       rgba(226,232,240,0.9);
+  --border:           rgba(30,41,59,0.12);
+  --border-focus:     rgba(13,148,136,0.4);
+  --primary:          #0D9488;
+  --primary-hover:    #0F766E;
+  --primary-light:    rgba(13,148,136,0.08);
+  --primary-medium:   rgba(13,148,136,0.15);
+  --primary-dark:     #115E59;
+  --accent-blue:      #0EA5E9;
+}
+
+/* ── 2. 天空白 — Sky 蓝底 + Blue ── */
+html[data-theme="light"].theme-bg-2 {
+  --surface:          #BFDBFE;
+  --surface-raised:   #DBEAFE;
+  --surface-sunken:   #93C5FD;
+  --surface-hover:    #B0CCEC;
+  --surface-active:   #A6C4E8;
+  --surface-selected: rgba(37,99,235,0.10);
+  --sidebar-bg:       rgba(219,234,254,0.9);
+  --border:           rgba(30,41,59,0.10);
+  --border-focus:     rgba(37,99,235,0.4);
+  --primary:          #2563EB;
+  --primary-hover:    #1D4ED8;
+  --primary-light:    rgba(37,99,235,0.08);
+  --primary-medium:   rgba(37,99,235,0.15);
+  --primary-dark:     #1E40AF;
+  --accent-blue:      #2563EB;
+}
+
+/* ── 3. 淡紫薰 — Purple 紫底 + Purple ── */
+html[data-theme="light"].theme-bg-3 {
+  --surface:          #E9D5FF;
+  --surface-raised:   #F3E8FF;
+  --surface-sunken:   #D8B4FE;
+  --surface-hover:    #DCC6F0;
+  --surface-active:   #D2BCEA;
+  --surface-selected: rgba(147,51,234,0.10);
+  --sidebar-bg:       rgba(243,232,255,0.9);
+  --border:           rgba(30,41,59,0.10);
+  --border-focus:     rgba(147,51,234,0.4);
+  --primary:          #9333EA;
+  --primary-hover:    #7E22CE;
+  --primary-light:    rgba(147,51,234,0.08);
+  --primary-medium:   rgba(147,51,234,0.15);
+  --primary-dark:     #6B21A8;
+  --accent-purple:    #9333EA;
+}
+
+/* ── 4. 薄荷绿 — Mint 绿底 + Emerald ── */
+html[data-theme="light"].theme-bg-4 {
+  --surface:          #F2F8F0;
+  --surface-raised:   #F8FBF7;
+  --surface-sunken:   #E8F0E4;
+  --surface-hover:    #EBF2E8;
+  --surface-active:   #DFE9DB;
+  --surface-selected: rgba(5,150,105,0.10);
+  --sidebar-bg:       rgba(248,251,247,0.92);
+  --border-focus:     rgba(5,150,105,0.4);
+  --primary:          #059669;
+  --primary-hover:    #047857;
+  --primary-light:    rgba(5,150,105,0.08);
+  --primary-medium:   rgba(5,150,105,0.15);
+  --primary-dark:     #065F46;
+  --success:          #059669;
+}
+
+/* ── 5. 米白纸 — Cream 暖底 + Amber ── */
+html[data-theme="light"].theme-bg-5 {
+  --surface:          #FCFCF7;
+  --surface-raised:   #FEFEFA;
+  --surface-sunken:   #F5F5EE;
+  --surface-hover:    #F8F8F2;
+  --surface-active:   #EDEDE4;
+  --surface-selected: rgba(217,119,6,0.10);
+  --sidebar-bg:       rgba(254,254,250,0.92);
+  --border-focus:     rgba(217,119,6,0.4);
+  --primary:          #D97706;
+  --primary-hover:    #B45309;
+  --primary-light:    rgba(217,119,6,0.08);
+  --primary-medium:   rgba(217,119,6,0.15);
+  --primary-dark:     #92400E;
+  --warning:          #D97706;
+}
+
+/* ── 6. 淡藤紫 — Wisteria 淡紫底 + Violet ── */
+html[data-theme="light"].theme-bg-6 {
+  --surface:          #F4F1F8;
+  --surface-raised:   #FBFAFD;
+  --surface-sunken:   #EBE7F0;
+  --surface-hover:    #EEEBF3;
+  --surface-active:   #E1DCE9;
+  --surface-selected: rgba(124,58,237,0.10);
+  --sidebar-bg:       rgba(251,250,253,0.92);
+  --border-focus:     rgba(124,58,237,0.4);
+  --primary:          #7C3AED;
+  --primary-hover:    #6D28D9;
+  --primary-light:    rgba(124,58,237,0.08);
+  --primary-medium:   rgba(124,58,237,0.15);
+  --primary-dark:     #5B21B6;
+  --accent-purple:    #7C3AED;
+}
+
+/* ── 7. 暖灰白（默认）— 仅 background，其余继承 :root ── */
+
+/* ── 8. 晨光 — 纯白 + Blue ── */
+html[data-theme="light"].theme-bg-chen-guang {
+  --surface:          #ffffff;
+  --surface-raised:   #ffffff;
+  --surface-sunken:   #f8fafc;
+  --surface-hover:    #f9fafb;
+  --surface-active:   #e5e7eb;
+  --surface-selected: rgba(59,130,246,0.10);
+  --sidebar-bg:       rgba(255,255,255,0.95);
+  --text-primary:     #1e293b;
+  --text-secondary:   #64748b;
+  --text-tertiary:    #94a3b8;
+  --border:           #e5e7eb;
+  --border-focus:     #3b82f6;
+  --primary:          #3b82f6;
+  --primary-hover:    #2563eb;
+  --primary-light:    rgba(59,130,246,0.08);
+  --primary-medium:   rgba(59,130,246,0.15);
+  --primary-dark:     #1d4ed8;
+  --accent-blue:      #3b82f6;
+}
+
+/* ── 9. 天青 — 默认亮色 + Blue ── */
+html[data-theme="light"].theme-bg-tian-qing {
+  --surface:          #f8fafc;
+  --surface-raised:   #ffffff;
+  --surface-sunken:   #f1f5f9;
+  --surface-hover:    #f1f5f9;
+  --surface-active:   #e2e8f0;
+  --surface-selected: rgba(59,130,246,0.10);
+  --sidebar-bg:       rgba(248,250,252,0.95);
+  --text-primary:     #1e293b;
+  --text-secondary:   #64748b;
+  --text-tertiary:    #94a3b8;
+  --border:           #e2e8f0;
+  --border-focus:     #3b82f6;
+  --primary:          #3b82f6;
+  --primary-hover:    #2563eb;
+  --primary-light:    rgba(59,130,246,0.08);
+  --primary-medium:   rgba(59,130,246,0.15);
+  --primary-dark:     #1d4ed8;
+  --accent-blue:      #3b82f6;
+}
+
+/* ── 10. 琥珀 — 暖象牙 + 陶土 ── */
+html[data-theme="light"].theme-bg-hu-po {
+  --surface:          #FAF9F5;
+  --surface-raised:   #FFFEFB;
+  --surface-sunken:   #F5F4EF;
+  --surface-hover:    #EFEEE9;
+  --surface-active:   #E2DFD3;
+  --surface-selected: rgba(217,119,87,0.10);
+  --sidebar-bg:       rgba(255,254,251,0.95);
+  --text-primary:     #141413;
+  --text-secondary:   #6B6860;
+  --text-tertiary:    #9B978F;
+  --border:           #E2DFD3;
+  --border-focus:     #D97757;
+  --primary:          #D97757;
+  --primary-hover:    #C4623E;
+  --primary-light:    rgba(217,119,87,0.08);
+  --primary-medium:   rgba(217,119,87,0.15);
+  --primary-dark:     #A34D2E;
+  --accent-blue:      #2B6CB0;
+}
+
+/* ── 11. 霜华 — Catppuccin Latte ── */
+html[data-theme="light"].theme-bg-na-tie {
+  --surface:          #eff1f5;
+  --surface-raised:   #e6e9ef;
+  --surface-sunken:   #e6e9ef;
+  --surface-hover:    #dce0e8;
+  --surface-active:   #ccd0da;
+  --surface-selected: rgba(30,102,245,0.10);
+  --sidebar-bg:       rgba(239,241,245,0.95);
+  --text-primary:     #4c4f69;
+  --text-secondary:   #6c6f85;
+  --text-tertiary:    #9ca0b0;
+  --text-inverse:     #eff1f5;
+  --border:           #ccd0da;
+  --border-focus:     #1e66f5;
+  --primary:          #1e66f5;
+  --primary-hover:    #1a56d0;
+  --primary-light:    rgba(30,102,245,0.08);
+  --primary-medium:   rgba(30,102,245,0.15);
+  --primary-dark:     #1546ab;
+  --accent-blue:      #1e66f5;
+  --accent-purple:    #8839ef;
+  --accent-red:       #d20f39;
+  --accent-yellow:    #df8e1d;
+  --success:          #40a02b;
+  --danger:           #d20f39;
+  --warning:          #df8e1d;
+}
+
+
+/* ════════════════════════════════════════════
+   深色主题共享值（所有深色主题共用）
+   ════════════════════════════════════════════ */
+html[data-theme="dark"].theme-bg-mo-ye,
+html[data-theme="dark"].theme-bg-xing-yun,
+html[data-theme="dark"].theme-bg-ji-guang,
+html[data-theme="dark"].theme-bg-zi-teng {
+  --divider:     rgba(255,255,255,0.06);
+  --overlay:     rgba(0,0,0,0.6);
+  --shadow-sm:   0 1px 2px 0 rgba(0,0,0,0.2);
+  --shadow-md:   0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -2px rgba(0,0,0,0.2);
+  --shadow-lg:   0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2);
+  --shadow-xl:   0 20px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.3);
+}
+
+/* ════════════════════════════════════════════
+   深色主题（4 套）— 仅覆盖与默认值不同的变量
+   ════════════════════════════════════════════ */
+
+/* ── 12. 墨夜 — 默认暗色，继承 :root，无额外覆盖 ── */
+
+/* ── 13. 星云 — Atom One Dark ── */
+html[data-theme="dark"].theme-bg-xing-yun {
+  --surface:          #282c34;
+  --surface-raised:   #2c313a;
+  --surface-sunken:   #21252b;
+  --surface-hover:    #2c313a;
+  --surface-active:   #3e4451;
+  --surface-selected: rgba(97,175,239,0.15);
+  --sidebar-bg:       rgba(33,37,43,0.95);
+  --text-primary:     #abb2bf;
+  --text-secondary:   #7f848e;
+  --text-tertiary:    #5c6370;
+  --text-inverse:     #282c34;
+  --border:           #3e4451;
+  --border-focus:     #61afef;
+  --primary:          #61afef;
+  --primary-hover:    #4E97D6;
+  --primary-light:    rgba(97,175,239,0.12);
+  --primary-medium:   rgba(97,175,239,0.2);
+  --primary-dark:     #3B7FBE;
+  --accent-blue:      #61afef;
+  --accent-purple:    #c678dd;
+  --accent-red:       #e06c75;
+  --accent-yellow:    #e5c07b;
+  --success:          #98c379;
+  --danger:           #e06c75;
+  --warning:          #e5c07b;
+}
+
+/* ── 14. 极光 — Nord ── */
+html[data-theme="dark"].theme-bg-ji-guang {
+  --surface:          #2e3440;
+  --surface-raised:   #3b4252;
+  --surface-sunken:   #242933;
+  --surface-hover:    #3b4252;
+  --surface-active:   #434c5e;
+  --surface-selected: rgba(136,192,208,0.15);
+  --sidebar-bg:       rgba(46,52,64,0.95);
+  --text-primary:     #d8dee9;
+  --text-secondary:   #81a1c1;
+  --text-tertiary:    #616e88;
+  --text-inverse:     #2e3440;
+  --border:           #434c5e;
+  --border-focus:     #88c0d0;
+  --primary:          #88c0d0;
+  --primary-hover:    #6DADB8;
+  --primary-light:    rgba(136,192,208,0.12);
+  --primary-medium:   rgba(136,192,208,0.2);
+  --primary-dark:     #5690A0;
+  --accent-blue:      #81a1c1;
+  --accent-purple:    #b48ead;
+  --accent-red:       #bf616a;
+  --accent-yellow:    #ebcb8b;
+  --success:          #a3be8c;
+  --danger:           #bf616a;
+  --warning:          #ebcb8b;
+}
+
+/* ── 15. 紫藤 — Dracula ── */
+html[data-theme="dark"].theme-bg-zi-teng {
+  --surface:          #282A36;
+  --surface-raised:   #343746;
+  --surface-sunken:   #21222C;
+  --surface-hover:    #343746;
+  --surface-active:   #44475A;
+  --surface-selected: rgba(189,147,249,0.15);
+  --sidebar-bg:       rgba(33,34,44,0.95);
+  --text-primary:     #F8F8F2;
+  --text-secondary:   #BFC7D5;
+  --text-tertiary:    #6272A4;
+  --text-inverse:     #282A36;
+  --border:           #44475A;
+  --border-focus:     #BD93F9;
+  --primary:          #BD93F9;
+  --primary-hover:    #a878e0;
+  --primary-light:    rgba(189,147,249,0.12);
+  --primary-medium:   rgba(189,147,249,0.2);
+  --primary-dark:     #9363c7;
+  --accent-blue:      #8BE9FD;
+  --accent-purple:    #FF79C6;
+  --accent-red:       #FF5555;
+  --accent-yellow:    #F1FA8C;
+  --success:          #50FA7B;
+  --danger:           #FF5555;
+  --warning:          #F1FA8C;
+}

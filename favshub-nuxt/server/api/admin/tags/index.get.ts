@@ -1,16 +1,12 @@
 /**
- * GET /api/admin/tags — 标签列表（含使用次数）
- * 所有人可见（管理员的标签对普通用户只读，前端控制）
+ * GET /api/admin/tags — 标签列表（含使用次数，仅管理员）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
-
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
 
   const tags = db.prepare(`
     SELECT t.*, u.username,
@@ -20,5 +16,5 @@ export default defineEventHandler(async (event) => {
     ORDER BY t.name
   `).all()
 
-  return { tags, isAdmin }
+  return { tags, isAdmin: true }
 })

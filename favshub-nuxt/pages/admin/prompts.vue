@@ -78,7 +78,7 @@
           <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)">{{ pCollapsedIds.has(f.id) ? '▶' : '▼' }}</span>
           <span v-else style="display:inline-block;width:16px;"></span>
           <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
-          <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary-color);"></i>
+          <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary);"></i>
           <span class="folder-drag-name">{{ f.name }}</span>
           <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
           <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.prompt_count || 0 }}个</span>
@@ -186,7 +186,11 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
 function getAuthHeaders(): Record<string, string> {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+/** 获取认证选项（含 credentials） */
+function getAuthOpts(): Record<string, any> {
+  return { headers: getAuthHeaders(), credentials: 'include' as const }
 }
 const tab = ref('prompts')
 // Prompts list
@@ -356,10 +360,10 @@ onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHi
 .folder-drag-list { display: flex; flex-direction: column; gap: 2px; }
 .folder-drag-item {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; background: var(--bg-secondary);
+  padding: 8px 12px; background: var(--surface-sunken);
   border-radius: 6px; cursor: default; transition: background 0.15s;
 }
-.folder-drag-item:hover { background: var(--bg-tertiary); }
+.folder-drag-item:hover { background: var(--surface-hover); }
 .folder-drag-handle {
   cursor: grab; color: var(--text-tertiary); font-size: 14px; user-select: none;
   width: 16px; text-align: center; flex-shrink: 0;

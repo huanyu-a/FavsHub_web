@@ -3,20 +3,7 @@
    PromptPro - macOS 风格样式
    ========================================== */
 
-/* PromptPro 本地别名 → 语义 token（light-dark 由 tokens.css 驱动） */
-:root {
-    --primary-color: var(--primary);
-    --secondary-color: var(--accent-yellow);
-    --success-color: var(--success);
-    --danger-color: var(--danger);
-    --warning-color: var(--warning);
-    --bg-color: var(--surface);
-    --bg-gradient-start: var(--surface);
-    --bg-gradient-end: var(--surface);
-    --card-bg: var(--surface-raised);
-    --border-color: var(--border);
-    --blur: var(--backdrop-blur);
-}
+/* 别名已移除 — 直接引用 tokens.css 中的语义 token */
 
 /* 重置样式 */
 * {
@@ -40,7 +27,7 @@ body {
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background: var(--primary-color);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -63,7 +50,7 @@ body {
     padding: 8px 16px;
     background: var(--surface-hover);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
@@ -80,7 +67,7 @@ body {
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background: var(--danger-color);
+    background: var(--danger);
     color: white;
     border: none;
     border-radius: 8px;
@@ -126,14 +113,14 @@ body {
 
 #filterInfo {
     flex: 1;
-    color: var(--primary-color);
+    color: var(--primary);
     font-weight: 600;
 }
 
 .btn-clear {
     padding: 4px 10px;
     font-size: 12px;
-    color: var(--primary-color);
+    color: var(--primary);
     background: var(--surface-raised);
     border: 1px solid var(--border-focus);
     border-radius: 6px;
@@ -141,9 +128,9 @@ body {
 }
 
 .btn-clear:hover {
-    background: var(--primary-color);
+    background: var(--primary);
     color: white;
-    border-color: var(--primary-color);
+    border-color: var(--primary);
 }
 
 /* 杝示话列�?*/
@@ -164,12 +151,12 @@ body {
 
 /* 杝示话坡�?- macOS 风格 */
 .prompt-card {
-    background: var(--card-bg);
+    background: var(--surface-raised);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: var(--radius-lg);
     padding: 18px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
@@ -233,13 +220,13 @@ body {
 
 .copy-btn:hover {
     background: light-dark(rgba(52,199,89,0.15), rgba(52,199,89,0.1));
-    color: var(--success-color);
+    color: var(--success);
     transform: scale(1.05);
 }
 
 .edit-btn:hover {
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
     transform: scale(1.05);
 }
 
@@ -297,7 +284,7 @@ body {
 
 .meta-tag i {
     font-size: 12px;
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .prompt-footer {
@@ -305,7 +292,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding-top: 12px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--border);
 }
 
 .prompt-time {
@@ -323,7 +310,7 @@ body {
 
 .prompt-version {
     padding: 3px 8px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color) 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 100%);
     color: white;
     border-radius: 6px;
     font-size: 11px;
@@ -426,7 +413,7 @@ body {
 /* macOS 窗口控制按钮样式 */
 .modal-header {
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -457,7 +444,7 @@ body {
 }
 
 .modal-close:hover {
-    background: var(--danger-color);
+    background: var(--danger);
     color: white;
 }
 
@@ -500,7 +487,7 @@ body {
 
 .modal-footer {
     padding: 14px 20px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid var(--border);
     display: flex;
     gap: 10px;
     justify-content: flex-end;
@@ -577,7 +564,7 @@ body {
     word-wrap: break-word;
     margin: 0;
     max-height: 350px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
 }
 
 .detail-content pre::-webkit-scrollbar {
@@ -596,7 +583,7 @@ body {
 
 /* 版本历坲 - 折坠面板 */
 .version-collapse {
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--surface-raised);
@@ -611,7 +598,7 @@ body {
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border);
 }
 
 .vcol-header:hover {
@@ -628,12 +615,12 @@ body {
 
 .vcol-left i {
     font-size: 16px;
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .vcol-badge {
     padding: 2px 8px;
-    background: var(--primary-color);
+    background: var(--primary);
     color: white;
     border-radius: 10px;
     font-size: 11px;
@@ -652,7 +639,7 @@ body {
     font-weight: 600;
     padding: 6px 14px;
     background: transparent;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     color: var(--text-primary);
     border-radius: 8px;
     display: flex;
@@ -663,14 +650,14 @@ body {
 }
 
 .vcol-compare-btn:hover:not(:disabled) {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: var(--primary);
+    border-color: var(--primary);
     color: white;
 }
 
 .vcol-compare-btn.active {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
+    background: var(--primary);
+    border-color: var(--primary);
     color: white;
     box-shadow: 0 2px 8px var(--accent-blue);
 }
@@ -712,7 +699,7 @@ body {
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 10px;
     transition: all 0.2s;
     background: var(--surface-raised);
@@ -720,7 +707,7 @@ body {
 
 .vcol-item.is-cur {
     background: var(--primary-light);
-    border-color: var(--primary-color);
+    border-color: var(--primary);
 }
 
 .vcol-item:hover:not(.is-cur) {
@@ -733,7 +720,7 @@ body {
     height: 16px;
     margin: 0;
     flex-shrink: 0;
-    accent-color: var(--primary-color);
+    accent-color: var(--primary);
 }
 
 .vcol-label {
@@ -762,7 +749,7 @@ body {
 }
 
 .vtag.cur {
-    background: var(--primary-color);
+    background: var(--primary);
     color: white;
 }
 
@@ -798,7 +785,7 @@ body {
 
 .vcol-view:hover {
     background: var(--surface-hover);
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .vcol-actions {
@@ -819,7 +806,7 @@ body {
 
 .vcol-restore:hover {
     background: var(--primary-medium);
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* 自定义下拉选择�?*/
@@ -831,7 +818,7 @@ body {
 .custom-select-trigger {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 13px;
     font-family: var(--font-system);
@@ -850,7 +837,7 @@ body {
 }
 
 .custom-select-trigger.open {
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     background: var(--surface-raised);
     box-shadow: 0 0 0 4px var(--primary-medium);
 }
@@ -875,7 +862,7 @@ body {
     left: 0;
     right: 0;
     background: var(--surface-raised);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: var(--shadow-lg);
     max-height: 240px;
@@ -930,17 +917,17 @@ body {
 
 .custom-select-option:hover {
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .custom-select-option.selected {
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
     font-weight: 600;
 }
 
 .custom-select-option.selected::before {
-    content: '�?;
+    content: '\2713';
     font-weight: 700;
     font-size: 14px;
 }
@@ -956,7 +943,7 @@ body {
     justify-content: space-between;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border);
 }
 
 .version-content {
@@ -1000,7 +987,7 @@ body {
 .compare-version .value {
     font-size: 18px;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .compare-version .time {
@@ -1048,7 +1035,7 @@ body {
 
 .compare-diff {
     background: var(--surface-raised);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     overflow: auto;
     max-height: 500px;
@@ -1072,7 +1059,7 @@ body {
     text-align: right;
     color: var(--text-tertiary);
     background: var(--surface-sunken);
-    border-right: 1px solid var(--border-color);
+    border-right: 1px solid var(--border);
     user-select: none;
 }
 
@@ -3738,7 +3725,7 @@ body {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--primary-color);
+  background: var(--primary);
   color: var(--text-inverse);
   padding: 8px 20px;
   border-radius: 8px;
@@ -3751,22 +3738,7 @@ body {
 }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
-/* 文件夹计数 badge（与 Sidebar.vue 保持一致） */
-.item-count {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--surface-hover);
-  padding: 0 4px;
-  border-radius: 8px;
-  flex-shrink: 0;
-  margin-right: 4px;
-  line-height: 16px;
-}
-.bg-emerald-500 .item-count {
-  color: var(--text-inverse);
-  background: light-dark(rgba(255,255,255,0.15), rgba(255,255,255,0.05));
-}
+/* .item-count 和 .bg-emerald-500 .item-count 由 main-bundle.css 统一定义 */
 /* 展开/收缩箭头 */
 .folder-arrow {
   flex-shrink: 0;
@@ -3781,7 +3753,7 @@ body {
   justify-content: center;
 }
 .folder-arrow:hover {
-  color: var(--primary-color);
+  color: var(--primary);
 }
 /* 只读卡片（管理员创建） */
 .prompt-card.read-only {
@@ -3812,7 +3784,7 @@ body {
   cursor: pointer;
   transition: border-color .2s, color .2s, background .2s;
 }
-.btn-outline:hover { border-color: var(--primary-color); color: var(--primary-color); background: light-dark(#eef2ff, rgba(238,242,255,0.1)); }
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); background: light-dark(#eef2ff, rgba(238,242,255,0.1)); }
 
 /* 右键菜单（Teleport 到 body，不可 scoped） */
 .folder-context-menu {
@@ -3867,7 +3839,7 @@ body {
 }
 .btn-icon:hover {
   background: var(--surface-hover);
-  color: var(--primary-color);
+  color: var(--primary);
 }
 
 /* ── Version detail modal overlay ── */
@@ -3898,6 +3870,36 @@ body {
 }
 .diff-line.del .diff-line-content {
   color: var(--danger);
+}
+
+/* ── Modal form-group 基础样式（与旧版 #edit-dialog 输入框一致） ── */
+.modal .form-group { margin-bottom: 12px; }
+.modal .form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.modal .form-group input,
+.modal .form-group textarea,
+.modal .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.modal .form-group input:focus,
+.modal .form-group textarea:focus,
+.modal .form-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-medium);
+  background-color: var(--surface-raised);
 }
 
 /* ── Edit form grid ── */
@@ -3940,8 +3942,8 @@ body {
   border-radius: 8px; border: 1.5px solid var(--border); cursor: pointer; font-size: 18px;
   color: var(--text-secondary); transition: all 0.15s;
 }
-.icon-pick-option:hover { border-color: var(--primary-color); color: var(--primary-color); }
-.icon-pick-option.active { border-color: var(--primary-color); background: var(--primary-light); color: var(--primary-color); }
+.icon-pick-option:hover { border-color: var(--primary); color: var(--primary); }
+.icon-pick-option.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
 
 /* ── Responsive (merged from PromptDialogs) ── */
 @media (max-width: 768px) {
@@ -3961,8 +3963,8 @@ body {
 
 /* Card Container */
 .prompt-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 16px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -4083,7 +4085,7 @@ body {
 
 .tag i {
     font-size: 12px;
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* Meta Footer */
@@ -4112,7 +4114,7 @@ body {
 
 /* Folder Tag - Unique Class Name to avoid conflict */
 .prompt-folder-tag {
-    color: var(--primary-color) !important; /* Theme Green */
+    color: var(--primary) !important; /* Theme Green */
     font-weight: 600;
     background: var(--primary-medium) !important; /* Light green background */
     padding: 2px 8px;
@@ -4123,7 +4125,7 @@ body {
 }
 
 .prompt-folder-tag i {
-    color: var(--primary-color) !important; /* Force Icon Green */
+    color: var(--primary) !important; /* Force Icon Green */
     font-size: 14px;
 }
 
@@ -4139,7 +4141,7 @@ body {
 .version-badge {
     font-family: 'SF Mono', 'Consolas', monospace;
     font-size: 11px;
-    color: var(--primary-color); /* Theme Green - matching primary color */
+    color: var(--primary); /* Theme Green - matching primary color */
     background: var(--primary-medium); /* Theme Light Green Bg */
     padding: 2px 6px;
     border-radius: 4px;
@@ -4164,7 +4166,7 @@ body {
 /* 浅色模式 - 标签列表容器 */
 .tag-list {
     background: var(--surface-sunken);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px;
     min-height: 44px;
@@ -4181,7 +4183,7 @@ body {
 }
 
 .tag-list:focus-within {
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     background: var(--surface-raised);
     box-shadow: 0 0 0 4px var(--primary-medium);
 }
@@ -4193,7 +4195,7 @@ body {
     gap: 6px;
     padding: 6px 10px;
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
     border: 1px solid var(--primary-medium);
     border-radius: 8px;
     font-size: 12px;
@@ -4230,12 +4232,12 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     background: var(--primary-medium);
-    color: var(--primary-color);
+    color: var(--primary);
     font-size: 12px;
 }
 
 .tag-item .tag-remove:hover {
-    background: var(--danger-color);
+    background: var(--danger);
     color: white;
     transform: scale(1.1);
 }
@@ -4246,7 +4248,7 @@ body {
     min-width: 120px;
     padding: 8px 12px;
     background: var(--surface-sunken);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text-primary);
     font-size: 13px;
@@ -4261,7 +4263,7 @@ body {
 
 .tag-input:focus {
     background: var(--surface-raised);
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     box-shadow: 0 0 0 4px var(--primary-medium);
     outline: none;
 }
@@ -4269,7 +4271,7 @@ body {
 /* 浅色模式 - 标签建议列表 */
 .tag-suggestions {
     background: var(--surface-raised);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px;
     margin-top: 8px;
@@ -4320,13 +4322,13 @@ body {
 .tag-suggestion:hover {
     background: var(--primary-light);
     border-color: var(--primary-medium);
-    color: var(--primary-color);
+    color: var(--primary);
     transform: translateY(-1px);
     box-shadow: 0 2px 8px var(--primary-medium);
 }
 
 .tag-suggestion:hover i {
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* 浅色模式 - 文件夹选择器（自定义下拉框） */
@@ -4339,7 +4341,7 @@ body {
     width: 100%;
     padding: 10px 14px;
     background: var(--surface-sunken);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text-primary);
     font-size: 13px;
@@ -4359,7 +4361,7 @@ body {
 
 .custom-select-trigger.active {
     background: var(--surface-raised);
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     box-shadow: 0 0 0 4px var(--primary-medium);
 }
 
@@ -4380,7 +4382,7 @@ body {
 
 .custom-select-trigger.active .arrow {
     transform: rotate(180deg);
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* 浅色模式 - 下拉菜单 */
@@ -4390,7 +4392,7 @@ body {
     left: 0;
     right: 0;
     background: var(--surface-raised);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: var(--shadow-lg);
     max-height: 240px;
@@ -4460,12 +4462,12 @@ body {
 
 .custom-select-option:hover {
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .custom-select-option.selected {
     background: var(--primary-light);
-    color: var(--primary-color);
+    color: var(--primary);
     font-weight: 600;
 }
 
@@ -4473,7 +4475,7 @@ body {
     content: '✓';
     font-weight: 700;
     font-size: 14px;
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* 浅色模式 - 文件夹图标 */
@@ -4483,11 +4485,11 @@ body {
 }
 
 .custom-select-option:hover .folder-icon {
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 .custom-select-option.selected .folder-icon {
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* Dark theme overrides removed — now handled by tokens.css light-dark() */
@@ -4742,7 +4744,7 @@ html, body {
 }
 body {
     display: flex;
-    background: var(--bg-primary);
+    background: var(--surface-raised);
     color: var(--text-primary);
 }
 #sidebar-container {
@@ -4783,170 +4785,12 @@ aside.sidebar {
     display: none; /* Chrome/Safari */
 }
 
-/* ========== 侧边栏 ========== */
-.sidebar-shell {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
+/* ========== 侧边栏 ==========
+   侧边栏共享样式（.sidebar-shell, .sidebar-brand-card, .sidebar-hub-nav,
+   .sidebar-hub-link, .sidebar-folders-panel, #categories-list, .folder-item,
+   .item-count, .bg-emerald-500 等）统一由 main-bundle.css 定义，
+   此处仅保留 PromptPro 独有的样式。 */
 
-/* brand 卡片 */
-.sidebar-brand-card {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    padding: 0.35rem 0.2rem 0.2rem;
-    text-decoration: none;
-}
-.sidebar-brand-logo {
-    width: 42px;
-    height: 42px;
-    padding: 8px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, var(--primary-light), rgba(59, 130, 246, 0.12));
-    box-shadow: inset 0 1px 0 light-dark(rgba(255,255,255,0.55), rgba(255,255,255,0.1));
-}
-.sidebar-brand-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.1;
-}
-.sidebar-brand-subtitle {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-}
-
-/* hub-nav */
-.sidebar-hub-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.22rem;
-    border-radius: 14px;
-    background: var(--surface-hover);
-    box-shadow: inset 0 1px 0 light-dark(rgba(255,255,255,0.45), rgba(255,255,255,0.05));
-}
-.sidebar-hub-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    min-height: 36px;
-    flex: 1 1 0;
-    padding: 0.52rem 0.78rem;
-    border-radius: 12px;
-    color: var(--text-tertiary);
-    text-decoration: none;
-    background: transparent;
-    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
-}
-.sidebar-hub-link:hover { color: var(--text-secondary); }
-.sidebar-hub-link.active {
-    color: var(--text-primary);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-md);
-}
-.sidebar-hub-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-}
-.sidebar-hub-icon svg {
-    width: 16px;
-    height: 16px;
-    stroke-width: 2.1;
-}
-.sidebar-hub-label {
-    white-space: nowrap;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-/* 导航目录面板 —— 复用主页卡片样式 */
-.sidebar-folders-panel {
-    padding: 0.85rem 0.7rem 0.8rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-.sidebar-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 0.2rem;
-}
-.sidebar-section-kicker {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-}
-.sidebar-panel-actions {
-    display: flex;
-    gap: 2px;
-}
-.sidebar-panel-action-btn {
-    width: 22px;
-    height: 22px;
-    border: none;
-    background: transparent;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    transition: all 0.15s;
-}
-.sidebar-panel-action-btn:hover {
-    background: var(--primary-medium);
-    color: var(--primary-color);
-}
-
-/* 列表容器 —— 覆盖 main-bundle.css 的 padding-bottom */
-#categories-list {
-    padding-right: 0.15rem;
-    padding-bottom: 0.5rem;
-    list-style: none;
-    margin: 0;
-}
-
-/* 文件夹列表项 —— 由 main-bundle.css 统一管理，此处不再覆盖 */
-#categories-list .folder-item > i {
-    font-size: 18px;
-    flex-shrink: 0;
-    color: inherit;
-    width: 18px;
-    text-align: center;
-}
-.folder-item .item-count {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    min-width: 18px;
-    text-align: center;
-    background: var(--surface-hover);
-    padding: 1px 5px;
-    border-radius: 10px;
-    order: 10;
-}
-.folder-item.bg-emerald-500 .item-count {
-    color: var(--text-inverse);
-    background: light-dark(rgba(255,255,255,0.15), rgba(255,255,255,0.05));
-}
 .folder-item .item-delete {
     display: none;
     width: 16px;
@@ -4994,7 +4838,7 @@ aside.sidebar {
     color: var(--text-tertiary);
 }
 .folder-item [data-toggle-folder]:hover {
-    color: var(--primary-color);
+    color: var(--primary);
 }
 
 /* 标签区块标题 —— 独立一行 */
@@ -5043,7 +4887,7 @@ aside.sidebar {
 }
 .sidebar-tag-chip:hover {
     background: var(--primary-medium);
-    color: var(--primary-color);
+    color: var(--primary);
     border-color: var(--primary-medium);
     transform: translateY(-1px);
     box-shadow: 0 3px 10px var(--primary-light);
@@ -5051,7 +4895,7 @@ aside.sidebar {
 .sidebar-tag-chip.active {
     background: var(--primary-medium);
     border-color: var(--primary-medium);
-    color: var(--primary-color);
+    color: var(--primary);
     font-weight: 600;
     box-shadow: 0 2px 6px var(--primary-light);
 }
@@ -5111,7 +4955,7 @@ aside.sidebar {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 .search-box:focus-within {
-    border-color: var(--primary-color);
+    border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-light);
 }
 .search-box i {
@@ -5217,7 +5061,8 @@ aside.sidebar {
 
 /* ========== 版本号 ========== */
 .version-badge {
-    color: var(--primary-color);
+    color: var(--primary);
     background: var(--primary-medium);
 }
 
+} /* /@layer components */

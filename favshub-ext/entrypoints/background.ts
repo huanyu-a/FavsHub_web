@@ -156,12 +156,24 @@ async function getActiveTabForWindow(windowId?: number) {
   return tabs[0] ?? null;
 }
 
+/** 验证 URL 仅使用 http/https 协议 */
+function isSafeUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 async function addCurrentPageToFolder(folderId: number | null, windowId?: number) {
   const activeTab = await getActiveTabForWindow(windowId);
   const url = activeTab?.url?.trim() ?? '';
   const title = activeTab?.title?.trim() ?? '';
 
   if (!url) throw new Error('读取当前页面地址失败');
+  // 安全检查：仅允许 http/https 协议的 URL 保存为书签
+  if (!isSafeUrl(url)) throw new Error('不支持的书签协议');
 
   const body: Record<string, unknown> = { title, url };
   if (folderId !== null) body.folder_id = folderId;
@@ -189,7 +201,7 @@ export default defineBackground(() => {
   async function setupSidePanel() {
     if (!(browser.sidePanel && browser.sidePanel.setOptions)) return;
     const baseUrl = await baseUrlStorage.getValue();
-    if (baseUrl?.trim()) {
+    if (baseUrl?.trim() && isSafeUrl(baseUrl)) {
       const sidePanelUrl = baseUrl.replace(/\/+$/, '') + '/?context=side_panel';
       browser.sidePanel.setOptions({
         path: sidePanelUrl,
@@ -262,19 +274,51 @@ export default defineBackground(() => {
 
       case 'proxyFetch': {
         // 允许 content script 通过 background 发起请求（绕过 CORS / Mixed Content）
+        // 安全限制：仅允许 http/https 协议，且仅允许请求已配置的服务器地址
         const { url, options } = message;
-        fetch(url, options)
-          .then(async (resp) => {
-            const body = await resp.text();
-            sendResponse({ status: resp.status, body });
-          })
-          .catch((err) => sendResponse({ error: String(err) }));
+        if (!url || !isSafeUrl(url)) {
+          sendResponse({ error: 'Invalid URL: only http/https allowed' });
+          return true;
+        }
+        // 限制请求目标为已配置的服务器 origin，防止 SSRF
+        baseUrlStorage.getValue().then((baseUrl) => {
+          let allowedOrigin = '';
+          try {
+            allowedOrigin = new URL(baseUrl).origin;
+          } catch {
+            sendResponse({ error: 'Server URL not configured' });
+            return;
+          }
+          let requestOrigin = '';
+          try {
+            requestOrigin = new URL(url).origin;
+          } catch {
+            sendResponse({ error: 'Invalid URL' });
+            return;
+          }
+          if (requestOrigin !== allowedOrigin) {
+            sendResponse({ error: 'URL not allowed: target must match configured server' });
+            return;
+          }
+          fetch(url, options)
+            .then(async (resp) => {
+              const body = await resp.text();
+              sendResponse({ status: resp.status, body });
+            })
+            .catch((err) => sendResponse({ error: String(err) }));
+        });
         return true;
       }
 
       case 'getIconUrl': {
         // 将图标转为 data URL，避免 content script 中 chrome-extension:// 加载失败
+        // 安全限制：仅允许已知图标路径，防止读取任意扩展文件
+        const ALLOWED_ICON_PATHS = new Set(['/icon/16.png', '/icon/32.png', '/icon/48.png', '/icon/128.png']);
         const iconPath = message.path || '/icon/48.png';
+        if (!ALLOWED_ICON_PATHS.has(iconPath)) {
+          sendResponse({ url: '' });
+          return true;
+        }
         try {
           const url = chrome.runtime.getURL(iconPath);
           fetch(url)
@@ -306,7 +350,7 @@ export default defineBackground(() => {
       case 'navigateHome': {
         const goHome = async () => {
           const baseUrl = await baseUrlStorage.getValue();
-          if (baseUrl?.trim() && browser.sidePanel.setOptions) {
+          if (baseUrl?.trim() && isSafeUrl(baseUrl) && browser.sidePanel.setOptions) {
             const homeUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'context=side_panel';
             await browser.sidePanel.setOptions({ path: homeUrl });
           }
@@ -340,6 +384,9 @@ export default defineBackground(() => {
         return true;
       }
 
+      // Chrome 内部页面操作：打开历史/下载/密码/扩展管理
+      // 安全性由 content.ts relay 的 origin 校验 + action 白名单保证
+      // proxyFetch / getIconUrl 等敏感操作不在 relay 白名单中，无法通过网站触发
       case 'openHistory':
         browser.tabs.create({ url: 'chrome://history' })
           .then(() => sendResponse({ success: true }))
@@ -386,6 +433,8 @@ export default defineBackground(() => {
       }
 
       case 'searchHistory': {
+        // 安全性由 content.ts relay 的 origin 校验 + action 白名单保证
+        // proxyFetch / getIconUrl 等敏感操作不在 relay 白名单中，无法通过网站触发
         const { text, maxResults, startTime } = message;
         const keywords = (text || '').split(/[\s\u3000]+/).filter((k: string) => k.length > 0);
         const limit = maxResults || 2000;
@@ -430,10 +479,11 @@ export default defineBackground(() => {
     const baseUrl = await baseUrlStorage.getValue();
     if (!baseUrl?.trim()) return;
 
-    // 将 baseUrl 转为匹配模式
+    // 将 baseUrl 转为匹配模式（仅允许 http/https）
     let urlPattern: string;
     try {
       const url = new URL(baseUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
       urlPattern = `${url.origin}/*`;
     } catch {
       return;

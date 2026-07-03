@@ -5,6 +5,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { invalidateTdkCache } from '../../tdk.get'
+import { SYSTEM_ONLY_KEYS } from '../../../utils/constants'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -18,12 +19,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: 'data 必须是对象' } })
   }
 
-  // 逐个 key 写入 system_config 表（UPSERT）
+  // 逐个 key 写入 system_config 表（UPSERT）— 仅允许白名单中的 key
   const upsert = db.prepare(
     'INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)'
   )
   const now = Date.now()
   for (const [key, value] of Object.entries(data)) {
+    // 仅允许写入预定义的系统配置 key，防止写入任意键
+    if (!SYSTEM_ONLY_KEYS.includes(key)) continue
     upsert.run(key, String(value ?? ''), now)
   }
 

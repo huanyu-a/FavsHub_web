@@ -2,14 +2,14 @@
  * POST /api/admin/prompt-folders — 创建提示词文件夹（管理员）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
 
-  const auth = requireAuth(event)
+  const auth = requireAdmin(event)
   const body = await readBody(event)
   const { name, user_id, parent_id, icon, sort_order, login_required } = body
 

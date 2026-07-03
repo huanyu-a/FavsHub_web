@@ -91,7 +91,7 @@ useHead({ title: '备份管理' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 function getAuthHeaders() {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })

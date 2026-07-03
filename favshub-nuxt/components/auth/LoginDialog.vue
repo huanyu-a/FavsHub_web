@@ -172,8 +172,8 @@ async function handleRegister() {
   margin-bottom: -2px;
 }
 .tab-nav button.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+  color: var(--primary);
+  border-bottom-color: var(--primary);
   font-weight: 600;
 }
 .form-group {
@@ -198,12 +198,12 @@ async function handleRegister() {
   color: var(--text-primary);
 }
 .form-group input:focus {
-  border-color: var(--primary-color);
+  border-color: var(--primary);
 }
 .submit-btn {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, var(--primary-color), var(--accent-purple));
+  background: linear-gradient(135deg, var(--primary), var(--accent-purple));
   color: var(--text-inverse);
   border: none;
   border-radius: 8px;

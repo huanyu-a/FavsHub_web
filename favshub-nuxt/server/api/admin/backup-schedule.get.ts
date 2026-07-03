@@ -1,13 +1,13 @@
 /**
  * GET /api/admin/backup-schedule — 获取备份配置
  */
-import { requireAuth } from '../../utils/auth'
+import { requireAdmin } from '../../utils/auth'
 import { getConfig, getConfigInt } from '../../utils/config'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event)
+  requireAdmin(event)
 
   // 获取上次备份日期
   let lastBackupDate: string | null = null

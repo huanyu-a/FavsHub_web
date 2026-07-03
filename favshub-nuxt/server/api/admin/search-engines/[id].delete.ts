@@ -3,16 +3,14 @@
  * 管理员可删除所有，普通用户只能删除自己创建的
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { createError, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  const user = requireAdmin(event)
   const db = getRawDb()
 
-  // 检查是否为管理员
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
+  const isAdmin = true
 
   const { id } = getRouterParams(event)
   const engineId = parseInt(id)

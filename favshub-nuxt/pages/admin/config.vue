@@ -34,10 +34,6 @@
               <span class="slider"></span>
             </label>
           </div>
-          <div class="fg" style="margin-top:12px;">
-            <label>百度统计 App Key</label>
-            <input v-model="sysSettings.baiduAppKey" placeholder="留空则不启用" @input="saveSysSettings">
-          </div>
         </div>
       </div>
       <div v-if="isAdmin" class="card">
@@ -93,11 +89,11 @@ useHead({ title: '系统配置' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 function getAuthHeaders(): Record<string, string> {
-  return authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
 const info = reactive({ nodeVersion: '', platform: '', dbPath: '', corsOrigin: '', uptime: '' })
-const { data: configData } = await useFetch<any>('/api/admin/config', { headers: getAuthHeaders() })
-const { data: statsData } = await useFetch<any>('/api/admin/stats', { headers: getAuthHeaders() })
+const { data: configData } = await useFetch<any>('/api/admin/config', { headers: getAuthHeaders(), credentials: 'include' })
+const { data: statsData } = await useFetch<any>('/api/admin/stats', { headers: getAuthHeaders(), credentials: 'include' })
 watchEffect(() => {
   if (configData.value) {
     info.nodeVersion = configData.value.nodeVersion || ''
@@ -108,7 +104,7 @@ watchEffect(() => {
   }
 })
 // ── 系统设置 ──────────────────────────────
-const sysSettings = reactive({ allow_registration: true, baiduAppKey: '' })
+const sysSettings = reactive({ allow_registration: true })
 let sysTimer: any = null
 function saveSysSettings() {
   clearTimeout(sysTimer)
@@ -117,7 +113,7 @@ function saveSysSettings() {
       await $fetch('/api/admin/config', {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: { data: { allow_registration: sysSettings.allow_registration, baiduAppKey: sysSettings.baiduAppKey } }
+        body: { data: { allow_registration: sysSettings.allow_registration } }
       })
     } catch (e) { console.error('保存系统设置失败', e) }
   }, 300)
@@ -211,8 +207,7 @@ onMounted(async () => {
     if (d.systemData) {
       const s = d.systemData
       sysSettings.allow_registration = s.allow_registration !== 'false'
-      sysSettings.baiduAppKey = s.baiduAppKey || ''
-      security.jwt_token_expiry = s.jwt_token_expiry || '7d'
+security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       security.cookie_max_age = parseInt(s.cookie_max_age) || 604800
       security.min_password_length = parseInt(s.min_password_length) || 8
       security.rate_limit_login_max = parseInt(s.rate_limit_login_max) || 20

@@ -118,7 +118,7 @@ export default defineEventHandler(async (event) => {
   if (limit && typeof limit === 'string') {
     const n = parseInt(limit, 10)
     if (!isNaN(n) && n > 0) {
-      sql += ` LIMIT ${n}`
+      sql += ` LIMIT ${Math.min(n, 1000)}`
     }
   }
 

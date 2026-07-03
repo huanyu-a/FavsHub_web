@@ -2,15 +2,13 @@
  * GET /api/admin/search-engines — 获取所有搜索引擎
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  const user = requireAdmin(event)
   const db = getRawDb()
 
-  // 检查是否为管理员
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
+  const isAdmin = true
 
   const engines = db.prepare(`
     SELECT * FROM search_engines

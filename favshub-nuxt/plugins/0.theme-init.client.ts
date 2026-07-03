@@ -1,26 +1,19 @@
 /**
- * 客户端插件 — 应用启动早期同步主题偏好到 store + 退场首屏防闪样式
+ * 客户端插件 — 应用启动早期同步主题偏好到 store
  *
  * 文件名前缀 0. 保证早于 auth-init.client.ts 执行。
  *
  * 职责一：反同步主题偏好到 store
- * - SSR 阻塞脚本（server/plugins/theme-init.ts）已在首屏正确设置 <html data-theme>，视觉无闪烁。
+ * - SSR 已在 <html> 上注入 data-theme + class，视觉无闪烁。
  * - 但 Pinia store 默认 theme:'auto'，需尽早从 localStorage/DOM 反同步为用户真实偏好，
  *   否则在布局 setup 执行前读 uiStore.theme 会拿到错值。
  * - 关键：login 等 `layout:false` 页面不经过 default/admin 布局，
  *   useTheme().initThemeWatchers() 不会执行，此插件是这些页面唯一的 store 同步入口。
  * - 只反同步 store，不重写 DOM（信任 SSR 注入，避免 FOUC）。
  *
- * 职责一-b：cookie 迁移
+ * 职责二：cookie 迁移
  * - 已有 localStorage 偏好但无 cookie 的老用户，首次加载时自动写入 cookie，
  *   使后续请求走 SSR 直出路径。
- *
- * 职责二：app 挂载后移除 SSR 注入的防闪内联 <style id="__fh_anti_flash">
- * - 那段 style 把背景色以硬编码 + ID 特异性钉在 #__nuxt/main/#sidebar-container 上，
- *   仅用于首屏 CSS 加载前防白闪。
- * - 一旦 main-bundle.css 就位，必须移除它，否则它会盖过 [data-theme] 规则：
- *   系统深浅色切换 / 手动切换时 data-theme 已变，但背景被它锁死旧色，须刷新才生效。
- * - app:mounted 时全局样式表已注入，再等一帧渲染后移除，无闪烁窗口。
  */
 import { useUIStore } from '~/stores/ui'
 import { getThemeCookie, setThemeCookie, setBackgroundCookie, getBackgroundCookie } from '~/utils/themeCookie'
@@ -31,7 +24,6 @@ export default defineNuxtPlugin((nuxtApp) => {
   // 仅做 cookie 迁移（不修改 store，避免 hydration mismatch）
   try {
     const ls = localStorage.getItem('favshub_theme') as 'light' | 'dark' | 'auto' | null
-    // cookie 迁移：老用户有 localStorage 但无 cookie → 补写 cookie
     if (ls && !getThemeCookie()) {
       setThemeCookie(ls)
     }
@@ -56,10 +48,5 @@ export default defineNuxtPlugin((nuxtApp) => {
     } catch {
       // 保持 store 默认 'auto'
     }
-
-    // 等一帧确保 CSS 已应用，再移除防闪 style
-    requestAnimationFrame(() => {
-      document.querySelectorAll('#__fh_anti_flash').forEach(el => el.remove())
-    })
   })
 })

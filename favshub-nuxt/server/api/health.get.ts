@@ -1,5 +1,5 @@
 /**
- * GET /api/health — 健康检查 + 数据库连接验证
+ * GET /api/health — 健康检查（公开，仅返回连接状态，不泄露统计数据）
  */
 import { getRawDb } from '../database'
 
@@ -7,27 +7,18 @@ export default defineEventHandler(() => {
   try {
     const db = getRawDb()
 
-    // 验证数据库连接
-    const result = db.prepare('SELECT 1 as ok').get() as { ok: number }
-    const userCount = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c
-    const bookmarkCount = (db.prepare('SELECT COUNT(*) as c FROM bookmarks').get() as { c: number }).c
-    const promptCount = (db.prepare('SELECT COUNT(*) as c FROM prompts').get() as { c: number }).c
+    // 验证数据库连接（不返回具体数据量，防止信息泄露）
+    db.prepare('SELECT 1 as ok').get()
 
     return {
       status: 'ok',
       database: 'connected',
-      stats: {
-        users: userCount,
-        bookmarks: bookmarkCount,
-        prompts: promptCount,
-      },
       timestamp: Date.now(),
     }
-  } catch (err: any) {
+  } catch {
     return {
       status: 'error',
       database: 'disconnected',
-      error: err.message,
       timestamp: Date.now(),
     }
   }

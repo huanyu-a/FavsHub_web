@@ -30,28 +30,34 @@ function downloadFavicon(url: string, destPath: string, _redirectDepth = 0): Pro
       if (u.protocol !== 'https:') return reject(new Error('仅支持 HTTPS 协议'))
       if (isPrivateIP(u.hostname)) return reject(new Error('不允许访问内网地址'))
 
-      const req = https.get(url, { timeout }, (response) => {
-        if (response.statusCode! >= 300 && response.statusCode! < 400 && response.headers.location) {
-          if (_redirectDepth >= MAX_REDIRECTS) return reject(new Error('重定向次数超限'))
-          const redirectUrl = response.headers.location.startsWith('http')
-            ? response.headers.location
-            : new URL(response.headers.location, u.origin).href
-          const rUrl = new URL(redirectUrl)
-          dns.lookup(rUrl.hostname, (err, address) => {
-            if (err) return reject(new Error('DNS 解析失败: ' + err.message))
-            if (isPrivateIP(address)) return reject(new Error('重定向目标为内网地址'))
-            downloadFavicon(redirectUrl, destPath, _redirectDepth + 1).then(resolve).catch(reject)
-          })
-          return
-        }
-        if (response.statusCode !== 200) return reject(new Error('HTTP ' + response.statusCode))
-        const file = createWriteStream(destPath)
-        file.on('finish', () => { file.close(); resolve() })
-        file.on('error', reject)
-        response.pipe(file)
+      // DNS 解析后校验 IP，防止 DNS rebinding SSRF
+      dns.lookup(u.hostname, (dnsErr, address) => {
+        if (dnsErr) return reject(new Error('DNS 解析失败: ' + dnsErr.message))
+        if (isPrivateIP(address)) return reject(new Error('不允许访问内网地址'))
+
+        const req = https.get(url, { timeout }, (response) => {
+          if (response.statusCode! >= 300 && response.statusCode! < 400 && response.headers.location) {
+            if (_redirectDepth >= MAX_REDIRECTS) return reject(new Error('重定向次数超限'))
+            const redirectUrl = response.headers.location.startsWith('http')
+              ? response.headers.location
+              : new URL(response.headers.location, u.origin).href
+            const rUrl = new URL(redirectUrl)
+            dns.lookup(rUrl.hostname, (err, addr) => {
+              if (err) return reject(new Error('DNS 解析失败: ' + err.message))
+              if (isPrivateIP(addr)) return reject(new Error('重定向目标为内网地址'))
+              downloadFavicon(redirectUrl, destPath, _redirectDepth + 1).then(resolve).catch(reject)
+            })
+            return
+          }
+          if (response.statusCode !== 200) return reject(new Error('HTTP ' + response.statusCode))
+          const file = createWriteStream(destPath)
+          file.on('finish', () => { file.close(); resolve() })
+          file.on('error', reject)
+          response.pipe(file)
+        })
+        req.on('error', reject)
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
       })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
     } catch (e) {
       reject(e)
     }
@@ -85,20 +91,24 @@ export default defineEventHandler(async (event) => {
   const updateByHostname = db.prepare("UPDATE bookmarks SET icon = ? WHERE url LIKE ?")
 
   for (const hostname of hostnames) {
-    const localPath = `/images/favicons/${hostname}.png`
-    const destPath = join(faviconDir, hostname + '.png')
+    // 净化 hostname：仅允许合法 DNS 字符，防止路径穿越
+    const safeHostname = hostname.replace(/[^a-zA-Z0-9.-]/g, '')
+    if (!safeHostname || safeHostname.includes('..')) continue
+
+    const localPath = `/images/favicons/${safeHostname}.png`
+    const destPath = join(faviconDir, safeHostname + '.png')
 
     if (existsSync(destPath)) {
-      updateByHostname.run(localPath, `%://${hostname}/%`)
+      updateByHostname.run(localPath, `%://${safeHostname}/%`)
       continue
     }
 
     const sourceUrl = getConfig('favicon_source_url') || 'https://www.google.com/s2/favicons?domain={domain}&sz={size}'
     const sz = getConfig('favicon_size') || '32'
-    const faviconUrl = sourceUrl.replace('{domain}', hostname).replace('{size}', sz)
+    const faviconUrl = sourceUrl.replace('{domain}', safeHostname).replace('{size}', sz)
     try {
       await downloadFavicon(faviconUrl, destPath)
-      updateByHostname.run(localPath, `%://${hostname}/%`)
+      updateByHostname.run(localPath, `%://${safeHostname}/%`)
     } catch {
       errors++
     }

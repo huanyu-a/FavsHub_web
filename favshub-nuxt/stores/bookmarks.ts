@@ -40,12 +40,17 @@ export const useBookmarksStore = defineStore('bookmarks', {
   },
 
   actions: {
-    /** Get Authorization header from the auth store */
+    /** Get Authorization header from the auth store (skip for cookie auth) */
     _authHeaders(): Record<string, string> {
       const auth = useAuthStore()
       const headers: Record<string, string> = {}
-      if (auth.token) headers.Authorization = `Bearer ${auth.token}`
+      if (auth.token && auth.token !== 'cookie_auth') headers.Authorization = `Bearer ${auth.token}`
       return headers
+    },
+
+    /** Get fetch options with credentials for cookie auth */
+    _authOptions(): Record<string, any> {
+      return { headers: this._authHeaders(), credentials: 'include' as const }
     },
 
     // ── Bookmarks ──────────────────────────────────────────────
@@ -54,8 +59,8 @@ export const useBookmarksStore = defineStore('bookmarks', {
       this.isLoading = true
       try {
         const headers: Record<string, string> = {}
-        if (token) headers.Authorization = `Bearer ${token}`
-        const res = await $fetch<{ bookmarks: Bookmark[]; folders: Folder[] }>('/api/bookmarks', { headers })
+        if (token && token !== 'cookie_auth') headers.Authorization = `Bearer ${token}`
+        const res = await $fetch<{ bookmarks: Bookmark[]; folders: Folder[] }>('/api/bookmarks', { headers, credentials: 'include' })
         this.bookmarks = res.bookmarks
         this.folders = res.folders
       } finally {
@@ -68,6 +73,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
         method: 'POST',
         headers: this._authHeaders(),
         body: data,
+        credentials: 'include',
       })
       this.bookmarks.push(res.bookmark)
       return res.bookmark
@@ -78,6 +84,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
         method: 'PUT',
         headers: this._authHeaders(),
         body: data,
+        credentials: 'include',
       })
       const idx = this.bookmarks.findIndex(b => b.id === id)
       if (idx !== -1) this.bookmarks[idx] = res.bookmark
@@ -88,6 +95,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
       await $fetch(`/api/bookmarks/${id}`, {
         method: 'DELETE',
         headers: this._authHeaders(),
+        credentials: 'include',
       })
       this.bookmarks = this.bookmarks.filter(b => b.id !== id)
     },
@@ -97,6 +105,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
         method: 'PUT',
         headers: this._authHeaders(),
         body: { items },
+        credentials: 'include',
       })
       // Apply the new sort_order locally so the UI reflects the change immediately
       for (const item of items) {
@@ -110,6 +119,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
     async fetchFolders() {
       const res = await $fetch<{ folders: Folder[] }>('/api/folders', {
         headers: this._authHeaders(),
+        credentials: 'include',
       })
       this.folders = res.folders
     },
@@ -119,6 +129,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
         method: 'POST',
         headers: this._authHeaders(),
         body: data,
+        credentials: 'include',
       })
       this.folders.push(res.folder)
       return res.folder
@@ -129,6 +140,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
         method: 'PUT',
         headers: this._authHeaders(),
         body: data,
+        credentials: 'include',
       })
       const idx = this.folders.findIndex(f => f.id === id)
       if (idx !== -1) this.folders[idx] = res.folder
@@ -139,6 +151,7 @@ export const useBookmarksStore = defineStore('bookmarks', {
       await $fetch(`/api/folders/${id}`, {
         method: 'DELETE',
         headers: this._authHeaders(),
+        credentials: 'include',
       })
       this.folders = this.folders.filter(f => f.id !== id)
       // Clear folder_id on bookmarks that belonged to the deleted folder

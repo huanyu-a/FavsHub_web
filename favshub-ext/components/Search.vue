@@ -3,7 +3,17 @@ import { SearchOutline } from '@vicons/ionicons5';
 
 const modelValue = defineModel<string>({ default: '' });
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function openLink(url: string) {
+  if (!url || !isSafeUrl(url)) return;
   chrome.tabs.create({ url });
 }
 </script>

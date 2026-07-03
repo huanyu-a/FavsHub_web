@@ -4,12 +4,13 @@
 import bcrypt from 'bcryptjs'
 import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
-import { checkRateLimit } from '../../utils/rate-limit'
+import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 import { getConfigInt, getConfig } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
-  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const ip = getClientIP(event)
   checkRateLimit(`register:${ip}`, getConfigInt('rate_limit_register_max', 10), getConfigInt('rate_limit_register_window', 60_000))
+
   const body = await readBody(event)
   const { username, password, email, nickname } = body || {}
 
@@ -43,8 +44,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, data: { error: '注册失败，请更换用户名或稍后重试' } })
   }
 
-  // 第一个注册用户自动成为管理员（排除系统用户 id=0）
-  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE id > 0').get() as { c: number }).c
+  // 第一个注册用户自动成为管理员（排除系统用户 id=0 和预置管理员 id=1）
+  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE id > 1').get() as { c: number }).c
   const isAdmin = userCount === 0 ? 1 : 0
 
   // 创建用户
@@ -61,16 +62,26 @@ export default defineEventHandler(async (event) => {
   const token = signToken({ id: userId, username })
 
   // 服务端设置 httpOnly cookie（防止 XSS 读取）
+  const isSecure = getRequestProtocol(event) === 'https'
   setCookie(event, 'favshub_token', token, {
     path: '/',
     httpOnly: true,
-    secure: true,
+    secure: isSecure,
     sameSite: 'lax',
     maxAge: getConfigInt('cookie_max_age', 60 * 60 * 24 * 7),
   })
 
-  return {
-    token,
+  // 判断请求来源：扩展请求返回 token，Web 端使用 httpOnly cookie
+  const origin = getRequestHeader(event, 'origin') || ''
+  const isExtensionRequest = origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')
+
+  const responseData: any = {
     user: { id: userId, username, email: email || null, nickname: nickname || '', is_admin: !!isAdmin },
   }
+
+  if (isExtensionRequest) {
+    responseData.token = token
+  }
+
+  return responseData
 })

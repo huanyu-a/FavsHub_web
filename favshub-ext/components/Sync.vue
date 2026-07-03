@@ -120,6 +120,11 @@ async function handleWarmFavicons() {
     const tabIds: number[] = [];
     for (const url of batch) {
       if (faviconWarmingStopped.value) break outer;
+      // 安全检查：仅打开 http/https 页面，防止 javascript:/file: 等协议
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+      } catch { continue; }
       try {
         const tab = await chrome.tabs.create({ url, active: false });
         if (tab.id) tabIds.push(tab.id);

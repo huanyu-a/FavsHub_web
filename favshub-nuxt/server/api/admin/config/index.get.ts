@@ -22,12 +22,10 @@ export default defineEventHandler(async (event) => {
 
   return {
     adminUsers,
-    jwtSecret: config.jwtSecret ? '已设置（环境变量）' : '使用默认值',
+    jwtSecret: config.jwtSecret ? '已设置（环境变量）' : '使用自动生成',
     port: config.port || 3000,
-    dbPath,
-    nodeVersion: process.version,
-    platform: process.platform,
-    corsOrigin: config.corsOrigin || '*',
+    dbPath: dbPath.replace(/[^/\\]+$/, '***'), // 仅显示目录，隐藏文件名
+    corsOrigin: config.corsOrigin || '同源',
     uptime: formatUptime(process.uptime()),
     systemData,
   }

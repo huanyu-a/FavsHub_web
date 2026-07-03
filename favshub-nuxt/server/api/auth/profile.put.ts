@@ -7,6 +7,7 @@ import { requireAuth } from '../../utils/auth'
 import { createError, readBody } from 'h3'
 import bcrypt from 'bcryptjs'
 import { getConfigInt } from '../../utils/config'
+import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -15,8 +16,10 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { nickname, email, password, old_password } = body
 
-  // 修改密码需要验证旧密码
+  // 修改密码需要验证旧密码 — 增加速率限制防止旧密码暴力破解
   if (password !== undefined && password) {
+    const ip = getClientIP(event)
+    checkRateLimit(`pwd_change:${ip}`, 5, 15 * 60 * 1000) // 15 分钟内最多 5 次
     if (!old_password) {
       throw createError({ statusCode: 400, data: { error: '请输入旧密码' } })
     }

@@ -5,6 +5,7 @@ import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 import bcrypt from 'bcryptjs'
+import { getConfigInt } from '../../../utils/config'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -48,6 +49,9 @@ export default defineEventHandler(async (event) => {
     db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(is_admin, userId)
   }
   if (password !== undefined && password) {
+    if (password.length < getConfigInt('min_password_length', 8)) {
+      throw createError({ statusCode: 400, data: { error: `密码至少 ${getConfigInt('min_password_length', 8)} 位` } })
+    }
     const hashedPassword = bcrypt.hashSync(password, 10)
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId)
   }

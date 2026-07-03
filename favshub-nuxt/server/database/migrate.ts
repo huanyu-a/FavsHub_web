@@ -4,6 +4,7 @@
  */
 import type Database from 'better-sqlite3'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 
 /**
@@ -209,9 +210,26 @@ export function seedDefaults(db: Database.Database) {
   db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin) VALUES (0, ?, ?, 1)').run('_system', '')
   db.prepare('UPDATE users SET is_admin = 1 WHERE id = 0').run()
 
-  // 1号管理员 admin_favs — 首次部署时预置（默认密码 admin123，请尽快修改）
-  const adminHash = bcrypt.hashSync('admin123', 10)
-  db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin, nickname) VALUES (1, ?, ?, 1, ?)').run('admin_favs', adminHash, '管理员')
+  // 1号管理员 admin_favs — 首次部署时随机生成密码，打印到控制台
+  // 使用 INSERT OR IGNORE 确保仅首次创建；若已存在则跳过
+  const existingAdmin = db.prepare('SELECT id FROM users WHERE id = 1').get()
+  if (!existingAdmin) {
+    // 首次部署：生成随机密码（排除易混字符）
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let randomPassword = ''
+    const buf = randomBytes(16)
+    for (let i = 0; i < 12; i++) {
+      randomPassword += charset[buf[i] % charset.length]
+    }
+    const adminHash = bcrypt.hashSync(randomPassword, 10)
+    db.prepare('INSERT INTO users (id, username, password_hash, is_admin, nickname) VALUES (1, ?, ?, 1, ?)').run('admin_favs', adminHash, '管理员')
+    console.log('═══════════════════════════════════════════════════')
+    console.log('[Security] 初始管理员账号已创建')
+    console.log(`[Security]   用户名: admin_favs`)
+    console.log(`[Security]   密码: ${randomPassword}`)
+    console.log('[Security] ⚠ 请立即登录并修改密码！此密码仅显示一次。')
+    console.log('═══════════════════════════════════════════════════')
+  }
 
   // 系统默认设置行 (user_id=0)
   db.prepare('INSERT OR IGNORE INTO settings (user_id, data) VALUES (0, ?)').run('{}')

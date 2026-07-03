@@ -83,7 +83,7 @@ export function getSecret(): string {
  */
 export function signToken(payload: JwtPayload, expiresIn?: string): string {
   const expiry = expiresIn || getConfig('jwt_token_expiry') || '7d'
-  return jwt.sign(payload, getSecret(), { expiresIn: expiry as any })
+  return jwt.sign(payload, getSecret(), { expiresIn: expiry as any, algorithm: 'HS256' })
 }
 
 /**
@@ -91,7 +91,7 @@ export function signToken(payload: JwtPayload, expiresIn?: string): string {
  */
 export function verifyToken(token: string): JwtPayload | null {
   try {
-    return jwt.verify(token, getSecret()) as JwtPayload
+    return jwt.verify(token, getSecret(), { algorithms: ['HS256'] }) as JwtPayload
   } catch {
     return null
   }

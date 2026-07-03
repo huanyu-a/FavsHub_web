@@ -126,26 +126,48 @@ export function useTheme() {
     })
 
     // 5. 响应背景设置变化，更新 <html> 类名和 localStorage
+    //    新主题体系：浅色主题在浅色模式生效，深色主题在深色模式生效
+    //    CSS 选择器 html[data-theme="..."].theme-bg-xxx 负责模式匹配，
+    //    因此无需在 JS 中判断模式，直接添加 class 即可。
     //    immediate 应用初始值；但游客场景下，初始值来自系统默认而非本地选择，
     //    因此游客只在「确有本地背景」时才以 localStorage 为准（见下方 guestBg 兜底）。
-    watch(() => settingsStore.get('selectedBackground'), (bg: string) => {
+
+    /** 将旧 gradient-background-N 值迁移为 theme-bg-N */
+    function normalizeBg(bg: string): string {
+      if (!bg) return ''
+      const m = bg.match(/^gradient-background-(\d+)$/)
+      if (m) return `theme-bg-${m[1]}`
+      return bg
+    }
+
+    function applyBackground() {
+      const rawBg = settingsStore.get('selectedBackground') as string
+      const bg = normalizeBg(rawBg)
       // 游客：忽略来自系统默认的背景同步，保留 localStorage 中的本地选择
       if (!authStore.isLoggedIn) {
         const localBg = (() => { try { return localStorage.getItem('favshub_bg') } catch { return null } })()
+        const normalizedLocal = normalizeBg(localBg || '')
         // 已有本地选择且与传入值不同 → 不让系统默认覆盖（首屏脚本已据 localStorage 应用）
-        if (localBg && localBg !== bg) return
+        if (normalizedLocal && normalizedLocal !== bg) return
       }
       const html = document.documentElement
-      const oldClasses = Array.from(html.classList).filter(c => c.startsWith('gradient-background'))
+      // 清除所有旧 gradient-background-* 和新 theme-bg-* 类
+      const oldClasses = Array.from(html.classList).filter(c =>
+        c.startsWith('gradient-background') || c.startsWith('theme-bg-')
+      )
       if (oldClasses.length) html.classList.remove(...oldClasses)
-      if (bg && bg.startsWith('gradient-background')) {
+
+      if (bg && bg.startsWith('theme-bg-')) {
         html.classList.add(bg)
         try { localStorage.setItem('favshub_bg', bg) } catch {}
         try { setBackgroundCookie(bg) } catch {}
       } else {
         try { localStorage.removeItem('favshub_bg') } catch {}
       }
-    }, { immediate: true })
+    }
+    watch(() => settingsStore.get('selectedBackground'), applyBackground, { immediate: true })
+    // 主题切换时也要重新应用背景（light↔dark 切换时 CSS 选择器自动匹配）
+    watch(() => uiStore.theme, applyBackground)
   }
 
   /** 当前是否为深色（用于图标显示） */

@@ -41,7 +41,11 @@ export default defineEventHandler(async (event) => {
       if (seenHostnames.has(hostname)) continue
       seenHostnames.add(hostname)
 
-      const filename = hostname + '.png'
+      // 净化 hostname：仅允许合法 DNS 字符（字母、数字、连字符、点），防止路径穿越
+      const safeHostname = hostname.replace(/[^a-zA-Z0-9.-]/g, '')
+      if (!safeHostname || safeHostname.includes('..')) continue
+
+      const filename = safeHostname + '.png'
       const filepath = join(faviconDir, filename)
       const localPath = `/images/favicons/${filename}`
 

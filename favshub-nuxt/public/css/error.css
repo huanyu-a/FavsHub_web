@@ -2,7 +2,7 @@
 /* 使用 light-dark() + color-scheme 自动切换主题 */
 :root {
   color-scheme: light dark;
-  --primary-color: light-dark(#10B981, #34D399);
+  --primary: light-dark(#10B981, #34D399);
   --primary-hover: light-dark(#059669, #10B981);
   --surface-raised: light-dark(rgba(255,255,255,0.95), rgba(30,41,59,0.98));
   --text-primary: light-dark(#333, rgba(255,255,255,0.6));
@@ -20,7 +20,7 @@ html[data-theme="dark"]  { color-scheme: dark; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 .error-container {
@@ -35,7 +35,7 @@ html[data-theme="dark"]  { color-scheme: dark; }
 .error-code {
   font-size: 80px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1;
@@ -58,7 +58,7 @@ html[data-theme="dark"]  { color-scheme: dark; }
 }
 .error-page .btn-primary {
   padding: 12px 32px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -77,4 +77,4 @@ html[data-theme="dark"]  { color-scheme: dark; }
   font-size: 15px;
   cursor: pointer;
 }
-.error-page .btn-ghost:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.error-page .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }

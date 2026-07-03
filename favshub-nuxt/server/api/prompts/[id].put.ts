@@ -44,7 +44,13 @@ export default defineEventHandler(async (event) => {
   if (content !== undefined) { updates.push('content = ?'); params.push(content) }
   if (folder_id !== undefined) { updates.push('folder_id = ?'); params.push(folder_id || null) }
   if (is_favorite !== undefined) { updates.push('is_favorite = ?'); params.push(is_favorite ? 1 : 0) }
-  if (login_required !== undefined) { updates.push('login_required = ?'); params.push(login_required ? 1 : 0) }
+  // 只有管理员可修改 login_required（与书签路由一致）
+  if (login_required !== undefined) {
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    if (dbUser?.is_admin) {
+      updates.push('login_required = ?'); params.push(login_required ? 1 : 0)
+    }
+  }
 
   // 内容变更时自增版本号
   if (contentChanged) {
