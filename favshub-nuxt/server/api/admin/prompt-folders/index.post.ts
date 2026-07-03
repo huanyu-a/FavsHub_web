@@ -9,23 +9,23 @@ export default defineEventHandler(async (event) => {
   requireAuth(event)
   const db = getRawDb()
 
+  const auth = requireAuth(event)
   const body = await readBody(event)
   const { name, user_id, parent_id, icon, sort_order, login_required } = body
 
   if (!name) {
     throw createError({ statusCode: 400, data: { error: '文件夹名称不能为空' } })
   }
-  if (!user_id) {
-    throw createError({ statusCode: 400, data: { error: '必须指定用户 ID' } })
-  }
+  // 未指定 user_id 时使用当前认证用户
+  const ownerId = user_id || auth.id
 
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id) as any
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(ownerId) as any
   if (!user) {
     throw createError({ statusCode: 404, data: { error: '用户不存在' } })
   }
 
   if (parent_id) {
-    const parent = db.prepare('SELECT id FROM prompt_folders WHERE id = ? AND user_id = ?').get(parent_id, user_id) as any
+    const parent = db.prepare('SELECT id FROM prompt_folders WHERE id = ? AND user_id = ?').get(parent_id, ownerId) as any
     if (!parent) {
       throw createError({ statusCode: 404, data: { error: '父文件夹不存在' } })
     }
@@ -37,13 +37,13 @@ export default defineEventHandler(async (event) => {
   // Auto-calculate sort_order if not provided
   let finalSortOrder = sort_order
   if (finalSortOrder === undefined) {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM prompt_folders WHERE user_id = ?').get(user_id) as any
+    const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM prompt_folders WHERE user_id = ?').get(ownerId) as any
     finalSortOrder = (maxOrder?.m || 0) + 1
   }
 
   db.prepare('INSERT INTO prompt_folders (id, user_id, name, parent_id, icon, sort_order, login_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     id,
-    user_id,
+    ownerId,
     name,
     parent_id || null,
     icon || '',

@@ -19,8 +19,9 @@ export default defineEventHandler((event) => {
   // 验证 JWT
   const payload = verifyToken(token)
   if (!payload) {
-    // token 无效，清除 cookie 并跳转登录
-    setCookie(event, 'favshub_token', '', { path: '/', maxAge: 0, httpOnly: true, secure: true, sameSite: 'lax' })
+  // token 无效，清除 cookie 并跳转登录（secure 跟随当前协议）
+  const isSecure = getRequestProtocol(event) === 'https'
+  setCookie(event, 'favshub_token', '', { path: '/', maxAge: 0, httpOnly: true, secure: isSecure, sameSite: 'lax' })
     return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}`, 302)
   }
 

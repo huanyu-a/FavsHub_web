@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.2-blue" alt="版本" />
+  <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="版本" />
   <img src="https://img.shields.io/badge/Nuxt-3.21-00DC82?logo=nuxt" alt="Nuxt" />
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript" alt="TypeScript" />
@@ -15,8 +15,8 @@
 </p>
 
 <div align="center">
-  <img src="docs/screenshots/homepage.png" alt="主页" width="49%" />
-  <img src="docs/screenshots/homepage-logged-in.jpg" alt="登录后主页" width="49%" />
+  <img src="docs/screenshots/homepage.png" alt="首页（访客视图）" width="49%" />
+  <img src="docs/screenshots/homepage-logged-in.png" alt="登录后首页" width="49%" />
 </div>
 
 ---
@@ -61,8 +61,8 @@
         <em>首页 — 访客视图，搜索栏 + 文件夹侧栏 + 书签网格</em>
       </td>
       <td align="center" width="50%">
-        <a href="docs/screenshots/homepage-logged-in.jpg">
-          <img src="docs/screenshots/homepage-logged-in.jpg" alt="登录后首页" width="100%" />
+        <a href="docs/screenshots/homepage-logged-in.png">
+          <img src="docs/screenshots/homepage-logged-in.png" alt="登录后首页" width="100%" />
         </a>
         <br />
         <em>登录后首页 — 用户面板 + 书签全文展示</em>
@@ -70,12 +70,21 @@
     </tr>
     <tr>
       <td align="center" width="50%">
+        <a href="docs/screenshots/search-engine-panel.png">
+          <img src="docs/screenshots/search-engine-panel.png" alt="搜索引擎选择面板" width="100%" />
+        </a>
+        <br />
+        <em>搜索引擎选择面板 — 一键切换 29 款引擎</em>
+      </td>
+      <td align="center" width="50%">
         <a href="docs/screenshots/login.png">
           <img src="docs/screenshots/login.png" alt="登录页" width="100%" />
         </a>
         <br />
         <em>登录页 — 品牌展示，登录表单，搜索引擎快捷面板</em>
       </td>
+    </tr>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/prompts.png">
           <img src="docs/screenshots/prompts.png" alt="提示词管理" width="100%" />
@@ -83,15 +92,63 @@
         <br />
         <em>提示词管理 — 文件夹分类管理 AI 提示词</em>
       </td>
-    </tr>
-    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-dashboard.png">
-          <img src="docs/screenshots/admin-dashboard.png" alt="管理后台" width="100%" />
+          <img src="docs/screenshots/admin-dashboard.png" alt="管理后台仪表盘" width="100%" />
         </a>
         <br />
         <em>管理后台 — 统计概览：书签数、用户数、系统信息</em>
       </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-users.png">
+          <img src="docs/screenshots/admin-users.png" alt="用户管理" width="100%" />
+        </a>
+        <br />
+        <em>用户管理 — 查看和管理所有用户</em>
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-bookmarks.png">
+          <img src="docs/screenshots/admin-bookmarks.png" alt="书签管理" width="100%" />
+        </a>
+        <br />
+        <em>书签管理 — 全局书签列表和文件夹管理</em>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-prompts.png">
+          <img src="docs/screenshots/admin-prompts.png" alt="提示词管理（后台）" width="100%" />
+        </a>
+        <br />
+        <em>提示词管理（后台） — 所有用户的提示词和标签</em>
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-backup.png">
+          <img src="docs/screenshots/admin-backup.png" alt="备份管理" width="100%" />
+        </a>
+        <br />
+        <em>备份管理 — 数据下载与定时备份</em>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-settings.png">
+          <img src="docs/screenshots/admin-settings.png" alt="用户设置" width="100%" />
+        </a>
+        <br />
+        <em>用户设置 — 主题、布局、语言等个性化配置</em>
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-config.png">
+          <img src="docs/screenshots/admin-config.png" alt="系统配置" width="100%" />
+        </a>
+        <br />
+        <em>系统配置 — JWT 密钥、管理员列表、备份设置</em>
+      </td>
+    </tr>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/search-engines.png">
           <img src="docs/screenshots/search-engines.png" alt="搜索引擎管理" width="100%" />
@@ -99,6 +156,7 @@
         <br />
         <em>搜索引擎管理 — 29 款内置引擎，拖拽排序</em>
       </td>
+      <td align="center" width="50%"></td>
     </tr>
   </table>
 </div>

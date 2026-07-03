@@ -145,11 +145,7 @@
         <div class="modal-header"><h3>{{ folderEditId ? '编辑文件夹' : '新建文件夹' }}</h3><button class="modal-close" @click="folderEditVisible = false">&times;</button></div>
         <div class="modal-body">
           <div class="fg"><label>名称</label><input v-model="folderEditForm.name" type="text" placeholder="文件夹名称"></div>
-          <div class="fg" v-if="!folderEditId"><label>用户</label>
-            <select v-model="folderEditForm.user_id">
-              <option v-for="u in users" :key="u.id" :value="u.id">{{ u.username }}</option>
-            </select>
-          </div>
+          <!-- 新建文件夹自动使用当前登录用户，无需选择 -->
           <div class="fg"><label>父文件夹</label>
             <select v-model="folderEditForm.parent_id">
               <option :value="null">无（顶级）</option>
@@ -276,15 +272,14 @@ function toggleAllPFolders() {
   }
 }
 async function loadPFolders() { pfLoading.value = true; const d = await $fetch<{ folders: any[] }>('/api/admin/prompt-folders', { headers: getAuthHeaders() }); pFolders.value = d.folders || []; pfLoading.value = false }
-function createPFolder() { Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: users.value[0]?.id || null, sort_order: 0, login_required: 0 }); folderEditId.value = null; folderEditVisible.value = true }
+function createPFolder() { Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: currentUserId.value, sort_order: 0, login_required: 0 }); folderEditId.value = null; folderEditVisible.value = true }
 function openFolderEdit(f: any) { Object.assign(folderEditForm, { name: f.name, parent_id: f.parent_id || null, icon: f.icon || '', user_id: f.user_id, sort_order: f.sort_order || 0, login_required: f.login_required || 0 }); folderEditId.value = f.id; folderEditVisible.value = true }
 async function saveFolderEdit() {
   if (!folderEditForm.name.trim()) return alert('请输入文件夹名称')
   if (folderEditId.value) {
     await $fetch(`/api/admin/prompt-folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   } else {
-    if (!folderEditForm.user_id) return alert('请选择用户')
-    await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, user_id: folderEditForm.user_id, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   }
   folderEditVisible.value = false
   loadPFolders()
