@@ -3738,23 +3738,7 @@ body {
 }
 .toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateX(-50%) translateY(10px); }
-/* .item-count 和 .bg-emerald-500 .item-count 由 main-bundle.css 统一定义 */
-/* 展开/收缩箭头 */
-.folder-arrow {
-  flex-shrink: 0;
-  cursor: pointer;
-  font-size: 16px;
-  color: var(--text-tertiary);
-  width: 20px;
-  text-align: center;
-  transition: color 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.folder-arrow:hover {
-  color: var(--primary);
-}
+/* .item-count、.bg-emerald-500 .item-count、.folder-arrow 由 main-bundle.css 统一定义 */
 /* 只读卡片（管理员创建） */
 .prompt-card.read-only {
   opacity: 0.85;
@@ -4493,164 +4477,6 @@ body {
 }
 
 /* Dark theme overrides removed — now handled by tokens.css light-dark() */
-/* SKIP_DARK_BLOCK_START */
-
-/* 暗色模式 - 主体背景 */
-
-
-/* 暗色模式 - 按钮 */
-
-
-
-
-
-
-/* 暗色模式 - 侧边栏列表项样式由 index-sidebar-fix.css 统一管理 */
-
-/* 暗色模式 - 卡片 */
-
-
-
-
-
-
-
-
-/* 暗色模式 - 文件夹标签 */
-
-/* 暗色模式 - 版本徽章 */
-
-
-/* 暗色模式 - 底部信息 */
-
-
-/* 暗色模式 - 模态框 */
-
-/* 使用 .modal .modal-content 提高优先级覆盖 main-bundle.css */
-
-
-
-
-
-
-
-/* 暗色模式 - 详情页 */
-
-
-
-
-
-
-
-
-/* 暗色模式 - 筛选栏 */
-
-
-
-
-
-/* 暗色模式 - 空状态 */
-
-/* 暗色模式 - 加载状态 */
-
-/* 暗色模式 - 表单 */
-
-
-
-
-
-
-
-
-
-
-
-/* 暗色模式 - 版本历史 */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* 暗色模式 - 版本对比 */
-
-
-
-
-
-
-
-
-
-
-
-
-/* 统计信息栏 */
-
-
-
-
-/* 差异内容区域 */
-
-
-/* 差异行 */
-
-
-
-
-
-
-
-
-
-/* 暗色模式 - 版本详情弹窗 */
-
-
-
-
-/* 暗色模式 - 版本详情模态框底部 */
-
-
-
-/* 暗色模式 - 模态框底部 */
-
-
-
-
-
-
-/* 暗色模式 - 确认还原弹窗 */
-
-
-/* 暗色模式 - 编辑模态框 */
-
-
-
-
-
-
-/* 暗色模式 - 文件夹选择 */
-
-
-
-
-/* 暗色模式 - 标签选择器 */
-
-
-
-
 
 @keyframes tagSlideIn {
     from {
@@ -4663,48 +4489,6 @@ body {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* 暗色模式 - 模态框标题 */
-
-/* 暗色模式 - 复制按钮 */
-
-/* 暗色模式 - 滚动条 */
-
-
-
-
-/* 暗色模式 - 回到顶部按钮 */
-
-
-
-/* 暗色模式 - Toast 提示 */
-
-/* 暗色模式 - 文件夹选择器（自定义下拉框） */
-
-
-
-
-
-
-
-
-/* 暗色模式 - 下拉菜单 */
-
-
 @keyframes dropdownSlideIn {
     from {
         opacity: 0;
@@ -4716,37 +4500,11 @@ body {
     }
 }
 
-
-
-
-
-/* 暗色模式 - 下拉选项 */
-
-
-
-
-
-
-
-/* 暗色模式 - 文件夹图标 */
-
-
-
 /* ==========================================
    Merged from: promptpro-page.css
    ==========================================
 /* ========== 页面布局 ========== */
-html, body {
-    height: 100%;
-    margin: 0;
-    font-family: var(--font-system, system-ui, -apple-system, sans-serif);
-    overflow-x: hidden;
-}
-body {
-    display: flex;
-    background: var(--surface-raised);
-    color: var(--text-primary);
-}
+/* html/body/font-family 由 main-bundle.css 统一定义，此处不覆盖 */
 #sidebar-container {
     display: flex;
     flex: 1;
@@ -4759,18 +4517,7 @@ body {
         overflow: visible !important;
     }
 }
-aside.sidebar {
-    width: 18rem;
-    min-width: 18rem;
-    padding: 1rem;
-    overflow: hidden;
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    background: var(--sidebar-bg);
-    backdrop-filter: blur(22px);
-    -webkit-backdrop-filter: blur(22px);
-}
+/* PromptPro 主内容区布局 */
 .main-content {
     flex: 1;
     display: flex;
@@ -4778,11 +4525,11 @@ aside.sidebar {
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 .main-content::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
+    display: none;
 }
 
 /* ========== 侧边栏 ==========
@@ -4814,11 +4561,7 @@ aside.sidebar {
     color: var(--danger);
     background: light-dark(rgba(239,68,68,0.1), rgba(239,68,68,0.2));
 }
-.folder-item .folder-arrow {
-    font-size: 18px;
-    transition: transform 0.2s;
-    order: 12;
-}
+/* .folder-arrow 由 main-bundle.css 统一定义（font-size:16px），不覆盖 */
 .folder-collapsed {
     display: none !important;
 }

@@ -1467,6 +1467,26 @@ aside .settings-icon {
   flex-shrink: 0;
 }
 
+/* 侧边栏面板操作按钮（标签筛选等） */
+.sidebar-panel-action-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.sidebar-panel-action-btn:hover {
+  background: var(--primary-medium);
+  color: var(--primary);
+}
+
 /* Main content area */
 main {
   padding: 0rem 0rem 2rem 0rem; /* Adjust the padding value as needed */
@@ -6671,6 +6691,7 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 
 #categories-list .folder-item:hover {
     color: var(--text-primary);
+    background: var(--surface-selected);
 }
 
 #categories-list .folder-item i {
@@ -6686,6 +6707,12 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 }
 #categories-list .folder-item.bg-emerald-500:hover {
     color: var(--text-inverse);
+    background: var(--primary);
+}
+
+/* 侧边栏列表项统一间距（覆盖 FolderTreeItem 移除 margin-bottom 后的空隙） */
+#categories-list > * + * {
+    margin-top: 2px;
 }
 
 /* bg-emerald-500 基础样式由 main-bundle.css @layer components 定义 */

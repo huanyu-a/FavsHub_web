@@ -62,9 +62,9 @@ function toggleExpand(e: Event) {
     @click="onClick"
     @contextmenu.prevent="emit('contextmenu-folder', $event, node)"
   >
-    <span v-if="isEmoji" style="font-size:16px;margin-right:4px;flex-shrink:0;width:20px;text-align:center;">{{ node.icon }}</span>
-    <i v-else :class="iconClass" style="font-size:16px;color:var(--primary);margin-right:4px;flex-shrink:0;width:20px;text-align:center;"></i>
-    <span :title="node.name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;">{{ node.name }}</span>
+    <span v-if="isEmoji" style="font-size:16px;flex-shrink:0;width:20px;text-align:center;">{{ node.icon }}</span>
+    <i v-else :class="iconClass" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
+    <span :title="node.name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ node.name }}</span>
     <span v-if="node.login_required" title="登录可见" style="flex-shrink:0;font-size:11px;margin-left:2px;">🔒</span>
     <span
       v-if="node._hasChildren"
@@ -94,11 +94,12 @@ function toggleExpand(e: Event) {
 <style scoped>
 .folder-tree-item {
   cursor: pointer;
-  padding: 0.5rem 0.25rem;
-  margin-bottom: 0.5rem;
-  border-radius: 0.5rem;
+  padding: 8px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
+  font-weight: bold;
+  color: var(--text-primary);
   transition: background 0.15s;
 }
 

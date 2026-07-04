@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <aside class="custom-width p-4 overflow-auto relative">
       <div class="sidebar-shell">
-        <div class="sidebar-top" style="position:sticky;top:0;z-index:2;padding:0 0 0.25rem;display:flex;flex-direction:column;gap:0.65rem;">
+        <div class="sidebar-top">
           <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
             <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
             <div class="sidebar-brand-copy">
@@ -51,11 +51,12 @@
             </li>
             <!-- 收藏 -->
             <li
-              class="cursor-pointer p-2 rounded-lg flex items-center folder-item"
+              class="folder-item"
               :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
+              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
               @click="activeFolderId = '_favorites'; loadPrompts()"
             >
-              <i class="ri-star-line" style="font-size:16px;color:var(--warning);margin-right:8px;width:20px;text-align:center;"></i>
+              <i class="ri-star-line" style="font-size:16px;color:var(--warning);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">收藏</span>
             </li>
             <!-- 文件夹树：使用 FolderTreeItem 组件 -->
@@ -266,7 +267,7 @@ useHead({
   title: 'PromptPro - 提示词管理',
   titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260703' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260703a' },
   ],
 })
 

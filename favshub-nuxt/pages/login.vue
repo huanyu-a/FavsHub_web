@@ -59,7 +59,7 @@ useHead({
   link: [
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703b' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703d' },
   ],
 })
 

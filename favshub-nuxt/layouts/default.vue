@@ -55,7 +55,7 @@ useHead({
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703b' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703d' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
   ],
