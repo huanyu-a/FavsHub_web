@@ -1,4 +1,3 @@
-
 <h1 align="center">FavsHub</h1>
 
 <p align="center">
@@ -9,8 +8,8 @@
   <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="版本" />
   <img src="https://img.shields.io/badge/Nuxt-3.21-00DC82?logo=nuxt" alt="Nuxt" />
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue" />
-  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite" alt="SQLite" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/SQLite-3.45-003B57?logo=sqlite" alt="SQLite" />
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker" alt="Docker" />
 </p>
 
@@ -29,6 +28,8 @@
 - [快速开始](#快速开始)
 - [Docker 部署](#docker-部署)
 - [项目结构](#项目结构)
+- [认证机制](#认证机制)
+- [API 参考](#api-参考)
 - [浏览器扩展](#浏览器扩展)
 - [环境变量](#环境变量)
 - [License](#license)
@@ -37,14 +38,55 @@
 
 ## 功能特性
 
-- **智能书签管理** — 文件夹分类、拖拽排序、标签管理、批量操作，让收藏井井有条
-- **AI 提示词管理** — 版本追踪、文件夹组织，高效管理你的 AI 提示词库
-- **搜索引擎聚合** — 内置 29 款搜索引擎（通用搜索、AI、社交），一键切换，还可自定义排序
-- **浏览器扩展同步** — 通过浏览器扩展一键收藏，增量同步到服务器，URL 自动去重
-- **多用户支持** — 首个注册用户自动成为管理员，管理面板一览全局
-- **深色/浅色主题** — 跟随系统偏好，适配你的视觉习惯
-- **Docker 一键部署** — 使用 Docker Compose 快速部署到任何服务器
-- **百度网盘备份** — 支持将书签备份到百度网盘（需 Chrome 扩展环境）
+### 🔖 智能书签管理
+
+- **文件夹分类** — 支持两级文件夹层级，树形导航
+- **拖拽排序** — 书签和文件夹均支持拖拽调整顺序
+- **标签管理** — 为书签添加彩色标签，多维筛选
+- **批量操作** — 支持批量打开、批量删除
+- **右键菜单** — 编辑、删除、复制、生成二维码、批量打开
+- **默认首页** — 可设置任意文件夹为默认首页
+
+### 📝 AI 提示词管理（PromptPro）
+
+- **版本控制** — 自动保存历史版本，支持差异对比和一键还原
+- **语义化版本** — 自动递增（1.0.0 → 1.0.1 → 1.1.0）
+- **文件夹分类** — 多级文件夹组织提示词库
+- **标签筛选** — 多维标签系统，快速定位
+- **收藏功能** — 标记常用提示词
+- **智能搜索** — 权重评分算法，精准匹配
+
+### 🔍 搜索引擎聚合
+
+- **29 款内置引擎** — 通用搜索（Google/Bing/百度）、AI 搜索（ChatGPT/Claude/DeepSeek/Kimi）、社交媒体
+- **一键切换** — 下拉菜单快速切换搜索引擎
+- **对比搜索** — 一键在多个引擎中同时查询
+- **自定义引擎** — 管理员可添加/编辑/删除引擎
+- **拖拽排序** — 自定义引擎显示顺序
+
+### 🎨 个性化外观
+
+- **15 套主题** — 浅色/暗色/壁纸背景，完整配色方案
+- **主题切换** — 跟随系统或手动切换，实时预览
+- **壁纸系统** — 必应每日壁纸 + 预设壁纸 + 用户上传
+- **布局自定义** — 书签卡片宽度/高度、容器宽度比例调节
+- **移动端适配** — 响应式布局，完美适配手机/平板
+
+### 🌐 多用户与权限
+
+- **多用户支持** — 独立用户数据隔离
+- **管理员系统** — 首个注册用户自动成为管理员
+- **环境变量配置** — 支持 `ADMIN_USERS` 预设管理员列表
+- **登录可见** — 书签/文件夹可设置登录后可见
+
+### 🐳 部署与运维
+
+- **Docker 一键部署** — Docker Compose 快速启动
+- **CI/CD 自动构建** — GitHub Actions 自动构建推送
+- **数据持久化** — SQLite 数据库挂载卷，容器重建不影响数据
+- **定时备份** — 支持每日自动备份 + 手动备份
+- **百度网盘备份** — 云端备份支持（需 Chrome 扩展环境）
+- **健康检查** — `/api/health` 端点实时监控
 
 ---
 
@@ -165,35 +207,24 @@
 
 ## 技术栈
 
-### 前端（favshub-nuxt）
+### 前端
 
-| 技术 | 说明 |
-|------|------|
-| [Nuxt 3](https://nuxt.com/) | Vue 全栈框架（SSR，Nitro 服务端预设） |
-| [Vue 3](https://vuejs.org/) | 响应式 UI 框架 |
-| [Naive UI](https://www.naiveui.com/) | 组件库 |
-| [TypeScript](https://www.typescriptlang.org/) | 类型安全 |
-| [Pinia](https://pinia.vuejs.org/) | 状态管理 |
-| [SortableJS](https://sortablejs.github.io/Sortable/) | 拖拽排序 |
-| [Drizzle ORM](https://orm.drizzle.team/) | 数据库 ORM |
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| [Nuxt 3](https://nuxt.com/) | 3.21 | Vue 全栈框架（SSR，Nitro 服务端预设） |
+| [Vue 3](https://vuejs.org/) | 3.5 | 响应式 UI 框架 |
+| [Naive UI](https://www.naiveui.com/) | 2.44 | 组件库 |
+| [TypeScript](https://www.typescriptlang.org/) | 5.9 | 类型安全 |
+| [Pinia](https://pinia.vuejs.org/) | 3.0 | 状态管理 |
+| [Drizzle ORM](https://orm.drizzle.team/) | 0.45 | 数据库 ORM |
 
-### 后端（Nitro / Express）
+### 后端
 
-| 技术 | 说明 |
-|------|------|
-| [Nitro](https://nitro.unjs.io/) | Nuxt 服务端引擎 |
-| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | SQLite 数据库驱动（WAL 模式） |
-| [JWT](https://jwt.io/) | 身份认证 |
-| [bcryptjs](https://github.com/dcodeIO/bcrypt.js) | 密码加密 |
-
-### 浏览器扩展（favshub-ext）
-
-| 技术 | 说明 |
-|------|------|
-| [Vue 3](https://vuejs.org/) | UI 框架 |
-| [WXT](https://wxt.dev/) | 跨浏览器扩展框架 |
-| [Naive UI](https://www.naiveui.com/) | 组件库 |
-| [TypeScript](https://www.typescriptlang.org/) | 类型安全 |
+| 技术 | 版本 | 说明 |
+|------|------|------|
+| [Nitro](https://nitro.unjs.io/) | 2.13 | Nuxt 服务端引擎 |
+| [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) | 12.10 | SQLite 数据库驱动（WAL 模式） |
+| [JWT](https://jwt.io/) | 9.0 | 身份认证（jsonwebtoken + bcryptjs） |
 
 ### DevOps
 
@@ -201,13 +232,12 @@
 |------|------|
 | [Docker](https://www.docker.com/) | 容器化部署（node:20-alpine） |
 | [GitHub Actions](https://github.com/features/actions) | CI/CD 自动构建 |
-| [GHCR](https://ghcr.io/) | 容器镜像仓库 |
 
 ### 包管理器
 
-| 技术 | 说明 |
+| 技术 | 版本 |
 |------|------|
-| [pnpm](https://pnpm.io/) | 包管理器（v9.15） |
+| [pnpm](https://pnpm.io/) | 9.15 |
 
 ---
 
@@ -221,9 +251,8 @@
 ### 安装与启动
 
 ```bash
-# 克隆仓库
-git clone https://github.com/huanyu-a/FavsHub_web.git
-cd FavsHub_web/favshub-nuxt
+# 进入目录
+cd favshub-nuxt
 
 # 安装依赖
 pnpm install
@@ -238,7 +267,7 @@ pnpm dev
 
 ```bash
 pnpm build
-pnpm preview
+pnpm preview    # 本地预览生产构建
 ```
 
 ---
@@ -295,87 +324,240 @@ docker compose up -d
 favshub-nuxt/
 ├── app.vue                  # 应用入口（NuxtLayout + NuxtPage）
 ├── error.vue                # 错误页面（404/500）
-├── nuxt.config.ts           # Nuxt 配置（Pinia 模块、View Transition、安全头）
+├── nuxt.config.ts           # Nuxt 配置（Pinia 模块、Theme 系统）
 ├── package.json             # 依赖与脚本
-├── pnpm-lock.yaml           # pnpm 锁定文件
 ├── compose.yaml             # Docker Compose 编排
-├── Dockerfile               # Docker 镜像构建（node:20-alpine）
-├── VERSION                  # 版本号（推送此文件触发 CI 自动构建）
+├── Dockerfile               # Docker 镜像构建
+├── VERSION                  # 版本号（推送此文件触发 CI）
 ├── docs/
-│   └── screenshots/         # 文档截图（6 张）
-├── public/                  # 静态资源目录（CSS、图片、favicon 缓存等）
-├── components/              # Vue 组件
-│   ├── auth/
-│   │   └── LoginDialog.vue         # 登录弹窗
-│   ├── bookmark/
-│   │   ├── BookmarkCard.vue        # 书签卡片
-│   │   ├── BookmarkContextMenu.vue # 书签右键菜单
-│   │   ├── BookmarkEditDialog.vue  # 书签编辑弹窗
-│   │   └── BookmarkGrid.vue        # 书签网格布局
-│   ├── common/
-│   │   └── IconPicker.vue          # 图标选择器
-│   ├── mobile/
-│   │   ├── MobileBottomNav.vue     # 移动端底部导航
-│   │   ├── MobileHeader.vue        # 移动端顶栏
-│   │   └── MobileOverlay.vue       # 移动端遮罩
-│   ├── prompts/
-│   │   └── PromptDialogs.vue       # 提示词编辑弹窗
+│   └── screenshots/         # 文档截图
+├── public/
+│   ├── css/
+│   │   ├── tokens.css       # CSS 设计令牌
+│   │   ├── themes.css       # 15 套主题配色方案
+│   │   ├── main-bundle.css  # 主样式
+│   │   ├── admin.css        # 管理后台样式
+│   │   └── mobile-responsive.css  # 移动端响应式
+│   ├── images/              # 搜索引擎 logo、favicon 缓存
+│   ├── fonts/               # 自定义字体
+│   └── vendor/              # 第三方库（Sortable.js、lodash 等）
+├── components/
+│   ├── auth/LoginDialog.vue         # 登录弹窗
+│   ├── bookmark/                    # 书签组件
+│   │   ├── BookmarkCard.vue / BookmarkContextMenu.vue
+│   │   ├── BookmarkEditDialog.vue / BookmarkGrid.vue
+│   ├── common/IconPicker.vue        # 图标选择器
+│   ├── mobile/                      # 移动端组件
+│   │   ├── MobileBottomNav.vue / MobileHeader.vue / MobileOverlay.vue
+│   ├── prompts/PromptDialogs.vue    # 提示词编辑弹窗
 │   ├── search/
-│   │   ├── SearchBar.vue           # 搜索栏
+│   │   ├── SearchBar.vue            # 搜索栏
 │   │   └── SearchEngineDropdown.vue # 搜索引擎下拉切换
 │   ├── sidebar/
-│   │   ├── FolderTreeItem.vue      # 文件夹树节点
-│   │   ├── Sidebar.vue             # 侧边栏
-│   │   └── UserPanel.vue           # 用户面板
-│   ├── BackToTop.vue               # 回到顶部按钮
-│   ├── FloatingNav.vue             # 浮动导航
-│   ├── WelcomeMessage.vue          # 欢迎信息
-│   └── YearProgress.vue            # 年度进度组件
+│   │   ├── FolderTreeItem.vue       # 文件夹树节点
+│   │   ├── Sidebar.vue              # 侧边栏
+│   │   └── UserPanel.vue            # 用户面板
+│   ├── BackToTop.vue                # 回到顶部按钮
+│   ├── FloatingNav.vue              # 浮动导航
+│   ├── WelcomeMessage.vue           # 欢迎信息
+│   └── YearProgress.vue             # 年度进度组件
+├── composables/
+│   ├── useAuth.ts                   # 认证逻辑
+│   ├── useMobile.ts                 # 移动端检测
+│   └── useTheme.ts                  # 主题系统（15 套主题切换）
 ├── layouts/
-│   ├── admin.vue             # 管理后台布局
-│   └── default.vue           # 默认布局（主应用）
+│   ├── admin.vue                    # 管理后台布局
+│   └── default.vue                  # 默认布局（主应用）
+├── middleware/
+│   └── admin.ts                     # 路由守卫 — 登录权限保护
 ├── pages/
-│   ├── index.vue             # 首页 — 书签浏览
-│   ├── login.vue             # 登录/注册页
-│   ├── prompts/
-│   │   └── index.vue         # 提示词管理页
-│   └── admin/
-│       ├── index.vue              # 管理后台仪表盘
-│       ├── backup.vue             # 数据备份
-│       ├── bookmarks.vue          # 书签管理
-│       ├── config.vue             # 系统配置
-│       ├── prompts.vue            # 提示词管理
-│       ├── search-engines.vue     # 搜索引擎管理
-│       ├── settings.vue           # 设置
-│       └── users.vue              # 用户管理
-└── server/                   # 服务端 API
-    ├── api/                  # API 路由（书签、认证、同步、管理后台等）
-    ├── middleware/           # 中间件（JWT 认证、管理员检查）
-    └── db.js                 # SQLite 数据库初始化与增量迁移
+│   ├── index.vue                    # 首页 — 书签浏览
+│   ├── login.vue                    # 登录/注册页
+│   ├── prompts/index.vue            # 提示词管理页
+│   └── admin/                       # 管理后台（SPA）
+│       ├── index.vue                # 📊 仪表盘
+│       ├── users.vue                # 📋 用户管理
+│       ├── bookmarks.vue            # 📋 书签管理
+│       ├── prompts.vue              # 📋 提示词管理
+│       ├── search-engines.vue       # 🔍 搜索引擎管理
+│       ├── backup.vue               # 💾 备份管理
+│       ├── settings.vue             # ⚙️ 用户设置
+│       └── config.vue               # ⚙️ 系统配置
+├── plugins/
+│   ├── 0.theme-init.client.ts       # 主题初始化（启动时恢复）
+│   └── auth-init.client.ts          # 认证初始化（启动时恢复 token）
+├── stores/
+│   ├── auth.ts                      # 认证状态
+│   ├── bookmarks.ts                 # 书签数据
+│   ├── searchEngines.ts             # 搜索引擎列表
+│   ├── settings.ts                  # 用户设置
+│   └── ui.ts                        # UI 状态
+├── server/
+│   ├── api/                         # API 路由
+│   │   ├── auth/                    # 登录/注册/登出
+│   │   ├── bookmarks/               # 书签 CRUD
+│   │   ├── folders/                 # 文件夹管理
+│   │   ├── prompts/                 # 提示词管理
+│   │   ├── tags/                    # 标签管理
+│   │   ├── sync/                    # 扩展数据同步
+│   │   ├── settings/                # 用户设置
+│   │   ├── admin/                   # 管理员后台 API
+│   │   │   ├── backup/              # 备份管理
+│   │   │   ├── bookmarks/           # 书签管理
+│   │   │   ├── config/              # 系统配置
+│   │   │   ├── folders/             # 文件夹管理
+│   │   │   ├── prompt-folders/      # 提示词文件夹
+│   │   │   ├── prompts/             # 提示词管理
+│   │   │   ├── search-engines/      # 搜索引擎管理
+│   │   │   ├── tags/                # 标签管理
+│   │   │   ├── users/               # 用户管理
+│   │   │   ├── stats.get.ts         # 统计数据
+│   │   │   ├── manual-backup.post.ts
+│   │   │   └── download-favicon/    # favicon 下载本地化
+│   │   ├── search-engines.get.ts    # 搜索引擎列表（公开）
+│   │   ├── health.get.ts            # 健康检查
+│   │   └── user/                    # 用户信息/资料
+│   ├── middleware/
+│   │   ├── admin-guard.ts           # 服务端管理员 JWT 验证
+│   │   └── cors.ts                  # CORS 中间件
+│   ├── plugins/
+│   │   ├── db-init.ts               # 数据库初始化（首次启动建表）
+│   │   ├── theme-init.ts            # 服务端主题注入
+│   │   ├── error-handler.ts         # 全局错误处理
+│   │   └── backup-scheduler.ts      # 定时备份
+│   ├── database/
+│   │   ├── index.ts                 # 数据库连接（better-sqlite3）
+│   │   ├── schema.ts                # Drizzle ORM Schema
+│   │   └── migrate.ts               # 增量迁移
+│   └── utils/
+│       ├── auth.ts                  # JWT 工具（verifyToken + requireAuth）
+│       ├── jwt.ts                   # JWT 签发/验证
+│       ├── config.ts                # 配置（JWT 密钥、CORS）
+│       ├── constants.ts             # 常量（默认搜索引擎等）
+│       └── rate-limit.ts            # 速率限制
+├── data/                            # SQLite 数据库（gitignore）
+└── .output/                         # Nuxt 构建输出（gitignore）
+```
+
+---
+
+## 认证机制
+
+### 双渠道认证
+
+- **httpOnly Cookie** — SSR 页面访问时自动携带，服务端中间件验证
+- **Bearer Token** — 客户端 API 调用时通过 `Authorization` 头传递
+
+### Token 存储
+
+- 登录后同时写入：
+  - `localStorage.favshub_token`（客户端读取）
+  - `Set-Cookie: favshub_token=xxx`（httpOnly，SSR 用）
+
+### 安全特性
+
+- **secure 标志自适应** — HTTP 时 `secure: false`，HTTPS 时 `secure: true`
+- **sameSite: lax** — 防止 CSRF 攻击
+- **JWT 过期** — 默认 24 小时，过期后自动跳转登录
+
+### 认证流程
+
+```
+1. 用户登录 → POST /api/auth/login
+2. 服务端验证 → 返回 JWT + Set-Cookie
+3. 客户端保存 token → localStorage + Pinia store
+4. 后续请求携带 Authorization: Bearer <token>
+5. 服务端中间件验证 → 通过则放行，失败则清除 cookie 并跳转登录
+```
+
+---
+
+## API 参考
+
+所有路由挂载在 `/api` 前缀下：
+
+### 公开接口（无需认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/search-engines` | 获取搜索引擎列表 |
+| `GET` | `/api/health` | 健康检查 |
+| `POST` | `/api/auth/register` | 用户注册 |
+| `POST` | `/api/auth/login` | 用户登录 |
+
+### 认证接口（需要登录）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/auth/me` | 获取当前用户信息 |
+| `POST` | `/api/auth/logout` | 登出 |
+| `PUT` | `/api/auth/profile` | 更新个人资料 |
+| `GET` | `/api/bookmarks` | 获取书签列表 |
+| `POST` | `/api/bookmarks` | 创建书签 |
+| `PUT` | `/api/bookmarks/:id` | 更新书签 |
+| `DELETE` | `/api/bookmarks/:id` | 删除书签 |
+| `GET` | `/api/folders` | 获取文件夹列表 |
+| `POST` | `/api/folders` | 创建文件夹 |
+| `PUT` | `/api/folders/:id` | 更新文件夹 |
+| `DELETE` | `/api/folders/:id` | 删除文件夹 |
+| `GET` | `/api/prompts` | 获取提示词列表 |
+| `POST` | `/api/prompts` | 创建提示词 |
+| `PUT` | `/api/prompts/:id` | 更新提示词 |
+| `DELETE` | `/api/prompts/:id` | 删除提示词 |
+| `GET` | `/api/tags` | 获取标签列表 |
+| `POST` | `/api/tags` | 创建标签 |
+| `DELETE` | `/api/tags/:id` | 删除标签 |
+| `GET` | `/api/settings` | 获取用户设置 |
+| `PUT` | `/api/settings` | 更新用户设置 |
+| `POST` | `/api/sync/bookmarks` | 同步浏览器书签 |
+
+### 管理员接口（需要管理员权限）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/admin/stats` | 获取全站统计数据 |
+| `GET` | `/api/admin/users` | 获取用户列表 |
+| `PUT` | `/api/admin/users/:id` | 更新用户信息 |
+| `GET` | `/api/admin/bookmarks` | 获取所有书签 |
+| `DELETE` | `/api/admin/bookmarks/:id` | 删除任意书签 |
+| `GET` | `/api/admin/prompts` | 获取所有提示词 |
+| `DELETE` | `/api/admin/prompts/:id` | 删除任意提示词 |
+| `GET` | `/api/admin/backup` | 获取备份信息 |
+| `POST` | `/api/admin/backup/manual` | 手动备份 |
+| `GET/PUT` | `/api/admin/config` | 系统配置读写 |
+| `GET/POST/PUT/DELETE` | `/api/admin/search-engines/*` | 搜索引擎管理 |
+
+### 请求头格式
+
+```http
+Authorization: Bearer <favshub_token>
+Content-Type: application/json
 ```
 
 ---
 
 ## 浏览器扩展
 
-FavsHub 配套的浏览器扩展位于项目根目录的 `favshub-ext/`，基于 **Vue 3 + WXT + TypeScript** 构建，支持 Chrome 和 Firefox。
+FavsHub 配套的浏览器扩展位于项目根目录的 `favshub-ext/`，基于 **Vue 3 + WXT + TypeScript** 构建。
 
 主要功能：
 
-- **一键收藏** — 右键或点击扩展图标快速收藏当前网页，自动提取标题、URL、favicon
-- **增量同步** — 自动同步书签到 FavsHub 服务器，以 URL 为基准去重
-- **跨设备** — 多浏览器间书签实时同步
-- **文件夹分类** — 收藏时选择目标文件夹
-
-开发扩展：
+- **一键收藏** — 右键或点击扩展图标快速收藏当前网页
+- **增量同步** — 自动同步书签到 FavsHub 服务器，URL 去重
+- **侧边栏模式** — `Alt+B` 快速打开侧边栏
+- **浮动球** — 页面悬浮球快速访问
+- **跨浏览器** — Chrome（MV3）和 Firefox
+- **国际化** — 中文 / English 双语支持
 
 ```bash
 cd favshub-ext
-pnpm install         # 首次运行自动执行 wxt prepare
-pnpm dev             # Chrome 开发模式
-pnpm build           # Chrome 生产构建
-pnpm build:firefox   # Firefox 生产构建
+pnpm install
+pnpm dev           # Chrome 开发模式
+pnpm build         # Chrome 生产构建
+pnpm build:firefox # Firefox 生产构建
 ```
+
+详见 [favshub-ext/README.md](../favshub-ext/README.md)。
 
 ---
 
@@ -383,13 +565,13 @@ pnpm build:firefox   # Firefox 生产构建
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `NUXT_JWT_SECRET` | JWT 签名密钥（生产环境务必修改） | `please-change-this-to-a-random-string` |
+| `NUXT_JWT_SECRET` | JWT 签名密钥（生产务必修改） | `please-change-this-to-a-random-string` |
 | `NUXT_DB_PATH` | SQLite 数据库文件路径 | `./data/favshub.db` |
 | `NUXT_CORS_ORIGIN` | CORS 允许的跨域来源 | `*` |
-| `NUXT_ADMIN_USERS` | 管理员用户名列表（逗号分隔） | 空（首个注册用户自动为管理员） |
+| `NUXT_ADMIN_USERS` | 管理员用户名列表（逗号分隔） | 空（首个注册用户为管理员） |
 
 ---
 
 ## License
 
-MIT
+ISC License
