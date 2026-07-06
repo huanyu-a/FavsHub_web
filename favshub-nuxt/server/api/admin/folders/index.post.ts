@@ -6,7 +6,7 @@ import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  const auth = requireAdmin(event)
   const db = getRawDb()
 
   const body = await readBody(event)
@@ -15,25 +15,24 @@ export default defineEventHandler(async (event) => {
   if (!name) {
     throw createError({ statusCode: 400, data: { error: '文件夹名称不能为空' } })
   }
-  if (!user_id) {
-    throw createError({ statusCode: 400, data: { error: '必须指定用户 ID' } })
-  }
+  // 未指定 user_id 时使用当前认证用户
+  const ownerId = user_id || auth.id
 
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id) as any
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(ownerId) as any
   if (!user) {
     throw createError({ statusCode: 404, data: { error: '用户不存在' } })
   }
 
   if (parent_id) {
-    const parent = db.prepare('SELECT id FROM folders WHERE id = ? AND user_id = ?').get(parent_id, user_id) as any
+    const parent = db.prepare('SELECT id FROM folders WHERE id = ? AND user_id = ?').get(parent_id, ownerId) as any
     if (!parent) {
       throw createError({ statusCode: 404, data: { error: '父文件夹不存在' } })
     }
   }
 
-  const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM folders WHERE user_id = ?').get(user_id) as any
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM folders WHERE user_id = ?').get(ownerId) as any
   const result = db.prepare('INSERT INTO folders (user_id, name, parent_id, icon, sort_order, login_required) VALUES (?, ?, ?, ?, ?, ?)').run(
-    user_id,
+    ownerId,
     name,
     parent_id || null,
     icon || null,

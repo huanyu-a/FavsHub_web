@@ -6,10 +6,9 @@ import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  const auth = requireAdmin(event)
   const db = getRawDb()
 
-  const auth = requireAdmin(event)
   const body = await readBody(event)
   const { name, user_id, parent_id, icon, sort_order, login_required } = body
 

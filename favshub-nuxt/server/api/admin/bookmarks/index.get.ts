@@ -1,19 +1,14 @@
 /**
- * GET /api/admin/bookmarks — 管理后台书签列表
- * 管理员：全部书签
- * 普通用户：仅自己的书签
+ * GET /api/admin/bookmarks — 管理后台书签列表（管理员专用）
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 import { getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  const user = requireAdmin(event)
   const db = getRawDb()
   const query = getQuery(event)
-
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
 
   const q = typeof query.q === 'string' ? query.q.trim() : ''
   const url = typeof query.url === 'string' ? query.url.trim() : ''
@@ -23,12 +18,6 @@ export default defineEventHandler(async (event) => {
 
   const conditions: string[] = []
   const params: any[] = []
-
-  // 普通用户只看自己的书签
-  if (!isAdmin) {
-    conditions.push('b.user_id = ?')
-    params.push(user.id)
-  }
 
   if (q) {
     conditions.push('b.title LIKE ?')
@@ -65,20 +54,13 @@ export default defineEventHandler(async (event) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset)
 
-  // 文件夹：所有人都能看到（管理员的文件夹对普通用户只读，前端控制）
-  const folders = isAdmin
-    ? db.prepare(`
-        SELECT f.*, u.username,
-          (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
-        FROM folders f LEFT JOIN users u ON f.user_id = u.id
-        ORDER BY f.name
-      `).all()
-    : db.prepare(`
-        SELECT f.*, u.username,
-          (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id AND user_id = ?) as bookmark_count
-        FROM folders f LEFT JOIN users u ON f.user_id = u.id
-        ORDER BY f.name
-      `).all(user.id)
+  // 管理员可查看所有文件夹
+  const folders = db.prepare(`
+    SELECT f.*, u.username,
+      (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
+    FROM folders f LEFT JOIN users u ON f.user_id = u.id
+    ORDER BY f.name
+  `).all()
 
-  return { bookmarks, folders, total, page, limit, isAdmin }
+  return { bookmarks, folders, total, page, limit, isAdmin: true }
 })

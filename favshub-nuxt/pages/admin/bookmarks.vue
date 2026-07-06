@@ -100,11 +100,7 @@
         <div class="modal-header"><h3>{{ folderEditId ? '编辑文件夹' : '新建文件夹' }}</h3><button class="modal-close" @click="folderEditVisible = false">&times;</button></div>
         <div class="modal-body">
           <div class="fg"><label>名称</label><input v-model="folderEditForm.name" type="text" placeholder="文件夹名称"></div>
-          <div class="fg" v-if="!folderEditId"><label>用户</label>
-            <select v-model="folderEditForm.user_id">
-              <option v-for="u in users" :key="u.id" :value="u.id">{{ u.username }}</option>
-            </select>
-          </div>
+          <!-- 新建文件夹自动使用当前登录用户，无需选择 -->
           <div class="fg"><label>父文件夹</label>
             <select v-model="folderEditForm.parent_id">
               <option :value="null">无（顶级）</option>
@@ -299,7 +295,7 @@ async function exportBookmarks() {
 // Folder ops
 function openFolderCreate() {
   folderEditId.value = null
-  Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: users.value[0]?.id || null, sort_order: 0, login_required: 0 })
+  Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: currentUserId.value, sort_order: 0, login_required: 0 })
   folderEditVisible.value = true
 }
 function openFolderEdit(f: any) {
@@ -313,9 +309,8 @@ async function saveFolderEdit() {
     // Edit mode — PUT
     await $fetch(`/api/admin/folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   } else {
-    // Create mode — POST
-    if (!folderEditForm.user_id) return alert('请选择用户')
-    await $fetch('/api/admin/folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, user_id: folderEditForm.user_id, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    // Create mode — POST（自动使用当前用户，无需选择）
+    await $fetch('/api/admin/folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
   }
   folderEditVisible.value = false
   loadFolders()
