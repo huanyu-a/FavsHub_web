@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
           SELECT DISTINCT pt.tag_id
           FROM prompt_tags pt
           JOIN prompts p ON pt.prompt_id = p.id
-          WHERE p.user_id = ?
+          WHERE p.user_id = ? OR p.login_required = 0
         )
         ORDER BY t.name
       `).all(auth.id)

@@ -44,7 +44,8 @@
             <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'">{{ p.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
-              <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
+              <button v-if="!isAdmin && owner_is_admin" class="btn btn-ghost btn-sm" @click="openEdit(p)">申请修改</button>
+              <button v-else class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
               <button v-if="canDeletePrompt(p)" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
           </tr>
@@ -209,20 +210,21 @@
         </div>
       </div>
     </div>
-    <!-- 编辑弹窗 -->
-    <div v-show="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
-      <div class="modal">
-        <div class="modal-header"><h3>编辑提示词</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
-        <div class="modal-body">
-          <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
-          <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
-          <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
-          <div class="fg"><label>文件夹</label><select v-model="ef.folder_id"><option :value="null">未分类</option><option v-for="f in flatPFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option></select></div>
-          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
-          <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
-        </div>
-      </div>
-    </div>
+	    <!-- 编辑弹窗 -->
+	    <div v-show="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
+	      <div class="modal">
+	        <div class="modal-header"><h3>{{ ef._reviewMode ? '申请修改' : '编辑提示词' }}</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
+	        <div class="modal-body">
+	          <div v-if="ef._reviewMode" class="review-hint">⚠️ 此提示词由管理员创建，修改将提交给管理员审核</div>
+	          <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
+	          <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
+	          <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
+	          <div class="fg"><label>文件夹</label><select v-model="ef.folder_id"><option :value="null">未分类</option><option v-for="f in flatPFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option></select></div>
+	          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
+	          <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">{{ ef._reviewMode ? '提交审核' : '保存' }}</button></div>
+	        </div>
+	      </div>
+	    </div>
   </div>
 </template>
 
@@ -355,9 +357,25 @@ let tdkTimer: any = null
 function saveTdk() { clearTimeout(tdkTimer); tdkTimer = setTimeout(async () => { try { await $fetch('/api/admin/config', { method: 'PUT', headers: getAuthHeaders(), body: { data: { ...tdk } } }) } catch (e) { console.error('保存 TDK 失败', e) } }, 500) }
 // Edit modal
 const editVisible = ref(false)
-const ef = reactive({ id: '', title: '', description: '', content: '', folder_id: null as string | null, login_required: 0 })
-function openEdit(p: any) { Object.assign(ef, { id: p.id, title: p.title, description: p.description || '', content: p.content || '', folder_id: p.folder_id ?? null, login_required: p.login_required || 0 }); editVisible.value = true }
-async function saveEdit() { await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...ef } }); editVisible.value = false; loadPrompts() }
+const ef = reactive({ id: '', title: '', description: '', content: '', folder_id: null as string | null, login_required: 0, _reviewMode: false })
+function openEdit(p: any) { 
+  Object.assign(ef, { 
+    id: p.id, title: p.title, description: p.description || '', content: p.content || '', 
+    folder_id: p.folder_id ?? null, login_required: p.login_required || 0,
+    _reviewMode: !isAdmin.value && p.owner_is_admin
+  }); 
+  editVisible.value = true 
+}
+async function saveEdit() { 
+  const body = { ...ef }
+  delete body._reviewMode
+  const res = await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
+  editVisible.value = false
+  if (res?.review_required) {
+    alert('✅ 修改已提交审核，等待管理员审批')
+  }
+  loadPrompts() 
+}
 async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() }
 function canDeletePrompt(p: any) { return isAdmin.value || p.user_id === currentUserId.value }
 // Import/Export

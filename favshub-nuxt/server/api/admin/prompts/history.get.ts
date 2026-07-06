@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
         FROM prompt_versions pv
         LEFT JOIN prompts p ON pv.prompt_id = p.id
         LEFT JOIN users u ON p.user_id = u.id
-        WHERE p.user_id = ?
+        WHERE p.user_id = ? OR (p.login_required = 0)
         ORDER BY pv.created_at DESC
         LIMIT ?
       `).all(user.id, limit)

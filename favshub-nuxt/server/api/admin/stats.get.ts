@@ -22,17 +22,17 @@ export default defineEventHandler(async (event) => {
   todayStart.setHours(0, 0, 0, 0)
   const todayTs = todayStart.getTime()
 
-  if (!isAdmin) {
-    // ── 普通用户：个人统计 ─────────────────────────────────────
-    const bookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ?').get(user.id) as any).count
-    const folders = (db.prepare('SELECT COUNT(*) as count FROM folders WHERE user_id = ?').get(user.id) as any).count
-    const prompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(user.id) as any).count
-    const promptFolders = (db.prepare('SELECT COUNT(*) as count FROM prompt_folders WHERE user_id = ?').get(user.id) as any).count
-    const tags = (db.prepare('SELECT COUNT(DISTINCT tag_id) as count FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
-    const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(user.id) as any).count
-    const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
-    const todayBookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
-    const todayPrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
+	if (!isAdmin) {
+	    // ── 普通用户：自己的 + 管理员公开数据 ────────────────────
+	    const bookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ? OR login_required = 0').get(user.id) as any).count
+	    const folders = (db.prepare('SELECT COUNT(*) as count FROM folders WHERE user_id = ? OR login_required = 0').get(user.id) as any).count
+	    const prompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? OR login_required = 0').get(user.id) as any).count
+	    const promptFolders = (db.prepare('SELECT COUNT(*) as count FROM prompt_folders WHERE user_id = ? OR user_id IN (SELECT id FROM users WHERE is_admin = 1)').get(user.id) as any).count
+	    const tags = (db.prepare('SELECT COUNT(DISTINCT tag_id) as count FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ? OR p.login_required = 0').get(user.id) as any).count
+	    const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE is_favorite = 1 AND (user_id = ? OR login_required = 0)').get(user.id) as any).count
+	    const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ? OR p.login_required = 0').get(user.id) as any).count
+	    const todayBookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE created_at >= ? AND (user_id = ? OR login_required = 0)').get(todayTs, user.id) as any).count
+	    const todayPrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE created_at >= ? AND (user_id = ? OR login_required = 0)').get(todayTs, user.id) as any).count
 
     return {
       scope: 'personal',

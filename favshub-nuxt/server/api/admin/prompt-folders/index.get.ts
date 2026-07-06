@@ -24,18 +24,18 @@ export default defineEventHandler(async (event) => {
       LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
       ORDER BY pf.user_id, pf.parent_id NULLS FIRST, pf.sort_order
     `).all()
-  } else {
-    folders = db.prepare(`
-      SELECT pf.*, u.username,
-        parent.name as parent_name,
-        (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id) as prompt_count
-      FROM prompt_folders pf
-      LEFT JOIN users u ON pf.user_id = u.id
-      LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
-      WHERE pf.user_id = ?
-      ORDER BY pf.parent_id NULLS FIRST, pf.sort_order
-    `).all(auth.id)
-  }
+	  } else {
+	    folders = db.prepare(`
+	      SELECT pf.*, u.username,
+	        parent.name as parent_name,
+	        (SELECT COUNT(*) FROM prompts WHERE folder_id = pf.id) as prompt_count
+	      FROM prompt_folders pf
+	      LEFT JOIN users u ON pf.user_id = u.id
+	      LEFT JOIN prompt_folders parent ON pf.parent_id = parent.id
+	      WHERE pf.user_id = ? OR u.is_admin = 1
+	      ORDER BY pf.parent_id NULLS FIRST, pf.sort_order
+	    `).all(auth.id)
+	  }
 
   return { folders, isAdmin }
 })

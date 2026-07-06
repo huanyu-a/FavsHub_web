@@ -24,10 +24,10 @@ export default defineEventHandler(async (event) => {
   const conditions: string[] = []
   const params: any[] = []
 
-  if (!isAdmin) {
-    conditions.push('b.user_id = ?')
-    params.push(auth.id)
-  }
+	  if (!isAdmin) {
+	    conditions.push('(b.user_id = ? OR b.login_required = 0)')
+	    params.push(auth.id)
+	  }
 
   if (q) {
     conditions.push('b.title LIKE ?')
@@ -54,15 +54,15 @@ export default defineEventHandler(async (event) => {
   const total = countResult.total
 
   const offset = (page - 1) * limit
-  const bookmarks = db.prepare(`
-    SELECT b.*, f.name as folder_name, u.username
-    FROM bookmarks b
-    LEFT JOIN folders f ON b.folder_id = f.id
-    LEFT JOIN users u ON b.user_id = u.id
-    ${where}
-    ORDER BY b.folder_id, b.sort_order
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset)
+	  const bookmarks = db.prepare(`
+	    SELECT b.*, f.name as folder_name, u.username, u.is_admin as owner_is_admin
+	    FROM bookmarks b
+	    LEFT JOIN folders f ON b.folder_id = f.id
+	    LEFT JOIN users u ON b.user_id = u.id
+	    ${where}
+	    ORDER BY b.folder_id, b.sort_order
+	    LIMIT ? OFFSET ?
+	  `).all(...params, limit, offset)
 
   // 文件夹：管理员看全部，普通用户看自己的
   let folders: any[]
@@ -73,15 +73,15 @@ export default defineEventHandler(async (event) => {
       FROM folders f LEFT JOIN users u ON f.user_id = u.id
       ORDER BY f.name
     `).all()
-  } else {
-    folders = db.prepare(`
-      SELECT f.*, u.username,
-        (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
-      FROM folders f LEFT JOIN users u ON f.user_id = u.id
-      WHERE f.user_id = ?
-      ORDER BY f.name
-    `).all(auth.id)
-  }
+	  } else {
+	    folders = db.prepare(`
+	      SELECT f.*, u.username,
+	        (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
+	      FROM folders f LEFT JOIN users u ON f.user_id = u.id
+	      WHERE f.user_id = ? OR (f.login_required = 0)
+	      ORDER BY f.name
+	    `).all(auth.id)
+	  }
 
   return { bookmarks, folders, total, page, limit, isAdmin }
 })

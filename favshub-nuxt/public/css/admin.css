@@ -204,6 +204,9 @@ input:checked + .slider:before { transform: translateX(16px); }
 .hint { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
 .hint code { background: var(--surface-sunken); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
 
+/* --- 审核提示（prompts 编辑弹窗） --- */
+.review-hint { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: var(--text-primary); }
+
 /* --- 标签导航（prompts / bookmarks） --- */
 .tab-nav { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
 .tab-nav button { padding: 10px 18px; border: none; background: none; font-size: 14px; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s; }

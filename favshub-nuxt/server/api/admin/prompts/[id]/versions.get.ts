@@ -19,16 +19,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '无效的提示词 ID' } })
   }
 
-  // 归属校验：非管理员只能查看自己的提示词
-  if (!isAdmin) {
-    const prompt = db.prepare('SELECT user_id FROM prompts WHERE id = ?').get(id) as { user_id: number } | undefined
-    if (!prompt) {
-      throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
-    }
-    if (prompt.user_id !== auth.id) {
-      throw createError({ statusCode: 403, data: { error: '无权限查看此提示词的版本历史' } })
-    }
-  }
+	  // 归属校验：非管理员只能查看自己的提示词或公开提示词
+	  if (!isAdmin) {
+	    const prompt = db.prepare('SELECT user_id, login_required FROM prompts WHERE id = ?').get(id) as { user_id: number; login_required: number } | undefined
+	    if (!prompt) {
+	      throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
+	    }
+	    if (prompt.user_id !== auth.id && prompt.login_required) {
+	      throw createError({ statusCode: 403, data: { error: '无权限查看此提示词的版本历史' } })
+	    }
+	  }
 
   const versions = db.prepare(`
     SELECT pv.* FROM prompt_versions pv
