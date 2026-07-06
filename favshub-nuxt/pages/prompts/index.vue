@@ -146,6 +146,7 @@
                 <div class="prompt-actions">
                   <button class="prompt-btn copy-btn" title="复制" @click.stop="copyContent(prompt.content)"><i class="ri-file-copy-line"></i></button>
                   <button v-if="!isGuest && prompt.user_id === currentUserId" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
+                  <button v-else-if="!isGuest && prompt.owner_is_admin == 1" class="prompt-btn edit-btn" title="申请修改" @click.stop="openEdit(prompt)"><i class="ri-edit-line" style="color:var(--warning);"></i></button>
                   <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
                 </div>
               </div>
@@ -182,6 +183,7 @@
         :viewing-prompt="viewingPrompt"
         :show-edit-dialog="showEditDialog"
         :is-creating="isCreating"
+        :is-review-mode="isReviewMode"
         :edit-form="editForm"
         :folders="folders"
         :show-versions="showVersions"
@@ -327,6 +329,7 @@ const expandedFolderIds = ref(new Set<string>())
 const viewingPrompt = ref<Prompt | null>(null)
 const showEditDialog = ref(false)
 const isCreating = ref(true)
+const isReviewMode = ref(false)
 const editingPrompt = ref<Prompt | null>(null)
 const showVersions = ref(false)
 const versionsTitle = ref('')
@@ -671,7 +674,8 @@ function openCreate() {
 }
 
 function openEdit(prompt: Prompt) {
-  if (prompt.user_id !== currentUserId.value) return alert('无权编辑此提示词')
+  if (prompt.user_id !== currentUserId.value && !prompt.owner_is_admin) return alert('无权编辑此提示词')
+  isReviewMode.value = !!(prompt.owner_is_admin && prompt.user_id !== currentUserId.value)
   isCreating.value = false
   editingPrompt.value = prompt
   editForm.title = prompt.title
@@ -721,7 +725,13 @@ async function savePrompt() {
   if (isCreating.value) {
     await $fetch('/api/prompts', { method: 'POST', body })
   } else if (editingPrompt.value) {
-    await $fetch(`/api/prompts/${editingPrompt.value.id}`, { method: 'PUT', body })
+    const res = await $fetch(`/api/prompts/${editingPrompt.value.id}`, { method: 'PUT', body })
+    if (res?.review_required) {
+      showEditDialog.value = false
+      isReviewMode.value = false
+      alert('✅ 修改已提交审核，等待管理员审批')
+      return
+    }
   }
   showEditDialog.value = false
   await Promise.all([loadPrompts(), loadFolders()])

@@ -15,23 +15,25 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // ── 可见性条件 ──────────────────────────────────────────────
-  // 管理员：看全部
-  // 普通登录用户：自己的 + 管理员公开的
-  // 游客：管理员的公开提示词
-  let visibilityClause: string
-  const visParams: any[] = []
-  if (user) {
-    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-    if (dbUser?.is_admin) {
-      visibilityClause = '1=1'
-    } else {
-      visibilityClause = `(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
-      visParams.push(user.id)
-    }
-  } else {
-    visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
-  }
+	// ── 可见性条件 ──────────────────────────────────────────────
+	  // 管理员：看全部
+	  // 普通登录用户：自己的 + 管理员公开的
+	  // 游客：管理员的公开提示词
+	  let visibilityClause: string
+	  const visParams: any[] = []
+	  let currentUserIsAdmin = false
+	  if (user) {
+	    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+	    currentUserIsAdmin = !!dbUser?.is_admin
+	    if (currentUserIsAdmin) {
+	      visibilityClause = '1=1'
+	    } else {
+	      visibilityClause = `(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
+	      visParams.push(user.id)
+	    }
+	  } else {
+	    visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
+	  }
 
   // ── 文件夹 login_required 继承过滤（与 bookmarks 一致）────────
   // 非管理员需要排除"文件夹继承 login_required"的提示词
@@ -53,8 +55,9 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
-  let sql = `SELECT p.*, pf.name as folder_name FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id WHERE ${visibilityClause}`
+	  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
+	  // 同时 LEFT JOIN users 获取 owner_is_admin
+	  let sql = `SELECT p.*, pf.name as folder_name, u.is_admin as owner_is_admin FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id LEFT JOIN users u ON p.user_id = u.id WHERE ${visibilityClause}`
   const params: any[] = [...visParams]
 
   // 文件夹 login_required 继承过滤（NULL folder_id 安全处理）

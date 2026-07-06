@@ -159,27 +159,52 @@
         </tbody>
       </table>
     </div>
-    <!-- 审核详情弹窗 -->
-    <div v-if="reviewDetail" :class="['modal-overlay', { active: !!reviewDetail }]" @click.self="reviewDetail = null">
-      <div class="modal">
-        <div class="modal-header"><h3>审核详情</h3><button class="modal-close" @click="reviewDetail = null">&times;</button></div>
-        <div class="modal-body">
-          <div style="margin-bottom:12px;display:flex;gap:16px;color:var(--text-secondary);font-size:13px;">
-            <span>提交者: {{ reviewDetail.submitter_name || reviewDetail.user_id }}</span>
-            <span>状态: {{ reviewDetail.status === 'pending' ? '审核中' : reviewDetail.status === 'approved' ? '已通过' : '已拒绝' }}</span>
-          </div>
-          <div class="fg"><label>标题</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.title }}</div></div>
-          <div class="fg"><label>描述</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.description || '-' }}</div></div>
-          <div class="fg"><label>内容</label><pre style="padding:10px;background:var(--surface-sunken);border-radius:6px;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:13px;">{{ reviewDetail.content }}</pre></div>
-          <div v-if="reviewDetail.admin_comment" class="fg"><label>审核意见</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;color:var(--accent-red);">{{ reviewDetail.admin_comment }}</div></div>
-          <div class="form-btns" v-if="reviewDetail.status === 'pending'">
-            <button class="btn btn-ghost" @click="reviewDetail = null">取消</button>
-            <button class="btn btn-danger" @click="rejectReview(reviewDetail)">拒绝</button>
-            <button class="btn btn-primary" @click="approveReview(reviewDetail); reviewDetail = null">通过</button>
-          </div>
-        </div>
-      </div>
-    </div>
+	    <!-- 审核详情弹窗 -->
+	    <div v-if="reviewDetail" :class="['modal-overlay', { active: !!reviewDetail }]" @click.self="reviewDetail = null">
+	      <div class="modal" style="max-width:800px;">
+	        <div class="modal-header"><h3>审核详情</h3><button class="modal-close" @click="reviewDetail = null">&times;</button></div>
+	        <div class="modal-body">
+	          <div style="margin-bottom:12px;display:flex;gap:16px;color:var(--text-secondary);font-size:13px;">
+	            <span>提交者: {{ reviewDetail.submitter_name || reviewDetail.user_id }}</span>
+	            <span>状态: {{ reviewDetail.status === 'pending' ? '审核中' : reviewDetail.status === 'approved' ? '已通过' : '已拒绝' }}</span>
+	          </div>
+	          <!-- Diff 对比 -->
+	          <template v-if="reviewDetail.status === 'pending' && originalPrompt">
+	            <div class="fg"><label>标题</label>
+	              <div class="diff-field">
+	                <div class="diff-old">原: {{ originalPrompt.title }}</div>
+	                <div class="diff-new">新: {{ reviewDetail.title }}</div>
+	              </div>
+	            </div>
+	            <div class="fg"><label>描述</label>
+	              <div class="diff-field">
+	                <div class="diff-old">原: {{ originalPrompt.description || '-' }}</div>
+	                <div class="diff-new">新: {{ reviewDetail.description || '-' }}</div>
+	              </div>
+	            </div>
+	            <div class="fg"><label>内容 <span class="hint" style="margin-left:8px;">绿色=新增 红色=删除 灰色=未变</span></label>
+	              <div class="diff-content">
+	                <div v-for="(line, i) in diffLines" :key="i" class="diff-line" :class="line.type">
+	                  <span class="diff-prefix">{{ line.prefix }}</span>
+	                  <span class="diff-text">{{ line.text || '​' }}</span>
+	                </div>
+	              </div>
+	            </div>
+	          </template>
+	          <template v-else>
+	            <div class="fg"><label>标题</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.title }}</div></div>
+	            <div class="fg"><label>描述</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.description || '-' }}</div></div>
+	            <div class="fg"><label>内容</label><pre style="padding:10px;background:var(--surface-sunken);border-radius:6px;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:13px;">{{ reviewDetail.content }}</pre></div>
+	          </template>
+	          <div v-if="reviewDetail.admin_comment" class="fg"><label>审核意见</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;color:var(--accent-red);">{{ reviewDetail.admin_comment }}</div></div>
+	          <div class="form-btns" v-if="reviewDetail.status === 'pending'">
+	            <button class="btn btn-ghost" @click="reviewDetail = null">取消</button>
+	            <button class="btn btn-danger" @click="rejectReview(reviewDetail)">拒绝</button>
+	            <button class="btn btn-primary" @click="approveReview(reviewDetail); reviewDetail = null">通过</button>
+	          </div>
+	        </div>
+	      </div>
+	    </div>
     <!-- TDK（仅管理员） -->
     <div v-if="tab === 'tdk' && isAdmin" class="setting-card">
       <h3>提示词页面 TDK 设置</h3>
@@ -424,18 +449,67 @@ watch(displayPFolders, () => { nextTick(initPFolderSortable) }, { deep: true })
 const reviews = ref<any[]>([])
 const rLoading = ref(false)
 const reviewDetail = ref<any>(null)
+const originalPrompt = ref<any>(null)
+const diffLines = ref<{ type: string; prefix: string; text: string }[]>([])
+
 async function loadReviews() { rLoading.value = true; const d = await $fetch<any>('/api/admin/prompts/review-requests', { headers: getAuthHeaders() }); reviews.value = d.requests || []; rLoading.value = false }
-function viewReview(r: any) { reviewDetail.value = r }
+
+async function viewReview(r: any) { 
+  reviewDetail.value = r
+  // 加载原提示词数据
+  try {
+    const d = await $fetch<any>(`/api/admin/prompts/${r.prompt_id}`, { headers: getAuthHeaders() })
+    originalPrompt.value = d.prompt
+    // 计算内容 diff
+    if (originalPrompt.value) {
+      diffLines.value = computeDiff(originalPrompt.value.content || '', r.content || '')
+    }
+  } catch {
+    originalPrompt.value = null
+    diffLines.value = []
+  }
+}
+
+/** LCS 行级 diff */
+function computeDiff(oldText: string, newText: string) {
+  const oldLines = oldText.split('\n')
+  const newLines = newText.split('\n')
+  const m = oldLines.length, n = newLines.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
+  let i = m, j = n
+  const ops: { type: 'same' | 'del' | 'add'; text: string }[] = []
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      ops.unshift({ type: 'same', text: oldLines[i - 1] })
+      i--; j--
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.unshift({ type: 'add', text: newLines[j - 1] })
+      j--
+    } else {
+      ops.unshift({ type: 'del', text: oldLines[i - 1] })
+      i--
+    }
+  }
+  return ops.map(op => ({
+    type: op.type,
+    prefix: op.type === 'same' ? '  ' : op.type === 'add' ? '+ ' : '- ',
+    text: op.text
+  }))
+}
+
 async function approveReview(r: any) {
   if (!confirm(`通过「${r.prompt_title || r.title}」的修改请求？`)) return
   await $fetch(`/api/admin/prompts/review-requests/${r.id}/approve`, { method: 'POST', headers: getAuthHeaders() })
-  loadReviews(); loadPrompts()
+  reviewDetail.value = null; loadReviews(); loadPrompts()
 }
 async function openReject(r: any) {
   const comment = prompt('请输入拒绝原因（可选）：')
   if (comment === null) return
   await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
-  loadReviews()
+  reviewDetail.value = null; loadReviews()
 }
 async function rejectReview(r: any) {
   const comment = prompt('请输入拒绝原因（可选）：')

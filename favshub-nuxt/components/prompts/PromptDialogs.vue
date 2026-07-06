@@ -97,6 +97,9 @@
           <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-primary" @click="$emit('edit', viewingPrompt)">
             <i class="ri-edit-line"></i> 编辑
           </button>
+          <button v-if="!isGuest && viewingPrompt.user_id !== currentUserId && viewingPrompt.owner_is_admin == 1" class="btn btn-primary" @click="$emit('edit', viewingPrompt)" style="background:var(--warning);border-color:var(--warning);color:#1a1a2e;">
+            <i class="ri-edit-line"></i> 申请修改
+          </button>
           <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-danger" @click="$emit('delete', viewingPrompt)">
             <i class="ri-delete-bin-line"></i> 删除
           </button>
@@ -108,10 +111,11 @@
     <div class="modal" :class="{ active: showEditDialog }" @click.self="$emit('close-edit')">
       <div class="modal-content modal-xlarge">
         <div class="modal-header">
-          <h2>{{ isCreating ? '新建提示词' : '编辑提示词' }}</h2>
+          <h2>{{ isCreating ? '新建提示词' : isReviewMode ? '申请修改' : '编辑提示词' }}</h2>
           <button class="modal-close" @click="$emit('close-edit')"><i class="ri-close-line"></i></button>
         </div>
         <div class="modal-body">
+          <div class="review-hint" v-if="isReviewMode">⚠️ 此提示词由管理员创建，修改将提交给管理员审核</div>
           <div class="edit-form-grid">
             <div class="form-group full-width">
               <label><i class="ri-edit-line"></i> 标题 *</label>
@@ -315,11 +319,12 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  viewingPrompt: any
-  showEditDialog: boolean
-  isCreating: boolean
-  editForm: any
+	const props = defineProps<{
+	  viewingPrompt: any
+	  showEditDialog: boolean
+	  isCreating: boolean
+	  isReviewMode?: boolean
+	  editForm: any
   folders: { id: string; name: string; parent_id?: string; icon?: string }[]
   showVersions: boolean
   versionsTitle: string
@@ -553,3 +558,7 @@ function formatTime(ts?: number) {
   return new Date(ts).toLocaleString('zh-CN')
 }
 </script>
+
+<style scoped>
+.review-hint { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: var(--text-primary); }
+</style>

@@ -108,7 +108,10 @@ async function setMyDefault(e: any) {
 async function load() {
   loading.value = true
   const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders(), credentials: 'include' })
-  engines.value = d.engines || []
+  // 待审核置顶
+  const all = d.engines || []
+  all.sort((a: any, b: any) => (a.status === 'pending' ? -1 : 1))
+  engines.value = all
   loading.value = false
 }
 function openCreate() {
