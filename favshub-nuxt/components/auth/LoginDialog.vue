@@ -41,7 +41,7 @@
           </div>
           <div class="form-group">
             <label>密码</label>
-            <input v-model="regForm.password" type="password" required autocomplete="new-password" minlength="6" placeholder="至少 6 位">
+            <input v-model="regForm.password" type="password" required autocomplete="new-password" minlength="8" placeholder="至少 8 位">
           </div>
           <button type="submit" class="submit-btn" :disabled="loading">
             {{ loading ? '注册中...' : '注册' }}

@@ -95,7 +95,7 @@
             </div>
             <div class="profile-field">
               <label>新密码</label>
-              <input v-model="profileForm.password" type="password" class="profile-input" placeholder="至少 6 位">
+              <input v-model="profileForm.password" type="password" class="profile-input" placeholder="至少 8 位" minlength="8">
             </div>
             <div class="profile-actions">
               <button class="btn-cancel" @click="showProfile = false">取消</button>
