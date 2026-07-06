@@ -20,6 +20,29 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
   }
   if (prompt.user_id !== user.id) {
+    // 检查是否是管理员的提示词 → 非管理员编辑需走审核流程
+    const ownerIsAdmin = (db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as any)?.is_admin
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as any
+    if (ownerIsAdmin && !dbUser?.is_admin) {
+      // 非管理员编辑管理员的提示词 → 创建审核请求
+      const { title, description, content, tags } = body || {}
+      if (!title && !description && !content && !tags) {
+        throw createError({ statusCode: 400, data: { error: '没有提供修改内容' } })
+      }
+      const now = Date.now()
+      const reviewId = `${now}_review_${user.id}_${id.slice(0, 8)}`
+      db.prepare(`
+        INSERT INTO prompt_review_requests (id, prompt_id, user_id, title, description, content, tags, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+      `).run(reviewId, id, user.id,
+        title || prompt.title,
+        description !== undefined ? (description || '') : prompt.description,
+        content || prompt.content,
+        JSON.stringify(tags || []),
+        now
+      )
+      return { success: true, message: '已提交审核请求，等待管理员审核', review_id: reviewId, review_required: true }
+    }
     throw createError({ statusCode: 403, data: { error: '无权修改此提示词' } })
   }
 
@@ -44,12 +67,11 @@ export default defineEventHandler(async (event) => {
   if (content !== undefined) { updates.push('content = ?'); params.push(content) }
   if (folder_id !== undefined) { updates.push('folder_id = ?'); params.push(folder_id || null) }
   if (is_favorite !== undefined) { updates.push('is_favorite = ?'); params.push(is_favorite ? 1 : 0) }
-  // 只有管理员可修改 login_required（与书签路由一致）
+  // 可见性：管理员可自由选择，普通用户强制私有（仅自己可见）
   if (login_required !== undefined) {
     const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-    if (dbUser?.is_admin) {
-      updates.push('login_required = ?'); params.push(login_required ? 1 : 0)
-    }
+    const lr = (dbUser?.is_admin) ? (login_required ? 1 : 0) : 1
+    updates.push('login_required = ?'); params.push(lr)
   }
 
   // 内容变更时自增版本号

@@ -1,14 +1,19 @@
 /**
- * GET /api/admin/bookmarks — 管理后台书签列表（管理员专用）
+ * GET /api/admin/bookmarks — 管理后台书签列表
+ * 管理员：返回全部书签
+ * 普通用户：仅返回自己的书签
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
-import { getQuery } from 'h3'
+import { requireAuth } from '../../../utils/auth'
+import { getQuery, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAdmin(event)
+  const auth = requireAuth(event)
   const db = getRawDb()
   const query = getQuery(event)
+
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const q = typeof query.q === 'string' ? query.q.trim() : ''
   const url = typeof query.url === 'string' ? query.url.trim() : ''
@@ -18,6 +23,11 @@ export default defineEventHandler(async (event) => {
 
   const conditions: string[] = []
   const params: any[] = []
+
+  if (!isAdmin) {
+    conditions.push('b.user_id = ?')
+    params.push(auth.id)
+  }
 
   if (q) {
     conditions.push('b.title LIKE ?')
@@ -54,13 +64,24 @@ export default defineEventHandler(async (event) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset)
 
-  // 管理员可查看所有文件夹
-  const folders = db.prepare(`
-    SELECT f.*, u.username,
-      (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
-    FROM folders f LEFT JOIN users u ON f.user_id = u.id
-    ORDER BY f.name
-  `).all()
+  // 文件夹：管理员看全部，普通用户看自己的
+  let folders: any[]
+  if (isAdmin) {
+    folders = db.prepare(`
+      SELECT f.*, u.username,
+        (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
+      FROM folders f LEFT JOIN users u ON f.user_id = u.id
+      ORDER BY f.name
+    `).all()
+  } else {
+    folders = db.prepare(`
+      SELECT f.*, u.username,
+        (SELECT COUNT(*) FROM bookmarks WHERE folder_id = f.id) as bookmark_count
+      FROM folders f LEFT JOIN users u ON f.user_id = u.id
+      WHERE f.user_id = ?
+      ORDER BY f.name
+    `).all(auth.id)
+  }
 
-  return { bookmarks, folders, total, page, limit, isAdmin: true }
+  return { bookmarks, folders, total, page, limit, isAdmin }
 })

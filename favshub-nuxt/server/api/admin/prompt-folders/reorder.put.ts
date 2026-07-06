@@ -1,13 +1,18 @@
 /**
- * PUT /api/admin/prompt-folders/reorder — 批量更新提示词文件夹排序（管理员）
+ * PUT /api/admin/prompt-folders/reorder — 批量更新提示词文件夹排序
+ * 管理员：可更新任意文件夹的排序
+ * 普通用户：仅可更新自己文件夹的排序
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
+import { requireAuth } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  const auth = requireAuth(event)
   const db = getRawDb()
+
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const body = await readBody(event)
   const { items } = body
@@ -16,10 +21,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: 'items 必须是数组' } })
   }
 
-  const stmt = db.prepare('UPDATE prompt_folders SET sort_order = ? WHERE id = ?')
+  const stmt = db.prepare('UPDATE prompt_folders SET sort_order = ? WHERE id = ? AND user_id = ?')
+  const adminStmt = db.prepare('UPDATE prompt_folders SET sort_order = ? WHERE id = ?')
+
   const tx = db.transaction(() => {
     for (const item of items) {
-      stmt.run(item.sort_order, item.id)
+      if (isAdmin) {
+        adminStmt.run(item.sort_order, item.id)
+      } else {
+        stmt.run(item.sort_order, item.id, auth.id)
+      }
     }
   })
   tx()

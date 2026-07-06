@@ -118,6 +118,24 @@ export function createTables(db: Database.Database) {
       value TEXT DEFAULT '',
       updated_at INTEGER DEFAULT (strftime('%s','now') * 1000)
     );
+
+    CREATE TABLE IF NOT EXISTS prompt_review_requests (
+      id TEXT PRIMARY KEY,
+      prompt_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      content TEXT NOT NULL,
+      tags TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      admin_comment TEXT,
+      created_at INTEGER NOT NULL,
+      reviewed_at INTEGER,
+      reviewed_by INTEGER,
+      FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    );
   `)
 }
 
@@ -159,6 +177,7 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'prompt_folders', 'sort_order', 'ALTER TABLE prompt_folders ADD COLUMN sort_order INTEGER DEFAULT 0')
   ensureColumn(db, 'folders', 'login_required', 'ALTER TABLE folders ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'prompt_folders', 'login_required', 'ALTER TABLE prompt_folders ADD COLUMN login_required INTEGER DEFAULT 0')
+  ensureColumn(db, 'search_engines', 'status', "ALTER TABLE search_engines ADD COLUMN status TEXT DEFAULT 'approved'")
 }
 
 /**

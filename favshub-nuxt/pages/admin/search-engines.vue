@@ -2,21 +2,23 @@
   <div class="admin-page">
     <header class="page-header">
       <h1>搜索引擎管理</h1>
-      <p>管理系统可用的搜索引擎列表</p>
+      <p v-if="isAdmin">管理系统可用的搜索引擎列表</p>
+      <p v-else>查看和自定义搜索引擎顺序</p>
     </header>
     <div class="card">
       <div class="card-header">
         <h3>搜索引擎列表</h3>
         <div>
-          <button class="btn btn-primary btn-sm" @click="openCreate">添加引擎</button>
+          <button v-if="isAdmin" class="btn btn-primary btn-sm" @click="openCreate">添加引擎</button>
+          <button v-else class="btn btn-ghost btn-sm" @click="openCreate">提交引擎</button>
           <button class="btn btn-ghost btn-sm" @click="load">刷新</button>
         </div>
       </div>
       <table>
-        <thead><tr><th>ID</th><th>图标</th><th>名称</th><th>标签</th><th>URL</th><th>分类</th><th>默认</th><th>排序</th><th>操作</th></tr></thead>
+        <thead><tr><th>ID</th><th>图标</th><th>名称</th><th>标签</th><th>URL</th><th>分类</th><th>默认</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-if="loading"><td colspan="9" class="empty-state">加载中...</td></tr>
-          <tr v-else-if="engines.length === 0"><td colspan="9" class="empty-state">暂无数据</td></tr>
+          <tr v-if="loading"><td colspan="10" class="empty-state">加载中...</td></tr>
+          <tr v-else-if="engines.length === 0"><td colspan="10" class="empty-state">暂无数据</td></tr>
           <tr v-for="e in engines" :key="e.id">
             <td>{{ e.id }}</td>
             <td class="icon-cell">
@@ -25,14 +27,25 @@
             </td>
             <td>{{ e.name }}</td>
             <td>{{ e.label || e.name }}</td>
-            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.url }}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.url }}</td>
             <td><span class="badge" :class="'badge-' + (e.category || 'SEARCH').toLowerCase()">{{ e.category || 'SEARCH' }}</span></td>
             <td>{{ e.is_default ? '是' : '-' }}</td>
-            <td>{{ e.sort_order || 0 }}</td>
+            <td>
+              <span v-if="e.status === 'approved'" class="badge badge-public">启用</span>
+              <span v-else-if="e.status === 'pending'" class="badge badge-pending">审核中</span>
+              <span v-else-if="e.status === 'disabled'" class="badge badge-private">下线</span>
+              <span v-else class="badge badge-user">{{ e.status || '-' }}</span>
+            </td>
             <td class="actions">
               <button v-if="e._canEdit" class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
               <button v-if="e._canDelete" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
-              <span v-if="!e._canEdit && !e._canDelete" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
+              <button v-if="!isAdmin && e.status === 'approved'" class="btn btn-ghost btn-sm" :class="{ active: myDefault === e.name }" @click="setMyDefault(e)">{{ myDefault === e.name ? '✓ 默认' : '设为默认' }}</button>
+              <!-- 管理员审核操作 -->
+              <template v-if="isAdmin && e.status === 'pending'">
+                <button class="btn btn-primary btn-sm" @click="reviewEngine(e, 'approved')">通过</button>
+                <button class="btn btn-danger btn-sm" @click="reviewEngine(e, 'disabled')">拒绝</button>
+              </template>
+              <span v-if="!e._canEdit && !e._canDelete && e.status !== 'pending'" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
             </td>
           </tr>
         </tbody>
@@ -41,10 +54,10 @@
     <!-- 添加/编辑弹窗 -->
     <div v-show="modalVisible" :class="['modal-overlay', { active: modalVisible }]" @click.self="modalVisible = false">
       <div class="modal">
-        <div class="modal-header"><h3>{{ isNew ? '添加搜索引擎' : '编辑搜索引擎' }}</h3><button class="modal-close" @click="modalVisible = false">&times;</button></div>
+        <div class="modal-header"><h3>{{ isNew ? (isAdmin ? '添加搜索引擎' : '提交搜索引擎') : '编辑搜索引擎' }}</h3><button class="modal-close" @click="modalVisible = false">&times;</button></div>
         <div class="modal-body">
-          <div class="fg"><label>名称 (英文标识)</label><input v-model="form.name" placeholder="google"></div>
-          <div class="fg"><label>显示标签</label><input v-model="form.label" placeholder="谷歌"></div>
+          <div class="fg"><label>名称 (英文标识)</label><input v-model="form.name" placeholder="google" :disabled="!isNew && !isAdmin"></div>
+          <div class="fg"><label>显示标签</label><input v-model="form.label" :placeholder="form.name"></div>
           <div class="fg"><label>搜索 URL (用 %s 代替搜索词)</label><input v-model="form.url" placeholder="https://www.google.com/search?q=%s"></div>
           <div class="fg"><label>图标 URL</label><input v-model="form.icon"></div>
           <div class="fg"><label>分类</label>
@@ -54,8 +67,9 @@
               <option value="SOCIAL">社交媒体</option>
             </select>
           </div>
-          <div class="fg"><label>排序</label><input v-model.number="form.sort_order" type="number"></div>
-          <div class="fg toggle-row"><label>设为默认搜索引擎</label><label class="switch"><input type="checkbox" v-model="form.is_default" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
+          <div class="fg" v-if="isAdmin"><label>排序</label><input v-model.number="form.sort_order" type="number"></div>
+          <div class="fg toggle-row" v-if="isAdmin"><label>设为默认搜索引擎</label><label class="switch"><input type="checkbox" v-model="form.is_default" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
+          <p v-if="!isAdmin && isNew" class="hint" style="color:var(--accent-yellow);">引擎提交后将进入审核状态，需管理员审核通过后生效。</p>
           <div class="form-btns"><button class="btn btn-ghost" @click="modalVisible = false">取消</button><button class="btn btn-primary" @click="save">保存</button></div>
         </div>
       </div>
@@ -77,6 +91,20 @@ const modalVisible = ref(false)
 const isNew = ref(true)
 const editingId = ref<number | null>(null)
 const form = reactive({ name: '', label: '', url: '', icon: '', category: 'SEARCH', sort_order: 0, is_default: 0 })
+const myDefault = ref('')
+// 加载用户自定义默认引擎
+async function loadMyDefault() {
+  try {
+    const r = await $fetch<any>('/api/settings', { headers: getAuthHeaders(), credentials: 'include' })
+    myDefault.value = r?.data?.search_engine_default || ''
+  } catch { myDefault.value = '' }
+}
+// 设置用户的默认引擎
+async function setMyDefault(e: any) {
+  const newDefault = myDefault.value === e.name ? '' : e.name
+  await $fetch('/api/settings', { method: 'PUT', headers: getAuthHeaders(), body: { data: { search_engine_default: newDefault } }, credentials: 'include' })
+  myDefault.value = newDefault
+}
 async function load() {
   loading.value = true
   const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders(), credentials: 'include' })
@@ -94,12 +122,31 @@ function openEdit(e: any) {
   modalVisible.value = true
 }
 async function save() {
-if (isNew.value) { await $fetch('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' }) }
-else { await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' }) }
+  if (isNew.value) {
+    const body: any = { ...form }
+    // 非管理员提交时不发送管理专属字段
+    if (!isAdmin.value) {
+      delete body.sort_order
+      delete body.is_default
+    }
+    const res = await $fetch<any>('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body, credentials: 'include' })
+    if (res?.status === 'pending') {
+      alert('已提交审核，等待管理员审核通过后生效。')
+    }
+  } else {
+    await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' })
+  }
   modalVisible.value = false; load()
 }
 async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' }); load() }
-onMounted(load)
+// 管理员审核引擎
+async function reviewEngine(e: any, status: string) {
+  const action = status === 'approved' ? '通过' : '拒绝'
+  if (!confirm(`${action}「${e.name}」的审核？`)) return
+  await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { status }, credentials: 'include' })
+  load()
+}
+onMounted(() => { load(); loadMyDefault() })
 </script>
 
 <style scoped>

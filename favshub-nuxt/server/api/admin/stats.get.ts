@@ -1,15 +1,54 @@
 /**
- * GET /api/admin/stats — 系统统计数据
+ * GET /api/admin/stats — 统计数据
+ * 管理员：返回全局系统统计
+ * 普通用户：返回个人数据统计
  */
 import { getRawDb } from '../../database'
-import { requireAdmin } from '../../utils/auth'
+import { getAuthRole } from '../../utils/auth'
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
-  const db = getRawDb()
+  const auth = getAuthRole(event)
+  if (!auth) {
+    throw createError({ statusCode: 401, statusMessage: '未登录' })
+  }
 
+  const db = getRawDb()
+  const { user, isAdmin } = auth
+
+  // 今日起始时间戳
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const todayTs = todayStart.getTime()
+
+  if (!isAdmin) {
+    // ── 普通用户：个人统计 ─────────────────────────────────────
+    const bookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ?').get(user.id) as any).count
+    const folders = (db.prepare('SELECT COUNT(*) as count FROM folders WHERE user_id = ?').get(user.id) as any).count
+    const prompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(user.id) as any).count
+    const promptFolders = (db.prepare('SELECT COUNT(*) as count FROM prompt_folders WHERE user_id = ?').get(user.id) as any).count
+    const tags = (db.prepare('SELECT COUNT(DISTINCT tag_id) as count FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
+    const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(user.id) as any).count
+    const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
+    const todayBookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
+    const todayPrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
+
+    return {
+      scope: 'personal',
+      bookmarks,
+      folders,
+      prompts,
+      promptFolders,
+      tags,
+      favoritePrompts,
+      promptVersions,
+      todayBookmarks,
+      todayPrompts,
+    }
+  }
+
+  // ── 管理员：全局统计 ────────────────────────────────────────
   const users = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count
   const bookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks').get() as any).count
   const folders = (db.prepare('SELECT COUNT(*) as count FROM folders').get() as any).count
@@ -20,12 +59,6 @@ export default defineEventHandler(async (event) => {
   const searchEngines = (db.prepare('SELECT COUNT(*) as count FROM search_engines').get() as any).count
   const adminUsers = (db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get() as any).count
   const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE is_favorite = 1').get() as any).count
-
-  // 今日新增（基于毫秒时间戳）
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const todayTs = todayStart.getTime()
-
   const todayBookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE created_at >= ?').get(todayTs) as any).count
   const todayPrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE created_at >= ?').get(todayTs) as any).count
 
@@ -44,6 +77,7 @@ export default defineEventHandler(async (event) => {
     : (dbSize / 1024).toFixed(1) + ' KB'
 
   return {
+    scope: 'global',
     users,
     bookmarks,
     folders,
@@ -56,6 +90,6 @@ export default defineEventHandler(async (event) => {
     favoritePrompts,
     todayBookmarks,
     todayPrompts,
-    dbSize: dbSizeFormatted
+    dbSize: dbSizeFormatted,
   }
 })

@@ -17,9 +17,9 @@
         <NuxtLink to="/admin" class="nav-item" :class="{ active: route.path === '/admin' }" @click="closeSidebar">
           <i class="ri-dashboard-line"></i><span>仪表盘</span>
         </NuxtLink>
-        <NuxtLink v-if="isAdmin" to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
-          <i class="ri-user-line"></i><span>用户管理</span>
-        </NuxtLink>
+
+        <div class="nav-divider"></div>
+
         <NuxtLink to="/admin/bookmarks" class="nav-item" :class="{ active: route.path === '/admin/bookmarks' }" @click="closeSidebar">
           <i class="ri-bookmark-line"></i><span>书签管理</span>
         </NuxtLink>
@@ -29,15 +29,26 @@
         <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
           <i class="ri-search-line"></i><span>搜索引擎</span>
         </NuxtLink>
-        <NuxtLink v-if="isAdmin" to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
+        <NuxtLink to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
           <i class="ri-database-2-line"></i><span>备份管理</span>
         </NuxtLink>
+
+        <div class="nav-divider"></div>
+
         <NuxtLink to="/admin/settings" class="nav-item" :class="{ active: route.path === '/admin/settings' }" @click="closeSidebar">
           <i class="ri-user-settings-line"></i><span>用户设置</span>
         </NuxtLink>
-        <NuxtLink v-if="isAdmin" to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
-          <i class="ri-settings-3-line"></i><span>系统配置</span>
-        </NuxtLink>
+
+        <template v-if="isAdmin">
+          <div class="nav-divider"></div>
+          <div class="nav-group-label">管理</div>
+          <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
+            <i class="ri-user-line"></i><span>用户管理</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
+            <i class="ri-settings-3-line"></i><span>系统配置</span>
+          </NuxtLink>
+        </template>
       </nav>
       <div class="admin-sidebar-footer">
         <div class="user-info" @click="showProfile = true" title="点击修改个人信息">

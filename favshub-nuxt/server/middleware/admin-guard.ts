@@ -1,10 +1,9 @@
 /**
  * 服务端中间件 — 保护 /admin 页面路由
- * 1. 验证 JWT token（未登录 → 302 跳转）
- * 2. 验证管理员角色（非管理员 → 302 跳转）
+ * 仅验证 JWT token（未登录 → 302 跳转登录页）
+ * 管理员专属功能由各 API 端点的 requireAdmin() 和前端 v-if 控制
  */
 import { verifyToken } from '../utils/jwt'
-import { getRawDb } from '../database'
 
 export default defineEventHandler((event) => {
   const path = getRequestURL(event).pathname
@@ -27,17 +26,5 @@ export default defineEventHandler((event) => {
     return sendRedirect(event, `/login?redirect=${encodeURIComponent(path)}`, 302)
   }
 
-  // 验证管理员角色
-  const config = useRuntimeConfig(event)
-  const adminUsers = (config.adminUsers || '').split(',').map((u: string) => u.trim()).filter(Boolean)
-  // 1. 环境变量配置的管理员
-  if (!adminUsers.includes(payload.username)) {
-    // 2. 数据库 is_admin 字段
-    const db = getRawDb()
-    const row = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(payload.id) as { is_admin: number } | undefined
-    if (!row?.is_admin) {
-      // 非管理员 → 跳转首页
-      return sendRedirect(event, '/', 302)
-    }
-  }
+  // 不再检查 is_admin，任何登录用户均可访问 /admin 页面
 })

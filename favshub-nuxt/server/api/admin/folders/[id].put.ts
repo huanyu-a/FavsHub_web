@@ -1,13 +1,18 @@
 /**
- * PUT /api/admin/folders/:id — 更新文件夹（管理员）
+ * PUT /api/admin/folders/:id — 更新文件夹
+ * 管理员：可更新任意文件夹
+ * 普通用户：仅可更新自己的文件夹，且不能更改 login_required
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
+import { requireAuth } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  const auth = requireAuth(event)
   const db = getRawDb()
+
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const { id } = getRouterParams(event)
   const folderId = parseInt(id)
@@ -18,6 +23,10 @@ export default defineEventHandler(async (event) => {
   const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId) as any
   if (!folder) {
     throw createError({ statusCode: 404, data: { error: '文件夹不存在' } })
+  }
+
+  if (!isAdmin && folder.user_id !== auth.id) {
+    throw createError({ statusCode: 403, data: { error: '无权限修改此文件夹' } })
   }
 
   const body = await readBody(event)
@@ -33,7 +42,7 @@ export default defineEventHandler(async (event) => {
     if (parent_id === folderId) {
       throw createError({ statusCode: 400, data: { error: '不能将文件夹设为自己的子文件夹' } })
     }
-    // 检查循环引用：遍历 parent_id 链
+    // 检查循环引用
     if (parent_id !== null) {
       let currentParent: number | null = parent_id
       const visited = new Set<number>([folderId])
@@ -47,12 +56,19 @@ export default defineEventHandler(async (event) => {
         currentParent = parentRow.parent_id
       }
     }
+    // 普通用户只能移动到自己拥有的文件夹下
+    if (!isAdmin && parent_id !== null) {
+      const parent = db.prepare('SELECT id FROM folders WHERE id = ? AND user_id = ?').get(parent_id, auth.id) as any
+      if (!parent) {
+        throw createError({ statusCode: 403, data: { error: '无权限移动到目标文件夹' } })
+      }
+    }
     db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').run(parent_id || null, folderId)
   }
   if (sort_order !== undefined) {
     db.prepare('UPDATE folders SET sort_order = ? WHERE id = ?').run(sort_order, folderId)
   }
-  if (login_required !== undefined) {
+  if (isAdmin && login_required !== undefined) {
     db.prepare('UPDATE folders SET login_required = ? WHERE id = ?').run(login_required ? 1 : 0, folderId)
   }
 

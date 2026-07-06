@@ -15,7 +15,8 @@
       <button :class="{ active: tab === 'folders' }" @click="tab = 'folders'">文件夹管理</button>
       <button :class="{ active: tab === 'tags' }" @click="tab = 'tags'">标签管理</button>
       <button :class="{ active: tab === 'history' }" @click="tab = 'history'">历史记录</button>
-      <button :class="{ active: tab === 'tdk' }" @click="tab = 'tdk'">TDK 设置</button>
+      <button v-if="isAdmin" :class="{ active: tab === 'reviews' }" @click="tab = 'reviews'; loadReviews()">审核请求</button>
+      <button v-if="isAdmin" :class="{ active: tab === 'tdk' }" @click="tab = 'tdk'">TDK 设置</button>
     </div>
     <!-- 提示词列表 -->
     <div v-if="tab === 'prompts'" class="card">
@@ -40,11 +41,11 @@
             <td>{{ p.username || p.user_id }}</td>
             <td>{{ p.current_version || '1.0.0' }}</td>
             <td>{{ p.updated_at ? new Date(p.updated_at).toLocaleString() : '-' }}</td>
-            <td><span class="badge" :class="p.login_required ? 'badge-locked' : 'badge-public'">{{ p.login_required ? '登录可见' : '公开' }}</span></td>
+            <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'">{{ p.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
               <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
-              <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
+              <button v-if="canDeletePrompt(p)" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
           </tr>
         </tbody>
@@ -131,8 +132,55 @@
         </tbody>
       </table>
     </div>
-    <!-- TDK -->
-    <div v-if="tab === 'tdk'" class="setting-card">
+    <!-- 审核请求（仅管理员） -->
+    <div v-if="tab === 'reviews' && isAdmin" class="card">
+      <div class="card-header"><h3>审核请求</h3><button class="btn btn-ghost btn-sm" @click="loadReviews">刷新</button></div>
+      <div v-if="rLoading" class="loading-sm">加载中...</div>
+      <div v-else-if="reviews.length === 0" class="empty-state">暂无审核请求</div>
+      <table v-else>
+        <thead><tr><th>提示词</th><th>提交者</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr v-for="r in reviews" :key="r.id">
+            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;">{{ r.prompt_title || '-' }}</td>
+            <td>{{ r.submitter_name || r.user_id }}</td>
+            <td>{{ r.created_at ? new Date(r.created_at).toLocaleString() : '-' }}</td>
+            <td>
+              <span class="badge" :class="r.status === 'pending' ? 'badge-pending' : r.status === 'approved' ? 'badge-public' : 'badge-private'">
+                {{ r.status === 'pending' ? '审核中' : r.status === 'approved' ? '已通过' : '已拒绝' }}
+              </span>
+            </td>
+            <td class="actions">
+              <button @click="viewReview(r)" class="btn btn-ghost btn-sm">查看</button>
+              <button v-if="r.status === 'pending'" @click="approveReview(r)" class="btn btn-primary btn-sm">通过</button>
+              <button v-if="r.status === 'pending'" @click="openReject(r)" class="btn btn-danger btn-sm">拒绝</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- 审核详情弹窗 -->
+    <div v-if="reviewDetail" :class="['modal-overlay', { active: !!reviewDetail }]" @click.self="reviewDetail = null">
+      <div class="modal">
+        <div class="modal-header"><h3>审核详情</h3><button class="modal-close" @click="reviewDetail = null">&times;</button></div>
+        <div class="modal-body">
+          <div style="margin-bottom:12px;display:flex;gap:16px;color:var(--text-secondary);font-size:13px;">
+            <span>提交者: {{ reviewDetail.submitter_name || reviewDetail.user_id }}</span>
+            <span>状态: {{ reviewDetail.status === 'pending' ? '审核中' : reviewDetail.status === 'approved' ? '已通过' : '已拒绝' }}</span>
+          </div>
+          <div class="fg"><label>标题</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.title }}</div></div>
+          <div class="fg"><label>描述</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.description || '-' }}</div></div>
+          <div class="fg"><label>内容</label><pre style="padding:10px;background:var(--surface-sunken);border-radius:6px;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:13px;">{{ reviewDetail.content }}</pre></div>
+          <div v-if="reviewDetail.admin_comment" class="fg"><label>审核意见</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;color:var(--accent-red);">{{ reviewDetail.admin_comment }}</div></div>
+          <div class="form-btns" v-if="reviewDetail.status === 'pending'">
+            <button class="btn btn-ghost" @click="reviewDetail = null">取消</button>
+            <button class="btn btn-danger" @click="rejectReview(reviewDetail)">拒绝</button>
+            <button class="btn btn-primary" @click="approveReview(reviewDetail); reviewDetail = null">通过</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- TDK（仅管理员） -->
+    <div v-if="tab === 'tdk' && isAdmin" class="setting-card">
       <h3>提示词页面 TDK 设置</h3>
       <p class="hint">留空则使用系统 TDK 设置</p>
       <div class="fg"><label>页面标题</label><input v-model="tdk.promptproTitle" placeholder="PromptPro - 提示词管理" @input="saveTdk"></div>
@@ -156,7 +204,7 @@
             <IconPicker v-model="folderEditForm.icon" />
           </div>
           <div class="fg"><label>排序</label><input v-model.number="folderEditForm.sort_order" type="number" min="0" placeholder="0"></div>
-          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="folderEditForm.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
+          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="folderEditForm.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="folderEditVisible = false">取消</button><button class="btn btn-primary" @click="saveFolderEdit">保存</button></div>
         </div>
       </div>
@@ -170,7 +218,7 @@
           <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
           <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
           <div class="fg"><label>文件夹</label><select v-model="ef.folder_id"><option :value="null">未分类</option><option v-for="f in flatPFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option></select></div>
-          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
+          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
         </div>
       </div>
@@ -225,7 +273,7 @@ const folderEditForm = reactive({ name: '', parent_id: null as string | null, ic
 import IconPicker from '~/components/common/IconPicker.vue'
 // Users list (for create mode)
 const users = ref<any[]>([])
-async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
+async function loadUsers() { if (!isAdmin.value) { users.value = [{ id: currentUserId.value, username: '我' }]; return }; try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
 // Tree building for prompt folders (string IDs)
 interface PFolderNode { id: string; name: string; parent_id?: string | null; parent_name?: string; username?: string; user_id?: number; prompt_count?: number; icon?: string; _depth: number; _hasChildren: boolean; children: PFolderNode[] }
 function buildPTree(list: any[]): PFolderNode[] {
@@ -311,6 +359,7 @@ const ef = reactive({ id: '', title: '', description: '', content: '', folder_id
 function openEdit(p: any) { Object.assign(ef, { id: p.id, title: p.title, description: p.description || '', content: p.content || '', folder_id: p.folder_id ?? null, login_required: p.login_required || 0 }); editVisible.value = true }
 async function saveEdit() { await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...ef } }); editVisible.value = false; loadPrompts() }
 async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() }
+function canDeletePrompt(p: any) { return isAdmin.value || p.user_id === currentUserId.value }
 // Import/Export
 const importFile = ref<HTMLInputElement | null>(null)
 function triggerImport() { importFile.value?.click() }
@@ -353,6 +402,29 @@ function initPFolderSortable() {
   })
 }
 watch(displayPFolders, () => { nextTick(initPFolderSortable) }, { deep: true })
+// ── 审核请求 ──────────────────────────────────────────────
+const reviews = ref<any[]>([])
+const rLoading = ref(false)
+const reviewDetail = ref<any>(null)
+async function loadReviews() { rLoading.value = true; const d = await $fetch<any>('/api/admin/prompts/review-requests', { headers: getAuthHeaders() }); reviews.value = d.requests || []; rLoading.value = false }
+function viewReview(r: any) { reviewDetail.value = r }
+async function approveReview(r: any) {
+  if (!confirm(`通过「${r.prompt_title || r.title}」的修改请求？`)) return
+  await $fetch(`/api/admin/prompts/review-requests/${r.id}/approve`, { method: 'POST', headers: getAuthHeaders() })
+  loadReviews(); loadPrompts()
+}
+async function openReject(r: any) {
+  const comment = prompt('请输入拒绝原因（可选）：')
+  if (comment === null) return
+  await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
+  loadReviews()
+}
+async function rejectReview(r: any) {
+  const comment = prompt('请输入拒绝原因（可选）：')
+  if (comment === null) return
+  await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
+  reviewDetail.value = null; loadReviews()
+}
 onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHistory(); loadTdk(); loadUsers() })
 </script>
 

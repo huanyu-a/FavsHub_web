@@ -36,5 +36,5 @@ export default defineEventHandler(async (event) => {
         LIMIT ?
       `).all(user.id, limit)
 
-  return { versions }
+  return { versions, isAdmin }
 })

@@ -34,7 +34,7 @@ function resolveFolderPath(folderPath: string | null, options: {
 
     let folderRow = options.findFolder.get(options.userId, segment, currentParentId, currentParentId) as { id: number } | undefined
     if (!folderRow) {
-      const result = options.createFolder.run(options.userId, segment, currentParentId, 0, options.now, options.now)
+      const result = options.createFolder.run(options.userId, segment, currentParentId, 1, options.now, options.now)
       currentParentId = Number(result.lastInsertRowid)
       if (options.onCreated) options.onCreated()
     } else {
@@ -66,13 +66,18 @@ export default defineEventHandler(async (event) => {
   const now = Date.now()
   const userId = authUser.id
 
-  const insertBookmark = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, container, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
+  // 普通用户同步的书签/文件夹强制为私有（login_required=1）
+  const loginRequired = isAdmin ? 0 : 1
+
+  const insertBookmark = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, login_required, container, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
   const findFolder = db.prepare('SELECT id FROM folders WHERE user_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))')
-  const createFolder = db.prepare('INSERT INTO folders (user_id, name, parent_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+  const createFolder = db.prepare('INSERT INTO folders (user_id, name, parent_id, sort_order, login_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
 
   const folderCache = new Map<string, number>()
   const ensureFolderPath = (path: string | null) => resolveFolderPath(path, {
-    userId, findFolder, createFolder, folderCache, now
+    userId, findFolder, createFolder, folderCache, now,
   })
 
   const tx = db.transaction(() => {
@@ -87,7 +92,7 @@ export default defineEventHandler(async (event) => {
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)
       // container 独立字段：bar / other / mobile
       const container = bm.container || ''
-      insertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, container, 'browser', now, now)
+      insertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, loginRequired, container, 'browser', now, now)
     }
   })
   tx()

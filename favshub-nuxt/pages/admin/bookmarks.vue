@@ -41,10 +41,10 @@
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ bm.url }}</td>
               <td>{{ bm.folder_name || '-' }}</td>
               <td>{{ bm.username || bm.user_id }}</td>
-              <td><span class="badge" :class="bm.login_required ? 'badge-locked' : 'badge-public'">{{ bm.login_required ? '登录可见' : '公开' }}</span></td>
+              <td><span class="badge" :class="bm.login_required ? 'badge-private' : 'badge-public'">{{ bm.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
               <td class="actions">
                 <button class="btn btn-ghost btn-sm" @click="openEdit(bm)">编辑</button>
-                <button v-if="isAdmin" class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
+                <button v-if="canDeleteBm(bm)" class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
                 <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="downloadIcon(bm.id)">图标</button>
               </td>
             </tr>
@@ -130,7 +130,7 @@
               <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
             </select>
           </div>
-          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
+          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
           <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
         </div>
       </div>
@@ -176,7 +176,7 @@ const folderEditForm = reactive({ name: '', parent_id: null as number | null, ic
 import IconPicker from '~/components/common/IconPicker.vue'
 // Users list (for create mode)
 const users = ref<any[]>([])
-async function loadUsers() { try { const r = await $fetch<any>('/api/admin/users', { headers: getAuthHeaders() }); users.value = r.users || [] } catch { users.value = [] } }
+async function loadUsers() { if (!isAdmin.value) { users.value = [{ id: currentUserId.value, username: '我' }]; return }; try { const r = await $fetch<any>('/api/admin/users', { headers: getAuthHeaders() }); users.value = r.users || [] } catch { users.value = [] } }
 function buildTree(list: any[]): FolderNode[] {
   const map = new Map<number, FolderNode>()
   const roots: FolderNode[] = []
@@ -273,6 +273,7 @@ const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as nu
 function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0 }); editVisible.value = true }
 async function saveEdit() { await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...ef } }); editVisible.value = false; loadBookmarks() }
 async function delBm(bm: any) { if (!confirm(`删除「${bm.title}」？`)) return; await $fetch(`/api/admin/bookmarks/${bm.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadBookmarks() }
+function canDeleteBm(bm: any) { return isAdmin.value || bm.user_id === currentUserId.value }
 async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favicon/${id}`, { method: 'POST', headers: getAuthHeaders() }); loadBookmarks() }
 async function downloadAllFavicons() { await $fetch('/api/admin/download-favicons', { method: 'POST', headers: getAuthHeaders() }) }
 async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', { method: 'POST', headers: getAuthHeaders() }) }

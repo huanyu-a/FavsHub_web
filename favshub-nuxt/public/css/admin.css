@@ -219,6 +219,7 @@ input:checked + .slider:before { transform: translateX(16px); }
 /* --- 徽章补充（prompts / bookmarks / search-engines） --- */
 .badge-locked { background: light-dark(#fef3c7, rgba(254,243,199,0.15)); color: light-dark(#92400e, #fbbf24); }
 .badge-search { background: light-dark(#e0e7ff, rgba(224,231,255,0.15)); color: light-dark(#3730a3, #a5b4fc); }
+.badge-pending { background: light-dark(#fef3c7, rgba(254,243,199,0.15)); color: light-dark(#92400e, #fbbf24); }
 .badge-ai { background: light-dark(#fef3c7, rgba(254,243,199,0.15)); color: light-dark(#92400e, #fbbf24); }
 .badge-social { background: light-dark(#d1fae5, rgba(209,250,229,0.15)); color: light-dark(#065f46, #4ade80); }
 
@@ -330,6 +331,8 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
 .admin-layout .logo-text h1 { font-size: 20px; font-weight: 700; margin: 0; }
 .admin-layout .logo-text span { font-size: 12px; color: rgba(255,255,255,0.5); }
 .admin-layout .admin-sidebar-nav { flex: 1; padding: 16px 0; }
+.admin-layout .nav-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 8px 24px; }
+.admin-layout .nav-group-label { padding: 8px 24px 4px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.5px; }
 .admin-layout .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 24px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 14px; transition: all 0.2s; }
 .admin-layout .nav-item:hover, .admin-layout .nav-item.active { color: #fff; background: rgba(255,255,255,0.1); }
 .admin-layout .nav-item i { font-size: 18px; width: 20px; text-align: center; }

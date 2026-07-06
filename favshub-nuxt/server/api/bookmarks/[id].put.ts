@@ -40,12 +40,11 @@ export default defineEventHandler(async (event) => {
   if (icon !== undefined) {
     db.prepare('UPDATE bookmarks SET icon = ?, updated_at = ? WHERE id = ?').run(icon, now, bookmark.id)
   }
-  // 只有管理员可修改 login_required
+  // 可见性：管理员可自由选择，普通用户强制私有（仅自己可见）
   if (login_required !== undefined) {
     const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-    if (dbUser && dbUser.is_admin) {
-      db.prepare('UPDATE bookmarks SET login_required = ?, updated_at = ? WHERE id = ?').run(login_required ? 1 : 0, now, bookmark.id)
-    }
+    const lr = (dbUser?.is_admin) ? (login_required ? 1 : 0) : 1
+    db.prepare('UPDATE bookmarks SET login_required = ?, updated_at = ? WHERE id = ?').run(lr, now, bookmark.id)
   }
 
   const updated = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(bookmark.id)

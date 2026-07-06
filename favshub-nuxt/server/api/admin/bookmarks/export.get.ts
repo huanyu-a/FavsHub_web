@@ -3,16 +3,11 @@
  * 只允许管理员访问
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { requireAdmin } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  requireAdmin(event)
   const db = getRawDb()
-
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  if (!dbUser?.is_admin) {
-    throw createError({ statusCode: 403, message: '需要管理员权限' })
-  }
 
   // 获取所有书签（带文件夹名和用户名）
   const bookmarks = db.prepare(`

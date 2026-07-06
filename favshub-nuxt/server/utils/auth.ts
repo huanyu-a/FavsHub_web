@@ -84,3 +84,28 @@ export function requireAdmin(event: H3Event): AuthUser {
     data: { error: '无管理员权限' },
   })
 }
+
+/**
+ * 获取当前用户的角色信息（不抛异常）
+ * 用于需要根据角色返回不同数据的场景（如管理员看全局、普通用户看自己）
+ */
+export function getAuthRole(event: H3Event): { user: AuthUser; isAdmin: boolean } | null {
+  const user = extractUser(event)
+  if (!user) return null
+
+  // 1. 环境变量配置的管理员
+  const config = useRuntimeConfig(event)
+  const adminUsers = (config.adminUsers || '').split(',').map(u => u.trim()).filter(Boolean)
+  if (adminUsers.includes(user.username)) {
+    return { user, isAdmin: true }
+  }
+
+  // 2. 数据库 is_admin 字段
+  const db = getRawDb()
+  const row = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+  if (row?.is_admin) {
+    return { user, isAdmin: true }
+  }
+
+  return { user, isAdmin: false }
+}

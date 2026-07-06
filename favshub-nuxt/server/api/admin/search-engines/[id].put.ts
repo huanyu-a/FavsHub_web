@@ -1,16 +1,14 @@
 /**
  * PUT /api/admin/search-engines/:id — 更新搜索引擎
- * 管理员可编辑所有，普通用户只能编辑自己创建的
+ * 仅管理员可编辑（含修改 status）
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAdmin(event)
+  requireAdmin(event)
   const db = getRawDb()
-
-  const isAdmin = true
 
   const { id } = getRouterParams(event)
   const engineId = parseInt(id)
@@ -18,18 +16,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '无效的搜索引擎 ID' } })
   }
 
-  const engine = db.prepare('SELECT id, user_id FROM search_engines WHERE id = ?').get(engineId) as any
+  const engine = db.prepare('SELECT id FROM search_engines WHERE id = ?').get(engineId) as any
   if (!engine) {
     throw createError({ statusCode: 404, data: { error: '搜索引擎不存在' } })
   }
 
-  // 非管理员只能编辑自己创建的引擎
-  if (!isAdmin && engine.user_id !== user.id) {
-    throw createError({ statusCode: 403, data: { error: '无权编辑此搜索引擎' } })
-  }
-
   const body = await readBody(event)
-  const { name, label, url, icon, category, sort_order, is_default } = body
+  const { name, label, url, icon, category, sort_order, is_default, status } = body
 
   if (name !== undefined) {
     db.prepare('UPDATE search_engines SET name = ? WHERE id = ?').run(name, engineId)
@@ -51,6 +44,10 @@ export default defineEventHandler(async (event) => {
   }
   if (is_default !== undefined) {
     db.prepare('UPDATE search_engines SET is_default = ? WHERE id = ?').run(is_default ? 1 : 0, engineId)
+  }
+  // 仅管理员可修改 status
+  if (status !== undefined && ['approved', 'pending', 'disabled'].includes(status)) {
+    db.prepare('UPDATE search_engines SET status = ? WHERE id = ?').run(status, engineId)
   }
 
   const updated = db.prepare('SELECT * FROM search_engines WHERE id = ?').get(engineId)

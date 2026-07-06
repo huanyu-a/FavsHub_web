@@ -1,13 +1,18 @@
 /**
- * PUT /api/admin/bookmarks/:id — 更新书签（管理员）
+ * PUT /api/admin/bookmarks/:id — 更新书签
+ * 管理员：可更新任意书签
+ * 普通用户：仅可更新自己的书签，且不能更改公开状态
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
+import { requireAuth } from '../../../utils/auth'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  requireAdmin(event)
+  const auth = requireAuth(event)
   const db = getRawDb()
+
+  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
+  const isAdmin = !!dbUser?.is_admin
 
   const { id } = getRouterParams(event)
   const bookmarkId = parseInt(id)
@@ -15,9 +20,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '无效的书签 ID' } })
   }
 
-  const bookmark = db.prepare('SELECT id FROM bookmarks WHERE id = ?').get(bookmarkId) as any
+  const bookmark = db.prepare('SELECT id, user_id FROM bookmarks WHERE id = ?').get(bookmarkId) as any
   if (!bookmark) {
     throw createError({ statusCode: 404, data: { error: '书签不存在' } })
+  }
+
+  if (!isAdmin && bookmark.user_id !== auth.id) {
+    throw createError({ statusCode: 403, data: { error: '无权限修改此书签' } })
   }
 
   const body = await readBody(event)
@@ -36,7 +45,8 @@ export default defineEventHandler(async (event) => {
   if (icon !== undefined) {
     db.prepare('UPDATE bookmarks SET icon = ?, updated_at = ? WHERE id = ?').run(icon, now, bookmarkId)
   }
-  if (login_required !== undefined) {
+  // 只有管理员可修改可见性
+  if (isAdmin && login_required !== undefined) {
     db.prepare('UPDATE bookmarks SET login_required = ?, updated_at = ? WHERE id = ?').run(login_required ? 1 : 0, now, bookmarkId)
   }
 

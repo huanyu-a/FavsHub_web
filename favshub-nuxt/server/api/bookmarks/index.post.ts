@@ -18,9 +18,9 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-  // 只有管理员可设置 login_required
+  // 可见性：管理员可自由选择公开/私有；普通用户强制私有（仅自己可见）
   const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const lr = (dbUser && dbUser.is_admin && login_required) ? 1 : 0
+  const lr = (dbUser?.is_admin) ? (login_required ? 1 : 0) : 1
 
   const now = Date.now()
   const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM bookmarks WHERE user_id = ?').get(user.id) as { m: number | null } | undefined
