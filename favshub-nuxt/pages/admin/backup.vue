@@ -165,11 +165,29 @@ async function manualBackup() {
   } catch { showMessage('备份失败', 'error') }
   backupLoading.value = false
 }
-function downloadBackup() {
-  window.open(`/api/admin/backup/download?token=${encodeURIComponent(authStore.token || '')}`, '_blank')
+async function downloadBackup() {
+  try {
+    const blob = await $fetch('/api/admin/backup/download', {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, `favshub-backup-${Date.now()}.db`)
+  } catch (e: any) {
+    showMessage('下载失败: ' + (e?.message || '未知错误'), 'error')
+  }
 }
-function downloadFile(name: string) {
-  window.open(`/api/admin/backup/download?file=${encodeURIComponent(name)}&token=${encodeURIComponent(authStore.token || '')}`, '_blank')
+async function downloadFile(name: string) {
+  try {
+    const blob = await $fetch(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      responseType: 'blob',
+    })
+    downloadBlob(blob as Blob, name)
+  } catch (e: any) {
+    showMessage('下载失败: ' + (e?.message || '未知错误'), 'error')
+  }
 }
 async function downloadFavicons() {
   try {

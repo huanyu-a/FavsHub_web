@@ -19,33 +19,37 @@ export default defineEventHandler(async (event) => {
 
   const now = Date.now()
 
-  // 应用修改到原 prompt
-  db.prepare(`UPDATE prompts SET title = ?, description = ?, content = ?, updated_at = ? WHERE id = ?`).run(
-    request.title, request.description, request.content, now, request.prompt_id
-  )
+  // 所有写操作包裹在事务中，确保原子性
+  const applyApproval = db.transaction(() => {
+    // 应用修改到原 prompt
+    db.prepare(`UPDATE prompts SET title = ?, description = ?, content = ?, updated_at = ? WHERE id = ?`).run(
+      request.title, request.description, request.content, now, request.prompt_id
+    )
 
-  // 创建新版本
-  const prompt = db.prepare('SELECT version_count FROM prompts WHERE id = ?').get(request.prompt_id) as any
-  const versionNum = (prompt?.version_count || 0) + 1
-  const versionId = `${now}_v${versionNum}`
-  db.prepare(`
-    INSERT INTO prompt_versions (id, prompt_id, content, version_number, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(versionId, request.prompt_id, request.content, `${versionNum}.0`, now)
-  db.prepare('UPDATE prompts SET version_count = ?, current_version = ? WHERE id = ?').run(versionNum, `${versionNum}.0`, request.prompt_id)
+    // 创建新版本
+    const prompt = db.prepare('SELECT version_count FROM prompts WHERE id = ?').get(request.prompt_id) as any
+    const versionNum = (prompt?.version_count || 0) + 1
+    const versionId = `${now}_v${versionNum}`
+    db.prepare(`
+      INSERT INTO prompt_versions (id, prompt_id, content, version_number, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(versionId, request.prompt_id, request.content, `${versionNum}.0`, now)
+    db.prepare('UPDATE prompts SET version_count = ?, current_version = ? WHERE id = ?').run(versionNum, `${versionNum}.0`, request.prompt_id)
 
-  // 更新标签
-  try {
-    const tags = JSON.parse(request.tags || '[]')
-    if (Array.isArray(tags) && tags.length > 0) {
-      db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(request.prompt_id)
-      const stmt = db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)')
-      for (const tagId of tags) stmt.run(request.prompt_id, tagId, now)
-    }
-  } catch { /* 标签解析失败，跳过 */ }
+    // 更新标签（空数组 = 清除所有标签）
+    try {
+      const tags = JSON.parse(request.tags || '[]')
+      if (Array.isArray(tags)) {
+        db.prepare('DELETE FROM prompt_tags WHERE prompt_id = ?').run(request.prompt_id)
+        const stmt = db.prepare('INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id, created_at) VALUES (?, ?, ?)')
+        for (const tagId of tags) stmt.run(request.prompt_id, tagId, now)
+      }
+    } catch { /* 标签解析失败，跳过 */ }
 
-  // 更新审核请求状态
-  db.prepare(`UPDATE prompt_review_requests SET status = 'approved', reviewed_at = ?, reviewed_by = ? WHERE id = ?`).run(now, auth.id, id)
+    // 更新审核请求状态
+    db.prepare(`UPDATE prompt_review_requests SET status = 'approved', reviewed_at = ?, reviewed_by = ? WHERE id = ?`).run(now, auth.id, id)
+  })
+  applyApproval()
 
   return { success: true, message: '审核通过，已应用修改' }
 })

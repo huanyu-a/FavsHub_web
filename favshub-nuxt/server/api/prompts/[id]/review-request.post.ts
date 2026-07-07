@@ -25,6 +25,11 @@ export default defineEventHandler(async (event) => {
   // 只有管理员的公开提示词才需要审核
   const ownerIsAdmin = (db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as any)?.is_admin
   if (!ownerIsAdmin) throw createError({ statusCode: 403, data: { error: '只能对管理员的公开提示词提交审核' } })
+  if (prompt.login_required) throw createError({ statusCode: 403, data: { error: '只能对公开的提示词提交审核' } })
+
+  // 检查是否已有 pending 审核请求，避免重复提交
+  const existing = db.prepare('SELECT id FROM prompt_review_requests WHERE prompt_id = ? AND user_id = ? AND status = ?').get(id, auth.id, 'pending') as any
+  if (existing) throw createError({ statusCode: 409, data: { error: '您已有一个待审核的请求，请等待管理员处理' } })
 
   const body = await readBody(event)
   const { title, description, content, tags } = body || {}

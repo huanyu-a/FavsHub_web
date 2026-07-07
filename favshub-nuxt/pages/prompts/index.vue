@@ -433,12 +433,10 @@ function toggleFolderExpand(id: string | number) {
 
 function selectPromptFolder(folderId: string | number | null) {
   activeFolderId.value = folderId as string | null
-  loadPrompts()
 }
 
 function selectAndToggleAll() {
   activeFolderId.value = null
-  loadPrompts()
 }
 
 // ── Context menu state ──────────────────────────────────────────
@@ -497,9 +495,13 @@ function renamePromptFolder(folder: Folder) {
 async function deletePromptFolder(folder: Folder) {
   folderMenu.visible = false
   if (confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) {
-    await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
-    expandedFolderIds.value.delete(folder.id)
-    await Promise.all([loadFolders(), loadPrompts()])
+    try {
+      await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
+      expandedFolderIds.value.delete(folder.id)
+      await Promise.all([loadFolders(), loadPrompts()])
+    } catch (e: any) {
+      alert('删除文件夹失败: ' + (e?.data?.error || e?.message || '未知错误'))
+    }
   }
 }
 
@@ -507,10 +509,14 @@ async function deletePromptFolder(folder: Folder) {
 async function deleteFolder(folder: any) {
   if (!folder) return
   if (!confirm(`确定删除文件夹「${folder.name}」？文件夹中的提示词不会被删除。`)) return
-  await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
-  expandedFolderIds.value.delete(folder.id)
-  closeFolderDialog()
-  await Promise.all([loadFolders(), loadPrompts()])
+  try {
+    await $fetch(`/api/prompts/folders/${folder.id}`, { method: 'DELETE' })
+    expandedFolderIds.value.delete(folder.id)
+    closeFolderDialog()
+    await Promise.all([loadFolders(), loadPrompts()])
+  } catch (e: any) {
+    alert('删除文件夹失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 
 let searchTimeout: ReturnType<typeof setTimeout>
@@ -521,7 +527,6 @@ function debouncedSearch() {
 
 function toggleFavoritesView() {
   activeFolderId.value = activeFolderId.value === '_favorites' ? null : '_favorites'
-  loadPrompts()
 }
 
 async function loadPrompts() {
@@ -549,8 +554,12 @@ async function loadPrompts() {
     }
 
     prompts.value = results
-  } catch { prompts.value = [] }
-  isLoading.value = false
+  } catch (e) {
+    console.error('加载提示词失败', e)
+    prompts.value = []
+  } finally {
+    isLoading.value = false
+  }
 }
 
 /**
@@ -722,6 +731,7 @@ async function savePrompt() {
     tags: tagIds,
   }
 
+  try {
   if (isCreating.value) {
     await $fetch('/api/prompts', { method: 'POST', body })
   } else if (editingPrompt.value) {
@@ -735,23 +745,34 @@ async function savePrompt() {
   }
   showEditDialog.value = false
   await Promise.all([loadPrompts(), loadFolders()])
+  } catch (e: any) {
+    alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 
 async function toggleFavorite(prompt: Prompt) {
-  if (prompt.user_id !== currentUserId.value) return
-  await $fetch(`/api/prompts/${prompt.id}`, {
-    method: 'PUT',
-    body: { is_favorite: prompt.is_favorite ? 0 : 1 },
-  })
-  await loadPrompts()
+  if (prompt.user_id !== currentUserId.value) return alert('仅作者可收藏自己的提示词')
+  try {
+    await $fetch(`/api/prompts/${prompt.id}`, {
+      method: 'PUT',
+      body: { is_favorite: prompt.is_favorite ? 0 : 1 },
+    })
+    await loadPrompts()
+  } catch (e: any) {
+    alert('操作失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 
 async function deletePrompt(prompt: Prompt) {
   if (prompt.user_id !== currentUserId.value) return alert('无权删除此提示词')
   if (!confirm(`确定删除提示词「${prompt.title}」？`)) return
-  await $fetch(`/api/prompts/${prompt.id}`, { method: 'DELETE' })
-  viewingPrompt.value = null
-  await Promise.all([loadPrompts(), loadFolders()])
+  try {
+    await $fetch(`/api/prompts/${prompt.id}`, { method: 'DELETE' })
+    viewingPrompt.value = null
+    await Promise.all([loadPrompts(), loadFolders()])
+  } catch (e: any) {
+    alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 
 async function viewVersions(prompt: Prompt) {
@@ -767,26 +788,34 @@ async function viewVersions(prompt: Prompt) {
 
 async function restoreVersion(version: any) {
   if (!confirm(`确定恢复到 v${version.version_number}？`)) return
-  await $fetch(`/api/prompts/${version.prompt_id}/restore`, { method: 'POST', body: { version_id: version.id } })
-  showVersions.value = false
-  await loadPrompts()
+  try {
+    await $fetch(`/api/prompts/${version.prompt_id}/restore`, { method: 'POST', body: { version_id: version.id } })
+    showVersions.value = false
+    await loadPrompts()
+  } catch (e: any) {
+    alert('恢复失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 
 async function saveFolder() {
   if (!newFolderName.value.trim()) return alert('请输入文件夹名称')
-  if (editingFolder.value) {
-    await $fetch(`/api/prompts/folders/${editingFolder.value.id}`, {
-      method: 'PUT',
-      body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
-    })
-  } else {
-    await $fetch('/api/prompts/folders', {
-      method: 'POST',
-      body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
-    })
+  try {
+    if (editingFolder.value) {
+      await $fetch(`/api/prompts/folders/${editingFolder.value.id}`, {
+        method: 'PUT',
+        body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
+      })
+    } else {
+      await $fetch('/api/prompts/folders', {
+        method: 'POST',
+        body: { name: newFolderName.value, parent_id: folderFormParentId.value, icon: folderFormIcon.value },
+      })
+    }
+    closeFolderDialog()
+    await Promise.all([loadFolders(), loadPrompts()])
+  } catch (e: any) {
+    alert('保存文件夹失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
-  closeFolderDialog()
-  await Promise.all([loadFolders(), loadPrompts()])
 }
 
 function closeFolderDialog() {

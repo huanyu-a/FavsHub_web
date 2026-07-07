@@ -102,17 +102,31 @@ async function loadMyDefault() {
 // 设置用户的默认引擎
 async function setMyDefault(e: any) {
   const newDefault = myDefault.value === e.name ? '' : e.name
-  await $fetch('/api/settings', { method: 'PUT', headers: getAuthHeaders(), body: { data: { search_engine_default: newDefault } }, credentials: 'include' })
-  myDefault.value = newDefault
+  try {
+    await $fetch('/api/settings', { method: 'PUT', headers: getAuthHeaders(), body: { data: { search_engine_default: newDefault } }, credentials: 'include' })
+    myDefault.value = newDefault
+  } catch (err: any) {
+    alert('设置失败: ' + (err?.data?.error || err?.message || '未知错误'))
+  }
 }
 async function load() {
   loading.value = true
-  const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders(), credentials: 'include' })
-  // 待审核置顶
-  const all = d.engines || []
-  all.sort((a: any, b: any) => (a.status === 'pending' ? -1 : 1))
-  engines.value = all
-  loading.value = false
+  try {
+    const d = await $fetch<{ engines: any[] }>('/api/admin/search-engines', { headers: getAuthHeaders(), credentials: 'include' })
+    // 待审核置顶（稳定排序：仅 pending 排前，其余保持原序）
+    const all = d.engines || []
+    all.sort((a: any, b: any) => {
+      const aPending = a.status === 'pending' ? 0 : 1
+      const bPending = b.status === 'pending' ? 0 : 1
+      return aPending - bPending
+    })
+    engines.value = all
+  } catch (e) {
+    console.error('加载搜索引擎失败', e)
+    engines.value = []
+  } finally {
+    loading.value = false
+  }
 }
 function openCreate() {
   isNew.value = true; editingId.value = null
@@ -125,29 +139,51 @@ function openEdit(e: any) {
   modalVisible.value = true
 }
 async function save() {
-  if (isNew.value) {
-    const body: any = { ...form }
-    // 非管理员提交时不发送管理专属字段
-    if (!isAdmin.value) {
-      delete body.sort_order
-      delete body.is_default
+  try {
+    if (isNew.value) {
+      const body: any = { ...form }
+      // 非管理员提交时不发送管理专属字段
+      if (!isAdmin.value) {
+        delete body.sort_order
+        delete body.is_default
+      }
+      const res = await $fetch<any>('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body, credentials: 'include' })
+      if (res?.status === 'pending') {
+        alert('已提交审核，等待管理员审核通过后生效。')
+      }
+    } else {
+      // 编辑：非管理员同样过滤管理专属字段
+      const body: any = { ...form }
+      if (!isAdmin.value) {
+        delete body.sort_order
+        delete body.is_default
+      }
+      await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body, credentials: 'include' })
     }
-    const res = await $fetch<any>('/api/admin/search-engines', { method: 'POST', headers: getAuthHeaders(), body, credentials: 'include' })
-    if (res?.status === 'pending') {
-      alert('已提交审核，等待管理员审核通过后生效。')
-    }
-  } else {
-    await $fetch(`/api/admin/search-engines/${editingId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...form }, credentials: 'include' })
+    modalVisible.value = false; load()
+  } catch (e: any) {
+    alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
-  modalVisible.value = false; load()
 }
-async function del(e: any) { if (!confirm(`删除「${e.name}」？`)) return; await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' }); load() }
+async function del(e: any) {
+  if (!confirm(`删除「${e.name}」？`)) return
+  try {
+    await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' })
+    load()
+  } catch (err: any) {
+    alert('删除失败: ' + (err?.data?.error || err?.message || '未知错误'))
+  }
+}
 // 管理员审核引擎
 async function reviewEngine(e: any, status: string) {
   const action = status === 'approved' ? '通过' : '拒绝'
   if (!confirm(`${action}「${e.name}」的审核？`)) return
-  await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { status }, credentials: 'include' })
-  load()
+  try {
+    await $fetch(`/api/admin/search-engines/${e.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { status }, credentials: 'include' })
+    load()
+  } catch (err: any) {
+    alert('审核操作失败: ' + (err?.data?.error || err?.message || '未知错误'))
+  }
 }
 onMounted(() => { load(); loadMyDefault() })
 </script>

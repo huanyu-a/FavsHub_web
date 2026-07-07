@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="版本" />
+  <img src="https://img.shields.io/badge/version-1.0.4-blue" alt="版本" />
   <img src="https://img.shields.io/badge/Nuxt-3.21-00DC82?logo=nuxt" alt="Nuxt" />
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue" />
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript" alt="TypeScript" />
@@ -55,6 +55,7 @@
 - **标签筛选** — 多维标签系统，快速定位
 - **收藏功能** — 标记常用提示词
 - **智能搜索** — 权重评分算法，精准匹配
+- **协作审核** — 非管理员可对管理员创建的公开提示词提交修改请求，管理员审核通过后自动应用并创建新版本
 
 ### 🔍 搜索引擎聚合
 
@@ -63,6 +64,7 @@
 - **对比搜索** — 一键在多个引擎中同时查询
 - **自定义引擎** — 管理员可添加/编辑/删除引擎
 - **拖拽排序** — 自定义引擎显示顺序
+- **用户提交** — 非管理员可提交搜索引擎供管理员审核
 
 ### 🎨 个性化外观
 
@@ -78,6 +80,7 @@
 - **管理员系统** — 首个注册用户自动成为管理员
 - **环境变量配置** — 支持 `ADMIN_USERS` 预设管理员列表
 - **登录可见** — 书签/文件夹可设置登录后可见
+- **后台开放** — 所有已登录用户可访问 `/admin` 管理自己的数据，管理员可管理全站数据
 
 ### 🐳 部署与运维
 
@@ -91,6 +94,8 @@
 ---
 
 ## 截图展示
+
+### 前台页面
 
 <div align="center">
   <table>
@@ -123,7 +128,7 @@
           <img src="docs/screenshots/login.png" alt="登录页" width="100%" />
         </a>
         <br />
-        <em>登录页 — 品牌展示，登录表单，搜索引擎快捷面板</em>
+        <em>登录页 — 品牌展示，登录表单</em>
       </td>
     </tr>
     <tr>
@@ -134,63 +139,87 @@
         <br />
         <em>提示词管理 — 文件夹分类管理 AI 提示词</em>
       </td>
+      <td align="center" width="50%"></td>
+    </tr>
+  </table>
+</div>
+
+### 管理后台
+
+<div align="center">
+  <table>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-dashboard.png">
           <img src="docs/screenshots/admin-dashboard.png" alt="管理后台仪表盘" width="100%" />
         </a>
         <br />
-        <em>管理后台 — 统计概览：书签数、用户数、系统信息</em>
+        <em>仪表盘 — 统计概览 + 快捷操作入口</em>
       </td>
-    </tr>
-    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-users.png">
           <img src="docs/screenshots/admin-users.png" alt="用户管理" width="100%" />
         </a>
         <br />
-        <em>用户管理 — 查看和管理所有用户</em>
+        <em>用户管理 — 查看和管理所有注册用户</em>
       </td>
+    </tr>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-bookmarks.png">
           <img src="docs/screenshots/admin-bookmarks.png" alt="书签管理" width="100%" />
         </a>
         <br />
-        <em>书签管理 — 全局书签列表和文件夹管理</em>
+        <em>书签管理 — 全局书签列表、筛选与维护</em>
       </td>
-    </tr>
-    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-prompts.png">
           <img src="docs/screenshots/admin-prompts.png" alt="提示词管理（后台）" width="100%" />
         </a>
         <br />
-        <em>提示词管理（后台） — 所有用户的提示词和标签</em>
+        <em>提示词管理 — 所有用户的提示词和标签</em>
       </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-review-requests.png">
+          <img src="docs/screenshots/admin-review-requests.png" alt="审核请求管理" width="100%" />
+        </a>
+        <br />
+        <em>审核请求 — 非管理员提交提示词修改，管理员审核</em>
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/screenshots/admin-prompt-edit.png">
+          <img src="docs/screenshots/admin-prompt-edit.png" alt="提示词编辑" width="100%" />
+        </a>
+        <br />
+        <em>提示词编辑器 — 版本管理、标签、可见性设置</em>
+      </td>
+    </tr>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-backup.png">
           <img src="docs/screenshots/admin-backup.png" alt="备份管理" width="100%" />
         </a>
         <br />
-        <em>备份管理 — 数据下载与定时备份</em>
+        <em>备份管理 — 数据自动备份 + 手动备份 + 下载</em>
       </td>
-    </tr>
-    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-settings.png">
           <img src="docs/screenshots/admin-settings.png" alt="用户设置" width="100%" />
         </a>
         <br />
-        <em>用户设置 — 主题、布局、语言等个性化配置</em>
+        <em>用户设置 — 主题、布局、全局默认配置</em>
       </td>
+    </tr>
+    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/admin-config.png">
           <img src="docs/screenshots/admin-config.png" alt="系统配置" width="100%" />
         </a>
         <br />
-        <em>系统配置 — JWT 密钥、管理员列表、备份设置</em>
+        <em>系统配置 — JWT、注册开关、SEO、运行状态</em>
       </td>
-    </tr>
-    <tr>
       <td align="center" width="50%">
         <a href="docs/screenshots/search-engines.png">
           <img src="docs/screenshots/search-engines.png" alt="搜索引擎管理" width="100%" />
@@ -198,7 +227,6 @@
         <br />
         <em>搜索引擎管理 — 29 款内置引擎，拖拽排序</em>
       </td>
-      <td align="center" width="50%"></td>
     </tr>
   </table>
 </div>
@@ -337,10 +365,12 @@ favshub-nuxt/
 │   │   ├── themes.css       # 15 套主题配色方案
 │   │   ├── main-bundle.css  # 主样式
 │   │   ├── admin.css        # 管理后台样式
+│   │   ├── promptpro-bundle.css  # 提示词页面样式
+│   │   ├── error.css        # 错误页面样式
 │   │   └── mobile-responsive.css  # 移动端响应式
 │   ├── images/              # 搜索引擎 logo、favicon 缓存
 │   ├── fonts/               # 自定义字体
-│   └── vendor/              # 第三方库（Sortable.js、lodash 等）
+│   └── vendor/              # 第三方库（remixicon 图标库）
 ├── components/
 │   ├── auth/LoginDialog.vue         # 登录弹窗
 │   ├── bookmark/                    # 书签组件
@@ -395,28 +425,37 @@ favshub-nuxt/
 ├── server/
 │   ├── api/                         # API 路由
 │   │   ├── auth/                    # 登录/注册/登出
-│   │   ├── bookmarks/               # 书签 CRUD
+│   │   ├── bookmarks/               # 书签 CRUD + 排序 + 导出
 │   │   ├── folders/                 # 文件夹管理
-│   │   ├── prompts/                 # 提示词管理
-│   │   ├── tags/                    # 标签管理
-│   │   ├── sync/                    # 扩展数据同步
-│   │   ├── settings/                # 用户设置
+│   │   ├── prompts/                 # 提示词 CRUD + 版本 + 文件夹 + 审核
+│   │   │   └── [id]/review-request.post.ts  # 提交审核请求
+│   │   ├── tags/                    # 标签 CRUD
+│   │   ├── sync/                    # 扩展数据同步 + favicon
+│   │   ├── settings/                # 用户设置 + 默认设置
 │   │   ├── admin/                   # 管理员后台 API
-│   │   │   ├── backup/              # 备份管理
+│   │   │   ├── backup/              # 备份管理（下载/信息）
 │   │   │   ├── bookmarks/           # 书签管理
 │   │   │   ├── config/              # 系统配置
 │   │   │   ├── folders/             # 文件夹管理
 │   │   │   ├── prompt-folders/      # 提示词文件夹
-│   │   │   ├── prompts/             # 提示词管理
+│   │   │   ├── prompts/             # 提示词管理 + 审核请求
+│   │   │   │   └── review-requests/ # 审核请求列表 + 批准/拒绝
 │   │   │   ├── search-engines/      # 搜索引擎管理
 │   │   │   ├── tags/                # 标签管理
 │   │   │   ├── users/               # 用户管理
 │   │   │   ├── stats.get.ts         # 统计数据
 │   │   │   ├── manual-backup.post.ts
-│   │   │   └── download-favicon/    # favicon 下载本地化
+│   │   │   ├── backup-schedule.get/put.ts  # 备份计划
+│   │   │   ├── backup-files.get.ts  # 备份文件列表
+│   │   │   ├── download-favicon/    # favicon 下载本地化
+│   │   │   ├── force-localize-icons.post.ts
+│   │   │   └── retry-failed-favicons.post.ts
 │   │   ├── search-engines.get.ts    # 搜索引擎列表（公开）
 │   │   ├── health.get.ts            # 健康检查
-│   │   └── user/                    # 用户信息/资料
+│   │   ├── config/registration.get.ts  # 注册开关
+│   │   ├── tdk.get.ts               # TDK 配置
+│   │   ├── tdk/promptpro.get.ts     # PromptPro TDK
+│   │   └── user/                    # 用户统计
 │   ├── middleware/
 │   │   ├── admin-guard.ts           # 服务端管理员 JWT 验证
 │   │   └── cors.ts                  # CORS 中间件
@@ -482,6 +521,9 @@ favshub-nuxt/
 |------|------|------|
 | `GET` | `/api/search-engines` | 获取搜索引擎列表 |
 | `GET` | `/api/health` | 健康检查 |
+| `GET` | `/api/config/registration` | 获取注册开关状态 |
+| `GET` | `/api/tdk` | 获取 TDK 配置 |
+| `GET` | `/api/tdk/promptpro` | 获取 PromptPro TDK 配置 |
 | `POST` | `/api/auth/register` | 用户注册 |
 | `POST` | `/api/auth/login` | 用户登录 |
 
@@ -496,20 +538,41 @@ favshub-nuxt/
 | `POST` | `/api/bookmarks` | 创建书签 |
 | `PUT` | `/api/bookmarks/:id` | 更新书签 |
 | `DELETE` | `/api/bookmarks/:id` | 删除书签 |
+| `PUT` | `/api/bookmarks/reorder` | 书签排序 |
+| `GET` | `/api/bookmarks/export` | 导出书签 |
 | `GET` | `/api/folders` | 获取文件夹列表 |
 | `POST` | `/api/folders` | 创建文件夹 |
 | `PUT` | `/api/folders/:id` | 更新文件夹 |
 | `DELETE` | `/api/folders/:id` | 删除文件夹 |
 | `GET` | `/api/prompts` | 获取提示词列表 |
 | `POST` | `/api/prompts` | 创建提示词 |
+| `GET` | `/api/prompts/:id` | 获取提示词详情 |
 | `PUT` | `/api/prompts/:id` | 更新提示词 |
 | `DELETE` | `/api/prompts/:id` | 删除提示词 |
+| `POST` | `/api/prompts/:id/review-request` | 提交提示词修改审核请求 |
+| `GET` | `/api/prompts/:id/my-review-request` | 查询当前用户的审核状态 |
+| `POST` | `/api/prompts/:id/restore` | 还原历史版本 |
+| `GET` | `/api/prompts/export` | 导出提示词 |
+| `GET` | `/api/prompts/folders/all` | 获取所有提示词文件夹 |
+| `POST` | `/api/prompts/folders` | 创建提示词文件夹 |
+| `PUT` | `/api/prompts/folders/:id` | 更新提示词文件夹 |
+| `DELETE` | `/api/prompts/folders/:id` | 删除提示词文件夹 |
+| `GET` | `/api/prompts/versions/:promptId` | 获取版本历史 |
+| `POST` | `/api/prompts/versions/:promptId` | 创建新版本 |
+| `GET` | `/api/prompts/tag-relations` | 获取提示词-标签关联 |
 | `GET` | `/api/tags` | 获取标签列表 |
 | `POST` | `/api/tags` | 创建标签 |
+| `PUT` | `/api/tags/:id` | 更新标签 |
 | `DELETE` | `/api/tags/:id` | 删除标签 |
 | `GET` | `/api/settings` | 获取用户设置 |
 | `PUT` | `/api/settings` | 更新用户设置 |
+| `GET/PUT` | `/api/settings/default` | 默认设置读写 |
 | `POST` | `/api/sync/bookmarks` | 同步浏览器书签 |
+| `PUT` | `/api/sync/bookmarks` | 增量同步书签 |
+| `GET` | `/api/sync/bookmarks/since` | 获取增量同步数据 |
+| `GET` | `/api/sync/bookmarks/full` | 获取全量同步数据 |
+| `POST` | `/api/sync/favicons` | 同步 favicon |
+| `GET` | `/api/user/stats` | 获取用户统计 |
 
 ### 管理员接口（需要管理员权限）
 
@@ -518,14 +581,43 @@ favshub-nuxt/
 | `GET` | `/api/admin/stats` | 获取全站统计数据 |
 | `GET` | `/api/admin/users` | 获取用户列表 |
 | `PUT` | `/api/admin/users/:id` | 更新用户信息 |
+| `DELETE` | `/api/admin/users/:id` | 删除用户 |
+| `GET` | `/api/admin/users/:id/bookmarks` | 获取指定用户书签 |
+| `GET` | `/api/admin/users/:id/prompts` | 获取指定用户提示词 |
 | `GET` | `/api/admin/bookmarks` | 获取所有书签 |
+| `PUT` | `/api/admin/bookmarks/:id` | 更新任意书签 |
 | `DELETE` | `/api/admin/bookmarks/:id` | 删除任意书签 |
+| `GET` | `/api/admin/bookmarks/export` | 导出所有书签 |
+| `GET` | `/api/admin/folders` | 获取所有文件夹 |
+| `POST` | `/api/admin/folders` | 创建文件夹 |
+| `PUT` | `/api/admin/folders/:id` | 更新文件夹 |
+| `DELETE` | `/api/admin/folders/:id` | 删除文件夹 |
+| `PUT` | `/api/admin/folders/reorder` | 文件夹排序 |
 | `GET` | `/api/admin/prompts` | 获取所有提示词 |
+| `PUT` | `/api/admin/prompts/:id` | 更新任意提示词 |
 | `DELETE` | `/api/admin/prompts/:id` | 删除任意提示词 |
-| `GET` | `/api/admin/backup` | 获取备份信息 |
-| `POST` | `/api/admin/backup/manual` | 手动备份 |
+| `GET` | `/api/admin/prompts/history` | 提示词操作历史 |
+| `GET` | `/api/admin/prompts/review-requests` | 获取审核请求列表 |
+| `POST` | `/api/admin/prompts/review-requests/:id/approve` | 审核通过 |
+| `POST` | `/api/admin/prompts/review-requests/:id/reject` | 审核拒绝 |
+| `GET` | `/api/admin/prompt-folders` | 获取所有提示词文件夹 |
+| `POST` | `/api/admin/prompt-folders` | 创建提示词文件夹 |
+| `PUT` | `/api/admin/prompt-folders/:id` | 更新提示词文件夹 |
+| `DELETE` | `/api/admin/prompt-folders/:id` | 删除提示词文件夹 |
+| `PUT` | `/api/admin/prompt-folders/reorder` | 提示词文件夹排序 |
+| `GET` | `/api/admin/tags` | 获取所有标签 |
 | `GET/PUT` | `/api/admin/config` | 系统配置读写 |
 | `GET/POST/PUT/DELETE` | `/api/admin/search-engines/*` | 搜索引擎管理 |
+| `GET` | `/api/admin/backup/info` | 获取备份信息 |
+| `GET` | `/api/admin/backup/download` | 下载备份文件 |
+| `POST` | `/api/admin/manual-backup` | 手动备份 |
+| `GET/PUT` | `/api/admin/backup-schedule` | 备份计划读写 |
+| `GET` | `/api/admin/backup-files` | 获取备份文件列表 |
+| `POST` | `/api/admin/download-favicon/:id` | 下载单个 favicon |
+| `POST` | `/api/admin/download-favicons` | 批量下载 favicon |
+| `POST` | `/api/admin/force-localize-icons` | 强制本地化图标 |
+| `POST` | `/api/admin/retry-failed-favicons` | 重试失败 favicon |
+| `POST` | `/api/admin/sync-prompts` | 同步提示词 |
 
 ### 请求头格式
 

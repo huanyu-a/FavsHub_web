@@ -367,27 +367,29 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
 .admin-layout .hamburger svg { width: 22px; height: 22px; }
 
 /* --- Layout: Profile Dialog --- */
-.admin-layout .profile-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-.admin-layout .profile-modal { background: var(--surface-raised); border-radius: 12px; width: 400px; max-width: 90vw; box-shadow: var(--shadow-xl); overflow: hidden; }
-.admin-layout .profile-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.admin-layout .profile-header h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.admin-layout .profile-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary); padding: 0 4px; }
-.admin-layout .profile-body { padding: 20px; }
-.admin-layout .profile-field { margin-bottom: 14px; }
-.admin-layout .profile-field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
-.admin-layout .profile-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; outline: none; box-sizing: border-box; transition: border-color 0.2s; background: var(--surface-raised); color: var(--text-primary); }
-.admin-layout .profile-input:focus { border-color: var(--primary); }
-.admin-layout .profile-input.disabled { background: var(--surface-sunken); color: var(--text-tertiary); cursor: not-allowed; }
-.admin-layout .profile-divider { text-align: center; margin: 16px 0 12px; position: relative; }
-.admin-layout .profile-divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--border); }
-.admin-layout .profile-divider span { background: var(--surface-raised); padding: 0 12px; font-size: 12px; color: var(--text-tertiary); position: relative; }
-.admin-layout .profile-msg { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; text-align: center; }
-.admin-layout .profile-msg.success { background: var(--primary-light); color: var(--primary-dark); }
-.admin-layout .profile-msg.error { background: light-dark(#fee2e2, rgba(254,226,226,0.15)); color: light-dark(#991b1b, #fca5a5); }
-.admin-layout .profile-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.admin-layout .btn-cancel { padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); color: var(--text-secondary); font-size: 14px; cursor: pointer; }
-.admin-layout .btn-save { padding: 8px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-inverse); font-size: 14px; cursor: pointer; }
-.admin-layout .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+/* 注意：profile 弹窗通过 <Teleport to="body"> 渲染到 body 下，
+   脱离 .admin-layout 容器，因此不能用 .admin-layout 前缀 */
+.profile-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.profile-modal { background: var(--surface-raised); border-radius: 12px; width: 400px; max-width: 90vw; box-shadow: var(--shadow-xl); overflow: hidden; }
+.profile-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.profile-header h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.profile-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary); padding: 0 4px; }
+.profile-body { padding: 20px; }
+.profile-field { margin-bottom: 14px; }
+.profile-field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.profile-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; outline: none; box-sizing: border-box; transition: border-color 0.2s; background: var(--surface-raised); color: var(--text-primary); }
+.profile-input:focus { border-color: var(--primary); }
+.profile-input.disabled { background: var(--surface-sunken); color: var(--text-tertiary); cursor: not-allowed; }
+.profile-divider { text-align: center; margin: 16px 0 12px; position: relative; }
+.profile-divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--border); }
+.profile-divider span { background: var(--surface-raised); padding: 0 12px; font-size: 12px; color: var(--text-tertiary); position: relative; }
+.profile-msg { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; text-align: center; }
+.profile-msg.success { background: var(--primary-light); color: var(--primary-dark); }
+.profile-msg.error { background: light-dark(#fee2e2, rgba(254,226,226,0.15)); color: light-dark(#991b1b, #fca5a5); }
+.profile-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.profile-overlay .btn-cancel { padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); color: var(--text-secondary); font-size: 14px; cursor: pointer; }
+.profile-overlay .btn-save { padding: 8px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-inverse); font-size: 14px; cursor: pointer; }
+.profile-overlay .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ========================================
    页面级移动端响应式补充

@@ -44,7 +44,7 @@
             <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'">{{ p.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
-              <button v-if="!isAdmin && owner_is_admin" class="btn btn-ghost btn-sm" @click="openEdit(p)">申请修改</button>
+              <button v-if="!isAdmin && p.owner_is_admin" class="btn btn-ghost btn-sm" @click="openEdit(p)">申请修改</button>
               <button v-else class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
               <button v-if="canDeletePrompt(p)" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
@@ -200,7 +200,7 @@
 	          <div class="form-btns" v-if="reviewDetail.status === 'pending'">
 	            <button class="btn btn-ghost" @click="reviewDetail = null">取消</button>
 	            <button class="btn btn-danger" @click="rejectReview(reviewDetail)">拒绝</button>
-	            <button class="btn btn-primary" @click="approveReview(reviewDetail); reviewDetail = null">通过</button>
+	            <button class="btn btn-primary" @click="approveReview(reviewDetail)">通过</button>
 	          </div>
 	        </div>
 	      </div>
@@ -279,17 +279,25 @@ const pPages = computed(() => { const a: number[] = []; for (let i = Math.max(1,
 const promptStats = reactive({ total: 0, folders: 0, tags: 0, versions: 0 })
 async function loadPrompts() {
   pLoading.value = true
-  const r = await $fetch<any>(`/api/admin/prompts?page=${pPage.value}&limit=${pPageSize}`, { headers: getAuthHeaders() })
-  prompts.value = r.prompts || []
-  pTotal.value = r.total || r.prompts?.length || 0
-  pLoading.value = false
+  try {
+    const r = await $fetch<any>(`/api/admin/prompts?page=${pPage.value}&limit=${pPageSize}`, { headers: getAuthHeaders() })
+    prompts.value = r.prompts || []
+    pTotal.value = r.total || r.prompts?.length || 0
+  } catch (e) {
+    console.error('加载提示词失败', e)
+    prompts.value = []
+  } finally {
+    pLoading.value = false
+  }
 }
 async function loadStats() {
-  const d = await $fetch<any>('/api/admin/stats', { headers: getAuthHeaders() })
-  promptStats.total = d.prompts || 0
-  promptStats.folders = d.promptFolders || 0
-  promptStats.tags = d.tags || 0
-  promptStats.versions = d.promptVersions || 0
+  try {
+    const d = await $fetch<any>('/api/admin/stats', { headers: getAuthHeaders() })
+    promptStats.total = d.prompts || 0
+    promptStats.folders = d.promptFolders || 0
+    promptStats.tags = d.tags || 0
+    promptStats.versions = d.promptVersions || 0
+  } catch (e) { console.error('加载统计失败', e) }
 }
 // Folders
 const pFolders = ref<any[]>([])
@@ -350,34 +358,38 @@ function toggleAllPFolders() {
     pCollapsedIds.value = ids
   }
 }
-async function loadPFolders() { pfLoading.value = true; const d = await $fetch<{ folders: any[] }>('/api/admin/prompt-folders', { headers: getAuthHeaders() }); pFolders.value = d.folders || []; pfLoading.value = false }
+async function loadPFolders() { pfLoading.value = true; try { const d = await $fetch<{ folders: any[] }>('/api/admin/prompt-folders', { headers: getAuthHeaders() }); pFolders.value = d.folders || [] } catch (e) { console.error('加载文件夹失败', e); pFolders.value = [] } finally { pfLoading.value = false } }
 function createPFolder() { Object.assign(folderEditForm, { name: '', parent_id: null, icon: '', user_id: currentUserId.value, sort_order: 0, login_required: 0 }); folderEditId.value = null; folderEditVisible.value = true }
 function openFolderEdit(f: any) { Object.assign(folderEditForm, { name: f.name, parent_id: f.parent_id || null, icon: f.icon || '', user_id: f.user_id, sort_order: f.sort_order || 0, login_required: f.login_required || 0 }); folderEditId.value = f.id; folderEditVisible.value = true }
 async function saveFolderEdit() {
   if (!folderEditForm.name.trim()) return alert('请输入文件夹名称')
-  if (folderEditId.value) {
-    await $fetch(`/api/admin/prompt-folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
-  } else {
-    await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+  try {
+    if (folderEditId.value) {
+      await $fetch(`/api/admin/prompt-folders/${folderEditId.value}`, { method: 'PUT', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    } else {
+      await $fetch('/api/admin/prompt-folders', { method: 'POST', headers: getAuthHeaders(), body: { name: folderEditForm.name, parent_id: folderEditForm.parent_id, icon: folderEditForm.icon || null, sort_order: folderEditForm.sort_order, login_required: folderEditForm.login_required } })
+    }
+    folderEditVisible.value = false
+    loadPFolders()
+  } catch (e: any) {
+    alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
-  folderEditVisible.value = false
-  loadPFolders()
 }
-async function delPFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/prompt-folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPFolders() }
+async function delPFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; try { await $fetch(`/api/admin/prompt-folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPFolders() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 // Tags
 const tags = ref<any[]>([])
 const tagLoading = ref(false)
-async function loadTags() { tagLoading.value = true; const d = await $fetch<{ tags: any[] }>('/api/admin/tags', { headers: getAuthHeaders() }); tags.value = d.tags || []; tagLoading.value = false }
-async function createTag() { const n = prompt('标签名称'); if (n) { await $fetch('/api/tags', { method: 'POST', headers: getAuthHeaders(), body: { name: n } }); loadTags() } }
-async function delTag(t: any) { if (!confirm(`删除标签「${t.name}」？`)) return; await $fetch(`/api/tags/${t.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadTags() }
+async function loadTags() { tagLoading.value = true; try { const d = await $fetch<{ tags: any[] }>('/api/admin/tags', { headers: getAuthHeaders() }); tags.value = d.tags || [] } catch (e) { console.error('加载标签失败', e); tags.value = [] } finally { tagLoading.value = false } }
+async function createTag() { const n = prompt('标签名称'); if (n) { try { await $fetch('/api/tags', { method: 'POST', headers: getAuthHeaders(), body: { name: n } }); loadTags() } catch (e: any) { alert('创建失败: ' + (e?.data?.error || e?.message || '未知错误')) } } }
+async function delTag(t: any) { if (!confirm(`删除标签「${t.name}」？`)) return; try { await $fetch(`/api/tags/${t.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadTags() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 // History
 const history = ref<any[]>([])
 const hLoading = ref(false)
-async function loadHistory() { hLoading.value = true; const d = await $fetch<any>('/api/admin/prompts/history', { headers: getAuthHeaders() }); history.value = d.versions || []; hLoading.value = false }
+async function loadHistory() { hLoading.value = true; try { const d = await $fetch<any>('/api/admin/prompts/history', { headers: getAuthHeaders() }); history.value = d.versions || [] } catch (e) { console.error('加载历史失败', e); history.value = [] } finally { hLoading.value = false } }
 function viewHistory(p: any) { tab.value = 'history'; loadHistory() }
 // TDK
 const tdk = reactive({ promptproTitle: '', promptproDescription: '', promptproKeywords: '' })
-async function loadTdk() { const d = await $fetch<any>('/api/tdk/promptpro', { headers: getAuthHeaders() }); Object.assign(tdk, { promptproTitle: d.promptproTitle || '', promptproDescription: d.promptproDescription || '', promptproKeywords: d.promptproKeywords || '' }) }
+async function loadTdk() { try { const d = await $fetch<any>('/api/tdk/promptpro', { headers: getAuthHeaders() }); Object.assign(tdk, { promptproTitle: d.promptproTitle || '', promptproDescription: d.promptproDescription || '', promptproKeywords: d.promptproKeywords || '' }) } catch (e) { console.error('加载 TDK 失败', e) } }
 let tdkTimer: any = null
 function saveTdk() { clearTimeout(tdkTimer); tdkTimer = setTimeout(async () => { try { await $fetch('/api/admin/config', { method: 'PUT', headers: getAuthHeaders(), body: { data: { ...tdk } } }) } catch (e) { console.error('保存 TDK 失败', e) } }, 500) }
 // Edit modal
@@ -392,22 +404,26 @@ function openEdit(p: any) {
   editVisible.value = true 
 }
 async function saveEdit() { 
-  const body = { ...ef }
-  delete body._reviewMode
-  const res = await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
-  editVisible.value = false
-  if (res?.review_required) {
-    alert('✅ 修改已提交审核，等待管理员审批')
+  try {
+    const body = { ...ef }
+    delete body._reviewMode
+    const res = await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
+    editVisible.value = false
+    if (res?.review_required) {
+      alert('✅ 修改已提交审核，等待管理员审批')
+    }
+    loadPrompts() 
+  } catch (e: any) {
+    alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
-  loadPrompts() 
 }
-async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() }
+async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; try { await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 function canDeletePrompt(p: any) { return isAdmin.value || p.user_id === currentUserId.value }
 // Import/Export
 const importFile = ref<HTMLInputElement | null>(null)
 function triggerImport() { importFile.value?.click() }
-async function exportJSON() { const d = await $fetch<any>('/api/admin/prompts?limit=10000', { headers: getAuthHeaders() }); const blob = new Blob([JSON.stringify(d.prompts || [], null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'prompts-export.json'; a.click() }
-async function importJSON(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; const text = await f.text(); const items = JSON.parse(text); if (Array.isArray(items)) { await $fetch('/api/admin/sync-prompts', { method: 'POST', headers: getAuthHeaders(), body: { items } }); loadPrompts(); loadStats() } }
+async function exportJSON() { try { const d = await $fetch<any>('/api/admin/prompts?limit=10000', { headers: getAuthHeaders() }); const blob = new Blob([JSON.stringify(d.prompts || [], null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'prompts-export.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) } catch (e: any) { alert('导出失败: ' + (e?.message || '未知错误')) } }
+async function importJSON(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; try { const text = await f.text(); const items = JSON.parse(text); if (Array.isArray(items)) { await $fetch('/api/admin/sync-prompts', { method: 'POST', headers: getAuthHeaders(), body: { items } }); loadPrompts(); loadStats(); alert('导入成功') } else { alert('JSON 格式错误：应为数组') } } catch (err: any) { alert('导入失败: ' + (err?.message || '文件解析错误')) } finally { (e.target as HTMLInputElement).value = '' } }
 // 拖拽排序
 async function onPFolderReorder(oldIndex: number, newIndex: number) {
   if (oldIndex === newIndex) return
@@ -452,7 +468,7 @@ const reviewDetail = ref<any>(null)
 const originalPrompt = ref<any>(null)
 const diffLines = ref<{ type: string; prefix: string; text: string }[]>([])
 
-async function loadReviews() { rLoading.value = true; const d = await $fetch<any>('/api/admin/prompts/review-requests', { headers: getAuthHeaders() }); reviews.value = d.requests || []; rLoading.value = false }
+async function loadReviews() { rLoading.value = true; try { const d = await $fetch<any>('/api/admin/prompts/review-requests', { headers: getAuthHeaders() }); reviews.value = d.requests || [] } catch (e) { console.error('加载审核请求失败', e); reviews.value = [] } finally { rLoading.value = false } }
 
 async function viewReview(r: any) { 
   reviewDetail.value = r
@@ -502,20 +518,32 @@ function computeDiff(oldText: string, newText: string) {
 
 async function approveReview(r: any) {
   if (!confirm(`通过「${r.prompt_title || r.title}」的修改请求？`)) return
-  await $fetch(`/api/admin/prompts/review-requests/${r.id}/approve`, { method: 'POST', headers: getAuthHeaders() })
-  reviewDetail.value = null; loadReviews(); loadPrompts()
+  try {
+    await $fetch(`/api/admin/prompts/review-requests/${r.id}/approve`, { method: 'POST', headers: getAuthHeaders() })
+    reviewDetail.value = null; loadReviews(); loadPrompts()
+  } catch (e: any) {
+    alert('审核操作失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 async function openReject(r: any) {
   const comment = prompt('请输入拒绝原因（可选）：')
   if (comment === null) return
-  await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
-  reviewDetail.value = null; loadReviews()
+  try {
+    await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
+    reviewDetail.value = null; loadReviews()
+  } catch (e: any) {
+    alert('拒绝操作失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 async function rejectReview(r: any) {
   const comment = prompt('请输入拒绝原因（可选）：')
   if (comment === null) return
-  await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
-  reviewDetail.value = null; loadReviews()
+  try {
+    await $fetch(`/api/admin/prompts/review-requests/${r.id}/reject`, { method: 'POST', headers: getAuthHeaders(), body: { comment } })
+    reviewDetail.value = null; loadReviews()
+  } catch (e: any) {
+    alert('拒绝操作失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
 }
 onMounted(() => { loadPrompts(); loadStats(); loadPFolders(); loadTags(); loadHistory(); loadTdk(); loadUsers() })
 </script>

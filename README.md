@@ -26,7 +26,35 @@ FavsHub 是一个**网站 + 浏览器扩展**项目，提供一站式书签管�
 
 - **🔖 书签导航** — 将浏览器书签转化为精美的可视化卡片网格，支持文件夹分类、拖拽排序、标签管理
 - **🔍 搜索引擎聚合** — 内置 29 款搜索引擎（通用搜索、AI、社交），一键切换，多窗口对比检索
-- **📝 PromptPro** — 专业级 AI 提示词管理，版本追踪、差异对比、文件夹分类、标签筛选
+- **📝 PromptPro** — 专业级 AI 提示词管理，版本追踪、差异对比、文件夹分类、标签筛选、协作审核
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="33%">
+        <a href="favshub-nuxt/docs/screenshots/homepage.png">
+          <img src="favshub-nuxt/docs/screenshots/homepage.png" alt="首页 — 书签导航" width="100%" />
+        </a>
+        <br />
+        <em>🔖 书签导航 — 可视化卡片网格</em>
+      </td>
+      <td align="center" width="33%">
+        <a href="favshub-nuxt/docs/screenshots/search-engine-panel.png">
+          <img src="favshub-nuxt/docs/screenshots/search-engine-panel.png" alt="搜索引擎面板" width="100%" />
+        </a>
+        <br />
+        <em>🔍 搜索引擎聚合 — 29 款引擎一键切换</em>
+      </td>
+      <td align="center" width="33%">
+        <a href="favshub-nuxt/docs/screenshots/prompts.png">
+          <img src="favshub-nuxt/docs/screenshots/prompts.png" alt="提示词管理" width="100%" />
+        </a>
+        <br />
+        <em>📝 PromptPro — 提示词管理与协作</em>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ## 项目结构
 
@@ -35,6 +63,8 @@ FavsHub_web/
 ├── favshub-nuxt/         # 网站前端 + 后端 API（Nuxt 3 全栈）
 ├── favshub-ext/          # 浏览器扩展（Vue 3 + WXT）
 ├── .github/              # GitHub Actions CI/CD
+├── AGENTS.md             # AI 开发指南
+├── CLAUDE.md             # Claude Code 开发指南
 └── README.md             # 本文件
 ```
 
