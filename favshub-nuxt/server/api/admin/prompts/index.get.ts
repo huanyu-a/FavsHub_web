@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
     LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
     WHERE p.user_id = ?
     ORDER BY p.updated_at DESC
-  `).all(user.id) as any[]
+  `).all(auth.id) as any[]
 
   // 附加标签
   if (prompts.length > 0) {

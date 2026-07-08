@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     WHERE p.user_id = ?
     ORDER BY pv.created_at DESC
     LIMIT ?
-  `).all(user.id, limit)
+  `).all(auth.id, limit)
 
   return { versions }
 })
