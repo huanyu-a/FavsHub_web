@@ -70,18 +70,10 @@ export function requireAdmin(event: H3Event): AuthUser {
     return user
   }
 
-  if (adminUsers.length === 0 && !row?.is_admin) {
-    throw createError({
-      statusCode: 403,
-      statusMessage: '无管理员权限',
-      data: { error: '当前账号无管理员权限。请使用首个注册的账号登录，或设置 ADMIN_USERS 环境变量。' },
-    })
-  }
-
   throw createError({
     statusCode: 403,
     statusMessage: '无管理员权限',
-    data: { error: '无管理员权限' },
+    data: { error: '当前账号无管理员权限。请使用首个注册的账号登录，或设置 ADMIN_USERS 环境变量。' },
   })
 }
 

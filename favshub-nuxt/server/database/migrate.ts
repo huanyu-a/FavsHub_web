@@ -5,6 +5,8 @@
 import type Database from 'better-sqlite3'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 
 /**
@@ -242,12 +244,26 @@ export function seedDefaults(db: Database.Database) {
     }
     const adminHash = bcrypt.hashSync(randomPassword, 10)
     db.prepare('INSERT INTO users (id, username, password_hash, is_admin, nickname) VALUES (1, ?, ?, 1, ?)').run('admin_favs', adminHash, '管理员')
-    console.log('═══════════════════════════════════════════════════')
-    console.log('[Security] 初始管理员账号已创建')
-    console.log(`[Security]   用户名: admin_favs`)
-    console.log(`[Security]   密码: ${randomPassword}`)
-    console.log('[Security] ⚠ 请立即登录并修改密码！此密码仅显示一次。')
-    console.log('═══════════════════════════════════════════════════')
+
+    // 将初始密码写入文件（仅 root 可读），避免明文打印到 stdout 被日志采集
+    try {
+      const passwordFile = join(process.cwd(), 'data', '.initial-password')
+      writeFileSync(passwordFile, `admin_favs:${randomPassword}\n`, { mode: 0o600 })
+      console.log('═══════════════════════════════════════════════════')
+      console.log('[Security] 初始管理员账号已创建')
+      console.log('[Security]   用户名: admin_favs')
+      console.log(`[Security]   密码已写入: ${passwordFile}`)
+      console.log('[Security] ⚠ 请立即登录并修改密码！')
+      console.log('═══════════════════════════════════════════════════')
+    } catch {
+      // 文件写入失败时回退到控制台输出（开发环境安全）
+      console.log('═══════════════════════════════════════════════════')
+      console.log('[Security] 初始管理员账号已创建')
+      console.log('[Security]   用户名: admin_favs')
+      console.log(`[Security]   密码: ${randomPassword}`)
+      console.log('[Security] ⚠ 请立即登录并修改密码！此密码仅显示一次。')
+      console.log('═══════════════════════════════════════════════════')
+    }
   }
 
   // 系统默认设置行 (user_id=0)

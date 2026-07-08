@@ -9,11 +9,18 @@ export default defineNitroPlugin((nitro) => {
 
     // 设置响应状态码
     const statusCode = (error as any).statusCode || 500
-    setResponseStatus(event, statusCode)
 
     // 提取错误消息
     const data = (error as any).data
-    const errorMsg = data?.error || error.message || '服务器内部错误'
+    let errorMsg = data?.error || error.message || '服务器内部错误'
+
+    // 生产环境安全：5xx 错误不暴露内部细节，仅记录服务端日志
+    if (statusCode >= 500) {
+      console.error(`[API Error] ${event.path} ${statusCode}:`, error.message)
+      errorMsg = '服务器内部错误'
+    }
+
+    setResponseStatus(event, statusCode)
 
     // 设置 JSON 响应头
     setResponseHeader(event, 'content-type', 'application/json')

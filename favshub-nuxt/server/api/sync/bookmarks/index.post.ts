@@ -4,6 +4,7 @@
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { getConfigInt } from '../../../utils/config'
+import { createError } from 'h3'
 
 function getMaxBookmarksPerSync(): number {
   return getConfigInt('max_bookmarks_per_sync', 20000)
@@ -88,10 +89,21 @@ export default defineEventHandler(async (event) => {
     db.prepare('DELETE FROM folders WHERE user_id = ?').run(userId)
 
     for (const bm of bookmarks) {
+      // 逐条输入校验，防止恶意数据
+      if (typeof bm.title !== 'string' || bm.title.length > 512) {
+        throw createError({ statusCode: 400, data: { error: `书签标题无效或过长（最大512字符）` } })
+      }
+      if (typeof bm.url !== 'string' || bm.url.length > 2048) {
+        throw createError({ statusCode: 400, data: { error: `书签 URL 无效或过长（最大2048字符）` } })
+      }
+      if (bm.folder_path && (typeof bm.folder_path !== 'string' || bm.folder_path.length > 1024)) {
+        throw createError({ statusCode: 400, data: { error: `文件夹路径无效或过长（最大1024字符）` } })
+      }
+
       // folder_path 纯粹表达文件夹层级（不含容器名）
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)
       // container 独立字段：bar / other / mobile
-      const container = bm.container || ''
+      const container = typeof bm.container === 'string' ? bm.container : ''
       insertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, loginRequired, container, 'browser', now, now)
     }
   })

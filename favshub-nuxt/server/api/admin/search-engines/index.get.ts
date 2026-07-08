@@ -4,14 +4,13 @@
  * 普通用户：返回自己的引擎（全部状态）+ 已审核通过的全局引擎
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { getAuthRole } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAuth(event)
+  const authRole = getAuthRole(event)
+  if (!authRole) throw createError({ statusCode: 401, data: { error: '未登录' } })
+  const { user: auth, isAdmin } = authRole
   const db = getRawDb()
-
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
 
   let engines: any[]
   if (isAdmin) {

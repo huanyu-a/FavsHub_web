@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   checkRateLimit(`login_user:${String(username).toLowerCase()}`, 10, 15 * 60 * 1000)
 
   const db = getRawDb()
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as {
+  const user = db.prepare('SELECT id, username, email, password_hash, nickname, is_admin FROM users WHERE username = ?').get(username) as {
     id: number; username: string; email: string | null;
     password_hash: string; nickname: string | null; is_admin: number
   } | undefined

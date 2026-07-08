@@ -9,32 +9,42 @@ import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
-  const auth = getAuthRole(event)
-  if (!auth) {
+  const authRole = getAuthRole(event)
+  if (!authRole) {
     throw createError({ statusCode: 401, statusMessage: '未登录' })
   }
 
   const db = getRawDb()
-  const { user, isAdmin } = auth
+  const { user, isAdmin } = authRole
 
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
   const todayTs = todayStart.getTime()
 
-  // 所有人：个人数据统计
-  const bookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ?').get(user.id) as any).count
-  const folders = (db.prepare('SELECT COUNT(*) as count FROM folders WHERE user_id = ?').get(user.id) as any).count
-  const prompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(user.id) as any).count
-  const promptFolders = (db.prepare('SELECT COUNT(*) as count FROM prompt_folders WHERE user_id = ?').get(user.id) as any).count
-  const tags = (db.prepare('SELECT COUNT(DISTINCT tag_id) as count FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
-  const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(user.id) as any).count
-  const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
-  const todayBookmarks = (db.prepare('SELECT COUNT(*) as count FROM bookmarks WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
-  const todayPrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND created_at >= ?').get(user.id, todayTs) as any).count
+  // 所有人：个人数据统计（单次查询合并 9 个 COUNT）
+  const stats = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM bookmarks WHERE user_id = ?) as bookmarks,
+      (SELECT COUNT(*) FROM folders WHERE user_id = ?) as folders,
+      (SELECT COUNT(*) FROM prompts WHERE user_id = ?) as prompts,
+      (SELECT COUNT(*) FROM prompt_folders WHERE user_id = ?) as promptFolders,
+      (SELECT COUNT(DISTINCT tag_id) FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?) as tags,
+      (SELECT COUNT(*) FROM prompts WHERE user_id = ? AND is_favorite = 1) as favoritePrompts,
+      (SELECT COUNT(*) FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?) as promptVersions,
+      (SELECT COUNT(*) FROM bookmarks WHERE user_id = ? AND created_at >= ?) as todayBookmarks,
+      (SELECT COUNT(*) FROM prompts WHERE user_id = ? AND created_at >= ?) as todayPrompts
+  `).get(user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id, todayTs, user.id, todayTs) as any
 
   const result: Record<string, any> = {
-    bookmarks, folders, prompts, promptFolders, tags,
-    favoritePrompts, promptVersions, todayBookmarks, todayPrompts,
+    bookmarks: stats.bookmarks,
+    folders: stats.folders,
+    prompts: stats.prompts,
+    promptFolders: stats.promptFolders,
+    tags: stats.tags,
+    favoritePrompts: stats.favoritePrompts,
+    promptVersions: stats.promptVersions,
+    todayBookmarks: stats.todayBookmarks,
+    todayPrompts: stats.todayPrompts,
   }
 
   // 管理员额外：系统信息（不含其他用户的详细内容）
@@ -49,12 +59,19 @@ export default defineEventHandler(async (event) => {
       }
     } catch { /* ignore */ }
 
-    result.searchEngines = (db.prepare('SELECT COUNT(*) as count FROM search_engines').get() as any).count
+    // 管理员系统统计（合并为单次查询）
+    const sysStats = db.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM search_engines) as searchEngines,
+        (SELECT COUNT(*) FROM users) as users,
+        (SELECT COUNT(*) FROM users WHERE is_admin = 1) as adminUsers
+    `).get() as any
+    result.searchEngines = sysStats.searchEngines
+    result.users = sysStats.users
+    result.adminUsers = sysStats.adminUsers
     result.dbSize = dbSize > 1024 * 1024
       ? (dbSize / 1024 / 1024).toFixed(2) + ' MB'
       : (dbSize / 1024).toFixed(1) + ' KB'
-    result.users = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count
-    result.adminUsers = (db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get() as any).count
   }
 
   return result

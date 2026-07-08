@@ -3,11 +3,13 @@
  * 所有用户仅返回自己的书签
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { getAuthRole } from '../../../utils/auth'
 import { getQuery, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAuth(event)
+  const authRole = getAuthRole(event)
+  if (!authRole) throw createError({ statusCode: 401, data: { error: '未登录' } })
+  const { user: auth, isAdmin } = authRole
   const db = getRawDb()
   const query = getQuery(event)
 

@@ -3,11 +3,13 @@
  * 所有用户仅返回自己的提示词版本历史
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
-import { getQuery } from 'h3'
+import { getAuthRole } from '../../../utils/auth'
+import { getQuery, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
+  const authRole = getAuthRole(event)
+  if (!authRole) throw createError({ statusCode: 401, data: { error: '未登录' } })
+  const { user: auth, isAdmin } = authRole
   const db = getRawDb()
   const query = getQuery(event)
 

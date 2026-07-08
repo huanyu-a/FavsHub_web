@@ -15,58 +15,58 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
 
-	// ── 可见性条件 ──────────────────────────────────────────────
-	  // 管理员：看全部
-	  // 普通登录用户：自己的 + 管理员公开的
-	  // 游客：管理员的公开提示词
-	  let visibilityClause: string
-	  const visParams: any[] = []
-	  let currentUserIsAdmin = false
-	  if (user) {
-	    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-	    currentUserIsAdmin = !!dbUser?.is_admin
-	    if (currentUserIsAdmin) {
-	      visibilityClause = '1=1'
-	    } else {
-	      visibilityClause = `(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
-	      visParams.push(user.id)
-	    }
-	  } else {
-	    visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
-	  }
-
-  // ── 文件夹 login_required 继承过滤（与 bookmarks 一致）────────
-  // 非管理员需要排除"文件夹继承 login_required"的提示词
-  // 注意：folder_id IS NULL 的提示词（未分类）不受文件夹锁定影响，必须保留
-  const lockedFolderIds = new Set<string>()
-  if (!user || !(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined)?.is_admin) {
-    const allFolders = db.prepare('SELECT id, parent_id, login_required FROM prompt_folders').all() as { id: string; parent_id: string | null; login_required: number }[]
-    function isPromptFolderLocked(f: typeof allFolders[0], visited = new Set<string>()): boolean {
-      if (f.login_required) return true
-      if (f.parent_id == null) return false
-      if (visited.has(f.parent_id)) return false
-      visited.add(f.parent_id)
-      const parent = allFolders.find(p => p.id === f.parent_id)
-      if (!parent) return false
-      return isPromptFolderLocked(parent, visited)
+  // ── 可见性条件 ──────────────────────────────────────────────
+  // 管理员：看全部
+  // 普通登录用户：自己的 + 管理员公开的
+  // 游客：管理员的公开提示词
+  let visibilityClause: string
+  const visParams: any[] = []
+  let currentUserIsAdmin = false
+  if (user) {
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
+    currentUserIsAdmin = !!dbUser?.is_admin
+    if (currentUserIsAdmin) {
+      visibilityClause = '1=1'
+    } else {
+      visibilityClause = `(p.user_id = ? OR (p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1)))`
+      visParams.push(user.id)
     }
-    for (const f of allFolders) {
-      if (isPromptFolderLocked(f)) lockedFolderIds.add(f.id)
-    }
+  } else {
+    visibilityClause = '(p.login_required = 0 AND p.user_id IN (SELECT id FROM users WHERE is_admin = 1))'
   }
 
-	  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
-	  // 同时 LEFT JOIN users 获取 owner_is_admin
-	  let sql = `SELECT p.*, pf.name as folder_name, u.is_admin as owner_is_admin FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id LEFT JOIN users u ON p.user_id = u.id WHERE ${visibilityClause}`
+  // ── 文件夹 login_required 继承过滤（SQL 递归 CTE）────────
+  // 非管理员需要排除"文件夹继承 login_required"的提示词
+  // 使用 SQLite 递归 CTE 直接在 SQL 中计算锁定文件夹集合，避免全表加载到 JS
+  const lockedFolderIds: string[] = []
+  if (!currentUserIsAdmin) {
+    const lockedRows = db.prepare(`
+      WITH RECURSIVE locked_chain(id) AS (
+        -- 基准：直接设置 login_required 的文件夹
+        SELECT id FROM prompt_folders WHERE login_required = 1
+        UNION
+        -- 递归：父文件夹被锁定的子文件夹
+        SELECT pf.id FROM prompt_folders pf
+        INNER JOIN locked_chain lc ON pf.parent_id = lc.id
+      )
+      SELECT id FROM locked_chain
+    `).all() as { id: string }[]
+    lockedFolderIds.push(...lockedRows.map(r => r.id))
+  }
+
+  // 基础查询：LEFT JOIN prompt_folders 获取 folder_name
+  // 同时 LEFT JOIN users 获取 owner_is_admin
+  let sql = `SELECT p.*, pf.name as folder_name, u.is_admin as owner_is_admin FROM prompts p LEFT JOIN prompt_folders pf ON p.folder_id = pf.id AND p.user_id = pf.user_id LEFT JOIN users u ON p.user_id = u.id WHERE ${visibilityClause}`
   const params: any[] = [...visParams]
 
   // 文件夹 login_required 继承过滤（NULL folder_id 安全处理）
-  if (lockedFolderIds.size > 0) {
+  if (lockedFolderIds.length > 0) {
+    const placeholders = lockedFolderIds.map(() => '?').join(',')
     if (user) {
-      sql += ` AND (p.user_id = ? OR p.folder_id IS NULL OR p.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      sql += ` AND (p.user_id = ? OR p.folder_id IS NULL OR p.folder_id NOT IN (${placeholders}))`
       params.push(user.id, ...lockedFolderIds)
     } else {
-      sql += ` AND (p.folder_id IS NULL OR p.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
+      sql += ` AND (p.folder_id IS NULL OR p.folder_id NOT IN (${placeholders}))`
       params.push(...lockedFolderIds)
     }
   }

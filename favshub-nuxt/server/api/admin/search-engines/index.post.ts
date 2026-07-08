@@ -4,15 +4,14 @@
  * 普通用户：创建后需管理员审核，状态为"审核中"
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { getAuthRole } from '../../../utils/auth'
 import { createError, readBody } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const auth = requireAuth(event)
+  const authRole = getAuthRole(event)
+  if (!authRole) throw createError({ statusCode: 401, data: { error: '未登录' } })
+  const { user: auth, isAdmin } = authRole
   const db = getRawDb()
-
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
 
   const body = await readBody(event)
   const { name, label, url, icon, category, is_default } = body
