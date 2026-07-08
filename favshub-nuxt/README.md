@@ -13,6 +13,10 @@
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker" alt="Docker" />
 </p>
 
+<p align="center">
+  <strong>15 套主题 · SSR + Nitro · 双渠道认证 · Rate Limiting · CSP 安全头</strong>
+</p>
+
 <div align="center">
   <img src="docs/screenshots/homepage.png" alt="首页（访客视图）" width="49%" />
   <img src="docs/screenshots/homepage-logged-in.png" alt="登录后首页" width="49%" />
@@ -29,6 +33,7 @@
 - [Docker 部署](#docker-部署)
 - [项目结构](#项目结构)
 - [认证机制](#认证机制)
+- [安全特性](#安全特性)
 - [API 参考](#api-参考)
 - [浏览器扩展](#浏览器扩展)
 - [环境变量](#环境变量)
@@ -289,7 +294,7 @@ pnpm install
 pnpm dev
 ```
 
-首次启动会自动创建 SQLite 数据库文件 `data/favshub.db` 并初始化表结构。注册的第一个用户自动成为管理员。
+首次启动会自动创建 SQLite 数据库文件 `data/favshub.db` 并初始化表结构。JWT 密钥自动生成并持久化到 `data/.jwt-secret`。注册的第一个用户自动成为管理员。
 
 ### 生产构建
 
@@ -311,9 +316,9 @@ services:
     pull_policy: if_not_present
     environment:
       - TZ=Asia/Shanghai
-      - NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-please-change-this-to-a-random-string}
+      - NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-}
       - NUXT_DB_PATH=/opt/favshub/data/favshub.db
-      - NUXT_CORS_ORIGIN=${NUXT_CORS_ORIGIN:-*}
+      - NUXT_CORS_ORIGIN=${NUXT_CORS_ORIGIN:-}
       - NUXT_ADMIN_USERS=${NUXT_ADMIN_USERS:-}
     dns:
       - 119.29.29.29
@@ -333,7 +338,25 @@ docker compose up -d
 
 应用默认在 `http://localhost:3090` 访问。
 
-首次部署后，第一个注册的用户自动成为管理员。请务必通过环境变量 `NUXT_JWT_SECRET` 修改 JWT 签名密钥。
+首次部署后，第一个注册的用户自动成为管理员。JWT 密钥留空时首次启动自动生成 48 字节随机密钥并持久化到 `data/.jwt-secret`，生产环境建议通过环境变量 `NUXT_JWT_SECRET` 覆盖。
+
+### 本地构建 Docker 镜像
+
+```bash
+cd favshub-nuxt
+
+# 1. 构建 Nuxt 应用
+npx nuxt build
+
+# 2. 构建 Docker 镜像
+bash build.sh
+
+# 3.（可选）推送到 GHCR
+docker tag favshub:latest ghcr.io/huanyu-a/favshub:latest
+docker push ghcr.io/huanyu-a/favshub:latest
+```
+
+`build.sh` 会准备 Docker 构建上下文（拷贝 `.output/server` 和 `.output/public`），然后执行 `docker build`。
 
 ### GitHub Actions 自动构建
 
@@ -480,6 +503,64 @@ favshub-nuxt/
 
 ---
 
+## 安全特性
+
+### HTTP 安全头
+
+通过 `nuxt.config.ts` 的 `nitro.routeRules` 统一配置：
+
+| 安全头 | 值 | 说明 |
+|--------|-----|------|
+| `X-Content-Type-Options` | `nosniff` | 防止 MIME 类型嗅探 |
+| `X-Frame-Options` | `DENY` | 禁止页面被嵌入 iframe（防点击劫持） |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | 限制 Referrer 泄露 |
+| `X-XSS-Protection` | `1; mode=block` | XSS 过滤 |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | HSTS 强制 HTTPS |
+| `Content-Security-Policy` | 完整 CSP 策略 | 限制脚本/样式/图片/字体来源 |
+
+### Rate Limiting
+
+- **登录接口** — 默认 60 秒内最多 20 次请求（可配置 `rate_limit_login_max` / `rate_limit_login_window`）
+- **注册接口** — 默认 60 秒内最多 10 次请求（可配置 `rate_limit_register_max` / `rate_limit_register_window`）
+- **账户锁定** — 5 次登录失败后锁定 15 分钟
+- **基于进程内存** — 仅适用于单实例部署，多实例需迁移到 Redis
+
+### SSRF 防护
+
+- Favicon 下载限制协议（仅 HTTP/HTTPS）
+- 最大重定向次数限制（默认 3 次）
+- 下载超时控制（默认 10 秒）
+- 内网 IP 黑名单过滤
+
+### 密码安全
+
+- **bcrypt 哈希** — 密码使用 bcryptjs 存储
+- **最小密码长度** — 可配置（默认 8 位，通过 `min_password_length` 调整）
+
+### 错误脱敏
+
+- 生产环境隐藏 5xx 错误详情，仅返回通用错误信息
+- 全局错误处理器 `server/plugins/error-handler.ts` 统一处理
+
+### 系统配置参数
+
+以下安全参数通过 `system_config` 表存储，管理员可在 `/admin/config` 页面调整：
+
+| 配置键 | 说明 | 默认值 |
+|--------|------|--------|
+| `jwt_token_expiry` | JWT 过期时间 | `7d` |
+| `cookie_max_age` | Cookie 有效期（秒） | `604800`（7 天） |
+| `rate_limit_login_max` | 登录请求限制次数 | `20` |
+| `rate_limit_login_window` | 登录限制窗口（毫秒） | `60000` |
+| `rate_limit_register_max` | 注册请求限制次数 | `10` |
+| `rate_limit_register_window` | 注册限制窗口（毫秒） | `60000` |
+| `min_password_length` | 最小密码长度 | `8` |
+| `trust_proxy` | 是否信任反向代理 | `false` |
+| `max_bookmarks_per_sync` | 单次同步最大书签数 | `20000` |
+| `bookmarks_query_limit` | 书签查询上限 | `500` |
+
+---
+
 ## 认证机制
 
 ### 双渠道认证
@@ -497,7 +578,8 @@ favshub-nuxt/
 
 - **secure 标志自适应** — HTTP 时 `secure: false`，HTTPS 时 `secure: true`
 - **sameSite: lax** — 防止 CSRF 攻击
-- **JWT 过期** — 默认 24 小时，过期后自动跳转登录
+- **JWT 过期** — 默认 7 天（可通过系统配置 `jwt_token_expiry` 调整），过期后自动跳转登录
+- **JWT 密钥持久化** — 首次启动自动生成 48 字节随机密钥，存储于 `data/.jwt-secret`，重启不丢失
 
 ### 认证流程
 
@@ -649,7 +731,7 @@ pnpm build         # Chrome 生产构建
 pnpm build:firefox # Firefox 生产构建
 ```
 
-详见 [favshub-ext/README.md](../favshub-ext/README.md)。
+详见 [favshub-ext/README.md](../favshub-ext/README.md)。主题配色参考了 [TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown) 项目（见 `TMD_ref/` 目录）。
 
 ---
 
@@ -657,10 +739,11 @@ pnpm build:firefox # Firefox 生产构建
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `NUXT_JWT_SECRET` | JWT 签名密钥（生产务必修改） | `please-change-this-to-a-random-string` |
+| `NUXT_JWT_SECRET` | JWT 签名密钥。留空则首次启动自动生成并持久化到 `data/.jwt-secret` | 自动生成（48 字节随机） |
 | `NUXT_DB_PATH` | SQLite 数据库文件路径 | `./data/favshub.db` |
-| `NUXT_CORS_ORIGIN` | CORS 允许的跨域来源 | `*` |
+| `NUXT_CORS_ORIGIN` | CORS 允许的跨域来源 | `http://localhost:3000` |
 | `NUXT_ADMIN_USERS` | 管理员用户名列表（逗号分隔） | 空（首个注册用户为管理员） |
+| `NUXT_TRUST_PROXY` | 是否信任反向代理的 X-Forwarded-For（生产环境使用 Nginx 反代时设为 `true`） | `false` |
 
 ---
 

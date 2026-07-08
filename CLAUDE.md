@@ -82,7 +82,8 @@ docker compose up -d             # 一键启动，访问 http://localhost:3090
 - 登录后同时写入 `localStorage.favshub_token` 和 `Set-Cookie: favshub_token=xxx`
 - `authStore.token === 'cookie_auth'` 是 cookie 认证哨兵值，此时 `getAuthHeaders()` 返回 `{}`，靠 `credentials: 'include'` 带 cookie
 - 下载文件不能用 token 拼 URL，需用 `$fetch` + `responseType: 'blob'` + `credentials: 'include'`
-- JWT 过期默认 24 小时；secure 标志自适应（HTTP/HTTPS）
+- JWT 过期默认 7 天（可通过 `system_config.jwt_token_expiry` 调整）；secure 标志自适应（HTTP/HTTPS）
+- JWT 密钥优先级：环境变量 `NUXT_JWT_SECRET` → 持久化文件 `data/.jwt-secret` → 自动生成（48 字节随机）
 - 管理员检查：数据库 `is_admin` 字段 + 环境变量 `NUXT_ADMIN_USERS`
 
 ### API 结构
