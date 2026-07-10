@@ -1,25 +1,36 @@
+# ─── 构建阶段 ────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+# 安装原生模块编译工具 + pnpm
+RUN apk add --no-cache python3 make g++ \
+    && corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+WORKDIR /build
+
+# 先复制 lockfile + package.json，利用 Docker 缓存层
+COPY package.json pnpm-lock.yaml* ./
+
+# 安装依赖（含 devDependencies，用于构建；better-sqlite3 需要编译）
+RUN pnpm install --frozen-lockfile --registry https://registry.npmmirror.com
+
+# 复制源码
+COPY . .
+
+# 构建（Nitro node-server 预设会 externalize 运行时依赖到 .output/server/node_modules）
+RUN pnpm build
+
+# ─── 生产阶段 ────────────────────────────────────────────────
 FROM node:20-alpine
 
-# 创建工作目录为 /opt/favshub
 WORKDIR /opt/favshub
+RUN mkdir -p /opt/favshub/data
 
-# 复制构建产物
-COPY favshub/ ./
+# 只复制 Nitro 构建产物（已包含 .output/server/node_modules 精简运行时）
+COPY --from=builder /build/.output ./.output
 
-# 复制启动脚本
-COPY run.sh ./
-
-# 删除可能存在的 Windows 二进制，重新安装原生依赖
-RUN rm -rf server/node_modules \
-    && apk add --no-cache python3 make g++ \
-    && cd server && npm install --production --registry https://registry.npmmirror.com \
-    && cd /opt/favshub && apk del python3 make g++
-
-# 暴露挂载路径为 /opt/favshub/data
 VOLUME /opt/favshub/data
-
-# 暴露端口为 3000
 EXPOSE 3000
 
-# 启动命令为 sh run.sh
-CMD ["sh", "run.sh"]
+ENV NODE_ENV=production
+
+CMD ["node", ".output/server/index.mjs"]
