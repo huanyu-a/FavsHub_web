@@ -1,7 +1,7 @@
 /**
  * POST /api/prompts/import — 导入提示词（兼容 promptpro v2.0.0 / v1.0 JSON）
  *
- * 支持两种格式自动识别：
+ * 支持三种格式自动识别：
  *   - promptpro v2.0.0：{ version, prompts[], folders[], tags[], tag_relations[], versions[] }
  *   - promptpro v1.0  ：{ version: "1.0", data: { prompts, folders, tags, tag_relations, versions } }
  *   - FavsHub 旧格式 ：{ exported_at, folders, prompts }（向后兼容）
@@ -56,10 +56,6 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── 格式归一化到 v2.0.0 ──────────────────────────
-  // v1.0 格式：{ version: "1.0", data: { prompts, folders, tags, tag_relations, versions } }
-  // v2.0.0 格式：{ version: "2.0.0", prompts, folders, tags, tag_relations, versions }
-  // FavsHub 旧格式：{ exported_at, folders, prompts }（folders 含 id、name；prompts 含 title/description/content/folder_name/tags）
-
   let prompts: any[] = []
   let folders: any[] = []
   let tags: any[] = []
@@ -127,11 +123,8 @@ export default defineEventHandler(async (event) => {
 
   const now = Date.now()
 
-  // ── 导入策略：同名去重 ────────────────────────
-  // 导入时如 folders / tags / prompts 的 id 已存在则跳过（基于 id 去重），
-  // 避免重复导入产生副本。版本和关联同理。
-
-  db.prepare('BEGIN').run()
+  // ── 导入策略：基于 id 的去重插入 ────────────────────────
+  // 使用 better-sqlite3 的 transaction() 确保原子性
   let importedFolders = 0
   let importedPrompts = 0
   let importedTags = 0
@@ -160,95 +153,101 @@ export default defineEventHandler(async (event) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `)
 
-    // 文件夹
-    for (const f of folders) {
-      const id = f.folder_id || f.id || randomUUID()
-      const name = f.folder_name || f.name
-      if (!name) continue
-      const res = insFolder.run(id, user.id, name, parseTime(f.created_at || f.created_time, now), parseTime(f.updated_at || f.updated_time, now))
-      if (res.changes) importedFolders++
-    }
-
-    // 标签（先于关联）
-    const tagIdMap = new Map<string, string>()  // 旧 tag_id → 新 id（本场景为 1:1）
-    for (const t of tags) {
-      const id = t.tag_id || t.id || randomUUID()
-      tagIdMap.set(t.tag_id || t.id, id)
-      const res = insTag.run(id, user.id, t.tag_name || t.name || '', t.color || '#F53F3F', parseTime(t.created_at || t.created_time, now), parseTime(t.updated_at || t.updated_time, now))
-      if (res.changes) importedTags++
-    }
-
-    // 提示词 + 版本 + 关联
-    const promptIdMap = new Map<string, string>()  // 旧 prompt_id → 新 id（本场景 1:1）
-    for (const p of prompts) {
-      const id = p.prompt_id || p.id || randomUUID()
-      promptIdMap.set(p.prompt_id || p.id, id)
-
-      // 自己的文件夹引用不存在 → 置空
-      let folderId = p.folder_id || p.folderId || null
-      if (folderId) {
-        const exists = folders.some(f => (f.folder_id || f.id) === folderId)
-        if (!exists) folderId = null
+    // 用 better-sqlite3 事务包裹全部写操作
+    const tx = db.transaction(() => {
+      // 文件夹
+      for (const f of folders) {
+        const id = f.folder_id || f.id || randomUUID()
+        const name = f.folder_name || f.name
+        if (!name) continue
+        const res = insFolder.run(id, user.id, name, parseTime(f.created_at || f.created_time, now), parseTime(f.updated_at || f.updated_time, now))
+        if (res.changes) importedFolders++
       }
 
-      const res = insPrompt.run(
-        id,
-        user.id,
-        p.title || '未命名提示词',
-        p.description || '',
-        p.content || '',
-        folderId,
-        p.is_favorite ?? 0,
-        p.avatar || null,
-        1,  // 导入后默认私有
-        p.version_count ?? 0,
-        p.current_version || '1.0.0',
-        parseTime(p.created_at || p.created_time, now),
-        parseTime(p.updated_at || p.updated_time, now),
-      )
-      if (res.changes) importedPrompts++
-      else skippedPrompts++
-    }
-
-    // 版本历史
-    for (const v of versions) {
-      const oldPid = v.prompt_id
-      const newPid = promptIdMap.get(oldPid) || oldPid
-      // 只导入属于本次导入之提示词的版本
-      if (!promptIdMap.has(oldPid) && !promptIdMap.get(oldPid)) continue
-      const verId = v.version_id || v.id || randomUUID()
-      const res = insVersion.run(verId, newPid, v.content || '', v.version_number || '1.0.0', v.variables || '[]', parseTime(v.created_at || v.created_time, now))
-      if (res.changes) importedVersions++
-    }
-
-    // 标签关联（内存去重，因为 prompt_tags 无 UNIQUE(prompt_id, tag_id) 约束）
-    const seenRelations = new Set<string>()
-    // 预载用户已有的关联，避免和存量数据重复
-    const existingRels = db.prepare('SELECT prompt_id, tag_id FROM prompt_tags WHERE prompt_id IN (' + promptIds.map(() => '?').join(',') + ')').all(...promptIds) as any[]
-    for (const er of existingRels) seenRelations.add(`${er.prompt_id}::${er.tag_id}`)
-
-    for (const r of tagRelations) {
-      const oldPid = r.prompt_id
-      const newPid = promptIdMap.get(oldPid)
-      if (!newPid) continue  // 关联到本次未导入的提示词 → 跳过
-      // tag_id 可能为新系统已有（去重用 name），此时按 name 查找新 tag_id
-      let newTid = tagIdMap.get(r.tag_id) || r.tag_id
-      // 若旧 tag_id 未在映射中，检查是否刚好已存在同名 tag
-      if (tagIdMap.size > 0 && !tagIdMap.has(r.tag_id)) {
-        const tRow = db.prepare('SELECT id FROM tags WHERE user_id = ? AND id = ?').get(user.id, r.tag_id) as any
-        if (!tRow) continue  // 引用了不存在之 tag
+      // 标签（先于关联）
+      const tagIdMap = new Map<string, string>()  // 旧 tag_id → 新 id（本场景为 1:1）
+      for (const t of tags) {
+        const id = t.tag_id || t.id || randomUUID()
+        tagIdMap.set(t.tag_id || t.id, id)
+        const res = insTag.run(id, user.id, t.tag_name || t.name || '', t.color || '#F53F3F', parseTime(t.created_at || t.created_time, now), parseTime(t.updated_at || t.updated_time, now))
+        if (res.changes) importedTags++
       }
-      const relKey = `${newPid}::${newTid}`
-      if (seenRelations.has(relKey)) continue
-      seenRelations.add(relKey)
-      const res = insRelation.run(newPid, newTid, parseTime(r.created_at || now, now))
-      if (res.changes) importedRelations++
-    }
 
-    db.prepare('COMMIT').run()
-  } catch (err) {
-    db.prepare('ROLLBACK').run()
-    throw createError({ statusCode: 500, data: { error: '导入失败: ' + (err instanceof Error ? err.message : '未知错误') } })
+      // 提示词
+      const promptIdMap = new Map<string, string>()  // 旧 prompt_id → 新 id（本场景 1:1）
+      for (const p of prompts) {
+        const id = p.prompt_id || p.id || randomUUID()
+        promptIdMap.set(p.prompt_id || p.id, id)
+
+        // 文件夹引用不存在 → 置空
+        let folderId = p.folder_id || p.folderId || null
+        if (folderId) {
+          const exists = folders.some(f => (f.folder_id || f.id) === folderId)
+          if (!exists) folderId = null
+        }
+
+        const res = insPrompt.run(
+          id,
+          user.id,
+          p.title || '未命名提示词',
+          p.description || '',
+          p.content || '',
+          folderId,
+          p.is_favorite ?? 0,
+          p.avatar || null,
+          1,  // 导入后默认私有
+          p.version_count ?? 0,
+          p.current_version || '1.0.0',
+          parseTime(p.created_at || p.created_time, now),
+          parseTime(p.updated_at || p.updated_time, now),
+        )
+        if (res.changes) importedPrompts++
+        else skippedPrompts++
+      }
+
+      // 版本历史
+      for (const v of versions) {
+        const oldPid = v.prompt_id
+        if (!promptIdMap.has(oldPid)) continue  // 不属于本次导入的提示词 → 跳过
+        const newPid = promptIdMap.get(oldPid)!
+        const verId = v.version_id || v.id || randomUUID()
+        const res = insVersion.run(verId, newPid, v.content || '', v.version_number || '1.0.0', v.variables || '[]', parseTime(v.created_at || v.created_time, now))
+        if (res.changes) importedVersions++
+      }
+
+      // 标签关联（内存去重，因为 prompt_tags 无 UNIQUE(prompt_id, tag_id) 约束）
+      const seenRelations = new Set<string>()
+      const promptIds = Array.from(promptIdMap.values())
+      if (promptIds.length > 0) {
+        const placeholders = promptIds.map(() => '?').join(',')
+        const existingRels = db.prepare(`SELECT prompt_id, tag_id FROM prompt_tags WHERE prompt_id IN (${placeholders})`).all(...promptIds) as any[]
+        for (const er of existingRels) seenRelations.add(`${er.prompt_id}::${er.tag_id}`)
+      }
+
+      for (const r of tagRelations) {
+        const oldPid = r.prompt_id
+        const newPid = promptIdMap.get(oldPid)
+        if (!newPid) continue  // 关联到本次未导入的提示词 → 跳过
+        let newTid = tagIdMap.get(r.tag_id) || r.tag_id
+        // 若旧 tag_id 未在映射中，检查是否刚好已存在同名 tag
+        if (tagIdMap.size > 0 && !tagIdMap.has(r.tag_id)) {
+          const tRow = db.prepare('SELECT id FROM tags WHERE user_id = ? AND id = ?').get(user.id, r.tag_id) as any
+          if (!tRow) continue  // 引用了不存在之 tag
+        }
+        const relKey = `${newPid}::${newTid}`
+        if (seenRelations.has(relKey)) continue
+        seenRelations.add(relKey)
+        const res = insRelation.run(newPid, newTid, parseTime(r.created_at || now, now))
+        if (res.changes) importedRelations++
+      }
+    })
+
+    // 执行事务（失败自动回滚）
+    tx()
+
+  } catch (err: any) {
+    console.error('[Import] 提示词导入失败:', err.message, err.stack)
+    throw createError({ statusCode: 500, data: { error: '导入失败: ' + (err?.message || '未知错误') } })
   }
 
   return {
