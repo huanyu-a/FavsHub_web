@@ -419,11 +419,41 @@ async function saveEdit() {
 }
 async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; try { await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 function canDeletePrompt(p: any) { return isAdmin.value || p.user_id === currentUserId.value }
-// Import/Export
+// Import/Export（兼容 promptpro v1.0 / v2.0 与 FavsHub 格式）
 const importFile = ref<HTMLInputElement | null>(null)
 function triggerImport() { importFile.value?.click() }
-async function exportJSON() { try { const d = await $fetch<any>('/api/admin/prompts?limit=10000', { headers: getAuthHeaders() }); const blob = new Blob([JSON.stringify(d.prompts || [], null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'prompts-export.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url) } catch (e: any) { alert('导出失败: ' + (e?.message || '未知错误')) } }
-async function importJSON(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return; try { const text = await f.text(); const items = JSON.parse(text); if (Array.isArray(items)) { await $fetch('/api/admin/sync-prompts', { method: 'POST', headers: getAuthHeaders(), body: { items } }); loadPrompts(); loadStats(); alert('导入成功') } else { alert('JSON 格式错误：应为数组') } } catch (err: any) { alert('导入失败: ' + (err?.message || '文件解析错误')) } finally { (e.target as HTMLInputElement).value = '' } }
+async function exportJSON() {
+  try {
+    // 拉取完整数据（promptpro v2.0 结构：prompts/folders/tags/tag_relations/versions）
+    const data = await $fetch<any>('/api/prompts/export', { headers: getAuthHeaders(), credentials: 'include' })
+    const exportData = {
+      version: '2.0.0',
+      export_date: new Date().toISOString(),
+      prompts: data.prompts || [],
+      folders: data.folders || [],
+      tags: data.tags || [],
+      tag_relations: data.tag_relations || [],
+      versions: data.versions || [],
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob); const a = document.createElement('a')
+    a.href = url; a.download = `promptpro-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
+  } catch (e: any) { alert('导出失败: ' + (e?.message || '未知错误')) }
+}
+async function importJSON(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (!f) return
+  try {
+    const fd = new FormData()
+    fd.append('file', f)
+    const res = await $fetch<any>('/api/prompts/import', { method: 'POST', headers: getAuthHeaders(), credentials: 'include', body: fd })
+    alert(`导入成功：${res.imported.prompts} 条提示词、${res.imported.folders} 个文件夹、${res.imported.tags} 个标签${res.skipped_prompts ? `（跳过 ${res.skipped_prompts} 条重复）` : ''}`)
+    loadPrompts(); loadStats()
+  } catch (err: any) {
+    alert('导入失败: ' + (err?.data?.error || err?.message || '文件解析错误'))
+  } finally { (e.target as HTMLInputElement).value = '' }
+}
 // 拖拽排序
 async function onPFolderReorder(oldIndex: number, newIndex: number) {
   if (oldIndex === newIndex) return
