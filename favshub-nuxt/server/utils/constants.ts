@@ -20,6 +20,8 @@ export const SYSTEM_ONLY_KEYS = [
   'min_password_length', 'trust_proxy',
   // Data limits
   'max_bookmarks_per_sync', 'bookmarks_query_limit',
+  // Analytics
+  'baidu_tongji_id', 'baidu_tongji_domains',
 ]
 
 /**

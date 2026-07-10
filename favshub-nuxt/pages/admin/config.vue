@@ -25,6 +25,14 @@
         </div>
       </div>
       <div v-if="isAdmin" class="card">
+        <div class="card-header"><h3>网站统计</h3></div>
+        <div style="padding:20px;">
+          <p class="hint">设置百度统计 ID，启用后将自动在所有前台页面嵌入百度统计脚本。</p>
+          <div class="fg"><label>百度统计 ID</label><input v-model="analytics.baidu_tongji_id" placeholder="如 cbab65f7d4752af37d29b48bcbf3c646" @input="saveAnalytics"><small>留空则不启用百度统计</small></div>
+          <div class="fg"><label>域名白名单</label><input v-model="analytics.baidu_tongji_domains" placeholder="如 favshub.com,www.favshub.com" @input="saveAnalytics"><small>多个域名用英文逗号分隔；留空则不限制（任何域名都触发）</small></div>
+        </div>
+      </div>
+      <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>系统设置</h3></div>
         <div style="padding:20px;">
           <div class="toggle-row">
@@ -103,6 +111,21 @@ watchEffect(() => {
     info.uptime = configData.value.uptime || ''
   }
 })
+// ── 网站统计 ──────────────────────────────
+const analytics = reactive({ baidu_tongji_id: '', baidu_tongji_domains: '' })
+let analyticsTimer: any = null
+function saveAnalytics() {
+  clearTimeout(analyticsTimer)
+  analyticsTimer = setTimeout(async () => {
+    try {
+      await $fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: { data: { baidu_tongji_id: analytics.baidu_tongji_id } }
+      })
+    } catch (e) { console.error('保存百度统计 ID 失败', e) }
+  }, 500)
+}
 // ── 系统设置 ──────────────────────────────
 const sysSettings = reactive({ allow_registration: true })
 let sysTimer: any = null
@@ -206,6 +229,8 @@ onMounted(async () => {
     const d = await $fetch<any>('/api/admin/config', { headers: getAuthHeaders() })
     if (d.systemData) {
       const s = d.systemData
+      analytics.baidu_tongji_id = s.baidu_tongji_id || ''
+      analytics.baidu_tongji_domains = s.baidu_tongji_domains || ''
       sysSettings.allow_registration = s.allow_registration !== 'false'
 security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       security.cookie_max_age = parseInt(s.cookie_max_age) || 604800

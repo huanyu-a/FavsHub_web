@@ -25,7 +25,7 @@ export default cachedEventHandler(
     const db = getRawDb()
     const rows = db.prepare(
       `SELECT key, value FROM system_config WHERE key IN (
-        'siteTitle', 'siteDescription', 'siteKeywords'
+        'siteTitle', 'siteDescription', 'siteKeywords', 'baidu_tongji_id', 'baidu_tongji_domains'
       )`
     ).all() as { key: string; value: string }[]
 
@@ -38,6 +38,8 @@ export default cachedEventHandler(
       siteTitle: result.siteTitle || '',
       siteDescription: result.siteDescription || '',
       siteKeywords: result.siteKeywords || '',
+      baiduTongjiId: result.baidu_tongji_id || '',
+      baiduTongjiDomains: result.baidu_tongji_domains || '',
     }
 
     _cache = tdk

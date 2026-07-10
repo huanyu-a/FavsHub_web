@@ -311,6 +311,11 @@ function migrateSystemConfig(db: Database.Database) {
     upsert.run(k, v)
   }
 
+  // 百度统计 ID（如不存在则写入初始值，管理员可在后台修改）
+  upsert.run('baidu_tongji_id', 'cbab65f7d4752af37d29b48bcbf3c646')
+  // 百度统计域名白名单（如不存在则写入，管理员可在后台修改）
+  upsert.run('baidu_tongji_domains', '')
+
   // 从 settings user_id=0 迁移旧数据（仅首次）
   const row = db.prepare('SELECT data FROM settings WHERE user_id = 0').get() as { data: string } | undefined
   if (row) {
