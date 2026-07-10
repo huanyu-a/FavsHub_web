@@ -107,7 +107,21 @@
             </div>
             <div class="export-card-body">
               <button class="btn btn-primary btn-sm" @click="exportMyPrompts">📥 导出（JSON）</button>
-              <p class="export-hint">JSON 格式，包含标签和文件夹</p>
+              <p class="export-hint">JSON 格式（兼容 promptpro v2.0）</p>
+            </div>
+          </div>
+          <div class="export-card">
+            <div class="export-card-header">
+              <i class="ri-upload-cloud-line"></i>
+              <span>导入提示词</span>
+            </div>
+            <div class="export-card-body">
+              <label class="btn btn-primary btn-sm" style="cursor:pointer;">
+                📤 导入（JSON）
+                <input type="file" accept=".json,application/json" style="display:none" @change="importPrompts">
+              </label>
+              <p class="export-hint">支持 promptpro / FavsHub 备份文件</p>
+              <p v-if="importMsg" :class="['export-hint', importMsgType]">{{ importMsg }}</p>
             </div>
           </div>
         </div>
@@ -133,6 +147,8 @@ const backupLoading = ref(false)
 const filesLoading = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
+const importMsg = ref('')
+const importMsgType = ref<'success' | 'error'>('success')
 async function loadInfo() {
   try { info.value = await $fetch('/api/admin/backup/info', { headers: getAuthHeaders() }) } catch {}
 }
@@ -237,8 +253,37 @@ async function exportMyPrompts() {
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-prompts-${Date.now()}.json`)
+    downloadBlob(blob as Blob, `promptpro-backup-${Date.now()}.json`)
   } catch { alert('导出失败') }
+}
+async function importPrompts(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+    importMsg.value = '请选择 JSON 文件'
+    importMsgType.value = 'error'
+    return
+  }
+  importMsg.value = '导入中...'
+  importMsgType.value = 'success'
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await $fetch<any>('/api/prompts/import', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: fd,
+    })
+    importMsg.value = `导入成功：${res.imported.prompts} 条提示词、${res.imported.folders} 个文件夹、${res.imported.tags} 个标签${res.skipped_prompts ? `（跳过 ${res.skipped_prompts} 条重复）` : ''}`
+    importMsgType.value = 'success'
+  } catch (err: any) {
+    importMsg.value = err?.data?.error || err?.message || '导入失败'
+    importMsgType.value = 'error'
+  } finally {
+    input.value = ''
+  }
 }
 onMounted(() => {
   if (isAdmin.value) {
