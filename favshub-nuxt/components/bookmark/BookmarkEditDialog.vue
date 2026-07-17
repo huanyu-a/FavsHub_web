@@ -82,6 +82,17 @@ const form = reactive({
   login_required: props.bookmark?.login_required || 0,
 })
 
+// Re-sync form when editing different bookmarks consecutively
+watch(() => props.bookmark, (bm) => {
+  Object.assign(form, {
+    title: bm?.title || '',
+    url: bm?.url || '',
+    folder_id: bm?.folder_id ?? null,
+    icon: bm?.icon || '',
+    login_required: bm?.login_required || 0,
+  })
+})
+
 const folderDropdownOpen = ref(false)
 
 const folderTree = computed(() => {

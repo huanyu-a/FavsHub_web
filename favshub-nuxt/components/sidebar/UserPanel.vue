@@ -1,61 +1,73 @@
 <template>
-  <div class="sidebar-bottom">
-    <div class="sidebar-user-panel" ref="userMenuRef">
-      <div class="sidebar-user-bar" @click="showUserMenu = !showUserMenu">
-        <div class="sidebar-user-avatar">{{ userInitial }}</div>
-        <span class="sidebar-user-name">{{ displayName }}</span>
+  <ClientOnly>
+    <div class="sidebar-bottom">
+      <div class="sidebar-user-panel" ref="userMenuRef">
+        <div class="sidebar-user-bar" @click="showUserMenu = !showUserMenu">
+          <div class="sidebar-user-avatar">{{ userInitial }}</div>
+          <span class="sidebar-user-name">{{ displayName }}</span>
+        </div>
+
+        <Transition name="user-menu">
+          <div v-if="showUserMenu" class="sidebar-user-menu">
+            <div class="user-menu-header">
+              <div class="user-menu-avatar">{{ userInitial }}</div>
+              <div class="user-menu-info">
+                <span class="user-menu-name">{{ displayName }}</span>
+                <span v-if="authStore.isAdmin" class="user-menu-role admin">管理员</span>
+                <span v-else-if="authStore.isLoggedIn" class="user-menu-role">普通用户</span>
+                <span v-else class="user-menu-role guest">游客</span>
+              </div>
+            </div>
+
+            <div class="user-menu-divider"></div>
+
+            <div class="user-menu-items">
+              <NuxtLink to="/admin/settings" class="user-menu-item" @click="showUserMenu = false">
+                <i class="ri-settings-3-line"></i>
+                <span>设置</span>
+              </NuxtLink>
+              <NuxtLink v-if="authStore.isAdmin" to="/admin" target="_blank" class="user-menu-item" @click="showUserMenu = false">
+                <i class="ri-dashboard-line"></i>
+                <span>管理后台</span>
+              </NuxtLink>
+              <div class="user-menu-item" @click="cycleTheme">
+                <i :class="themeIcon"></i>
+                <span>外观</span>
+                <span class="user-menu-toggle">{{ themeLabel }}</span>
+              </div>
+            </div>
+
+            <div class="user-menu-divider"></div>
+
+            <div class="user-menu-items">
+              <div v-if="authStore.isGuest" class="user-menu-item" @click="showLogin = true; showUserMenu = false">
+                <i class="ri-login-box-line"></i>
+                <span>登录</span>
+              </div>
+              <a v-else href="#" class="user-menu-item danger" @click.prevent="handleLogout">
+                <i class="ri-logout-box-r-line"></i>
+                <span>退出登录</span>
+              </a>
+            </div>
+          </div>
+        </Transition>
       </div>
 
-      <Transition name="user-menu">
-        <div v-if="showUserMenu" class="sidebar-user-menu">
-          <div class="user-menu-header">
-            <div class="user-menu-avatar">{{ userInitial }}</div>
-            <div class="user-menu-info">
-              <span class="user-menu-name">{{ displayName }}</span>
-              <span v-if="authStore.isAdmin" class="user-menu-role admin">管理员</span>
-              <span v-else-if="authStore.isLoggedIn" class="user-menu-role">普通用户</span>
-              <span v-else class="user-menu-role guest">游客</span>
-            </div>
-          </div>
-
-          <div class="user-menu-divider"></div>
-
-          <div class="user-menu-items">
-            <NuxtLink to="/admin/settings" class="user-menu-item" @click="showUserMenu = false">
-              <i class="ri-settings-3-line"></i>
-              <span>设置</span>
-            </NuxtLink>
-            <NuxtLink v-if="authStore.isAdmin" to="/admin" target="_blank" class="user-menu-item" @click="showUserMenu = false">
-              <i class="ri-dashboard-line"></i>
-              <span>管理后台</span>
-            </NuxtLink>
-            <div class="user-menu-item" @click="cycleTheme">
-              <i :class="themeIcon"></i>
-              <span>外观</span>
-              <span class="user-menu-toggle">{{ themeLabel }}</span>
-            </div>
-          </div>
-
-          <div class="user-menu-divider"></div>
-
-          <div class="user-menu-items">
-            <div v-if="authStore.isGuest" class="user-menu-item" @click="showLogin = true; showUserMenu = false">
-              <i class="ri-login-box-line"></i>
-              <span>登录</span>
-            </div>
-            <a v-else href="#" class="user-menu-item danger" @click.prevent="handleLogout">
-              <i class="ri-logout-box-r-line"></i>
-              <span>退出登录</span>
-            </a>
+      <Teleport to="body">
+        <LoginDialog v-if="showLogin" @close="showLogin = false" />
+      </Teleport>
+    </div>
+    <template #fallback>
+      <div class="sidebar-bottom">
+        <div class="sidebar-user-panel">
+          <div class="sidebar-user-bar">
+            <div class="sidebar-user-avatar">U</div>
+            <span class="sidebar-user-name">用户</span>
           </div>
         </div>
-      </Transition>
-    </div>
-
-    <Teleport to="body">
-      <LoginDialog v-if="showLogin" @close="showLogin = false" />
-    </Teleport>
-  </div>
+      </div>
+    </template>
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">
@@ -96,6 +108,7 @@ if (import.meta.client) {
     }
   }
   document.addEventListener('click', handleClickOutside)
+  onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 }
 </script>
 

@@ -246,18 +246,33 @@ async function loadPromptSuggestions(search?: string) {
 }
 
 // ── Browser history via extension ──────────────────────────────
+// Track pending extension message requests for cleanup on unmount
+const pendingCleanups = new Set<() => void>()
+
 function sendExtensionMessage(action: string, extraParams: Record<string, any> = {}): Promise<any> {
   return new Promise((resolve) => {
     const requestId = Date.now().toString() + Math.random().toString(36).slice(2)
+    let cleaned = false
+
+    const cleanup = () => {
+      if (cleaned) return
+      cleaned = true
+      window.removeEventListener('message', handler)
+      clearTimeout(timeoutId)
+      pendingCleanups.delete(cleanup)
+    }
+
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'favshub-ext-response' && event.data?.requestId === requestId) {
-        window.removeEventListener('message', handler)
+        cleanup()
         resolve(event.data.payload)
       }
     }
+
     window.addEventListener('message', handler)
+    pendingCleanups.add(cleanup)
     window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, window.location.origin)
-    setTimeout(() => { window.removeEventListener('message', handler); resolve(null) }, 3000)
+    const timeoutId = setTimeout(() => { cleanup(); resolve(null) }, 3000)
   })
 }
 
@@ -598,6 +613,13 @@ watch(query, () => {
 
 // ── Init ────────────────────────────────────────────────────────
 onMounted(() => {
+})
+
+onBeforeUnmount(() => {
+  for (const cleanup of pendingCleanups) {
+    cleanup()
+  }
+  pendingCleanups.clear()
 })
 </script>
 

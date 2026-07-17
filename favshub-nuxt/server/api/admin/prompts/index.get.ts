@@ -1,6 +1,7 @@
 /**
  * GET /api/admin/prompts — 管理后台提示词列表
  * 所有用户仅返回自己的提示词
+ * 支持 ?deleted=1 查询回收站
  */
 import { getRawDb } from '../../../database'
 import { getAuthRole } from '../../../utils/auth'
@@ -12,11 +13,18 @@ export default defineEventHandler(async (event) => {
   const { user: auth, isAdmin } = authRole
   const db = getRawDb()
 
+  const query = getQuery(event)
+  const showDeleted = query.deleted === '1'
+
+  const whereClause = showDeleted
+    ? 'WHERE p.user_id = ? AND p.deleted_at IS NOT NULL'
+    : 'WHERE p.user_id = ? AND (p.deleted_at IS NULL OR p.deleted_at = 0)'
+
   const prompts = db.prepare(`
     SELECT p.*, u.username, pf.name as folder_name
     FROM prompts p LEFT JOIN users u ON p.user_id = u.id
     LEFT JOIN prompt_folders pf ON p.folder_id = pf.id
-    WHERE p.user_id = ?
+    ${whereClause}
     ORDER BY p.updated_at DESC
   `).all(auth.id) as any[]
 

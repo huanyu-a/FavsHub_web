@@ -24,30 +24,26 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { name, label, url, icon, category, sort_order, is_default, status } = body
 
-  if (name !== undefined) {
-    db.prepare('UPDATE search_engines SET name = ? WHERE id = ?').run(name, engineId)
-  }
-  if (label !== undefined) {
-    db.prepare('UPDATE search_engines SET label = ? WHERE id = ?').run(label, engineId)
-  }
-  if (url !== undefined) {
-    db.prepare('UPDATE search_engines SET url = ? WHERE id = ?').run(url, engineId)
-  }
-  if (icon !== undefined) {
-    db.prepare('UPDATE search_engines SET icon = ? WHERE id = ?').run(icon, engineId)
-  }
-  if (category !== undefined) {
-    db.prepare('UPDATE search_engines SET category = ? WHERE id = ?').run(category, engineId)
-  }
-  if (sort_order !== undefined) {
-    db.prepare('UPDATE search_engines SET sort_order = ? WHERE id = ?').run(sort_order, engineId)
-  }
-  if (is_default !== undefined) {
-    db.prepare('UPDATE search_engines SET is_default = ? WHERE id = ?').run(is_default ? 1 : 0, engineId)
-  }
-  // 仅管理员可修改 status
+  // 构建动态 UPDATE，事务包裹确保原子性
+  const setClauses: string[] = []
+  const params: any[] = []
+
+  if (name !== undefined) { setClauses.push('name = ?'); params.push(name) }
+  if (label !== undefined) { setClauses.push('label = ?'); params.push(label) }
+  if (url !== undefined) { setClauses.push('url = ?'); params.push(url) }
+  if (icon !== undefined) { setClauses.push('icon = ?'); params.push(icon) }
+  if (category !== undefined) { setClauses.push('category = ?'); params.push(category) }
+  if (sort_order !== undefined) { setClauses.push('sort_order = ?'); params.push(sort_order) }
+  if (is_default !== undefined) { setClauses.push('is_default = ?'); params.push(is_default ? 1 : 0) }
   if (status !== undefined && ['approved', 'pending', 'disabled'].includes(status)) {
-    db.prepare('UPDATE search_engines SET status = ? WHERE id = ?').run(status, engineId)
+    setClauses.push('status = ?'); params.push(status)
+  }
+
+  if (setClauses.length > 0) {
+    params.push(engineId)
+    db.transaction(() => {
+      db.prepare(`UPDATE search_engines SET ${setClauses.join(', ')} WHERE id = ?`).run(...params)
+    })()
   }
 
   const updated = db.prepare('SELECT * FROM search_engines WHERE id = ?').get(engineId)

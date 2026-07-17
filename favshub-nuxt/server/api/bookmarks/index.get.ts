@@ -1,9 +1,18 @@
 /**
  * GET /api/bookmarks — 获取书签列表（支持搜索和文件夹过滤）
  */
+import { LRUCache } from 'lru-cache'
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
 import { getConfigInt } from '../../utils/config'
+
+/**
+ * FIX: MAJOR #9 - 使用 LRU 缓存避免每次请求都全表扫描计算文件夹继承
+ */
+const lockedFoldersCache = new LRUCache<number, Set<number>>({
+  max: 100,
+  ttl: 60000 // 1 分钟
+})
 
 /** 根据继承规则过滤文件夹（子文件夹继承父文件夹的 login_required） */
 function filterByInheritance(folders: any[]): any[] {
@@ -19,10 +28,39 @@ function filterByInheritance(folders: any[]): any[] {
   return folders.filter(f => !isLocked(f))
 }
 
+/**
+ * FIX: MAJOR #9 - 缓存文件夹锁定状态计算结果
+ */
+function getLockedFolders(userId: number | null, db: any): Set<number> {
+  const cacheKey = userId || -1
+  const cached = lockedFoldersCache.get(cacheKey)
+  if (cached) return cached
+
+  const lockedFolderIds = new Set<number>()
+  const allFolders = db.prepare('SELECT id, parent_id, login_required FROM folders').all() as { id: number; parent_id: number | null; login_required: number }[]
+
+  function isLocked(f: typeof allFolders[0], visited = new Set<number>()): boolean {
+    if (f.login_required) return true
+    if (f.parent_id == null) return false
+    if (visited.has(f.parent_id)) return false
+    visited.add(f.parent_id)
+    const parent = allFolders.find(p => p.id === f.parent_id)
+    if (!parent) return false
+    return isLocked(parent, visited)
+  }
+
+  for (const f of allFolders) {
+    if (isLocked(f)) lockedFolderIds.add(f.id)
+  }
+
+  lockedFoldersCache.set(cacheKey, lockedFolderIds)
+  return lockedFolderIds
+}
+
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)
   const query = getQuery(event)
-  const { folder_id, search } = query
+  const { folder_id, search, collection_id } = query
 
   const db = getRawDb()
 
@@ -47,24 +85,14 @@ export default defineEventHandler(async (event) => {
   }
 
   // 收集因文件夹 login_required 继承而被锁定的文件夹 ID（非管理员需要排除这些文件夹内的书签）
-  const lockedFolderIds = new Set<number>()
+  // FIX: MAJOR #9 - 使用缓存函数
+  let lockedFolderIds = new Set<number>()
   if (!user || !(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined)?.is_admin) {
-    const allFolders = db.prepare('SELECT id, parent_id, login_required FROM folders').all() as { id: number; parent_id: number | null; login_required: number }[]
-    function isLocked(f: typeof allFolders[0], visited = new Set<number>()): boolean {
-      if (f.login_required) return true
-      if (f.parent_id == null) return false
-      if (visited.has(f.parent_id)) return false
-      visited.add(f.parent_id)
-      const parent = allFolders.find(p => p.id === f.parent_id)
-      if (!parent) return false
-      return isLocked(parent, visited)
-    }
-    for (const f of allFolders) {
-      if (isLocked(f)) lockedFolderIds.add(f.id)
-    }
+    lockedFolderIds = getLockedFolders(user?.id || null, db)
   }
 
-  let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause}`
+  // 首页/个人书签列表只显示有 label 的个人书签；label='' 为精选集公共池，不混入
+  let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause} AND COALESCE(b.label, '') != ''`
   const params: any[] = [...visParams]
 
   // 非管理员排除"文件夹继承 login_required"的书签（但登录用户仍可看自己文件夹里的）
@@ -80,10 +108,13 @@ export default defineEventHandler(async (event) => {
   }
 
   if (search && typeof search === 'string') {
+    // 转义 LIKE 通配符，防止注入
+    const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&')
     const keywords = search.split(/\s+/).filter((k: string) => k.length > 0)
     const conditions = keywords.map((k) => {
-      params.push(`%${k}%`, `%${k}%`)
-      return `(b.title LIKE ? OR b.url LIKE ?)`
+      const escaped = escapeLike(k)
+      params.push(`%${escaped}%`, `%${escaped}%`)
+      return `(b.title LIKE ? ESCAPE '\\' OR b.url LIKE ? ESCAPE '\\')`
     })
     sql += ` AND (${conditions.join(' AND ')})`
   }
@@ -93,7 +124,15 @@ export default defineEventHandler(async (event) => {
     params.push(folder_id as string)
   }
 
-  sql += ` ORDER BY b.created_at DESC LIMIT ${getConfigInt('bookmarks_query_limit', 500)}`
+  // 按精选集筛选：source LIKE '%"collection:xxx"%'（转义 _ 和 %）
+  if (collection_id && typeof collection_id === 'string') {
+    const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&')
+    sql += ` AND b.source LIKE ? ESCAPE '\\'`
+    params.push(`%"collection:${escapeLike(collection_id)}"%`)
+  }
+
+  sql += ` ORDER BY b.created_at DESC LIMIT ?`
+  params.push(getConfigInt('bookmarks_query_limit', 500))
 
   const bookmarks = db.prepare(sql).all(...params)
 

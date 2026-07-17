@@ -10,7 +10,7 @@ export default defineEventHandler((event) => {
   const userId = authUser.id
 
   const bookmarks = db.prepare(
-    'SELECT * FROM bookmarks WHERE user_id = ? ORDER BY sort_order, created_at'
+    "SELECT * FROM bookmarks WHERE user_id = ? AND label != '' ORDER BY sort_order, created_at"
   ).all(userId)
 
   const folders = db.prepare(

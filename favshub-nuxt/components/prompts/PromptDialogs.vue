@@ -72,6 +72,7 @@
                             <span v-if="v.is_current" class="vtag-cur">当前</span>
                           </span>
                           <span class="vcol-time">{{ formatTime(v.created_at) }}</span>
+                          <span v-if="v.change_note" class="vcol-note" :title="v.change_note">📝 {{ v.change_note }}</span>
                           <span class="vcol-size">{{ v.content ? (v.content.length / 1024).toFixed(1) : '0' }} KB</span>
                         </label>
                         <div class="vcol-actions">
@@ -151,6 +152,10 @@
               <div class="form-group">
                 <label><i class="ri-git-branch-line"></i> 版本号</label>
                 <input v-model="editForm.current_version" type="text" placeholder="1.0.0">
+              </div>
+              <div class="form-group">
+                <label><i class="ri-sticky-note-line"></i> 变更说明</label>
+                <input v-model="editForm.change_note" type="text" placeholder="本次修改原因（可选）">
               </div>
             </div>
             <div class="form-group full-width">

@@ -28,7 +28,15 @@ export default defineEventHandler(async (event) => {
 
   // 读取现有设置并合并
   const existingRow = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(authUser.id) as { data: string } | undefined
-  const existing = existingRow ? JSON.parse(existingRow.data) : {}
+  let existing: Record<string, any> = {}
+  if (existingRow) {
+    try {
+      existing = JSON.parse(existingRow.data)
+    } catch {
+      // 存储的 JSON 损坏时回退为空对象，避免因历史脏数据导致接口 500
+      existing = {}
+    }
+  }
   const merged = { ...existing, ...filtered }
 
   // UPSERT 当前用户设置

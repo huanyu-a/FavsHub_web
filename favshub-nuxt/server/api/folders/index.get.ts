@@ -10,15 +10,6 @@
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
 
-/** 检查文件夹或其任意祖先是否 login_required=1（继承锁） */
-function isAncestorLocked(folderId: number | null, parentMap: Map<number, any>): boolean {
-  let current: any = undefined
-  // 从 parentMap 中找到当前节点的父级链
-  // folderId 是要检查的文件夹 ID，需要先从全局 map 中找到它
-  // 这里我们直接在 filterByInheritance 中处理
-  return false
-}
-
 /** 根据继承规则过滤文件夹 */
 function filterByInheritance(folders: any[]): any[] {
   const parentMap = new Map<number | null, any[]>()

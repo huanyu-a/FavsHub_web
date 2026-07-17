@@ -18,6 +18,12 @@
               </span>
               <span class="sidebar-hub-label">主页</span>
             </NuxtLink>
+            <NuxtLink to="/collections" class="sidebar-hub-link" :class="{ active: activePage === 'collections' }" title="精选集市场">
+              <span class="sidebar-hub-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
+              </span>
+              <span class="sidebar-hub-label">精选集</span>
+            </NuxtLink>
             <NuxtLink to="/prompts" class="sidebar-hub-link" :class="{ active: activePage === 'prompts' }" title="提示词管理">
               <span class="sidebar-hub-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
@@ -28,7 +34,47 @@
         </div>
 
         <div class="sidebar-folders-panel">
-          <ul id="categories-list">
+          <!-- 精选集浏览模式：显示精选集分类（支持层级） -->
+          <ul v-if="activeCollectionId && collectionCategories?.length" id="categories-list">
+            <li
+              class="folder-item"
+              :class="{ 'bg-emerald-500': activeCategoryId === null }"
+              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;"
+              @click="$emit('select-collection-category', null)"
+            >
+              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">全部分类</span>
+              <span class="item-count" style="margin-left:auto;">{{ collectionCategories.reduce((s, c) => s + (c.bookmark_count || 0), 0) }}</span>
+            </li>
+            <!-- 按层级渲染：父分类紧接着其子分类 -->
+            <template v-for="cat in collectionCategories.filter(c => !c.parent_id)" :key="cat.id">
+              <li
+                class="folder-item"
+                :class="{ 'bg-emerald-500': activeCategoryId === cat.id }"
+                style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;"
+                @click="$emit('select-collection-category', cat.id)"
+              >
+                <i class="ri-folder-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cat.name }}</span>
+                <span class="item-count" style="margin-left:auto;">{{ cat.bookmark_count || 0 }}</span>
+              </li>
+              <li
+                v-for="child in collectionCategories.filter(c => c.parent_id === cat.id)"
+                :key="child.id"
+                class="folder-item"
+                :class="{ 'bg-emerald-500': activeCategoryId === child.id }"
+                style="cursor:pointer;padding:8px 8px 8px 28px;border-radius:8px;display:flex;align-items:center;"
+                @click="$emit('select-collection-category', child.id)"
+              >
+                <i class="ri-corner-down-right-line" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0;width:20px;text-align:center;"></i>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ child.name }}</span>
+                <span class="item-count" style="margin-left:auto;">{{ child.bookmark_count || 0 }}</span>
+              </li>
+            </template>
+          </ul>
+
+          <!-- 个人书签模式：显示文件夹树 -->
+          <ul v-else id="categories-list">
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
               class="folder-item"
@@ -91,6 +137,46 @@
           </Teleport>
         </div>
 
+        <!-- 精选集区 - ClientOnly 防止 SSR/客户端 auth 状态不一致导致水合不匹配 -->
+        <ClientOnly>
+          <div class="sidebar-collections-panel">
+            <template v-if="authStore.isLoggedIn">
+              <div class="sidebar-section-label">
+                <span>我的精选集</span>
+                <NuxtLink to="/collections" title="浏览更多精选集" class="sidebar-link-all">
+                  <i class="ri-external-link-line"></i>
+                </NuxtLink>
+              </div>
+              <ul v-if="collections.length > 0" class="collections-list">
+                <li
+                  v-for="c in collections"
+                  :key="c.id"
+                  class="collection-item"
+                  @click="$emit('select-collection', c.id)"
+                >
+                  <span class="collection-item-icon">{{ c.icon || '📚' }}</span>
+                  <span class="collection-item-name">{{ c.name }}</span>
+                  <span class="collection-item-count">{{ c.bookmark_count }}</span>
+                  <span v-if="c.new_count && c.new_count > 0" class="collection-new-badge">{{ c.new_count }}</span>
+                </li>
+              </ul>
+              <NuxtLink v-else to="/collections" class="collections-empty">
+                浏览精选集市场 →
+              </NuxtLink>
+            </template>
+            <template v-else>
+              <div class="sidebar-section-label">
+                <span>精选集</span>
+              </div>
+              <NuxtLink to="/collections" class="collections-entry-link">
+                <span class="collections-entry-icon">📚</span>
+                <span class="collections-entry-text">进入精选集市场</span>
+                <i class="ri-arrow-right-s-line"></i>
+              </NuxtLink>
+            </template>
+          </div>
+        </ClientOnly>
+
         <UserPanel />
       </div>
     </aside>
@@ -112,20 +198,88 @@ const props = defineProps<{
   activePage?: string
   isAdmin?: boolean
   isGuest?: boolean
+  collectionCategories?: any[]
+  activeCollectionId?: string | null
+  activeCategoryId?: number | null
 }>()
 
 const emit = defineEmits<{
   toggle: []
   'select-folder': [id: number | null]
+  'select-collection': [id: string]
+  'select-collection-category': [categoryId: number | null]
   'create-folder': []
   'rename-folder': [id: number, name: string]
   'create-sub-folder': [parentId: number, name: string]
   'delete-folder': [id: number]
 }>()
 
+// 用户导入过的精选集（从本地存储 + API 获取）
+interface ICollection {
+  id: string
+  name: string
+  description: string
+  icon: string
+  is_public: number
+  is_official: number
+  bookmark_count: number
+  created_at: number
+  username?: string
+  new_count?: number
+}
+
 const authStore = useAuthStore()
 const settingsStore = useSettingsStore()
 const bookmarksStore = useBookmarksStore()
+
+const collections = ref<ICollection[]>([])
+
+async function loadCollections() {
+  try {
+    // 已登录：已订阅列表；未登录：官方公开精选集作为入口
+    const query = authStore.isLoggedIn
+      ? { subscribed: '1', limit: 10 }
+      : { is_official: '1', limit: 8 }
+    const data = await $fetch<{ collections: ICollection[] }>('/api/collections', { query })
+    collections.value = data?.collections || []
+  } catch (err) {
+    console.error('加载精选集失败', err)
+    collections.value = []
+  }
+}
+
+function onSelectCollection(id: string) {
+  // 未登录：跳转精选集详情页（公开可读）；已登录：首页 tab 切换
+  if (!authStore.isLoggedIn) {
+    navigateTo(`/collections/${id}`)
+    return
+  }
+  emit('select-collection', id)
+}
+
+// 全局点击关闭右键菜单（注册 + 清理）
+let cleanupClickHandler: (() => void) | null = null
+
+onMounted(() => {
+  loadCollections()
+  if (import.meta.client) {
+    const handler = () => { folderMenu.visible = false }
+    document.addEventListener('click', handler)
+    cleanupClickHandler = () => document.removeEventListener('click', handler)
+  }
+})
+
+// 登录状态变化时刷新列表（订阅 vs 官方）
+watch(() => authStore.isLoggedIn, () => {
+  loadCollections()
+})
+
+onBeforeUnmount(() => {
+  if (cleanupClickHandler) {
+    cleanupClickHandler()
+    cleanupClickHandler = null
+  }
+})
 
 // 文件夹图标按名称哈希选取
 function folderIcon(name: string) {
@@ -258,6 +412,7 @@ const flatFolderTree = computed(() => {
 
 // ── 右键菜单处理 ──────────────────────────────────────────────
 function onAllContextMenu(event: MouseEvent) {
+  event.preventDefault()
   folderMenu.x = event.clientX
   folderMenu.y = event.clientY
   folderMenu.folder = null
@@ -274,11 +429,23 @@ function onFolderContextMenu(event: MouseEvent, folder: any) {
   folderMenu.visible = true
 }
 
+// Input validation for folder names
+function validateFolderName(raw: string | null, currentName?: string): string | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+  if (trimmed.length > 100) return null
+  // Reject names that are only whitespace or contain control characters
+  if (/[\x00-\x1f\x7f]/.test(trimmed)) return null
+  // Return null if name unchanged
+  if (currentName !== undefined && trimmed === currentName.trim()) return null
+  return trimmed
+}
+
 async function renameFolder(folder: FolderNode) {
   folderMenu.visible = false
   if (import.meta.client) {
-    const newName = prompt('重命名文件夹', folder.name)
-    if (newName && newName !== folder.name) {
+    const newName = validateFolderName(prompt('重命名文件夹', folder.name), folder.name)
+    if (newName) {
       await bookmarksStore.updateFolder(folder.id, { name: newName })
     }
   }
@@ -287,7 +454,7 @@ async function renameFolder(folder: FolderNode) {
 async function createRootFolder() {
   folderMenu.visible = false
   if (import.meta.client) {
-    const name = prompt('新建文件夹')
+    const name = validateFolderName(prompt('新建文件夹'))
     if (name) {
       await bookmarksStore.createFolder({ name })
     }
@@ -297,7 +464,7 @@ async function createRootFolder() {
 async function createSubFolder(parentFolder: FolderNode) {
   folderMenu.visible = false
   if (import.meta.client) {
-    const name = prompt('新建子文件夹')
+    const name = validateFolderName(prompt('新建子文件夹'))
     if (name) {
       await bookmarksStore.createFolder({ name, parent_id: parentFolder.id })
       expandedIds.value.add(parentFolder.id)
@@ -315,14 +482,98 @@ async function deleteFolder(folder: FolderNode) {
   }
 }
 
-// 全局点击关闭右键菜单
-if (import.meta.client) {
-  document.addEventListener('click', () => {
-    folderMenu.visible = false
-  })
-}
 </script>
 
 <style scoped>
+.sidebar-collections-panel {
+  margin-top: 16px;
+  border-top: 1px solid var(--border, #e5e7eb);
+  padding-top: 12px;
+}
+.sidebar-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sidebar-link-all {
+  color: var(--text-tertiary, #9ca3af);
+  font-size: 14px;
+  text-decoration: none;
+}
+.sidebar-link-all:hover { color: var(--primary, #10b981); }
+.collections-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.collection-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.collection-item:hover { background: var(--bg-secondary, #f3f4f6); }
+.collection-item-icon { font-size: 16px; flex-shrink: 0; }
+.collection-item-name {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #111827);
+}
+.collection-item-count {
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  background: var(--bg-secondary, #f3f4f6);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.collection-new-badge {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: #f59e0b;
+  padding: 2px 5px;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.collections-empty {
+  display: block;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--primary, #10b981);
+  text-decoration: none;
+}
+.collections-empty:hover { text-decoration: underline; }
+.collections-entry-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-primary, #111827);
+  background: var(--bg-secondary, #f3f4f6);
+  transition: background 0.15s;
+}
+.collections-entry-link:hover { background: var(--bg-tertiary, #e5e7eb); }
+.collections-entry-icon { font-size: 18px; }
+.collections-entry-text { flex: 1; font-size: 13px; font-weight: 500; }
+.collections-entry-link i { color: var(--text-tertiary, #9ca3af); }
 </style>
 

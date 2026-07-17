@@ -50,22 +50,40 @@ const { data: tdk } = await useFetch('/api/tdk', {
   },
 })
 
+const siteBaseUrl = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const canonicalUrl = computed(() => `${siteBaseUrl}${route.path}`)
+const siteTitle = computed(() => tdk.value?.siteTitle || 'FavsHub-网址导航与智能书签管理工作台')
+const siteDescription = computed(() => tdk.value?.siteDescription || '')
+const siteKeywords = computed(() => tdk.value?.siteKeywords || '')
+
 useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703d' },
-    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260616' },
+    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260716' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
+    // Canonical URL: 基于当前路由，防止重复内容
+    { rel: 'canonical', href: canonicalUrl },
   ],
   titleTemplate: (title) => {
-    const siteTitle = tdk.value?.siteTitle || 'FavsHub - 智能书签工作台'
-    return title ? `${title} - FavsHub` : siteTitle
+    return title ? `${title}_FavsHub` : siteTitle.value
   },
   meta: [
-    { name: 'description', content: computed(() => tdk.value?.siteDescription || '') },
-    { name: 'keywords', content: computed(() => tdk.value?.siteKeywords || '') },
+    { name: 'description', content: siteDescription },
+    { name: 'keywords', content: siteKeywords },
+    // Open Graph（全局默认值，页面级 useHead 可覆盖）
+    { property: 'og:site_name', content: 'FavsHub' },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:title', content: siteTitle },
+    { property: 'og:description', content: siteDescription },
+    { property: 'og:locale', content: 'zh_CN' },
+    { property: 'og:url', content: canonicalUrl },
+    // Twitter Card（全局默认）
+    { name: 'twitter:card', content: 'summary' },
+    { name: 'twitter:title', content: siteTitle },
+    { name: 'twitter:description', content: siteDescription },
   ],
 })
 
@@ -75,8 +93,8 @@ if (import.meta.client) {
   watch(() => tdk.value?.siteTitle, (newTitle) => {
     if (newTitle) {
       const current = document.title
-      const pagePart = current.includes(' - ') ? current.split(' - ')[0] : ''
-      document.title = pagePart ? `${pagePart} - FavsHub` : newTitle
+      const pagePart = current.includes('_') ? current.split('_')[0] : ''
+      document.title = pagePart ? `${pagePart}_FavsHub` : newTitle
     }
   })
 

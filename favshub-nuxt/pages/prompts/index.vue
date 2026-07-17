@@ -49,16 +49,6 @@
                 <svg v-else xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
               </span>
             </li>
-            <!-- 收藏 -->
-            <li
-              class="folder-item"
-              :class="{ 'bg-emerald-500': activeFolderId === '_favorites' }"
-              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
-              @click="activeFolderId = '_favorites'; loadPrompts()"
-            >
-              <i class="ri-star-line" style="font-size:16px;color:var(--warning);flex-shrink:0;width:20px;text-align:center;"></i>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">收藏</span>
-            </li>
             <!-- 文件夹树：使用 FolderTreeItem 组件 -->
             <FolderTreeItem
               v-for="node in promptFolderTree"
@@ -132,7 +122,13 @@
             <i :class="activeFolderId === '_favorites' ? 'ri-star-fill' : 'ri-star-line'"></i>
             <span>收藏</span>
           </button>
-          <button class="btn btn-primary client-only-user" @click="openCreate">
+          <select v-model="sortBy" class="sort-select" title="排序方式">
+            <option value="updated">最新</option>
+            <option value="usage">热度</option>
+            <option value="created">创建</option>
+            <option value="title">名称</option>
+          </select>
+          <button v-if="!isGuest" class="btn btn-primary client-only-user" @click="openCreate">
             <i class="ri-add-line"></i>
             <span>新建提示词</span>
           </button>
@@ -144,10 +140,18 @@
               <div class="prompt-card-header">
                 <h3 class="prompt-title">{{ prompt.title }}</h3>
                 <div class="prompt-actions">
-                  <button class="prompt-btn copy-btn" title="复制" @click.stop="copyContent(prompt.content)"><i class="ri-file-copy-line"></i></button>
-                  <button v-if="!isGuest && prompt.user_id === currentUserId" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
-                  <button v-else-if="!isGuest && prompt.owner_is_admin == 1" class="prompt-btn edit-btn" title="申请修改" @click.stop="openEdit(prompt)"><i class="ri-edit-line" style="color:var(--warning);"></i></button>
-                  <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
+                  <!-- 回收站模式：还原 + 永久删除 -->
+                  <template v-if="activeFolderId === '_recycle'">
+                    <button class="prompt-btn" title="还原" @click.stop="restorePrompt(prompt)"><i class="ri-refresh-line"></i></button>
+                    <button class="prompt-btn" title="永久删除" @click.stop="permanentDelete(prompt)"><i class="ri-delete-bin-2-line" style="color:var(--danger,#ef4444);"></i></button>
+                  </template>
+                  <!-- 正常模式 -->
+                  <template v-else>
+                    <button class="prompt-btn copy-btn" title="复制" @click.stop="copyContent(prompt.content, prompt.id)"><i class="ri-file-copy-line"></i></button>
+                    <button v-if="!isGuest && prompt.user_id === currentUserId" class="prompt-btn edit-btn" title="编辑" @click.stop="openEdit(prompt)"><i class="ri-edit-line"></i></button>
+                    <button v-else-if="!isGuest && prompt.owner_is_admin == 1" class="prompt-btn edit-btn" title="申请修改" @click.stop="openEdit(prompt)"><i class="ri-edit-line" style="color:var(--warning);"></i></button>
+                    <button class="prompt-btn fav-btn" :class="{ active: prompt.is_favorite === 1 }" title="收藏" @click.stop="toggleFavorite(prompt)"><i :class="prompt.is_favorite === 1 ? 'ri-star-fill' : 'ri-star-line'"></i></button>
+                  </template>
                 </div>
               </div>
               <p class="prompt-desc">{{ prompt.description ? truncate(prompt.description, 120) : truncate(prompt.content, 120) }}</p>
@@ -161,6 +165,7 @@
                 </div>
                 <div class="meta-right">
                   <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
+                  <span v-if="prompt.usage_count >= 50" class="usage-badge" :title="`已被使用 ${prompt.usage_count} 次`">🔥 {{ prompt.usage_count }}</span>
                 </div>
               </div>
             </div>
@@ -223,6 +228,14 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Template variable modal -->
+    <TemplateVarModal
+      :content="tplVarContent"
+      :visible="tplVarModalVisible"
+      @confirm="onTplVarConfirm"
+      @cancel="onTplVarCancel"
+    />
     <ClientOnly>
       <BackToTop />
     </ClientOnly>
@@ -231,8 +244,11 @@
 
 <script setup lang="ts">
 import PromptDialogs from '~/components/prompts/PromptDialogs.vue'
+import TemplateVarModal from '~/components/prompts/TemplateVarModal.vue'
 import FolderTreeItem from '~/components/sidebar/FolderTreeItem.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import { parseTemplateVariables } from '~/utils/template-variables'
+import { searchPrompts } from '~/utils/pinyin'
 
 definePageMeta({ layout: 'default' })
 
@@ -266,8 +282,8 @@ onUnmounted(() => {
 })
 
 useHead({
-  title: 'PromptPro - 提示词管理',
-  titleTemplate: (title?: string) => title || 'PromptPro - 提示词管理', // 覆盖布局的 titleTemplate，使用原始标题
+  title: 'PromptPro-AI提示词管理与分享平台',
+  titleTemplate: (title?: string) => title ? `${title}_FavsHub` : 'PromptPro-AI提示词管理与分享平台_FavsHub', // 覆盖布局的 titleTemplate，确保以_FavsHub结尾
   link: [
     { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260703a' },
   ],
@@ -276,11 +292,27 @@ useHead({
 // PM8: Load TDK from API and apply to page head
 const { data: pageTdk } = await useFetch('/api/tdk/promptpro', { server: true, lazy: false })
 
+const _promptsBase = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const promptProBaseUrl = computed(() => `${_promptsBase}/prompts`)
+
 useHead({
-  title: computed(() => pageTdk.value?.promptproTitle || 'PromptPro - 提示词管理'),
+  title: computed(() => pageTdk.value?.promptproTitle || 'PromptPro-AI提示词管理与分享平台'),
   meta: [
     { name: 'description', content: computed(() => pageTdk.value?.promptproDescription || '') },
     { name: 'keywords', content: computed(() => pageTdk.value?.promptproKeywords || '') },
+    // Open Graph
+    { property: 'og:title', content: computed(() => pageTdk.value?.promptproTitle || 'PromptPro-AI提示词管理与分享平台') },
+    { property: 'og:description', content: computed(() => pageTdk.value?.promptproDescription || '') },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: promptProBaseUrl },
+    { property: 'og:locale', content: 'zh_CN' },
+    // Twitter Card
+    { name: 'twitter:card', content: 'summary' },
+    { name: 'twitter:title', content: computed(() => pageTdk.value?.promptproTitle || 'PromptPro-AI提示词管理与分享平台') },
+    { name: 'twitter:description', content: computed(() => pageTdk.value?.promptproDescription || '') },
+  ],
+  link: [
+    { rel: 'canonical', href: promptProBaseUrl },
   ],
 })
 
@@ -298,6 +330,8 @@ interface Prompt {
   is_favorite?: number
   current_version?: string
   login_required?: number
+  usage_count?: number
+  deleted_at?: number | null
   tags?: { id: number; name: string; color?: string }[]
   created_at?: number
   updated_at?: number
@@ -324,7 +358,13 @@ const isLoading = ref(false)
 const searchQuery = ref('')
 const activeFolderId = useState<string | null>('activePromptFolderId', () => null)
 const activeTagIds = ref<number[]>([])
+const sortBy = useState<string>('promptSortBy', () => 'updated')
 const expandedFolderIds = ref(new Set<string>())
+
+// 全量缓存：用于客户端拼音搜索
+const allPromptsCache = ref<Prompt[]>([])
+// 回收站数量（用于 badge）
+const recycleCount = ref(0)
 
 const viewingPrompt = ref<Prompt | null>(null)
 const showEditDialog = ref(false)
@@ -347,6 +387,7 @@ const editForm = reactive({
   content: '',
   folder_id: null as string | null,
   current_version: '1.0.0',
+  change_note: '',
   tags: [] as any[],
 })
 
@@ -522,44 +563,72 @@ async function deleteFolder(folder: any) {
 let searchTimeout: ReturnType<typeof setTimeout>
 function debouncedSearch() {
   clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => loadPrompts(), 300)
+  searchTimeout = setTimeout(() => applyClientSearch(), 200)
 }
 
 function toggleFavoritesView() {
   activeFolderId.value = activeFolderId.value === '_favorites' ? null : '_favorites'
 }
 
+/**
+ * 客户端拼音搜索：在已缓存的全量数据中即时过滤
+ */
+function applyClientSearch() {
+  const q = searchQuery.value.trim()
+  if (!q) {
+    prompts.value = allPromptsCache.value
+    return
+  }
+  prompts.value = searchPrompts(allPromptsCache.value, q)
+}
+
+/**
+ * 从后端加载提示词（folder/tag/sort/favorite 变化时调用）
+ */
 async function loadPrompts() {
   isLoading.value = true
   try {
     const params: Record<string, string> = {}
-    if (searchQuery.value) params.search = searchQuery.value
-    if (activeFolderId.value && activeFolderId.value !== '_favorites') params.folder_id = activeFolderId.value
-    if (activeFolderId.value === '_favorites') params.favorites = '1'
-    if (activeTagIds.value.length > 0) params.tag_ids = activeTagIds.value.join(',')
+
+    // 回收站模式
+    if (activeFolderId.value === '_recycle') {
+      params.recycle = '1'
+    } else {
+      if (activeFolderId.value && activeFolderId.value !== '_favorites') params.folder_id = activeFolderId.value
+      if (activeFolderId.value === '_favorites') params.favorites = '1'
+      if (activeTagIds.value.length > 0) params.tag_ids = activeTagIds.value.join(',')
+    }
+    if (sortParamMap[sortBy.value]) params.sort = sortBy.value
 
     const query = new URLSearchParams(params).toString()
     const data = await $fetch<{ prompts: Prompt[] }>(`/api/prompts${query ? '?' + query : ''}`)
-    let results = data?.prompts || []
+    const results = data?.prompts || []
 
-    // 搜索时按相关性评分排序
-    if (searchQuery.value && results.length > 0) {
-      const keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(Boolean)
-      if (keywords.length > 0) {
-        results = results.map(p => ({
-          ...p,
-          _relevance: calculatePromptScore(p, keywords),
-        })).sort((a: any, b: any) => b._relevance - a._relevance)
-      }
+    // 仅在非回收站模式时更新缓存（回收站数据不走搜索缓存）
+    if (activeFolderId.value !== '_recycle') {
+      allPromptsCache.value = results
     }
 
-    prompts.value = results
+    // 有搜索词时走客户端拼音过滤（回收站内也支持搜索）
+    if (searchQuery.value.trim()) {
+      prompts.value = searchPrompts(results, searchQuery.value.trim())
+    } else {
+      prompts.value = results
+    }
   } catch (e) {
     console.error('加载提示词失败', e)
     prompts.value = []
   } finally {
     isLoading.value = false
   }
+}
+
+/** 刷新回收站数量（在删除/还原操作后调用） */
+async function refreshRecycleCount() {
+  try {
+    const data = await $fetch<{ prompts: Prompt[] }>('/api/prompts?recycle=1&limit=1000')
+    recycleCount.value = data?.prompts?.length || 0
+  } catch { recycleCount.value = 0 }
 }
 
 /**
@@ -678,6 +747,7 @@ function openCreate() {
   editForm.content = ''
   editForm.folder_id = activeFolderId.value && activeFolderId.value !== '_favorites' ? activeFolderId.value : null
   editForm.current_version = '1.0.0'
+  editForm.change_note = ''
   editForm.tags = []
   showEditDialog.value = true
 }
@@ -692,6 +762,7 @@ function openEdit(prompt: Prompt) {
   editForm.content = prompt.content
   editForm.folder_id = prompt.folder_id || null
   editForm.current_version = prompt.current_version || '1.0.0'
+  editForm.change_note = ''
   editForm.tags = (prompt.tags || []).map(t => ({ id: t.id, name: t.name, color: t.color }))
   showEditDialog.value = true
 }
@@ -729,6 +800,7 @@ async function savePrompt() {
     content: editForm.content,
     folder_id: editForm.folder_id || null,
     tags: tagIds,
+    change_note: editForm.change_note || undefined,
   }
 
   try {
@@ -765,11 +837,32 @@ async function toggleFavorite(prompt: Prompt) {
 
 async function deletePrompt(prompt: Prompt) {
   if (prompt.user_id !== currentUserId.value) return alert('无权删除此提示词')
-  if (!confirm(`确定删除提示词「${prompt.title}」？`)) return
+  if (!confirm(`确定删除提示词「${prompt.title}」？删除后将移入回收站。`)) return
   try {
     await $fetch(`/api/prompts/${prompt.id}`, { method: 'DELETE' })
     viewingPrompt.value = null
-    await Promise.all([loadPrompts(), loadFolders()])
+    await Promise.all([loadPrompts(), loadFolders(), refreshRecycleCount()])
+  } catch (e: any) {
+    alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
+}
+
+/** 从回收站还原提示词 */
+async function restorePrompt(prompt: Prompt) {
+  try {
+    await $fetch(`/api/prompts/${prompt.id}`, { method: 'PUT', body: { deleted_at: null } })
+    await Promise.all([loadPrompts(), refreshRecycleCount()])
+  } catch (e: any) {
+    alert('还原失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
+}
+
+/** 永久删除提示词 */
+async function permanentDelete(prompt: Prompt) {
+  if (!confirm(`确定永久删除「${prompt.title}」？此操作不可恢复！`)) return
+  try {
+    await $fetch(`/api/prompts/${prompt.id}?permanent=1`, { method: 'DELETE' })
+    await Promise.all([loadPrompts(), refreshRecycleCount()])
   } catch (e: any) {
     alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
@@ -828,13 +921,56 @@ function closeFolderDialog() {
 
 const copySuccess = ref(false)
 
-function copyContent(content: string) {
+// 模板变量弹窗状态
+const tplVarModalVisible = ref(false)
+const tplVarContent = ref('')
+const tplVarPromptId = ref<string | undefined>(undefined)
+
+// 排序选项映射：前端值 → API sort 参数
+const sortParamMap: Record<string, string> = {
+  updated: '',
+  usage: 'usage',
+  created: 'created',
+  title: 'title',
+}
+
+/**
+ * 复制提示词内容（带使用计数上报 + 模板变量检测）
+ * @param content 提示词文本
+ * @param promptId 可选 — 提供时上报 usage
+ */
+function copyContent(content: string, promptId?: string) {
+  const vars = parseTemplateVariables(content)
+  if (vars.length > 0) {
+    // 有模板变量 → 打开填写弹窗
+    tplVarContent.value = content
+    tplVarPromptId.value = promptId
+    tplVarModalVisible.value = true
+    return
+  }
+  doCopy(content, promptId)
+}
+
+/** 实际执行复制 */
+function doCopy(content: string, promptId?: string) {
   if (import.meta.client) {
     navigator.clipboard.writeText(content).then(() => {
       copySuccess.value = true
       setTimeout(() => { copySuccess.value = false }, 1500)
+      if (promptId) {
+        $fetch(`/api/prompts/${promptId}/usage`, { method: 'POST' }).catch(() => {})
+      }
     })
   }
+}
+
+function onTplVarConfirm(filledContent: string) {
+  doCopy(filledContent, tplVarPromptId.value)
+  tplVarModalVisible.value = false
+}
+
+function onTplVarCancel() {
+  tplVarModalVisible.value = false
 }
 
 function truncate(text: string, max: number) {
@@ -857,10 +993,38 @@ watch(activeFolderId, () => {
   loadPrompts()
 })
 
+// 排序变化时重新加载
+watch(sortBy, () => loadPrompts())
+
 onMounted(async () => {
-  await Promise.all([loadPrompts(), loadFolders(), loadTags()])
+  await Promise.all([loadPrompts(), loadFolders(), loadTags(), refreshRecycleCount()])
 })
 </script>
 
 <style scoped>
+.sort-select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+}
+.sort-select:focus {
+  border-color: var(--primary);
+}
+.usage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--warning, #f59e0b);
+  background: color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent);
+  border-radius: 10px;
+  white-space: nowrap;
+}
 </style>

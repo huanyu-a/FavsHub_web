@@ -23,6 +23,7 @@ export const folders = sqliteTable('folders', {
   name: text('name').notNull(),
   parentId: integer('parent_id').references((): any => folders.id),
   sortOrder: integer('sort_order').default(0),
+  loginRequired: integer('login_required').default(0),
   icon: text('icon').default(''),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
@@ -39,10 +40,12 @@ export const bookmarks = sqliteTable('bookmarks', {
   url: text('url').notNull(),
   folderId: integer('folder_id').references(() => folders.id),
   icon: text('icon'),
+  description: text('description').default(''),
   sortOrder: integer('sort_order').default(0),
   container: text('container').default(''),
-  source: text('source').default(''),
+  source: text('source').default('[]'),
   loginRequired: integer('login_required').default(0),
+  label: text('label').default(''),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
 }, (table) => [
@@ -58,6 +61,8 @@ export const promptFolders = sqliteTable('prompt_folders', {
   name: text('name').notNull(),
   parentId: text('parent_id'),
   icon: text('icon').default(''),
+  sortOrder: integer('sort_order').default(0),
+  loginRequired: integer('login_required').default(0),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
 }, (table) => [
@@ -77,6 +82,8 @@ export const prompts = sqliteTable('prompts', {
   loginRequired: integer('login_required').default(0),
   versionCount: integer('version_count').default(0),
   currentVersion: text('current_version').default('1.0.0'),
+  usageCount: integer('usage_count').default(0),
+  deletedAt: integer('deleted_at'),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
 }, (table) => [
@@ -114,6 +121,7 @@ export const promptVersions = sqliteTable('prompt_versions', {
   content: text('content').notNull(),
   versionNumber: text('version_number').notNull(),
   variables: text('variables').default(''),
+  changeNote: text('change_note').default(''),
   createdAt: integer('created_at'),
 }, (table) => [
   index('idx_prompt_versions_prompt_id').on(table.promptId),
@@ -137,8 +145,80 @@ export const searchEngines = sqliteTable('search_engines', {
   category: text('category').default('SEARCH'),
   sortOrder: integer('sort_order').default(0),
   isDefault: integer('is_default').default(0),
+  status: text('status').default('approved'),
   createdAt: integer('created_at'),
 })
+
+// ─── collections（精选集）─────────────────────────────────────
+export const collections = sqliteTable('collections', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description').default(''),
+  icon: text('icon').default(''),
+  metaTitle: text('meta_title').default(''),
+  metaDescription: text('meta_description').default(''),
+  metaKeywords: text('meta_keywords').default(''),
+  isPublic: integer('is_public').default(0),
+  isOfficial: integer('is_official').default(0),
+  bookmarkCount: integer('bookmark_count').default(0),
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  index('idx_collections_user_id').on(table.userId),
+  index('idx_collections_public').on(table.isPublic, table.isOfficial),
+])
+
+// ─── collection_categories（精选集分类，支持二级）────────────
+export const collectionCategories = sqliteTable('collection_categories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  collectionId: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  parentId: integer('parent_id').references((): any => collectionCategories.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: integer('created_at'),
+}, (table) => [
+  index('idx_cc_collection').on(table.collectionId),
+  index('idx_cc_parent').on(table.parentId),
+])
+
+// ─── collection_bookmarks（精选集书签 → 引用 bookmarks）───────
+export const collectionBookmarks = sqliteTable('collection_bookmarks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  collectionId: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  bookmarkId: integer('bookmark_id').notNull().references(() => bookmarks.id, { onDelete: 'cascade' }),
+  categoryId: integer('category_id').references(() => collectionCategories.id, { onDelete: 'set null' }),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: integer('created_at'),
+}, (table) => [
+  index('idx_cb_collection').on(table.collectionId),
+  index('idx_cb_category').on(table.categoryId),
+  index('idx_cb_bookmark').on(table.bookmarkId),
+  uniqueIndex('idx_cb_collection_bookmark').on(table.collectionId, table.bookmarkId),
+])
+
+// ─── collection_subscriptions（用户订阅关系）──────────────────
+export const collectionSubscriptions = sqliteTable('collection_subscriptions', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  collectionId: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  subscribedAt: integer('subscribed_at'),
+}, (table) => [
+  index('idx_cs_user').on(table.userId),
+  // 复合主键在迁移中定义: PRIMARY KEY (user_id, collection_id)
+])
+
+// ─── collection_imports（用户导入记录）────────────────────────
+export const collectionImports = sqliteTable('collection_imports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  collectionId: text('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  collectionBookmarkId: integer('collection_bookmark_id').notNull().references(() => collectionBookmarks.id, { onDelete: 'cascade' }),
+  bookmarkId: integer('bookmark_id').notNull().references(() => bookmarks.id, { onDelete: 'cascade' }),
+  importedAt: integer('imported_at'),
+}, (table) => [
+  index('idx_ci_user_collection').on(table.userId, table.collectionId),
+  uniqueIndex('idx_ci_unique').on(table.userId, table.collectionId, table.collectionBookmarkId),
+])
 
 // ─── system_config ────────────────────────────────────────────
 // 系统级配置（TDK、注册开关等），独立于用户设置

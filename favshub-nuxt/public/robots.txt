@@ -1,2 +1,14 @@
-User-Agent: *
-Disallow:
+# FavsHub robots.txt
+User-agent: *
+Allow: /
+Allow: /collections
+Allow: /collections/*
+Allow: /prompts
+
+# Disallow admin and login pages
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+
+# Sitemap
+Sitemap: https://favshub.com/sitemap.xml

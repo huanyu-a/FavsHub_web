@@ -72,7 +72,8 @@ export default defineEventHandler(async (event) => {
   // 普通用户同步的书签/文件夹强制为私有（login_required=1）
   const loginRequired = isAdmin ? 0 : 1
 
-  const insertBookmark = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, login_required, container, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  // 仅替换个人书签（label 非空）；公共池 label='' 绝不动
+  const insertBookmark = db.prepare('INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, login_required, container, source, label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
   const findFolder = db.prepare('SELECT id FROM folders WHERE user_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))')
   const createFolder = db.prepare('INSERT INTO folders (user_id, name, parent_id, sort_order, login_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
 
@@ -82,11 +83,22 @@ export default defineEventHandler(async (event) => {
   })
 
   const tx = db.transaction(() => {
-    // 全量替换：先删除该用户所有书签
-    db.prepare('DELETE FROM bookmarks WHERE user_id = ?').run(userId)
-    // 清理该用户所有文件夹（先解除 FK 引用）
-    db.prepare('UPDATE folders SET parent_id = NULL WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM folders WHERE user_id = ?').run(userId)
+    // 全量替换：只删个人书签，保留公共池（精选集引用）
+    db.prepare("DELETE FROM bookmarks WHERE user_id = ? AND COALESCE(label, '') != ''").run(userId)
+
+    // 仅清理不再被任何书签引用的文件夹（避免误删公共池仍在用的文件夹）
+    const usedFolderIds = new Set(
+      (db.prepare('SELECT DISTINCT folder_id FROM bookmarks WHERE user_id = ? AND folder_id IS NOT NULL').all(userId) as { folder_id: number }[])
+        .map(r => r.folder_id)
+    )
+    const allFolders = db.prepare('SELECT id FROM folders WHERE user_id = ?').all(userId) as { id: number }[]
+    const unused = allFolders.map(f => f.id).filter(id => !usedFolderIds.has(id))
+    if (unused.length > 0) {
+      // 先解父级再删，避免自引用 FK 阻碍
+      const ph = unused.map(() => '?').join(',')
+      db.prepare(`UPDATE folders SET parent_id = NULL WHERE id IN (${ph})`).run(...unused)
+      db.prepare(`DELETE FROM folders WHERE id IN (${ph})`).run(...unused)
+    }
 
     for (const bm of bookmarks) {
       // 逐条输入校验，防止恶意数据
@@ -100,11 +112,15 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, data: { error: `文件夹路径无效或过长（最大1024字符）` } })
       }
 
+      // 与公共池 URL 冲突时跳过（UNIQUE(user_id,url)），避免覆盖公共池
+      const existing = db.prepare('SELECT id, label FROM bookmarks WHERE user_id = ? AND url = ?').get(userId, bm.url) as { id: number; label: string | null } | undefined
+      if (existing && !existing.label) continue
+
       // folder_path 纯粹表达文件夹层级（不含容器名）
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)
       // container 独立字段：bar / other / mobile
       const container = typeof bm.container === 'string' ? bm.container : ''
-      insertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, loginRequired, container, 'browser', now, now)
+      insertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, loginRequired, container, JSON.stringify(['sync']), 'sync', now, now)
     }
   })
   tx()

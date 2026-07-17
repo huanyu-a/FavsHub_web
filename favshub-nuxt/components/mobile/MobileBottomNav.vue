@@ -8,7 +8,18 @@
       <span class="mobile-nav-icon">💬</span>
       <span class="mobile-nav-label">提示词</span>
     </NuxtLink>
-    <button class="mobile-nav-item" type="button" @click="toggleFolderPanel">
+    <!-- 未登录：分类意义不大，改为精选集入口；已登录保留分类 -->
+    <NuxtLink
+      v-if="authStore.isGuest || isCollectionsPage"
+      to="/collections"
+      class="mobile-nav-item"
+      :class="{ active: isCollectionsPage }"
+      @click="closeDrawer"
+    >
+      <span class="mobile-nav-icon">📚</span>
+      <span class="mobile-nav-label">精选集</span>
+    </NuxtLink>
+    <button v-else class="mobile-nav-item" type="button" @click="toggleFolderPanel">
       <span class="mobile-nav-icon">📂</span>
       <span class="mobile-nav-label">分类</span>
     </button>
@@ -31,7 +42,7 @@
     <div v-if="isMobile && showFolderPanel" class="mobile-folder-overlay" @click="showFolderPanel = false"></div>
     <Transition name="folder-float">
       <div v-if="isMobile && showFolderPanel" class="mobile-folder-float">
-        <div class="mobile-folder-item" @click="selectFolder('all')">
+        <div class="mobile-folder-item" :class="{ active: isFolderActive('all') }" @click="selectFolder('all')">
           <span class="mobile-folder-icon">📁</span>
           <span class="mobile-folder-name">全部</span>
         </div>
@@ -39,7 +50,7 @@
         <template v-for="folder in rootFolders" :key="folder.id">
           <div
             class="mobile-folder-item"
-            :class="{ active: expandedFolderId === folder.id }"
+            :class="{ active: isFolderActive(folder.id) || expandedFolderId === folder.id }"
             @click="toggleExpandFolder(folder.id)"
           >
             <span class="mobile-folder-icon">{{ folder.icon || '📂' }}</span>
@@ -53,6 +64,7 @@
                 v-for="child in getChildFolders(folder.id)"
                 :key="child.id"
                 class="mobile-folder-item sub"
+                :class="{ active: isFolderActive(child.id) }"
                 @click="selectFolder(child.id)"
               >
                 <span class="mobile-folder-icon sub">{{ child.icon || '📄' }}</span>
@@ -97,6 +109,7 @@ const route = useRoute()
 const { isMobile, drawerOpen, searchSheetOpen, closeDrawer, openSearchSheet, closeSearchSheet } = useMobile()
 
 const isPromptsPage = computed(() => route.path.startsWith('/prompts'))
+const isCollectionsPage = computed(() => route.path.startsWith('/collections'))
 
 // Mobile search: reuse same stores as desktop SearchBar
 const uiStore = useUIStore()
@@ -112,9 +125,22 @@ const promptFolders = ref<any[]>([])
 // 提示词页文件夹筛选状态（共享）
 const activePromptFolderId = useState<string | null>('activePromptFolderId', () => null)
 
+const isCollectionMode = computed(() => !isPromptsPage.value && bookmarksStore.viewMode === 'collection')
+
 const folders = computed(() => {
   if (isPromptsPage.value) {
     return promptFolders.value
+  }
+  // 精选集模式：用精选集分类，与桌面侧栏一致
+  if (bookmarksStore.viewMode === 'collection') {
+    return bookmarksStore.collectionCategories.map(c => ({
+      id: c.id,
+      name: c.name,
+      parent_id: c.parent_id ?? null,
+      icon: undefined as string | undefined,
+      login_required: false,
+      bookmark_count: c.bookmark_count,
+    }))
   }
   return bookmarksStore.folders
 })
@@ -150,16 +176,46 @@ function getChildFolders(parentId: number) {
   return folders.value.filter(f => f.parent_id === parentId)
 }
 
-// 展开/收起二级分类
-function toggleExpandFolder(folderId: number) {
-  if (expandedFolderId.value === folderId) {
-    expandedFolderId.value = null
-  } else {
-    expandedFolderId.value = folderId
-    // 如果没有子分类，直接筛选
-    if (!hasChildren(folderId)) {
-      selectFolder(folderId)
+/** 只改筛选状态，不关闭面板 */
+function applyFolderFilter(folderId: number | 'all') {
+  if (isPromptsPage.value) {
+    activePromptFolderId.value = folderId === 'all' ? null : String(folderId)
+    return
+  }
+  if (isCollectionMode.value) {
+    bookmarksStore.setActiveCategory(folderId === 'all' ? null : folderId)
+    return
+  }
+  bookmarksStore.setCurrentFolder(folderId === 'all' ? null : folderId)
+}
+
+function scrollToFolderSection(folderId: number | 'all') {
+  if (!import.meta.client || isPromptsPage.value) return
+  nextTick(() => {
+    let elId: string
+    if (isCollectionMode.value) {
+      elId = folderId === 'all' ? 'bookmarks-list' : `folder-group-${folderId}`
+    } else {
+      elId = folderId === 'all' ? 'folder-group-recommended' : `folder-group-${folderId}`
     }
+    const el = document.getElementById(elId)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+// 展开/收起二级分类；有子级时先展开并选中父级（不关面板），无子级则直接选中并关闭
+function toggleExpandFolder(folderId: number) {
+  if (hasChildren(folderId)) {
+    if (expandedFolderId.value === folderId) {
+      // 再次点击已展开的父级：选中并关闭
+      selectFolder(folderId)
+    } else {
+      expandedFolderId.value = folderId
+      applyFolderFilter(folderId)
+      scrollToFolderSection(folderId)
+    }
+  } else {
+    selectFolder(folderId)
   }
 }
 
@@ -170,23 +226,21 @@ function toggleFolderPanel() {
 
 function selectFolder(folderId: number | 'all') {
   showFolderPanel.value = false
+  applyFolderFilter(folderId)
+  scrollToFolderSection(folderId)
+}
 
+function isFolderActive(folderId: number | 'all'): boolean {
   if (isPromptsPage.value) {
-    // 提示词页：使用共享状态筛选
-    activePromptFolderId.value = folderId === 'all' ? null : String(folderId)
-  } else {
-    // 首页：使用 bookmarksStore 筛选 + 滚动到对应板块
-    bookmarksStore.setCurrentFolder(folderId === 'all' ? null : folderId)
-    if (import.meta.client) {
-      nextTick(() => {
-        const elId = folderId === 'all' ? 'folder-group-recommended' : `folder-group-${folderId}`
-        const el = document.getElementById(elId)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-      })
-    }
+    if (folderId === 'all') return activePromptFolderId.value == null
+    return activePromptFolderId.value === String(folderId)
   }
+  if (isCollectionMode.value) {
+    if (folderId === 'all') return bookmarksStore.activeCategoryId == null
+    return bookmarksStore.activeCategoryId === folderId
+  }
+  if (folderId === 'all') return bookmarksStore.currentFolderId == null
+  return bookmarksStore.currentFolderId === folderId
 }
 
 // Load bookmarks if not loaded

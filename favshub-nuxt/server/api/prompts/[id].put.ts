@@ -46,7 +46,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, data: { error: '无权修改此提示词' } })
   }
 
-  const { title, description, content, folder_id, tags, is_favorite, login_required } = body || {}
+  const { title, description, content, folder_id, tags, is_favorite, login_required, change_note, deleted_at } = body || {}
+
+  // 还原操作：设置 deleted_at = null（从回收站恢复）
+  if (deleted_at === null || deleted_at === '') {
+    db.prepare('UPDATE prompts SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(Date.now(), id)
+    const updated = db.prepare('SELECT * FROM prompts WHERE id = ?').get(id) as any
+    const updatedTags = db.prepare('SELECT t.id, t.name, t.color FROM prompt_tags pt JOIN tags t ON pt.tag_id = t.id WHERE pt.prompt_id = ?').all(id)
+    updated.tags = updatedTags
+    return { prompt: updated, restored: true }
+  }
 
   // 输入长度校验
   if (title !== undefined && title.length > 256) throw createError({ statusCode: 400, data: { error: '标题最长 256 字符' } })
@@ -82,12 +91,12 @@ export default defineEventHandler(async (event) => {
     updates.push('current_version = ?')
     params.push(`${versionNum}.0`)
 
-    // 创建新版本记录
+    // 创建新版本记录（含变更说明）
     const versionId = randomUUID()
     db.prepare(`
-      INSERT INTO prompt_versions (id, prompt_id, content, version_number, variables, created_at)
-      VALUES (?, ?, ?, ?, '', ?)
-    `).run(versionId, id, content, `${versionNum}.0`, now)
+      INSERT INTO prompt_versions (id, prompt_id, content, version_number, variables, change_note, created_at)
+      VALUES (?, ?, ?, ?, '', ?, ?)
+    `).run(versionId, id, content, `${versionNum}.0`, change_note || '', now)
   }
 
   if (updates.length > 0) {

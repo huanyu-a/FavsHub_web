@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
 
   // 按域名去重，同一域名只下载一次
   const updateByHostname = db.prepare(
-    'UPDATE bookmarks SET icon = ? WHERE user_id = ? AND url LIKE ?'
+    `UPDATE bookmarks SET icon = ? WHERE user_id = ? AND url LIKE ? ESCAPE '\\'`
   )
   const seenHostnames = new Set<string>()
   let count = 0
@@ -79,9 +79,11 @@ export default defineEventHandler(async (event) => {
 
       if (!buf) continue // 没有有效图标，跳过
 
+      // 使用精确的域名匹配，避免 hostname 子串误匹配
+      // LIKE '%://hostname/%' 会误匹配 'notexample.com' 当 hostname='example.com'
+      const escapedHostname = hostname.replace(/[%_\\]/g, '\\$&')
       writeFileSync(filepath, buf)
-      // 更新该域名下所有书签的图标（同域名共享一个图标文件）
-      updateByHostname.run(localPath, userId, `%://${hostname}/%`)
+      updateByHostname.run(localPath, userId, `%://${escapedHostname}/%`)
       count++
     } catch (e: any) {
       console.warn('[favicon] 保存失败:', item.url, e.message)

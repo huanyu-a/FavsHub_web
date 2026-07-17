@@ -44,7 +44,19 @@ export default defineEventHandler(async (event) => {
       db.prepare('UPDATE folders SET icon = ? WHERE id = ?').run(icon, folder.id)
     }
     if (parent_id !== undefined) {
+      // 校验 parent_id 归属（防止跨用户挂载文件夹）
+      if (parent_id !== null) {
+        const parent = db.prepare('SELECT id, user_id FROM folders WHERE id = ?').get(parent_id) as { id: number; user_id: number } | undefined
+        if (!parent) {
+          throw createError({ statusCode: 400, data: { error: '目标父文件夹不存在' } })
+        }
+        if (parent.user_id !== user.id) {
+          throw createError({ statusCode: 403, data: { error: '无权移动至此文件夹' } })
+        }
+      }
       // 检查循环引用：遍历 parent_id 链，确保不会形成环
+      // 外层 `parent_id !== folder.id` 是最直接的防自引用（不能把自己的 parent 设为自己），
+      // 但仅此还不够——设置 parent_id 为某个已有子孙节点也会形成环，所以需要下面的 while 循环向上追索。
       if (parent_id !== null && parent_id !== folder.id) {
         let currentParent: number | null = parent_id
         const visited = new Set<number>([folder.id])

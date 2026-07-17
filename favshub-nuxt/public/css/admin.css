@@ -67,6 +67,7 @@ tbody tr:hover { background: var(--surface-hover); }
 .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .modal-header h3 { font-size: 16px; }
 .modal-body { padding: 16px 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary); }
 
 .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
@@ -293,8 +294,8 @@ tr:hover { background: var(--surface-hover); }
 
 /* --- 仪表盘快捷导航（index） --- */
 .admin-nav { margin-bottom: 32px; }
-.nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-.nav-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: inherit; transition: box-shadow 0.2s, transform 0.15s; }
+.nav-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.nav-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: inherit; transition: box-shadow 0.2s, transform 0.15s; flex: 0 0 auto; min-width: 160px; }
 .nav-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 .nav-icon { font-size: 24px; color: var(--primary); }
 .nav-label { font-size: 14px; color: var(--text-primary); font-weight: 500; }
@@ -399,7 +400,7 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
   .page-header h1 { font-size: 18px; }
   .page-title { font-size: 18px; }
   .stats-groups { grid-template-columns: 1fr; }
-  .nav-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .nav-grid { gap: 8px; }
   .nav-card { padding: 14px; }
   .nav-icon { font-size: 20px; }
   .nav-label { font-size: 13px; }
@@ -428,7 +429,7 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
   .admin-page { padding: 12px; }
   .page-header h1 { font-size: 16px; }
   .page-title { font-size: 16px; }
-  .nav-grid { grid-template-columns: 1fr 1fr; }
+  .nav-grid { gap: 8px; }
   .export-cards { grid-template-columns: 1fr; }
   .search-input { min-width: 100%; }
   .page-header { flex-direction: column; align-items: flex-start; }

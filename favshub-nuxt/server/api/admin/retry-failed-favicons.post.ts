@@ -91,14 +91,15 @@ export default defineEventHandler(async (event) => {
 
   const hostnames = Object.keys(hostGroups)
   let errors = 0
-  const updateByHostname = db.prepare("UPDATE bookmarks SET icon = ? WHERE url LIKE ?")
+  const updateByHostname = db.prepare(`UPDATE bookmarks SET icon = ? WHERE url LIKE ? ESCAPE '\\'`)
 
   for (const hostname of hostnames) {
     const localPath = `/images/favicons/${hostname}.png`
     const destPath = join(faviconDir, hostname + '.png')
+    const escapedHostname = hostname.replace(/[%_\\]/g, '\\$&')
 
     if (existsSync(destPath)) {
-      updateByHostname.run(localPath, `%://${hostname}/%`)
+      updateByHostname.run(localPath, `%://${escapedHostname}/%`)
       continue
     }
 
@@ -107,7 +108,7 @@ export default defineEventHandler(async (event) => {
     const faviconUrl = sourceUrl.replace('{domain}', hostname).replace('{size}', sz)
     try {
       await downloadFavicon(faviconUrl, destPath)
-      updateByHostname.run(localPath, `%://${hostname}/%`)
+      updateByHostname.run(localPath, `%://${escapedHostname}/%`)
     } catch {
       errors++
     }

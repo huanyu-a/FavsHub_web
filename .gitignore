@@ -18,3 +18,4 @@ tmp_*
 cookies.txt
 favshub-nuxt/DEPLOY.md
 favshub-latest.tar.gz
+.zcode/

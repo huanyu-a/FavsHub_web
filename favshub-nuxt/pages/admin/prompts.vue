@@ -14,9 +14,11 @@
       <button :class="{ active: tab === 'prompts' }" @click="tab = 'prompts'">提示词列表</button>
       <button :class="{ active: tab === 'folders' }" @click="tab = 'folders'">文件夹管理</button>
       <button :class="{ active: tab === 'tags' }" @click="tab = 'tags'">标签管理</button>
+      <button :class="{ active: tab === 'trash' }" @click="tab = 'trash'; loadTrash()">回收站</button>
       <button :class="{ active: tab === 'history' }" @click="tab = 'history'">历史记录</button>
       <button v-if="isAdmin" :class="{ active: tab === 'reviews' }" @click="tab = 'reviews'; loadReviews()">审核请求</button>
       <button v-if="isAdmin" :class="{ active: tab === 'tdk' }" @click="tab = 'tdk'">TDK 设置</button>
+      <button v-if="isAdmin" :class="{ active: tab === 'dev' }" @click="tab = 'dev'">开发工具</button>
     </div>
     <!-- 提示词列表 -->
     <div v-if="tab === 'prompts'" class="card">
@@ -109,6 +111,33 @@
             <td class="actions">
               <button v-if="isAdmin || t.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button>
               <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- 回收站 -->
+    <div v-if="tab === 'trash'" class="card">
+      <div class="card-header">
+        <h3>回收站</h3>
+        <div>
+          <button class="btn btn-ghost btn-sm" @click="emptyTrash" :disabled="trashList.length === 0">清空回收站</button>
+          <button class="btn btn-ghost btn-sm" @click="loadTrash">刷新</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>标题</th><th>描述</th><th>用户</th><th>删除时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr v-if="trashLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
+          <tr v-else-if="trashList.length === 0"><td colspan="5" class="empty-state">回收站为空</td></tr>
+          <tr v-for="p in trashList" :key="p.id">
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.title }}</td>
+            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.description || '-' }}</td>
+            <td>{{ p.username || p.user_id }}</td>
+            <td>{{ p.deleted_at ? new Date(p.deleted_at).toLocaleString() : '-' }}</td>
+            <td class="actions">
+              <button class="btn btn-ghost btn-sm" @click="restorePrompt(p)">恢复</button>
+              <button class="btn btn-danger btn-sm" @click="permanentDeletePrompt(p)">永久删除</button>
             </td>
           </tr>
         </tbody>
@@ -250,6 +279,27 @@
 	        </div>
 	      </div>
 	    </div>
+    <!-- 开发工具 -->
+    <div v-if="tab === 'dev'" class="card">
+      <div class="card-header"><h3>开发工具</h3></div>
+      <div style="padding: 16px 20px;">
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin: 0 0 8px;">填充测试数据</h4>
+          <p style="color: var(--text-tertiary); font-size: 13px; margin: 0 0 12px;">一键生成 12 条示例提示词、文件夹、标签和版本历史（仅当您的提示词 ≤ 5 条时可用，避免重复填充）。</p>
+          <button class="btn btn-primary btn-sm" :disabled="devLoading" @click="seedDevData">
+            {{ devLoading ? '生成中...' : '🔧 填充测试数据' }}
+          </button>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin: 0 0 8px;">清空数据</h4>
+          <p style="color: var(--text-tertiary); font-size: 13px; margin: 0 0 12px;">永久删除您创建的所有提示词、文件夹和标签数据，不可恢复。</p>
+          <button class="btn btn-danger btn-sm" :disabled="devLoading" @click="clearDevData">
+            🗑️ 清空全部数据
+          </button>
+        </div>
+        <div v-if="devMsg" :class="['message', devMsgType]" style="margin-top: 8px;">{{ devMsg }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -277,6 +327,10 @@ const pPageSize = 30
 const pTotalPages = computed(() => Math.max(1, Math.ceil(pTotal.value / pPageSize)))
 const pPages = computed(() => { const a: number[] = []; for (let i = Math.max(1, pPage.value - 2); i <= Math.min(pTotalPages.value, pPage.value + 2); i++) a.push(i); return a })
 const promptStats = reactive({ total: 0, folders: 0, tags: 0, versions: 0 })
+// 开发工具
+const devLoading = ref(false)
+const devMsg = ref('')
+const devMsgType = ref<'success' | 'error'>('success')
 async function loadPrompts() {
   pLoading.value = true
   try {
@@ -387,11 +441,101 @@ const history = ref<any[]>([])
 const hLoading = ref(false)
 async function loadHistory() { hLoading.value = true; try { const d = await $fetch<any>('/api/admin/prompts/history', { headers: getAuthHeaders() }); history.value = d.versions || [] } catch (e) { console.error('加载历史失败', e); history.value = [] } finally { hLoading.value = false } }
 function viewHistory(p: any) { tab.value = 'history'; loadHistory() }
+// Trash
+const trashList = ref<any[]>([])
+const trashLoading = ref(false)
+async function loadTrash() {
+  trashLoading.value = true
+  try {
+    const d = await $fetch<any>('/api/admin/prompts?deleted=1', { headers: getAuthHeaders(), credentials: 'include' })
+    trashList.value = d.prompts || []
+  } catch (e) {
+    console.error('加载回收站失败', e)
+    trashList.value = []
+  } finally {
+    trashLoading.value = false
+  }
+}
+async function restorePrompt(p: any) {
+  if (!confirm(`恢复提示词「${p.title}」？`)) return
+  try {
+    await $fetch(`/api/prompts/${p.id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: { deleted_at: null }
+    })
+    loadTrash()
+    loadStats()
+  } catch (e: any) {
+    alert('恢复失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
+}
+async function permanentDeletePrompt(p: any) {
+  if (!confirm(`永久删除提示词「${p.title}」？此操作不可恢复！`)) return
+  try {
+    await $fetch(`/api/prompts/${p.id}?permanent=1`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include'
+    })
+    loadTrash()
+    loadStats()
+  } catch (e: any) {
+    alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  }
+}
+async function emptyTrash() {
+  if (!confirm('确定清空回收站？此操作将永久删除所有已删除的提示词，不可恢复！')) return
+  trashLoading.value = true
+  try {
+    for (const p of trashList.value) {
+      await $fetch(`/api/prompts/${p.id}?permanent=1`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      })
+    }
+    loadTrash()
+    loadStats()
+  } catch (e: any) {
+    alert('清空失败: ' + (e?.data?.error || e?.message || '未知错误'))
+  } finally {
+    trashLoading.value = false
+  }
+}
 // TDK
 const tdk = reactive({ promptproTitle: '', promptproDescription: '', promptproKeywords: '' })
 async function loadTdk() { try { const d = await $fetch<any>('/api/tdk/promptpro', { headers: getAuthHeaders() }); Object.assign(tdk, { promptproTitle: d.promptproTitle || '', promptproDescription: d.promptproDescription || '', promptproKeywords: d.promptproKeywords || '' }) } catch (e) { console.error('加载 TDK 失败', e) } }
 let tdkTimer: any = null
 function saveTdk() { clearTimeout(tdkTimer); tdkTimer = setTimeout(async () => { try { await $fetch('/api/admin/config', { method: 'PUT', headers: getAuthHeaders(), body: { data: { ...tdk } } }) } catch (e) { console.error('保存 TDK 失败', e) } }, 500) }
+// 开发工具
+async function seedDevData() {
+  devLoading.value = true; devMsg.value = ''
+  try {
+    const res = await $fetch<any>('/api/admin/dev/seed-prompts', { method: 'POST', headers: getAuthHeaders(), credentials: 'include' })
+    if (res.success) {
+      devMsg.value = `已生成 ${res.data.prompts} 条提示词、${res.data.folders} 个文件夹、${res.data.tags} 个标签`
+      devMsgType.value = 'success'
+      loadStats(); loadPrompts()
+    } else {
+      devMsg.value = res.message || '填充失败'
+      devMsgType.value = 'error'
+    }
+  } catch (e: any) { devMsg.value = '填充失败: ' + (e?.data?.error || e?.message || '未知错误'); devMsgType.value = 'error' }
+  devLoading.value = false
+}
+async function clearDevData() {
+  if (!confirm('确定清空所有提示词数据？此操作不可恢复！')) return
+  devLoading.value = true; devMsg.value = ''
+  try {
+    const res = await $fetch<any>('/api/admin/dev/clear-prompts', { method: 'POST', headers: getAuthHeaders(), credentials: 'include' })
+    devMsg.value = `已清空 ${res.deleted} 条提示词`
+    devMsgType.value = 'success'
+    loadStats(); loadPrompts()
+  } catch (e: any) { devMsg.value = '清空失败: ' + (e?.data?.error || e?.message || '未知错误'); devMsgType.value = 'error' }
+  devLoading.value = false
+}
 // Edit modal
 const editVisible = ref(false)
 const ef = reactive({ id: '', title: '', description: '', content: '', folder_id: null as string | null, login_required: 0, _reviewMode: false })

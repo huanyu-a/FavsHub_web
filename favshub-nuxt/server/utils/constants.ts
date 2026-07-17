@@ -6,6 +6,7 @@ export const SYSTEM_ONLY_KEYS = [
   // TDK
   'siteTitle', 'siteDescription', 'siteKeywords',
   'promptproTitle', 'promptproDescription', 'promptproKeywords',
+  'collectionsTitle', 'collectionsDescription', 'collectionsKeywords',
   'title', 'description', 'keywords',
   // System
   'allow_registration',
@@ -29,12 +30,15 @@ export const SYSTEM_ONLY_KEYS = [
  */
 export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   // TDK
-  siteTitle: 'FavsHub - 智能书签工作台',
-  siteDescription: 'FavsHub 智能书签工作台 - 高效管理浏览器书签、AI提示词，支持多端同步、智能搜索、自定义导航页',
-  siteKeywords: '书签管理,智能导航,AI提示词,工作台,FavsHub,浏览器书签同步,提示词管理',
-  promptproTitle: 'PromptPro - AI提示词管理系统',
-  promptproDescription: 'PromptPro 提示词管理系统 - 集中管理、分类整理、快速检索AI提示词，提升工作效率',
-  promptproKeywords: 'PromptPro,提示词管理,AI提示词,提示词分类,提示词模板,ChatGPT提示词',
+  siteTitle: 'FavsHub-网址导航与智能书签管理工作台',
+  siteDescription: 'FavsHub 智能网址导航工作台，一站式管理浏览器书签、工具导航与AI提示词。精选集市场涵盖各行各业常用网址导航合集，支持浏览器扩展多端同步、聚合搜索与自定义导航页。',
+  siteKeywords: '网址导航,导航网站,工具导航,书签管理,浏览器书签同步,智能导航页,AI提示词,网站导航,FavsHub',
+  promptproTitle: 'PromptPro-AI提示词管理与分享平台',
+  promptproDescription: 'PromptPro 提示词管理系统，集中管理、分类整理、版本控制与分享AI提示词。支持ChatGPT、Claude、DeepSeek等主流模型，标签化管理让提示词随取随用。',
+  promptproKeywords: 'PromptPro,提示词管理,AI提示词,ChatGPT提示词,Claude提示词,提示词模板,提示词分类,提示词分享',
+  collectionsTitle: '网址导航精选集',
+  collectionsDescription: 'FavsHub 网址导航精选集 — 从 AI 工具到设计资源、从开发框架到效率神器，按行业与场景分类整理，一键导入你的专属导航页。',
+  collectionsKeywords: '网址导航,导航网站,工具导航,精选集,书签合集,网址合集,行业导航,网站导航合集,FavsHub',
   // System
   allow_registration: 'true',
   // Backup

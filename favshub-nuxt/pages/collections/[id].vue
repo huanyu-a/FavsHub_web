@@ -1,0 +1,441 @@
+<template>
+  <div class="collection-detail-page">
+    <header class="detail-header">
+      <div class="header-left">
+        <NuxtLink to="/collections" class="back-link"><i class="ri-arrow-left-line"></i> 返回市场</NuxtLink>
+        <h1 class="detail-title">
+          <span v-if="collection && collection.icon" class="title-icon">{{ collection.icon }}</span>
+          {{ collection ? collection.name : '' }}
+          <span v-if="collection && collection.is_official" class="official-tag">官方</span>
+        </h1>
+        <p class="detail-desc">{{ collection ? collection.description : '' }}</p>
+      </div>
+      <div class="header-actions">
+        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-subscribe-detail" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">
+          <i :class="isSubscribed ? 'ri-bookmark-fill' : 'ri-bookmark-line'"></i>
+          {{ isSubscribed ? '已订阅' : '订阅' }}
+        </button>
+        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="importing" @click="importAll">
+          <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-cloud-line'"></i> 导入全部
+        </button>
+        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-secondary" @click="selectMode = true">
+          <i class="ri-checkbox-line"></i> 选择导入
+        </button>
+        <span v-if="selectMode" class="selected-count">已选 {{ selectedIds.size }} 条</span>
+        <button v-if="selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="selectedIds.size === 0 || importing" @click="importSelected">
+          <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-line'"></i> 导入已选
+        </button>
+        <button v-if="selectMode" type="button" class="btn btn-ghost" @click="cancelSelect">取消</button>
+      </div>
+    </header>
+    <div v-if="loading" class="loading-state"><i class="ri-loader-4-line spin"></i><p>加载中...</p></div>
+    <div v-else-if="collection && (!collection.categories || collection.categories.length === 0)" class="empty-state"><p>该精选集暂无书签</p></div>
+    <div v-else class="categories-list">
+      <template v-for="cat in (collection ? collection.categories : [])" :key="cat.name">
+        <div class="category-section">
+          <div class="category-header">
+            <h2 class="category-name">{{ cat.name }} <span class="count">({{ cat.bookmark_count }})</span></h2>
+            <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-sm btn-ghost" :disabled="importing" @click="importCategory(cat)">
+              <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i> 导入此分类
+            </button>
+          </div>
+          <div class="bookmarks-grid">
+            <div v-for="b in cat.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
+              <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
+                <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
+              </label>
+              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
+              <div class="bookmark-info">
+                <h3 class="bookmark-title">{{ b.title }}</h3>
+                <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
+                <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
+              </div>
+              <button v-if="!selectMode && isLoggedIn" type="button" class="btn-import-one" title="导入此书签" :disabled="importing" @click.stop="importOne(b.id)">
+                <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- 子分类（缩进显示） -->
+        <div v-for="child in cat.children" :key="child.name" class="category-section sub-category">
+          <div class="category-header">
+            <h3 class="category-name sub">{{ child.name }} <span class="count">({{ child.bookmark_count }})</span></h3>
+            <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-sm btn-ghost" :disabled="importing" @click="importCategory(child)">
+              <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i> 导入
+            </button>
+          </div>
+          <div class="bookmarks-grid">
+            <div v-for="b in child.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
+              <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
+                <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
+              </label>
+              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
+              <div class="bookmark-info">
+                <h3 class="bookmark-title">{{ b.title }}</h3>
+                <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
+                <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
+              </div>
+              <button v-if="!selectMode && isLoggedIn" type="button" class="btn-import-one" title="导入此书签" :disabled="importing" @click.stop="importOne(b.id)">
+                <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div v-if="selectMode && selectedIds.size > 0" class="bottom-bar">
+      <span>已选择 {{ selectedIds.size }} 条</span>
+      <button type="button" class="btn btn-primary" :disabled="importing" @click="importSelected">
+        <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-line'"></i> 导入所选
+      </button>
+    </div>
+    <div v-if="msg" class="toast" :class="msgType">{{ msg }}</div>
+  </div>
+</template>
+<script setup lang="ts">
+import { ref, computed, onUnmounted, watch } from 'vue'
+
+definePageMeta({ layout: 'default' })
+
+interface ICollectionBookmark {
+  id: number; title: string; url: string; icon: string; description: string; category_id: number | null; sort_order: number
+}
+interface ICollectionCategory {
+  id: number; name: string; parent_id: number | null; _depth: number; bookmark_count: number; bookmarks: ICollectionBookmark[]; children: ICollectionCategory[]
+}
+interface ICollection {
+  id: string; name: string; description: string; icon: string; is_public: number; is_official: number
+  bookmark_count: number; created_at: number; updated_at?: number; user_id?: number; username?: string
+  meta_title?: string; meta_description?: string; meta_keywords?: string
+  categories?: ICollectionCategory[]
+}
+interface IImportResult {
+  success: boolean; imported: number; skipped: number; folder_id: string | null; folder_name: string; collection_name: string
+}
+
+const route = useRoute()
+const collectionId = computed(() => route.params.id as string)
+const authStore = useAuthStore()
+const isLoggedIn = computed(() => authStore.isLoggedIn)
+const selectMode = ref(false)
+const selectedIds = ref<Set<number>>(new Set())
+const msg = ref('')
+const msgType = ref<'success' | 'error'>('success')
+const importing = ref(false)
+const subscribing = ref(false)
+const isSubscribed = ref(false)
+
+async function toggleSubscribe() {
+  if (subscribing.value) return
+  subscribing.value = true
+  try {
+    if (isSubscribed.value) {
+      await $fetch(`/api/collections/${collectionId.value}/subscribe`, { method: 'DELETE' })
+      isSubscribed.value = false
+      showToast('已取消订阅', 'success')
+    } else {
+      await $fetch(`/api/collections/${collectionId.value}/subscribe`, { method: 'POST' })
+      isSubscribed.value = true
+      showToast('订阅成功', 'success')
+    }
+  } catch (e: any) {
+    showToast(e?.data?.error || '操作失败', 'error')
+  } finally {
+    subscribing.value = false
+  }
+}
+
+const { data: collectionData, pending } = await useFetch<{ collection: ICollection; categories: any[]; bookmarks: any[] }>(
+  () => '/api/collections/' + collectionId.value,
+  { server: true, lazy: false }
+)
+const loading = computed(() => pending.value)
+
+// 检查并设置订阅状态（必须在 useFetch 之后）
+watch(collectionData, (data) => {
+  if (data?.is_subscribed !== undefined) {
+    isSubscribed.value = !!data.is_subscribed
+  }
+}, { immediate: true })
+
+// 将平级的 categories 和 bookmarks 转换为前端期望的格式
+const collection = computed(() => {
+  const rawCollection = collectionData.value?.collection
+  if (!rawCollection) return null
+
+  const categories = collectionData.value?.categories || []
+  const bookmarks = collectionData.value?.bookmarks || []
+
+  // 按分类分组书签（支持二级层级）
+  // 分类计数：包含自身书签 + 子分类书签
+  const childIds = new Map<number, number[]>()
+  for (const cat of categories) {
+    if (cat.parent_id) {
+      if (!childIds.has(cat.parent_id)) childIds.set(cat.parent_id, [])
+      childIds.get(cat.parent_id)!.push(cat.id)
+    }
+  }
+
+  const groupedCategories: ICollectionCategory[] = categories
+    .filter(cat => !cat.parent_id) // 只取顶级分类
+    .map(cat => {
+      const childrenIds = childIds.get(cat.id) || []
+      const ownBookmarks = bookmarks.filter(bm => bm.category_id === cat.id)
+      const childrenBookmarks = bookmarks.filter(bm => childrenIds.includes(bm.category_id))
+      const children: ICollectionCategory[] = categories
+        .filter(c => c.parent_id === cat.id)
+        .map(child => {
+          const childBms = bookmarks.filter(bm => bm.category_id === child.id)
+          return {
+            id: child.id,
+            name: child.name,
+            parent_id: child.parent_id,
+            _depth: 1,
+            bookmark_count: childBms.length,
+            bookmarks: childBms,
+            children: []
+          }
+        })
+
+      return {
+        id: cat.id,
+        name: cat.name,
+        parent_id: null,
+        _depth: 0,
+        bookmark_count: ownBookmarks.length + childrenBookmarks.length,
+        bookmarks: ownBookmarks,
+        children
+      }
+    })
+
+  // 添加未分类的书签
+  const categorizedIds = new Set(categories.map(c => c.id))
+  const uncategorizedBookmarks = bookmarks.filter(bm => !bm.category_id || !categorizedIds.has(bm.category_id))
+  if (uncategorizedBookmarks.length > 0) {
+    groupedCategories.push({
+      id: 0,
+      name: '未分类',
+      parent_id: null,
+      _depth: 0,
+      bookmark_count: uncategorizedBookmarks.length,
+      bookmarks: uncategorizedBookmarks,
+      children: []
+    })
+  }
+
+  return {
+    ...rawCollection,
+    categories: groupedCategories
+  }
+})
+
+// SEO meta tags for collection detail page
+const config = useRuntimeConfig()
+const baseUrl = config.public.baseUrl || 'https://favshub.com'
+
+watch(collection, (val) => {
+  if (val?.name) {
+    const title = val.meta_title || `${val.name}-网址导航精选集`
+    const description = val.meta_description || val.description || `${val.name}网址导航精选集，收录 ${val.bookmark_count || 0} 个优质网站与工具，一键导入 FavsHub 打造你的专属导航页`
+    const keywords = val.meta_keywords || `${val.name},网址导航,工具导航,精选集,FavsHub`
+    const url = `${baseUrl}/collections/${val.id}`
+
+    useHead({
+      title,
+      meta: [
+        { name: 'description', content: description },
+        { name: 'keywords', content: keywords },
+        // Open Graph
+        { property: 'og:site_name', content: 'FavsHub' },
+        { property: 'og:title', content: val.meta_title || `${val.name}-网址导航精选集` },
+        { property: 'og:description', content: description },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: url },
+        { property: 'og:locale', content: 'zh_CN' },
+        // Twitter Card
+        { name: 'twitter:card', content: 'summary' },
+        { name: 'twitter:title', content: val.meta_title || `${val.name}-网址导航精选集` },
+        { name: 'twitter:description', content: description }
+      ],
+      link: [
+        { rel: 'canonical', href: url },
+      ],
+      // JSON-LD structured data
+      script: val.categories && val.categories.length > 0 ? [
+        {
+          type: 'application/ld+json',
+          children: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: val.name,
+            description: val.description || val.name,
+            numberOfItems: val.bookmark_count || 0,
+            itemListElement: val.categories[0]?.bookmarks?.slice(0, 10).map((bm: ICollectionBookmark, idx: number) => ({
+              '@type': 'ListItem',
+              position: idx + 1,
+              name: bm.title,
+              url: bm.url
+            })) || []
+          })
+        }
+      ] : []
+    })
+  }
+}, { immediate: true })
+
+function toggleSelect(id: number) { const s = selectedIds.value; if (s.has(id)) s.delete(id); else s.add(id) }
+function cancelSelect() { selectMode.value = false; selectedIds.value = new Set() }
+
+async function importAll() {
+  if (importing.value) return; importing.value = true
+  try { const r = await $fetch<IImportResult>('/api/collections/' + collectionId.value + '/import', { method: 'POST', body: { mode: 'all' } }); showToast('成功导入 ' + r.imported + ' 条' + (r.skipped ? '（跳過 ' + r.skipped + ' 条重複）' : ''), 'success') }
+  catch (e: any) { showToast(e?.data?.error || '导入失败', 'error') }
+  finally { importing.value = false }
+}
+async function importCategory(cat: ICollectionCategory) {
+  if (importing.value) return; importing.value = true
+  try { const r = await $fetch<IImportResult>('/api/collections/' + collectionId.value + '/import', { method: 'POST', body: { mode: 'category', category_id: cat.id } }); showToast('导入「' + cat.name + '」' + r.imported + ' 条', 'success') }
+  catch (e: any) { showToast(e?.data?.error || '导入失败', 'error') }
+  finally { importing.value = false }
+}
+async function importSelected() {
+  if (selectedIds.value.size === 0 || importing.value) return; importing.value = true
+  try { const r = await $fetch<IImportResult>('/api/collections/' + collectionId.value + '/import', { method: 'POST', body: { mode: 'selected', bookmark_ids: Array.from(selectedIds.value) } }); showToast('成功导入 ' + r.imported + ' 条', 'success'); cancelSelect() }
+  catch (e: any) { showToast(e?.data?.error || '导入失败', 'error') }
+  finally { importing.value = false }
+}
+async function importOne(bid: number) {
+  if (importing.value) return; importing.value = true
+  try { const r = await $fetch<IImportResult>('/api/collections/' + collectionId.value + '/import', { method: 'POST', body: { mode: 'selected', bookmark_ids: [bid] } }); showToast(r.imported ? '已导入' : '已在书库中', 'success') }
+  catch (e: any) { showToast(e?.data?.error || '导入失败', 'error') }
+  finally { importing.value = false }
+}
+function getUrlDomain(u: string) { try { return new URL(u).hostname } catch { return u } }
+function getFavicon(b: ICollectionBookmark) { if (b.icon) return b.icon; try { return 'https://www.google.com/s2/favicons?domain=' + new URL(b.url).hostname } catch { return '' } }
+function onIconError(e: Event) { (e.target as HTMLImageElement).style.display = 'none' }
+let msgTimer: ReturnType<typeof setTimeout>
+function showToast(t: string, type: 'success' | 'error') { msg.value = t; msgType.value = type; clearTimeout(msgTimer); msgTimer = setTimeout(() => { msg.value = '' }, 2500) }
+onUnmounted(() => { clearTimeout(msgTimer) })
+</script>
+<style scoped>
+.collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+.detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+.back-link { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary, #6b7280); font-size: 13px; text-decoration: none; margin-bottom: 8px; }
+.back-link:hover { color: var(--primary, #10b981); }
+.detail-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 20px; font-weight: 600; }
+.title-icon { font-size: 20px; }
+.official-tag { font-size: 11px; font-weight: 600; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); padding: 2px 8px; border-radius: 10px; }
+.detail-desc { margin: 4px 0 0; color: var(--text-secondary, #6b7280); font-size: 14px; }
+.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.selected-count { font-size: 13px; color: var(--text-secondary, #6b7280); }
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+.btn-subscribe-detail {
+  display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  background: var(--surface-sunken, #f3f4f6); color: var(--text-secondary, #6b7280);
+  border: 1px solid var(--border, #e5e7eb);
+}
+.btn-subscribe-detail:hover { color: var(--primary, #10b981); border-color: var(--primary, #10b981); }
+.btn-subscribe-detail.subscribed { color: var(--primary, #10b981); border-color: var(--primary, #10b981); background: color-mix(in srgb, var(--primary, #10b981) 10%, transparent); }
+.btn-subscribe-detail:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--primary, #10b981); color: #fff; }
+.btn-primary:hover { background: color-mix(in srgb, var(--primary, #10b981) 85%, #000); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--bg-secondary, #f3f4f6); color: var(--text-primary); border-color: var(--border, #e5e7eb); }
+.btn-secondary:hover { background: var(--bg-tertiary, #e5e7eb); }
+.btn-ghost { background: none; color: var(--text-secondary, #6b7280); border-color: var(--border, #e5e7eb); }
+.btn-ghost:hover { background: var(--bg-secondary, #f9fafb); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.loading-state, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-tertiary, #9ca3af); }
+.categories-list { display: flex; flex-direction: column; gap: 24px; }
+.category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.category-name { margin: 0; font-size: 18px; font-weight: 600; }
+.category-name.sub { font-size: 15px; font-weight: 500; }
+.sub-category { margin-left: 24px; padding-left: 16px; border-left: 2px solid var(--border, #e5e7eb); }
+.count { font-size: 14px; font-weight: 400; color: var(--text-tertiary, #9ca3af); }
+.bookmarks-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.bookmark-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; background: var(--bg-primary, #fff); transition: all 0.15s; }
+.bookmark-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.bookmark-card.selected { border-color: var(--primary, #10b981); background: color-mix(in srgb, var(--primary, #10b981) 4%, transparent); }
+.card-checkbox { flex-shrink: 0; margin-top: 2px; cursor: pointer; }
+.bookmark-icon { width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+.bookmark-info { flex: 1; min-width: 0; }
+.bookmark-title { margin: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-desc { margin: 2px 0; font-size: 12px; color: var(--text-tertiary, #9ca3af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-url { font-size: 11px; color: var(--primary, #10b981); text-decoration: none; }
+.btn-import-one { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border, #e5e7eb); border-radius: 6px; background: none; cursor: pointer; color: var(--text-secondary, #6b7280); flex-shrink: 0; }
+.btn-import-one:hover { background: var(--primary, #10b981); color: #fff; border-color: var(--primary, #10b981); }
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 12px 24px; background: var(--bg-primary, #fff); border-top: 1px solid var(--border, #e5e7eb); box-shadow: 0 -2px 8px rgba(0,0,0,0.06); z-index: 50; }
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 100; }
+.toast.success { background: #10b981; color: #fff; }
+.toast.error { background: #ef4444; color: #fff; }
+
+/* ── 移动端适配 ── */
+@media (max-width: 1024px) {
+  .collection-detail-page {
+    padding: 72px 16px 96px;
+  }
+  .bottom-bar {
+    bottom: 72px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 9990;
+  }
+  .toast {
+    top: 68px;
+    z-index: 10010;
+  }
+}
+@media (max-width: 768px) {
+  .collection-detail-page {
+    padding: 68px 12px 96px;
+  }
+  .detail-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .header-actions .btn,
+  .header-actions .btn-subscribe-detail {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-width: calc(50% - 4px);
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .detail-title {
+    font-size: 18px;
+  }
+  .sub-category {
+    margin-left: 8px;
+    padding-left: 10px;
+  }
+  .bookmarks-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .category-name {
+    font-size: 16px;
+  }
+  .category-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+@media (max-width: 480px) {
+  .collection-detail-page {
+    padding: 60px 10px 96px;
+  }
+  .bookmarks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .header-actions .btn,
+  .header-actions .btn-subscribe-detail {
+    min-width: 100%;
+  }
+}
+</style>

@@ -68,19 +68,21 @@ export default defineEventHandler(async (event) => {
 
   const findFolder = db.prepare('SELECT id FROM folders WHERE user_id = ? AND name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))')
   const createFolder = db.prepare('INSERT INTO folders (user_id, name, parent_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+  // 冲突时：公共池(label='')不更新；个人书签更新字段但永不改 label
   const upsertBookmark = db.prepare(`
-    INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, container, source, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'browser', ?, ?)
+    INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, container, source, label, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'sync', ?, ?)
     ON CONFLICT(user_id, url) DO UPDATE SET
       title = excluded.title,
       folder_id = excluded.folder_id,
-      icon = bookmarks.icon,
+      icon = excluded.icon,
       sort_order = excluded.sort_order,
       container = excluded.container,
-      source = 'browser',
+      source = excluded.source,
       updated_at = excluded.updated_at
+    WHERE COALESCE(bookmarks.label, '') != ''
   `)
-  const checkExisting = db.prepare('SELECT id FROM bookmarks WHERE user_id = ? AND url = ?')
+  const checkExisting = db.prepare('SELECT id, source, label FROM bookmarks WHERE user_id = ? AND url = ?')
 
   const folderCache = new Map<string, number>()
   let foldersCreated = 0
@@ -111,19 +113,34 @@ export default defineEventHandler(async (event) => {
 
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)
       const container = bm.container || ''
-      incomingUrls.add(bm.url)
 
-      const existing = checkExisting.get(userId, bm.url)
-      upsertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, container, now, now)
+      const existing = checkExisting.get(userId, bm.url) as { id: number; source: string | null; label: string | null } | undefined
+      // 公共池 URL 不参与同步写入
+      if (existing && !existing.label) {
+        continue
+      }
+      incomingUrls.add(bm.url)
+      // 保留已有的 collection:xxx 标签，合并 sync 标签
+      let sourceArray = ['sync']
+      if (existing?.source) {
+        try {
+          const existingSource = JSON.parse(existing.source)
+          if (Array.isArray(existingSource)) {
+            const collectionTags = existingSource.filter((s: string) => s.startsWith('collection:'))
+            sourceArray = [...new Set([...sourceArray, ...collectionTags])]
+          }
+        } catch { /* source 不是 JSON 数组，忽略 */ }
+      }
+      upsertBookmark.run(userId, bm.title, bm.url, folderId, bm.icon || null, bm.sort_order || 0, container, JSON.stringify(sourceArray), now, now)
       if (existing) updated++; else added++
     }
 
-    // 阶段 3：范围删除（仅删除本次同步涉及的容器中的多余书签）
+    // 阶段 3：范围删除（仅删除本次同步涉及的容器中的「个人」书签，不动公共池）
     if (syncedContainers.size > 0) {
       const containerList = [...syncedContainers]
       const placeholders = containerList.map(() => '?').join(',')
       const serverBookmarks = db.prepare(
-        `SELECT id, url FROM bookmarks WHERE user_id = ? AND container IN (${placeholders})`
+        `SELECT id, url FROM bookmarks WHERE user_id = ? AND container IN (${placeholders}) AND COALESCE(label, '') != ''`
       ).all(userId, ...containerList) as { id: number; url: string }[]
 
       const deleteBookmark = db.prepare('DELETE FROM bookmarks WHERE id = ?')

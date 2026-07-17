@@ -25,6 +25,9 @@ export default defineNuxtConfig({
     corsOrigin: 'http://localhost:3000',
     adminUsers: '',
     trustProxy: 'false',
+    public: {
+      baseUrl: 'https://favshub.com',
+    },
   },
 
   // Server-side config
@@ -41,7 +44,9 @@ export default defineNuxtConfig({
           'Referrer-Policy': 'strict-origin-when-cross-origin',
           'X-XSS-Protection': '1; mode=block',
           'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none';",
+          // 'unsafe-eval' is required by Nuxt/Vue dev mode (hot reload uses eval);
+          // can be removed in production builds where HMR is disabled.
+          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
           // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
           'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
         },

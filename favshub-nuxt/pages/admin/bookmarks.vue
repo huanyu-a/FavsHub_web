@@ -30,16 +30,17 @@
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>ID</th><th>图标</th><th>标题</th><th>URL</th><th>文件夹</th><th>用户</th><th>可见性</th><th>操作</th></tr></thead>
+          <thead><tr><th>ID</th><th>图标</th><th>标题</th><th>URL</th><th>文件夹</th><th>标签</th><th>用户</th><th>可见性</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="8" class="empty-state">加载中...</td></tr>
-            <tr v-else-if="bookmarks.length === 0"><td colspan="8" class="empty-state">暂无数据</td></tr>
+            <tr v-if="loading"><td colspan="9" class="empty-state">加载中...</td></tr>
+            <tr v-else-if="bookmarks.length === 0"><td colspan="9" class="empty-state">暂无数据</td></tr>
             <tr v-for="bm in bookmarks" :key="bm.id">
               <td>{{ bm.id }}</td>
               <td><img v-if="bm.icon" :src="bm.icon" width="20" height="20" style="object-fit:contain;" @error="(e) => (e.target as HTMLElement).style.display='none'"></td>
               <td><a :href="bm.url" target="_blank" rel="noopener" style="color:var(--primary);">{{ bm.title }}</a></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ bm.url }}</td>
               <td>{{ bm.folder_name || '-' }}</td>
+              <td><span class="badge" :class="bm.label ? 'badge-public' : 'badge-locked'">{{ bm.label ? '个人' : '公共池' }}</span></td>
               <td>{{ bm.username || bm.user_id }}</td>
               <td><span class="badge" :class="bm.login_required ? 'badge-private' : 'badge-public'">{{ bm.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
               <td class="actions">
@@ -130,7 +131,10 @@
               <option v-for="f in flatFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option>
             </select>
           </div>
-          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
+          <div class="fg-row">
+            <div class="fg toggle-row"><label>个人书签</label><label class="switch"><input type="checkbox" v-model="ef._isPersonal" @change="ef.label = ef._isPersonal ? 'personal' : ''"><span class="slider round"></span></label></div>
+            <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
+          </div>
           <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
         </div>
       </div>
@@ -269,9 +273,14 @@ function toggleAllFolders() {
 }
 // Edit modal
 const editVisible = ref(false)
-const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0 })
-function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0 }); editVisible.value = true }
-async function saveEdit() { await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body: { ...ef } }); editVisible.value = false; loadBookmarks() }
+const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0, label: '', _isPersonal: false })
+function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0, label: bm.label || '', _isPersonal: !!bm.label }); editVisible.value = true }
+async function saveEdit() {
+  const body = { title: ef.title, url: ef.url, icon: ef.icon, folder_id: ef.folder_id, login_required: ef.login_required, label: ef._isPersonal ? (ef.label || 'personal') : '' }
+  await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
+  editVisible.value = false
+  loadBookmarks()
+}
 async function delBm(bm: any) { if (!confirm(`删除「${bm.title}」？`)) return; await $fetch(`/api/admin/bookmarks/${bm.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadBookmarks() }
 function canDeleteBm(bm: any) { return isAdmin.value || bm.user_id === currentUserId.value }
 async function downloadIcon(id: number) { await $fetch(`/api/admin/download-favicon/${id}`, { method: 'POST', headers: getAuthHeaders() }); loadBookmarks() }
@@ -376,4 +385,6 @@ onMounted(() => { loadBookmarks(); loadFolders(); loadUsers() })
 .folder-drag-meta { color: var(--text-tertiary); font-size: 12px; white-space: nowrap; }
 .folder-drag-actions { display: flex; gap: 4px; flex-shrink: 0; }
 :deep(.sortable-ghost) { opacity: 0.4; background: var(--primary-light) !important; }
+.fg-row .toggle-row { justify-content: flex-start; gap: 12px; }
+.fg-row { gap: 32px; }
 </style>

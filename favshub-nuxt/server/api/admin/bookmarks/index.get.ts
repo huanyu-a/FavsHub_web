@@ -22,13 +22,14 @@ export default defineEventHandler(async (event) => {
   const conditions: string[] = ['b.user_id = ?']
   const params: any[] = [auth.id]
 
+  const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&')
   if (q) {
-    conditions.push('b.title LIKE ?')
-    params.push(`%${q}%`)
+    conditions.push(`b.title LIKE ? ESCAPE '\\'`)
+    params.push(`%${escapeLike(q)}%`)
   }
   if (url) {
-    conditions.push('b.url LIKE ?')
-    params.push(`%${url}%`)
+    conditions.push(`b.url LIKE ? ESCAPE '\\'`)
+    params.push(`%${escapeLike(url)}%`)
   }
   if (folderId !== null) {
     if (folderId === 0) {

@@ -26,6 +26,9 @@
         <NuxtLink to="/admin/prompts" class="nav-item" :class="{ active: route.path === '/admin/prompts' }" @click="closeSidebar">
           <i class="ri-chat-quote-line"></i><span>提示词管理</span>
         </NuxtLink>
+        <NuxtLink to="/admin/collections" class="nav-item" :class="{ active: route.path === '/admin/collections' }" @click="closeSidebar">
+          <i class="ri-stack-line"></i><span>精选集管理</span>
+        </NuxtLink>
         <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
           <i class="ri-search-line"></i><span>搜索引擎</span>
         </NuxtLink>
@@ -179,7 +182,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260703d' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260706' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260714' },
   ],
 })
 </script>

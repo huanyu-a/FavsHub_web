@@ -104,6 +104,7 @@ export const useSettingsStore = defineStore('settings', {
      *  新主题体系：浅色主题在浅色模式生效，深色主题在深色模式生效
      *  CSS 选择器 html[data-theme="..."].theme-bg-xxx 负责模式匹配 */
     _applyBackground() {
+      if (import.meta.server) return
       const rawBg = this.settings.selectedBackground || SETTINGS_DEFAULTS.selectedBackground
       const bg = this._normalizeBg(rawBg)
       const html = document.documentElement

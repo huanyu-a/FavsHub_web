@@ -34,6 +34,8 @@ export default defineEventHandler(async (event) => {
     db.prepare('DELETE FROM prompt_folders WHERE user_id = ?').run(userId)
     db.prepare('DELETE FROM tags WHERE user_id = ?').run(userId)
     db.prepare('DELETE FROM settings WHERE user_id = ?').run(userId)
+    db.prepare('DELETE FROM collection_bookmarks WHERE collection_id IN (SELECT id FROM collections WHERE user_id = ?)').run(userId)
+    db.prepare('DELETE FROM collections WHERE user_id = ?').run(userId)
     db.prepare('DELETE FROM users WHERE id = ?').run(userId)
   })
   tx()

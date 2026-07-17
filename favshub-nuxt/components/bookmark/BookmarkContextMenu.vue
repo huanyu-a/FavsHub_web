@@ -110,19 +110,30 @@ const qrUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(props.bookmark.url)}`
 })
 
+// 安全打开 URL：拒绝危险协议（javascript:/data:/vbscript:/file:）
+function safeOpenUrl(url: string, target?: string, features?: string) {
+  const lower = url.toLowerCase().trim()
+  const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
+  if (DANGER_SCHEMES.some(s => lower.startsWith(s))) {
+    console.warn('[BookmarkContextMenu] 拒绝打开危险 URL:', url)
+    return
+  }
+  window.open(url, target || '_blank', features)
+}
+
 function openInNewTab() {
-  if (props.bookmark?.url) window.open(props.bookmark.url, '_blank')
+  if (props.bookmark?.url) safeOpenUrl(props.bookmark.url, '_blank')
   emit('close')
 }
 
 function openInNewWindow() {
-  if (props.bookmark?.url) window.open(props.bookmark.url, '_blank', 'width=1200,height=800')
+  if (props.bookmark?.url) safeOpenUrl(props.bookmark.url, '_blank', 'width=1200,height=800')
   emit('close')
 }
 
 function openIncognito() {
   // Web apps can't open true incognito windows; open a popup as closest equivalent
-  if (props.bookmark?.url) window.open(props.bookmark.url, '_blank', 'width=1200,height=800,noopener,noreferrer')
+  if (props.bookmark?.url) safeOpenUrl(props.bookmark.url, '_blank', 'width=1200,height=800,noopener,noreferrer')
   emit('close')
 }
 

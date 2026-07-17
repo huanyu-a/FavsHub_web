@@ -13,18 +13,15 @@
 </template>
 
 <script setup lang="ts">
+import type { NuxtError } from '#app'
+
 definePageMeta({ layout: false })
 
 useHead({
   link: [{ rel: 'stylesheet', href: '/css/error.css' }],
 })
 
-const props = defineProps<{
-  error: {
-    statusCode?: number
-    message?: string
-  }
-}>()
+const error = useError()
 
 function handleError() {
   clearError({ redirect: '/' })

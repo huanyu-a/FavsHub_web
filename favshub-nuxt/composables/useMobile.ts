@@ -5,6 +5,8 @@
 
 const MOBILE_BP = 1024
 
+// Initialize to false so SSR never renders mobile markup (avoids hydration mismatch).
+// Client-side initMobile() will set the correct value immediately after hydration.
 const isMobile = ref(false)
 const drawerOpen = ref(false)
 const searchSheetOpen = ref(false)

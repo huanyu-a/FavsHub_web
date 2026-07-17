@@ -27,6 +27,9 @@ export default defineEventHandler(async (event) => {
   for (const f of folders) folderMap.set(f.id, f.name)
 
   // 按文件夹分组
+  // 已知限制：仅处理一级文件夹。子文件夹（parent_id 非 null）的书签会被归入"未分类"，
+  // 因为当前查询只按 folder_id 映射顶级文件夹名称，未递归展开子文件夹层级。
+  // 如需嵌套导出，需要额外查询子文件夹树并递归构建层次结构。
   const grouped = new Map<string, any[]>()
   for (const b of bookmarks) {
     const folderName = b.folder_id ? (folderMap.get(b.folder_id) || '未分类') : '未分类'

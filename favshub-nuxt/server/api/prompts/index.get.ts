@@ -11,7 +11,7 @@ import { optionalAuth } from '../../utils/auth'
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)
   const query = getQuery(event)
-  const { folder_id, tag_ids, search, favorites, limit } = query
+  const { folder_id, tag_ids, search, favorites, limit, sort, recycle } = query
 
   const db = getRawDb()
 
@@ -114,8 +114,29 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // ── 排序：更新时间降序 ─────────────────────────────────────
-  sql += ' ORDER BY p.updated_at DESC'
+  // ── 回收站过滤：默认排除软删除，recycle=1 时只返回已删除 ──────
+  if (recycle === '1' || recycle === 'true') {
+    sql += ' AND p.deleted_at IS NOT NULL'
+  } else {
+    sql += ' AND p.deleted_at IS NULL'
+  }
+
+  // ── 排序 ───────────────────────────────────────────────────
+  const sortField = typeof sort === 'string' ? sort : ''
+  switch (sortField) {
+    case 'usage':
+      sql += ' ORDER BY p.usage_count DESC'
+      break
+    case 'created':
+      sql += ' ORDER BY p.created_at DESC'
+      break
+    case 'title':
+      sql += ' ORDER BY p.title COLLATE NOCASE ASC'
+      break
+    default:
+      sql += ' ORDER BY p.updated_at DESC'
+      break
+  }
 
   // ── limit 参数 ──────────────────────────────────────────────
   if (limit && typeof limit === 'string') {

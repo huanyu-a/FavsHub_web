@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
+import { seedDefaultCollections } from '../utils/seed-collections'
 
 /**
  * 初始化 Schema — 创建所有基础表（如不存在）
@@ -138,6 +139,70 @@ export function createTables(db: Database.Database) {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (reviewed_by) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      icon TEXT DEFAULT '',
+      meta_title TEXT DEFAULT '',
+      meta_description TEXT DEFAULT '',
+      meta_keywords TEXT DEFAULT '',
+      is_public INTEGER DEFAULT 0,
+      is_official INTEGER DEFAULT 0,
+      bookmark_count INTEGER DEFAULT 0,
+      created_at INTEGER,
+      updated_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collection_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      parent_id INTEGER,
+      sort_order INTEGER DEFAULT 0,
+      created_at INTEGER,
+      FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_id) REFERENCES collection_categories(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_bookmarks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      collection_id TEXT NOT NULL,
+      bookmark_id INTEGER NOT NULL,
+      category_id INTEGER,
+      sort_order INTEGER DEFAULT 0,
+      created_at INTEGER,
+      FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+      FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES collection_categories(id) ON DELETE SET NULL,
+      UNIQUE(collection_id, bookmark_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_subscriptions (
+      user_id INTEGER NOT NULL,
+      collection_id TEXT NOT NULL,
+      subscribed_at INTEGER,
+      PRIMARY KEY (user_id, collection_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_imports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      collection_id TEXT NOT NULL,
+      collection_bookmark_id INTEGER NOT NULL,
+      bookmark_id INTEGER NOT NULL,
+      imported_at INTEGER,
+      UNIQUE(user_id, collection_id, collection_bookmark_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+      FOREIGN KEY (collection_bookmark_id) REFERENCES collection_bookmarks(id) ON DELETE CASCADE,
+      FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE
+    );
   `)
 }
 
@@ -170,7 +235,7 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'prompt_versions', 'variables', "ALTER TABLE prompt_versions ADD COLUMN variables TEXT DEFAULT ''")
   ensureColumn(db, 'bookmarks', 'container', "ALTER TABLE bookmarks ADD COLUMN container TEXT DEFAULT ''")
   ensureColumn(db, 'bookmarks', 'updated_at', 'ALTER TABLE bookmarks ADD COLUMN updated_at INTEGER')
-  ensureColumn(db, 'bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT ''")
+  ensureColumn(db, 'bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT '[]'")
   ensureColumn(db, 'folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER')
   ensureColumn(db, 'users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''")
   ensureColumn(db, 'bookmarks', 'login_required', 'ALTER TABLE bookmarks ADD COLUMN login_required INTEGER DEFAULT 0')
@@ -180,6 +245,165 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'folders', 'login_required', 'ALTER TABLE folders ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'prompt_folders', 'login_required', 'ALTER TABLE prompt_folders ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'search_engines', 'status', "ALTER TABLE search_engines ADD COLUMN status TEXT DEFAULT 'approved'")
+  ensureColumn(db, 'prompts', 'usage_count', 'ALTER TABLE prompts ADD COLUMN usage_count INTEGER DEFAULT 0')
+  ensureColumn(db, 'prompts', 'deleted_at', 'ALTER TABLE prompts ADD COLUMN deleted_at INTEGER DEFAULT NULL')
+  ensureColumn(db, 'prompt_versions', 'change_note', "ALTER TABLE prompt_versions ADD COLUMN change_note TEXT DEFAULT ''")
+  ensureColumn(db, 'collections', 'meta_title', "ALTER TABLE collections ADD COLUMN meta_title TEXT DEFAULT ''")
+  ensureColumn(db, 'collections', 'meta_description', "ALTER TABLE collections ADD COLUMN meta_description TEXT DEFAULT ''")
+  ensureColumn(db, 'collections', 'meta_keywords', "ALTER TABLE collections ADD COLUMN meta_keywords TEXT DEFAULT ''")
+  ensureColumn(db, 'collection_bookmarks', 'category_id', 'ALTER TABLE collection_bookmarks ADD COLUMN category_id INTEGER')
+
+  // 删除旧的 category_name 列（SQLite 需要重建表）
+  try {
+    const cols = db.prepare('PRAGMA table_info(collection_bookmarks)').all() as { name: string }[]
+    if (cols.some(c => c.name === 'category_name')) {
+      console.log('[DB] 迁移: collection_bookmarks 表从 category_name 迁移到 category_id')
+      db.exec(`
+        CREATE TABLE collection_bookmarks_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          collection_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          url TEXT NOT NULL,
+          icon TEXT DEFAULT '',
+          description TEXT DEFAULT '',
+          category_id INTEGER,
+          sort_order INTEGER DEFAULT 0,
+          created_at INTEGER,
+          FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+          FOREIGN KEY (category_id) REFERENCES collection_categories(id) ON DELETE SET NULL
+        );
+        INSERT INTO collection_bookmarks_new (id, collection_id, title, url, icon, description, sort_order, created_at)
+        SELECT id, collection_id, title, url, icon, description, sort_order, created_at FROM collection_bookmarks;
+        DROP TABLE collection_bookmarks;
+        ALTER TABLE collection_bookmarks_new RENAME TO collection_bookmarks;
+      `)
+    }
+  } catch (err: any) {
+    console.error('[DB] 迁移 collection_bookmarks 失败:', err.message)
+  }
+
+  // 添加 has_sync 虚拟列和索引
+  try {
+    const cols = db.prepare('PRAGMA table_info(bookmarks)').all() as { name: string }[]
+    if (!cols.some(c => c.name === 'has_sync')) {
+      db.exec(`
+        ALTER TABLE bookmarks ADD COLUMN has_sync INTEGER GENERATED ALWAYS AS (
+          CASE WHEN source LIKE '%"sync"%' THEN 1 ELSE 0 END
+        ) STORED
+      `)
+      console.log('[DB] 迁移: bookmarks 表添加 has_sync 虚拟列')
+    }
+  } catch (err: any) {
+    if (!err.message.includes('duplicate column name')) {
+      console.error('[DB] 迁移失败 bookmarks.has_sync:', err.message)
+    }
+  }
+
+  // 更新已有 bookmarks 的 source 字段：将空字符串改为 []
+  try {
+    const needUpdate = db.prepare("SELECT COUNT(*) as c FROM bookmarks WHERE source = ''").get() as { c: number }
+    if (needUpdate.c > 0) {
+      db.prepare("UPDATE bookmarks SET source = '[]' WHERE source = ''").run()
+      console.log(`[DB] 迁移: 已更新 ${needUpdate.c} 条书签的 source 字段为 '[]'`)
+    }
+  } catch (err: any) {
+    console.error('[DB] 迁移 bookmarks.source 失败:', err.message)
+  }
+
+  // ─── migrate to simplified architecture (bookmark_id + label) ───
+  try {
+    const bcols = db.prepare('PRAGMA table_info(bookmarks)').all() as { name: string }[]
+
+    // 1. Add missing columns
+    if (!bcols.some(c => c.name === 'label')) {
+      db.exec("ALTER TABLE bookmarks ADD COLUMN label TEXT DEFAULT ''")
+      console.log('[DB] migrate: added bookmarks.label')
+    }
+    if (!bcols.some(c => c.name === 'description')) {
+      db.exec("ALTER TABLE bookmarks ADD COLUMN description TEXT DEFAULT ''")
+      console.log('[DB] migrate: added bookmarks.description')
+    }
+
+    // 2. Rebuild bookmarks without entry_id FK, add description + label
+    if (bcols.some(c => c.name === 'entry_id')) {
+      console.log('[DB] migrate: rebuilding bookmarks (add description, label, drop entry_id)')
+      db.exec(`
+        CREATE TABLE bookmarks_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL REFERENCES users(id),
+          title TEXT NOT NULL,
+          url TEXT NOT NULL,
+          folder_id INTEGER REFERENCES folders(id),
+          icon TEXT,
+          description TEXT DEFAULT '',
+          sort_order INTEGER DEFAULT 0,
+          container TEXT DEFAULT '',
+          source TEXT DEFAULT '[]',
+          login_required INTEGER DEFAULT 0,
+          label TEXT DEFAULT '',
+          created_at INTEGER,
+          updated_at INTEGER,
+          UNIQUE(user_id, url)
+        );
+        INSERT INTO bookmarks_new SELECT id, user_id, title, url, folder_id, icon, '', sort_order, container, source, login_required, COALESCE(label, ''), created_at, updated_at FROM bookmarks;
+        DROP TABLE bookmarks;
+        ALTER TABLE bookmarks_new RENAME TO bookmarks;
+      `)
+      // Now safe to drop bookmark_entries (FKs are gone)
+      db.exec('DROP TABLE IF EXISTS bookmark_entries')
+      console.log('[DB] migrate: bookmarks rebuilt, bookmark_entries dropped')
+    }
+
+    // 3. Migrate collection_bookmarks: entry_id → bookmark_id
+    const cbcols = db.prepare('PRAGMA table_info(collection_bookmarks)').all() as { name: string }[]
+    if (cbcols.some(c => c.name === 'entry_id')) {
+      console.log('[DB] migrate: collection_bookmarks entry_id → bookmark_id')
+      db.exec(`
+        CREATE TABLE collection_bookmarks_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+          bookmark_id INTEGER NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
+          category_id INTEGER REFERENCES collection_categories(id) ON DELETE SET NULL,
+          sort_order INTEGER DEFAULT 0,
+          created_at INTEGER,
+          UNIQUE(collection_id, bookmark_id)
+        );
+        INSERT INTO collection_bookmarks_new (id, collection_id, bookmark_id, category_id, sort_order, created_at)
+        SELECT cb.id, cb.collection_id, cb.entry_id, cb.category_id, cb.sort_order, cb.created_at
+        FROM collection_bookmarks cb;
+        DROP TABLE collection_bookmarks;
+        ALTER TABLE collection_bookmarks_new RENAME TO collection_bookmarks;
+      `)
+      console.log('[DB] migrate: collection_bookmarks uses bookmark_id')
+    }
+
+    // 4. 回填历史个人书签 label（避免首页/同步过滤后列表变空）
+    // 规则：label 为空 且（非管理员书签 / 有 container / source 表明来自 web·sync）→ 视为个人
+    try {
+      const r = db.prepare(`
+        UPDATE bookmarks
+        SET label = CASE
+          WHEN container IS NOT NULL AND container != '' THEN 'sync'
+          WHEN source = 'web' THEN 'web'
+          WHEN source IS NOT NULL AND source != '' AND source != '[]' THEN 'legacy'
+          ELSE 'personal'
+        END
+        WHERE COALESCE(label, '') = ''
+          AND (
+            user_id NOT IN (SELECT id FROM users WHERE is_admin = 1)
+            OR (container IS NOT NULL AND container != '')
+            OR (source IS NOT NULL AND source != '' AND source != '[]')
+          )
+      `).run()
+      if (r.changes > 0) {
+        console.log(`[DB] migrate: backfilled label on ${r.changes} personal bookmarks`)
+      }
+    } catch (err: any) {
+      console.warn('[DB] migrate label backfill skipped:', err.message)
+    }
+  } catch (e: any) {
+    console.error('[DB] migrate simplified arch failed:', e.message)
+  }
 }
 
 /**
@@ -208,6 +432,7 @@ export function createIndexes(db: Database.Database) {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_folder_id ON bookmarks(folder_id);
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_has_sync ON bookmarks(user_id, has_sync);
       CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
@@ -217,6 +442,16 @@ export function createIndexes(db: Database.Database) {
       CREATE INDEX IF NOT EXISTS idx_prompt_tags_tag_id ON prompt_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
       CREATE INDEX IF NOT EXISTS idx_prompt_folders_user_id ON prompt_folders(user_id);
+      CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);
+      CREATE INDEX IF NOT EXISTS idx_collections_public ON collections(is_public, is_official);
+      CREATE INDEX IF NOT EXISTS idx_cc_collection ON collection_categories(collection_id);
+      CREATE INDEX IF NOT EXISTS idx_cc_parent ON collection_categories(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_cb_collection ON collection_bookmarks(collection_id);
+      CREATE INDEX IF NOT EXISTS idx_cb_category ON collection_bookmarks(category_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cb_collection_bookmark ON collection_bookmarks(collection_id, bookmark_id);
+      CREATE INDEX IF NOT EXISTS idx_cs_user ON collection_subscriptions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_ci_user_collection ON collection_imports(user_id, collection_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ci_unique ON collection_imports(user_id, collection_id, collection_bookmark_id);
     `)
   } catch (err: any) {
     console.error('[DB] 创建性能索引失败:', err.message)
@@ -228,6 +463,7 @@ export function createIndexes(db: Database.Database) {
  */
 export function seedDefaults(db: Database.Database) {
   // 系统用户 (id=0)，用于存储全局默认设置
+  // password_hash 为空字符串是设计意图：系统用户不用于登录，无密码 hash 可防止被误用
   db.prepare('INSERT OR IGNORE INTO users (id, username, password_hash, is_admin) VALUES (0, ?, ?, 1)').run('_system', '')
   db.prepare('UPDATE users SET is_admin = 1 WHERE id = 0').run()
 
@@ -292,6 +528,12 @@ export function seedDefaults(db: Database.Database) {
   const promptCount = (db.prepare('SELECT COUNT(*) as c FROM prompts').get() as { c: number }).c
   if (promptCount === 0) {
     seedDefaultPrompts(db)
+  }
+
+  // 默认精选集（如果表为空）
+  const collectionCount = (db.prepare('SELECT COUNT(*) as c FROM collections').get() as { c: number }).c
+  if (collectionCount === 0) {
+    seedDefaultCollections(db)
   }
 }
 
@@ -507,6 +749,10 @@ function seedDefaultPrompts(db: Database.Database) {
   insertAll()
   console.log(`[DB] 已插入 ${inserts.length} 条默认提示词`)
 }
+
+/**
+ * 插入 3 个官方精选集
+ */
 
 /**
  * 执行完整的数据库初始化

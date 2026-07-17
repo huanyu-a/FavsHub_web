@@ -15,6 +15,9 @@ export default defineNitroPlugin((nitro) => {
     let errorMsg = data?.error || error.message || '服务器内部错误'
 
     // 生产环境安全：5xx 错误不暴露内部细节，仅记录服务端日志
+    // 设计选择：4xx 错误直接返回原始 errorMsg（可能包含 SQL 错误文本等细节），
+    // 因为 4xx 是客户端错误，前端通常需要这些信息来提示用户修正操作。
+    // 这是有意的取舍——便利性优先于信息脱敏。如需收紧，可在此处对 4xx 也做白名单过滤。
     if (statusCode >= 500) {
       console.error(`[API Error] ${event.path} ${statusCode}:`, error.message)
       errorMsg = '服务器内部错误'
