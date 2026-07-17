@@ -8,9 +8,7 @@
       <span class="mobile-nav-icon">💬</span>
       <span class="mobile-nav-label">提示词</span>
     </NuxtLink>
-    <!-- 未登录：分类意义不大，改为精选集入口；已登录保留分类 -->
     <NuxtLink
-      v-if="authStore.isGuest || isCollectionsPage"
       to="/collections"
       class="mobile-nav-item"
       :class="{ active: isCollectionsPage }"
@@ -19,7 +17,7 @@
       <span class="mobile-nav-icon">📚</span>
       <span class="mobile-nav-label">精选集</span>
     </NuxtLink>
-    <button v-else class="mobile-nav-item" type="button" @click="toggleFolderPanel">
+    <button class="mobile-nav-item" type="button" @click="toggleFolderPanel">
       <span class="mobile-nav-icon">📂</span>
       <span class="mobile-nav-label">分类</span>
     </button>

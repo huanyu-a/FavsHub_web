@@ -1,33 +1,42 @@
 <template>
-  <div class="collection-detail-page">
-    <header class="detail-header">
-      <div class="header-left">
-        <NuxtLink to="/collections" class="back-link"><i class="ri-arrow-left-line"></i> 返回市场</NuxtLink>
-        <h1 class="detail-title">
-          <span v-if="collection && collection.icon" class="title-icon">{{ collection.icon }}</span>
-          {{ collection ? collection.name : '' }}
-          <span v-if="collection && collection.is_official" class="official-tag">官方</span>
-        </h1>
-        <p class="detail-desc">{{ collection ? collection.description : '' }}</p>
-      </div>
-      <div class="header-actions">
-        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-subscribe-detail" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">
-          <i :class="isSubscribed ? 'ri-bookmark-fill' : 'ri-bookmark-line'"></i>
-          {{ isSubscribed ? '已订阅' : '订阅' }}
-        </button>
-        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="importing" @click="importAll">
-          <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-cloud-line'"></i> 导入全部
-        </button>
-        <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-secondary" @click="selectMode = true">
-          <i class="ri-checkbox-line"></i> 选择导入
-        </button>
-        <span v-if="selectMode" class="selected-count">已选 {{ selectedIds.size }} 条</span>
-        <button v-if="selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="selectedIds.size === 0 || importing" @click="importSelected">
-          <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-line'"></i> 导入已选
-        </button>
-        <button v-if="selectMode" type="button" class="btn btn-ghost" @click="cancelSelect">取消</button>
+  <div>
+    <header class="collections-header">
+      <div class="collections-header-inner">
+        <div class="collections-header-left">
+          <NuxtLink to="/" class="collections-header-logo" title="返回主页">
+            <img src="/images/logo.svg" alt="Logo" class="collections-header-logo-img">
+          </NuxtLink>
+          <nav class="detail-breadcrumb">
+            <NuxtLink to="/collections" class="breadcrumb-link">精选集市场</NuxtLink>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-current">
+              <span v-if="collection && collection.icon" class="title-icon">{{ collection.icon }}</span>
+              {{ collection ? collection.name : '' }}
+              <span v-if="collection && collection.is_official" class="official-tag">官方</span>
+            </span>
+          </nav>
+        </div>
+        <div class="header-actions">
+          <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-subscribe-detail" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">
+            <i :class="isSubscribed ? 'ri-bookmark-fill' : 'ri-bookmark-line'"></i>
+            {{ isSubscribed ? '已订阅' : '订阅' }}
+          </button>
+          <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="importing" @click="importAll">
+            <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-cloud-line'"></i> 导入全部
+          </button>
+          <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-secondary" @click="selectMode = true">
+            <i class="ri-checkbox-line"></i> 选择导入
+          </button>
+          <span v-if="selectMode" class="selected-count">已选 {{ selectedIds.size }} 条</span>
+          <button v-if="selectMode && isLoggedIn" type="button" class="btn btn-primary" :disabled="selectedIds.size === 0 || importing" @click="importSelected">
+            <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-line'"></i> 导入已选
+          </button>
+          <button v-if="selectMode" type="button" class="btn btn-ghost" @click="cancelSelect">取消</button>
+        </div>
       </div>
     </header>
+    <div class="collection-detail-page">
+    <p v-if="collection && collection.description" class="detail-desc-inline">{{ collection.description }}</p>
     <div v-if="loading" class="loading-state"><i class="ri-loader-4-line spin"></i><p>加载中...</p></div>
     <div v-else-if="collection && (!collection.categories || collection.categories.length === 0)" class="empty-state"><p>该精选集暂无书签</p></div>
     <div v-else class="categories-list">
@@ -90,10 +99,11 @@
       </button>
     </div>
     <div v-if="msg" class="toast" :class="msgType">{{ msg }}</div>
+    </div>
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref, computed, h, onMounted, onUnmounted, watch } from 'vue'
 
 definePageMeta({ layout: 'default' })
 
@@ -315,23 +325,135 @@ function getFavicon(b: ICollectionBookmark) { if (b.icon) return b.icon; try { r
 function onIconError(e: Event) { (e.target as HTMLImageElement).style.display = 'none' }
 let msgTimer: ReturnType<typeof setTimeout>
 function showToast(t: string, type: 'success' | 'error') { msg.value = t; msgType.value = type; clearTimeout(msgTimer); msgTimer = setTimeout(() => { msg.value = '' }, 2500) }
-onUnmounted(() => { clearTimeout(msgTimer) })
+
+// Mobile header: inject action buttons into MobileHeader
+const { mobileActionsSlot } = useMobile()
+onMounted(() => {
+  mobileActionsSlot.value = () => [
+    h('button', {
+      class: ['btn-favorite', { subscribed: isSubscribed.value }],
+      title: isSubscribed.value ? '已订阅' : '订阅',
+      disabled: subscribing.value,
+      onClick: () => toggleSubscribe(),
+    }, [
+      h('i', { class: isSubscribed.value ? 'ri-bookmark-fill' : 'ri-bookmark-line' }),
+      h('span', null, isSubscribed.value ? '已订阅' : '订阅'),
+    ]),
+    h('button', {
+      class: 'btn btn-primary',
+      title: '导入全部',
+      disabled: importing.value,
+      onClick: () => importAll(),
+    }, [
+      h('i', { class: importing.value ? 'ri-loader-4-line spin' : 'ri-download-cloud-line' }),
+      h('span', null, '导入'),
+    ]),
+    h('button', {
+      class: 'btn btn-secondary',
+      title: '选择导入',
+      onClick: () => { selectMode.value = true },
+    }, [
+      h('i', { class: 'ri-checkbox-line' }),
+      h('span', null, '选择'),
+    ]),
+  ]
+})
+onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 </script>
 <style scoped>
+/* Sticky header (same as collections index) */
+.collections-header {
+  width: 100%;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.collections-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.collections-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.collections-header-logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.collections-header-logo:hover { opacity: 0.7; }
+.collections-header-logo-img {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.collections-header-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.collections-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+.collections-header-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.collections-header-link svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+}
+.collections-header-link:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.collections-header-link:hover svg { opacity: 1; }
+.collections-header-link.active {
+  color: var(--accent-blue, #3b82f6);
+  background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
+}
+.collections-header-link.active svg { opacity: 1; }
+
 .collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
-.detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
-.back-link { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary, #6b7280); font-size: 13px; text-decoration: none; margin-bottom: 8px; }
-.back-link:hover { color: var(--primary, #10b981); }
-.detail-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 20px; font-weight: 600; }
-.title-icon { font-size: 20px; }
+.detail-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.breadcrumb-link { color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
+.breadcrumb-link:hover { color: var(--primary, #10b981); }
+.breadcrumb-sep { color: var(--text-quaternary, #d1d5db); font-size: 13px; user-select: none; }
+.breadcrumb-current { display: inline-flex; align-items: center; gap: 5px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+.title-icon { font-size: 15px; }
 .official-tag { font-size: 11px; font-weight: 600; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); padding: 2px 8px; border-radius: 10px; }
-.detail-desc { margin: 4px 0 0; color: var(--text-secondary, #6b7280); font-size: 14px; }
-.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.detail-desc-inline { margin: 0 0 16px; color: var(--text-tertiary, #9ca3af); font-size: 13px; }
+.header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .selected-count { font-size: 13px; color: var(--text-secondary, #6b7280); }
-.btn { display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+.btn { display: inline-flex; align-items: center; gap: 3px; padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+.btn i { font-size: 13px; }
 .btn-subscribe-detail {
-  display: inline-flex; align-items: center; gap: 4px; padding: 8px 16px; border-radius: 8px;
-  font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 3px; padding: 5px 12px; border-radius: 7px;
+  font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
   background: var(--surface-sunken, #f3f4f6); color: var(--text-secondary, #6b7280);
   border: 1px solid var(--border, #e5e7eb);
 }
@@ -385,30 +507,27 @@ onUnmounted(() => { clearTimeout(msgTimer) })
     z-index: 10010;
   }
 }
+@media (max-width: 1024px) {
+  .collections-header { display: none; }
+}
 @media (max-width: 768px) {
   .collection-detail-page {
     padding: 68px 12px 96px;
   }
-  .detail-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
   .header-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     width: 100%;
+    gap: 6px;
   }
   .header-actions .btn,
   .header-actions .btn-subscribe-detail {
-    flex: 1 1 auto;
+    flex: 1;
     justify-content: center;
-    min-width: calc(50% - 4px);
-    padding: 8px 10px;
+    min-width: 0;
+    padding: 7px 0;
     font-size: 12px;
-  }
-  .detail-title {
-    font-size: 18px;
+    white-space: nowrap;
+    overflow: hidden;
   }
   .sub-category {
     margin-left: 8px;
@@ -431,11 +550,27 @@ onUnmounted(() => { clearTimeout(msgTimer) })
     padding: 60px 10px 96px;
   }
   .bookmarks-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .bookmark-card {
+    padding: 8px;
+    gap: 6px;
+  }
+  .bookmark-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .bookmark-title {
+    font-size: 13px;
+  }
+  .bookmark-desc {
+    display: none;
   }
   .header-actions .btn,
   .header-actions .btn-subscribe-detail {
-    min-width: 100%;
+    font-size: 11px;
+    padding: 7px 4px;
   }
 }
 </style>

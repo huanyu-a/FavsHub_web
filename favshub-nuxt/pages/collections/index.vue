@@ -190,6 +190,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 .collections-header-left {
   display: flex;
@@ -219,6 +221,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-wrap: nowrap;
 }
 .collections-header-link {
   display: flex;
@@ -367,19 +370,8 @@ onUnmounted(() => {
   }
 }
 @media (max-width: 768px) {
-  .collections-header-inner {
-    padding: 0 16px;
-  }
-  .collections-header-link span {
+  .collections-header {
     display: none;
-  }
-  .collections-header-link {
-    padding: 6px 8px;
-  }
-  .collections-header-link svg {
-    width: 18px;
-    height: 18px;
-    opacity: 1;
   }
   .collections-page {
     padding: 68px 12px 96px;

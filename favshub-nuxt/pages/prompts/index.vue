@@ -266,6 +266,18 @@ onMounted(() => {
       h('i', { class: 'ri-star-line' }),
       h('span', null, '收藏'),
     ]),
+    // Sort dropdown
+    h('select', {
+      class: 'mobile-sort-select',
+      title: '排序方式',
+      value: sortBy.value,
+      onChange: (e: Event) => { sortBy.value = (e.target as HTMLSelectElement).value },
+    }, [
+      h('option', { value: 'updated' }, '最新'),
+      h('option', { value: 'usage' }, '热度'),
+      h('option', { value: 'created' }, '创建'),
+      h('option', { value: 'title' }, '名称'),
+    ]),
     // New prompt button (uses .btn-primary class for mobile-responsive CSS)
     h('button', {
       class: 'btn btn-primary',

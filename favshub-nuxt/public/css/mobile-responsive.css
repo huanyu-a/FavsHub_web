@@ -21,9 +21,15 @@
   display: flex; align-items: center; justify-content: space-between;
   position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
   height: 56px; padding: 0 12px;
+  box-sizing: border-box; max-width: 100vw;
   background: var(--sidebar-bg);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
+}
+
+/* 防止移动端水平滚动溢出 */
+@media (max-width: 1024px) {
+  html, body { overflow-x: hidden; }
 }
 .mobile-header-bar .sidebar-brand-card { padding: 0; gap: 0.6rem; }
 .mobile-header-bar .sidebar-brand-logo { width: 38px; height: 38px; padding: 7px; border-radius: 10px; }
@@ -31,11 +37,19 @@
 .mobile-header-bar .sidebar-brand-subtitle { font-size: 10px; }
 .mobile-header-actions { display: flex; align-items: center; gap: 4px; }
 .mobile-header-actions .btn-favorite,
-.mobile-header-actions .btn-primary {
-  padding: 4px 8px; font-size: 12px; border-radius: 8px; gap: 3px;
+.mobile-header-actions .btn-primary,
+.mobile-header-actions .btn-secondary {
+  padding: 5px 10px; font-size: 12px; border-radius: 8px; gap: 3px;
 }
 .mobile-header-actions .btn-favorite i,
-.mobile-header-actions .btn-primary i { font-size: 14px; }
+.mobile-header-actions .btn-primary i,
+.mobile-header-actions .btn-secondary i { font-size: 13px; }
+.mobile-header-actions .mobile-sort-select {
+  padding: 4px 6px; font-size: 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card-bg, var(--bg));
+  color: var(--text-primary); outline: none; cursor: pointer;
+  max-width: 72px; appearance: auto;
+}
 
 /* --- 汉堡按钮 --- */
 .mobile-hamburger-btn {
@@ -69,7 +83,7 @@
   color: var(--primary); background: var(--primary-light);
 }
 .mobile-nav-icon { font-size: 20px; line-height: 1; }
-.mobile-nav-label { font-size: 10px; font-weight: 500; line-height: 1; }
+.mobile-nav-label { font-size: 10px; font-weight: 500; line-height: 1; white-space: nowrap; }
 
 /* --- 搜索弹窗 --- */
 .mobile-search-backdrop {
@@ -120,8 +134,8 @@
 @media (max-width: 1024px) {
   /* 提示词页工具栏移动端隐藏 */
   .main-toolbar { display: none; }
-  /* 主内容区留出底部空间（底栏 + safe-area） */
-  main.flex-1, .main-content { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  /* 主内容区留出顶部（MobileHeader 56px）和底部空间（底栏 + safe-area） */
+  main.flex-1, .main-content { padding-top: 60px !important; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   /* 回到顶部按钮在底部导航上方 */
   #back-to-top-container { z-index: 10004; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   /* 搜索引擎下拉突破弹窗裁剪 */
@@ -205,10 +219,9 @@
    ════════════════════════════════════════════ */
 @media (max-width: 768px) {
   /* --- 头部按钮额外调整（768px 独有） --- */
-  .mobile-header-actions .btn-favorite span,
-  .mobile-header-actions .btn-primary span { display: none; }
-  .mobile-header-actions .btn-favorite i,
-  .mobile-header-actions .btn-primary i { margin: 0; }
+  .mobile-header-actions .btn-favorite,
+  .mobile-header-actions .btn-primary,
+  .mobile-header-actions .btn-secondary { padding: 5px 8px; }
 
   main.flex-1 { padding: 60px 1rem 1rem; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   .main-area { padding: 60px 1rem 1rem; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
@@ -310,4 +323,23 @@
 .folder-sub-enter-to,
 .folder-sub-leave-from { max-height: 500px; }
 
+}
+
+/* ════════════════════════════════════════════
+   Non-layered mobile overrides (higher priority than promptpro-bundle.css)
+   ════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  /* Hide toolbar buttons already shown in MobileHeader */
+  .main-toolbar .btn-favorite,
+  .main-toolbar .sort-select,
+  .main-toolbar .btn-primary { display: none !important; }
+
+  /* Center and full-width search box */
+  .main-toolbar {
+    justify-content: center !important;
+  }
+  .main-toolbar .search-box {
+    width: 100% !important;
+    max-width: 360px !important;
+  }
 }
