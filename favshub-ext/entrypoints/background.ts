@@ -7,6 +7,13 @@ interface FavsHubFolder {
   parent_id: number | null;
 }
 
+interface HistorySearchQuery {
+  text: string;
+  maxResults?: number;
+  startTime?: number;
+  endTime?: number;
+}
+
 const ROOT_MENU_ID = 'favshub:add';
 const MENU_ID_PREFIX = 'favshub:folder';
 const MENU_CONTEXTS: ['page', 'link'] = ['page', 'link'];
@@ -230,7 +237,7 @@ export default defineBackground(() => {
   // ===== 快捷键打开侧边栏 =====
   browser.commands.onCommand.addListener((command) => {
     if (command === 'open_side_panel') {
-      browser.sidePanel.open().catch(() => {});
+      (browser.sidePanel.open as any)({}).catch(() => {});
     }
   });
 
@@ -320,7 +327,7 @@ export default defineBackground(() => {
           return true;
         }
         try {
-          const url = chrome.runtime.getURL(iconPath);
+          const url = browser.runtime.getURL(iconPath);
           fetch(url)
             .then(r => r.arrayBuffer())
             .then(buf => {
@@ -336,16 +343,21 @@ export default defineBackground(() => {
         return true;
       }
 
-      case 'open_side_panel':
-        browser.sidePanel.open({ windowId: _sender.tab?.windowId })
+      case 'open_side_panel': {
+        const winId = _sender.tab?.windowId;
+        const openPromise = winId != null
+          ? browser.sidePanel.open({ windowId: winId })
+          : (browser.sidePanel.open as any)({});
+        openPromise
           .then(() => sendResponse({ success: true }))
           .catch((err: any) => {
             // 回退：尝试不带 windowId 打开
-            browser.sidePanel.open()
+            (browser.sidePanel.open as any)({})
               .then(() => sendResponse({ success: true }))
               .catch(() => sendResponse({ success: false, error: err?.message }));
           });
         return true;
+      }
 
       case 'navigateHome': {
         const goHome = async () => {
@@ -441,7 +453,7 @@ export default defineBackground(() => {
 
         if (keywords.length <= 1) {
           // 单关键词：直接搜索
-          const searchOpts: chrome.history.HistorySearchQuery = { text: keywords[0] || '', maxResults: limit };
+          const searchOpts: HistorySearchQuery = { text: keywords[0] || '', maxResults: limit };
           if (startTime) searchOpts.startTime = startTime;
           browser.history.search(searchOpts)
             .then((items) => sendResponse({ success: true, items }))
@@ -450,14 +462,14 @@ export default defineBackground(() => {
           // 多关键词：分别搜索，取交集（AND 逻辑）
           Promise.all(
             keywords.map((kw: string) => {
-              const opts: chrome.history.HistorySearchQuery = { text: kw, maxResults: limit };
+              const opts: HistorySearchQuery = { text: kw, maxResults: limit };
               if (startTime) opts.startTime = startTime;
               return browser.history.search(opts);
             })
           ).then((resultSets) => {
             // 以第一个关键词结果为基准，过滤出所有关键词都匹配的条目
-            const urlSets = resultSets.map((items) => new Set(items.map((i) => i.url)));
-            const merged = resultSets[0].filter((item) =>
+            const urlSets = resultSets.map((items: any[]) => new Set(items.map((i: any) => i.url)));
+            const merged = resultSets[0].filter((item: any) =>
               urlSets.every((urlSet) => urlSet.has(item.url))
             );
             sendResponse({ success: true, items: merged.slice(0, limit) });

@@ -49,7 +49,7 @@ const folderOptions = computed<SelectOption[]>(() => {
   function walk(nodes: (Folder & { children: Folder[] })[], depth: number) {
     for (const node of nodes) {
       result.push({ label: '　'.repeat(depth) + node.name, value: node.id });
-      if (node.children.length) walk(node.children, depth + 1);
+      if (node.children.length) walk(node.children as (Folder & { children: Folder[] })[], depth + 1);
     }
   }
   walk(roots, 0);
@@ -112,6 +112,7 @@ async function handleSubmit() {
         title: formValue.title.trim(),
         url: formValue.url.trim(),
         folder_id: formValue.folderId,
+        description: formValue.description.trim() || undefined,
       }),
     });
 

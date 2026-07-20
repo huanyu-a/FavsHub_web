@@ -25,7 +25,7 @@ const RELAY_ALLOWED_ACTIONS = new Set([
 export default defineContentScript({
   // 静态匹配占位（不注入任何页面），实际由 background.ts 动态注册到 FavsHub 网站
   matches: ['https://example.invalid/*'],
-  run_at: 'document_start',
+  runAt: 'document_start',
   main() {
     // 在 DOM 上标记扩展模式，让页面的 chrome-shim.js 能检测到
     document.documentElement.setAttribute('data-favshub-ext', 'active');

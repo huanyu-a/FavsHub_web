@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
   const params = getRouterParams(event)
   const body = await readBody(event)
-  const { title, url, folder_id, sort_order, icon, login_required, label } = body || {}
+  const { title, url, folder_id, sort_order, icon, login_required, label, description, need_proxy } = body || {}
 
   // 输入长度校验
   if (title !== undefined && title.length > 256) throw createError({ statusCode: 400, data: { error: '标题最长 256 字符' } })
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // 校验 folder_id 归属（防止跨用户写入）
-  if (folder_id !== undefined) {
+  if (folder_id != null) {
     const folder = db.prepare('SELECT user_id FROM folders WHERE id = ?').get(folder_id) as { user_id: number } | undefined
     if (!folder) {
       throw createError({ statusCode: 400, data: { error: '目标文件夹不存在' } })
@@ -63,6 +63,8 @@ export default defineEventHandler(async (event) => {
   if (sort_order !== undefined) { setClauses.push('sort_order = ?'); paramsArr.push(sort_order) }
   if (icon !== undefined) { setClauses.push('icon = ?'); paramsArr.push(icon) }
   if (lr !== undefined) { setClauses.push('login_required = ?'); paramsArr.push(lr) }
+  if (description !== undefined) { setClauses.push('description = ?'); paramsArr.push(description) }
+  if (need_proxy !== undefined) { setClauses.push('need_proxy = ?'); paramsArr.push(need_proxy ? 1 : 0) }
   // label: '' = 公共池，非空 = 个人书签（个人空间更新默认不降级为公共池，仅显式传入时修改）
   if (label !== undefined) {
     setClauses.push('label = ?')

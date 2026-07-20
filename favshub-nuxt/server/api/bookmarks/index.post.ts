@@ -7,7 +7,7 @@ import { requireAuth } from '../../utils/auth'
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
   const body = await readBody(event)
-  const { title, url, folder_id, icon, login_required, label } = body || {}
+  const { title, url, folder_id, icon, login_required, label, description, need_proxy } = body || {}
 
   if (!title || !url) {
     throw createError({ statusCode: 400, data: { error: '标题和 URL 不能为空' } })
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   // 校验 folder_id 归属（防止跨用户写入）
-  if (folder_id) {
+  if (folder_id != null) {
     const folder = db.prepare('SELECT user_id FROM folders WHERE id = ?').get(folder_id) as { user_id: number } | undefined
     if (!folder) {
       throw createError({ statusCode: 400, data: { error: '目标文件夹不存在' } })
@@ -45,11 +45,11 @@ export default defineEventHandler(async (event) => {
   const now = Date.now()
   // 事务包裹 MAX + INSERT，防止并发竞态产生重复 sort_order
   const insertStmt = db.prepare(
-    'INSERT INTO bookmarks (user_id, title, url, folder_id, icon, sort_order, source, login_required, label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO bookmarks (user_id, title, url, folder_id, icon, description, sort_order, source, login_required, label, need_proxy, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
   const result = db.transaction(() => {
     const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM bookmarks WHERE user_id = ?').get(user.id) as { m: number | null } | undefined
-    return insertStmt.run(user.id, title, url, folder_id || null, icon || null, (maxOrder?.m || 0) + 1, 'web', lr, bmLabel, now, now)
+    return insertStmt.run(user.id, title, url, folder_id || null, icon || null, description || '', (maxOrder?.m || 0) + 1, 'web', lr, bmLabel, need_proxy ? 1 : 0, now, now)
   })()
 
   const bookmark = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(result.lastInsertRowid)

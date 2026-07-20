@@ -55,7 +55,7 @@
               </label>
               <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
               <div class="bookmark-info">
-                <h3 class="bookmark-title">{{ b.title }}</h3>
+                <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
                 <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
               </div>
@@ -80,7 +80,7 @@
               </label>
               <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
               <div class="bookmark-info">
-                <h3 class="bookmark-title">{{ b.title }}</h3>
+                <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
                 <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
               </div>

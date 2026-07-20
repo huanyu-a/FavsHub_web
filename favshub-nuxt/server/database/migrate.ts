@@ -323,10 +323,14 @@ export function runMigrations(db: Database.Database) {
       db.exec("ALTER TABLE bookmarks ADD COLUMN description TEXT DEFAULT ''")
       console.log('[DB] migrate: added bookmarks.description')
     }
+    if (!bcols.some(c => c.name === 'need_proxy')) {
+      db.exec("ALTER TABLE bookmarks ADD COLUMN need_proxy INTEGER DEFAULT 0")
+      console.log('[DB] migrate: added bookmarks.need_proxy')
+    }
 
     // 2. Rebuild bookmarks without entry_id FK, add description + label
     if (bcols.some(c => c.name === 'entry_id')) {
-      console.log('[DB] migrate: rebuilding bookmarks (add description, label, drop entry_id)')
+      console.log('[DB] migrate: rebuilding bookmarks (add description, label, need_proxy, drop entry_id)')
       db.exec(`
         CREATE TABLE bookmarks_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -341,11 +345,12 @@ export function runMigrations(db: Database.Database) {
           source TEXT DEFAULT '[]',
           login_required INTEGER DEFAULT 0,
           label TEXT DEFAULT '',
+          need_proxy INTEGER DEFAULT 0,
           created_at INTEGER,
           updated_at INTEGER,
           UNIQUE(user_id, url)
         );
-        INSERT INTO bookmarks_new SELECT id, user_id, title, url, folder_id, icon, '', sort_order, container, source, login_required, COALESCE(label, ''), created_at, updated_at FROM bookmarks;
+        INSERT INTO bookmarks_new SELECT id, user_id, title, url, folder_id, icon, '', sort_order, container, source, login_required, COALESCE(label, ''), 0, created_at, updated_at FROM bookmarks;
         DROP TABLE bookmarks;
         ALTER TABLE bookmarks_new RENAME TO bookmarks;
       `)

@@ -7,6 +7,9 @@
         <label>名称：</label>
         <input v-model="form.title" type="text" required placeholder="书签名称">
 
+        <label>描述：</label>
+        <textarea v-model="form.description" placeholder="书签描述（选填）" rows="2" style="width:100%;resize:vertical;"></textarea>
+
         <label>网址：</label>
         <input v-model="form.url" type="url" required placeholder="https://example.com">
 
@@ -37,10 +40,16 @@
           </div>
         </div>
 
-        <label v-if="isAdmin" style="display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" v-model="form.login_required" :true-value="1" :false-value="0" style="width:auto;">
-          需要登录才可见
-        </label>
+        <div class="form-toggles">
+          <div v-if="isAdmin" class="toggle-item">
+            <label>需要登录才可见</label>
+            <label class="switch"><input type="checkbox" v-model="form.login_required" :true-value="1" :false-value="0"><span class="slider round"></span></label>
+          </div>
+          <div class="toggle-item">
+            <label>需要代理访问</label>
+            <label class="switch"><input type="checkbox" v-model="form.need_proxy" :true-value="1" :false-value="0"><span class="slider round"></span></label>
+          </div>
+        </div>
         <div class="form-buttons">
           <button type="button" class="cancel-button" @click="$emit('close')">取消</button>
           <button type="submit">保存</button>
@@ -80,6 +89,8 @@ const form = reactive({
   folder_id: props.bookmark?.folder_id ?? null,
   icon: props.bookmark?.icon || '',
   login_required: props.bookmark?.login_required || 0,
+  description: props.bookmark?.description || '',
+  need_proxy: props.bookmark?.need_proxy || 0,
 })
 
 // Re-sync form when editing different bookmarks consecutively
@@ -90,6 +101,8 @@ watch(() => props.bookmark, (bm) => {
     folder_id: bm?.folder_id ?? null,
     icon: bm?.icon || '',
     login_required: bm?.login_required || 0,
+    description: bm?.description || '',
+    need_proxy: bm?.need_proxy || 0,
   })
 })
 
@@ -148,3 +161,24 @@ function handleSubmit() {
 </script>
 
 
+<style scoped>
+.form-toggles {
+  display: flex;
+  gap: 24px;
+  margin-top: 4px;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.toggle-item > label:first-child {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+</style>

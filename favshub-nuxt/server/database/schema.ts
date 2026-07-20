@@ -46,6 +46,7 @@ export const bookmarks = sqliteTable('bookmarks', {
   source: text('source').default('[]'),
   loginRequired: integer('login_required').default(0),
   label: text('label').default(''),
+  needProxy: integer('need_proxy').default(0),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
 }, (table) => [

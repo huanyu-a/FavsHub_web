@@ -123,6 +123,7 @@
         <div class="modal-header"><h3>编辑书签</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
         <div class="modal-body">
           <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
+          <div class="fg"><label>描述</label><textarea v-model="ef.description" placeholder="书签描述（选填）" rows="2" style="width:100%;resize:vertical;"></textarea></div>
           <div class="fg"><label>URL</label><input v-model="ef.url" type="url"></div>
           <div class="fg"><label>图标</label><input v-model="ef.icon" type="text"></div>
           <div class="fg"><label>文件夹</label>
@@ -134,6 +135,7 @@
           <div class="fg-row">
             <div class="fg toggle-row"><label>个人书签</label><label class="switch"><input type="checkbox" v-model="ef._isPersonal" @change="ef.label = ef._isPersonal ? 'personal' : ''"><span class="slider round"></span></label></div>
             <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
+            <div class="fg toggle-row"><label>需要代理</label><label class="switch"><input type="checkbox" v-model="ef.need_proxy" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
           </div>
           <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
         </div>
@@ -273,10 +275,10 @@ function toggleAllFolders() {
 }
 // Edit modal
 const editVisible = ref(false)
-const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0, label: '', _isPersonal: false })
-function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0, label: bm.label || '', _isPersonal: !!bm.label }); editVisible.value = true }
+const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0, label: '', description: '', need_proxy: 0, _isPersonal: false })
+function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0, label: bm.label || '', description: bm.description || '', need_proxy: bm.need_proxy || 0, _isPersonal: !!bm.label }); editVisible.value = true }
 async function saveEdit() {
-  const body = { title: ef.title, url: ef.url, icon: ef.icon, folder_id: ef.folder_id, login_required: ef.login_required, label: ef._isPersonal ? (ef.label || 'personal') : '' }
+  const body = { title: ef.title, url: ef.url, icon: ef.icon, folder_id: ef.folder_id, login_required: ef.login_required, label: ef._isPersonal ? (ef.label || 'personal') : '', description: ef.description, need_proxy: ef.need_proxy }
   await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
   editVisible.value = false
   loadBookmarks()

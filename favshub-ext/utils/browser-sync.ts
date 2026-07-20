@@ -124,7 +124,7 @@ export async function syncFavsHubToBrowser(): Promise<SyncStats> {
   const browserMap = new Map<string, DiffBrowserEntry>();
   const browserFolderMap = new Map<string, { browserId: string }>();
 
-  const containerMap = new Map<string, browser.bookmarks.BookmarkTreeNode>();
+  const containerMap = new Map<string, chrome.bookmarks.BookmarkTreeNode>();
   for (const c of (tree[0]?.children ?? [])) containerMap.set(c.title, c);
 
   for (const containerNode of containerMap.values()) {
@@ -277,7 +277,7 @@ export async function syncFavsHubToBrowser(): Promise<SyncStats> {
  * 从当前浏览器书签树构建快照
  */
 async function buildSnapshot(
-  containerMap: Map<string, browser.bookmarks.BookmarkTreeNode>,
+  containerMap: Map<string, chrome.bookmarks.BookmarkTreeNode>,
 ): Promise<SyncSnapshot> {
   const bookmarks: SyncSnapshot['bookmarks'] = [];
   const folders: SyncSnapshot['folders'] = [];

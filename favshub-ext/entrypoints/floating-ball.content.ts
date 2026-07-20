@@ -29,7 +29,7 @@ function isSafeUrl(url: string): boolean {
 
 export default defineContentScript({
   matches: ['<all_urls>'],
-  run_at: 'document_idle',
+  runAt: 'document_idle',
   async main(ctx) {
     const baseUrl = await baseUrlStorage.getValue();
     if (!baseUrl?.trim()) return;

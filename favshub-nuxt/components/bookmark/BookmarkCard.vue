@@ -23,7 +23,11 @@
       <span v-else class="card-icon-text">{{ initialChar }}</span>
     </div>
     <div class="card-content">
-      <div class="card-title">{{ bookmark.title }}</div>
+      <div class="card-title">
+        {{ bookmark.title }}
+        <span v-if="bookmark.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span>
+      </div>
+      <div v-if="bookmark.description" class="card-description">{{ bookmark.description }}</div>
     </div>
   </a>
 </template>

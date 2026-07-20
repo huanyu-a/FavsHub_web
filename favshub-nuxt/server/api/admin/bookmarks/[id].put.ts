@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event)
-  const { title, url, folder_id, icon, login_required, label } = body
+  const { title, url, folder_id, icon, login_required, label, description, need_proxy } = body
 
   // URL scheme 校验
   if (url !== undefined) {
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // 校验 folder_id 归属（防止跨用户写入）
-  if (folder_id !== undefined && folder_id !== 0) {
+  if (folder_id != null && folder_id !== 0) {
     const folder = db.prepare('SELECT user_id FROM folders WHERE id = ?').get(folder_id) as { user_id: number } | undefined
     if (!folder) {
       throw createError({ statusCode: 400, data: { error: '目标文件夹不存在' } })
@@ -62,6 +62,8 @@ export default defineEventHandler(async (event) => {
   if (folder_id !== undefined) { setClauses.push('folder_id = ?'); params.push(folder_id !== 0 ? folder_id : null) }
   if (icon !== undefined) { setClauses.push('icon = ?'); params.push(icon) }
   if (isAdmin && login_required !== undefined) { setClauses.push('login_required = ?'); params.push(login_required ? 1 : 0) }
+  if (description !== undefined) { setClauses.push('description = ?'); params.push(description) }
+  if (need_proxy !== undefined) { setClauses.push('need_proxy = ?'); params.push(need_proxy ? 1 : 0) }
   // label: '' = 公共池，非空 = 个人书签
   if (label !== undefined) {
     const normalized = typeof label === 'string' ? label : ''

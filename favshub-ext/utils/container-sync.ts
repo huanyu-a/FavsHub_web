@@ -43,8 +43,8 @@ export function containerTypeFromTitle(title: string): string {
  */
 export function resolveContainerByType(
   type: string,
-  localContainers: Map<string, browser.bookmarks.BookmarkTreeNode>,
-): browser.bookmarks.BookmarkTreeNode | null {
+  localContainers: Map<string, chrome.bookmarks.BookmarkTreeNode>,
+): chrome.bookmarks.BookmarkTreeNode | null {
   const titles = TYPE_TO_LOCAL_TITLES[type];
   if (!titles) return null;
   for (const t of titles) {

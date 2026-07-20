@@ -26,7 +26,7 @@ export function flattenBookmarks(
   if (!root?.children) return result;
 
   for (const container of root.children) {
-    const containerName = container.name || container.title;
+    const containerName = container.title;
     const containerType = containerTypeFromTitle(containerName);
     if (!container.children) continue;
 
