@@ -1,182 +1,161 @@
-# FavsHub-Ext — 浏览器扩展
+# FavsHub 浏览器扩展
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-3.0.0-green" alt="版本" />
-  <img src="https://img.shields.io/badge/WXT-0.20-7E3DE3?logo=wxt" alt="WXT" />
-  <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js" alt="Vue" />
-  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Naive_UI-2.44-00B4FF?logo=naive-ui" alt="Naive UI" />
+  <img src="https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome" alt="Chrome" />
+  <img src="https://img.shields.io/badge/Firefox-supported-FF7139?logo=firefox" alt="Firefox" />
 </p>
 
-FavsHub 配套浏览器扩展，将 Chrome/Edge 书签一键同步到 FavsHub 网站。
+<p align="center">
+  <a href="../README.md">← 仓库总览</a> ·
+  <a href="../favshub-nuxt/README.md">网站使用与部署</a> ·
+  <a href="#安装">安装</a> ·
+  <a href="#使用指南">使用</a>
+</p>
 
-## 功能特性
+把 **Chrome / Edge / Firefox 里的书签** 同步到你自己的 FavsHub 网站，并在浏览网页时快速收藏、搜索已同步书签。
 
-- **📚 书签同步** — 读取浏览器书签树，扁平化后同步到网站，以 URL 为基准自动去重
-- **⭐ 一键收藏** — 右键菜单或扩展图标快速收藏当前网页，自动提取标题、URL、favicon
-- **📱 侧边栏模式** — 通过 `Alt+B` 快捷键打开侧边栏，随时管理书签
-- **🔮 浮动球** — 内容脚本浮动球，快速访问和收藏
-- **🔄 增量同步** — 基于快照的差异比对引擎，仅同步变更部分，减少带宽消耗
-- **🌐 跨浏览器** — 支持 Chrome（MV3）和 Firefox
-- **🌍 国际化** — 支持中文 / English 双语界面
-- **🔍 书签搜索** — 扩展内搜索已同步书签，快速定位
+> 扩展不能单独使用：需要先有一个可访问的 [FavsHub 网站](../favshub-nuxt/README.md)（自托管或你管理的实例），并在扩展里填入该站点地址。
 
-## 技术栈
+---
 
-| 技术 | 说明 |
+## 你能用它做什么
+
+| 功能 | 说明 |
 |------|------|
-| [Vue 3](https://vuejs.org/) | UI 框架 |
-| [WXT](https://wxt.dev/) | 跨浏览器扩展开发框架 |
-| [TypeScript](https://www.typescriptlang.org/) | 类型安全 |
-| [Naive UI](https://www.naiveui.com/) | 组件库 |
-| [TailwindCSS 4](https://tailwindcss.com/) | 样式 |
-| [Vue I18n](https://vue-i18n.intlify.dev/) | 国际化（zh / en） |
-| [@vicons/ionicons5](https://github.com/tjx666/vicons) | 图标库（Ionicons 5） |
-| [Vue Router](https://router.vuejs.org/) | 弹窗内路由导航 |
+| **书签同步** | 读取浏览器书签树，上传到网站；以网址去重，尽量少打扰已有图标 |
+| **增量同步** | 对比上次快照，主要同步变更，减少全量上传 |
+| **一键收藏** | 扩展图标 / 右键菜单收藏当前页（标题、链接、图标） |
+| **侧边栏** | 快捷键打开侧栏，随时查看与管理 |
+| **浮动球** | 页面内快捷入口（可按需使用） |
+| **站内搜索** | 在扩展里搜已同步到站点的书签 |
+| **中英界面** | 跟随浏览器语言，也可在设置中切换 |
 
-## 快速开始
+---
 
-### 安装依赖
+## 安装
+
+### 前提
+
+1. 已部署并打开 FavsHub 网站（例如 `https://你的域名` 或 `http://localhost:3090`）  
+2. 已在网站上 **注册并登录** 过（扩展需要账号令牌）  
+3. 本机已安装 [pnpm](https://pnpm.io/) 与 Node.js（从源码构建时）
+
+### 从源码构建并加载（开发 / 自用）
 
 ```bash
 cd favshub-ext
-pnpm install       # 首次运行自动执行 wxt prepare
+pnpm install
+pnpm build          # Chrome / Edge：产物在 .output/chrome-mv3/
+# 或
+pnpm dev            # 开发模式（改代码自动重建）
 ```
 
-### 开发模式
+**Chrome / Edge：**
+
+1. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`）  
+2. 打开「开发者模式」  
+3. 「加载已解压的扩展程序」→ 选择目录  
+   `favshub-ext/.output/chrome-mv3/`  
+   （`pnpm dev` 时以 WXT 实际输出目录为准）
+
+**Firefox：**
 
 ```bash
-pnpm dev           # Chrome
-pnpm dev:firefox   # Firefox
+pnpm build:firefox
+# 在 about:debugging 中临时载入生成的扩展
 ```
 
-在 `chrome://extensions/`（开发者模式）中加载 `favshub-ext/.output/chrome-mv3/` 目录。
-
-### 生产构建
+发布用 zip：
 
 ```bash
-pnpm build         # Chrome MV3
-pnpm build:firefox # Firefox
-pnpm zip           # 打包 zip（用于发布）
+pnpm zip
+pnpm zip:firefox
 ```
 
-## 项目结构
+---
 
-```
-favshub-ext/
-├── wxt.config.ts              # WXT 配置（manifest、权限、快捷键、Vite 插件）
-├── package.json               # 依赖与脚本
-├── components/
-│   ├── Add.vue                # 快速收藏弹窗
-│   ├── Home.vue               # 书签首页
-│   ├── Search.vue             # 搜索
-│   ├── Settings.vue           # 设置页面（服务器地址、主题、语言）
-│   ├── Sync.vue               # 书签同步（读取浏览器书签树 → 扁平化 → 上传）
-│   ├── FolderItem.vue         # 文件夹树节点
-│   ├── BottomNav.vue          # 底部导航
-│   ├── PopupLayout.vue        # 弹窗布局
-│   └── title.vue              # 标题组件
-├── entrypoints/
-│   ├── background.ts          # Service Worker（后台任务、定时同步）
-│   ├── content.ts             # Content Script（页面注入）
-│   ├── floating-ball.content.ts  # 浮动球内容脚本
-│   └── popup/                 # 弹窗/侧边栏入口
-├── utils/
-│   ├── request.ts             # API 请求封装（BASE_URL + JWT token + 90s 超时）
-│   ├── flatten-bookmarks.ts   # 书签树扁平化（folder_path 格式）
-│   ├── browser-sync.ts        # 浏览器书签同步逻辑
-│   ├── container-sync.ts      # 容器/书签栏同步
-│   ├── diff-engine.ts         # 增量差异比对引擎
-│   ├── sync-snapshot.ts       # 同步快照
-│   ├── storage.ts             # 扩展存储封装
-│   └── storage-session.ts     # 存储会话管理
-├── i18n/
-│   ├── index.ts               # i18n 配置（vue-i18n）
-│   └── locales/
-│       ├── zh.ts              # 中文语言包
-│       └── en.ts              # 英文语言包
-├── public/
-│   └── icon/                  # 扩展图标（16/32/48/128.png）
-├── assets/                    # 样式资源
-└── .output/                   # 构建输出（gitignore）
-```
+## 使用指南
 
-## 同步机制
+### 第一次配置
 
-### 同步端点
+1. 点击工具栏上的 FavsHub 扩展图标，打开 **设置**  
+2. 填写 **网站地址**（与浏览器访问站点时一致，无多余路径，例如 `http://localhost:3090`）  
+3. 使用网站账号 **登录**（或按界面提示完成认证）  
+4. 打开 **同步**，执行一次完整 / 增量同步  
+5. 回到网站首页，应能看到同步后的书签与文件夹  
 
-扩展与服务端之间使用以下同步端点：
+若同步失败，请检查：网站是否可访问、账号是否正确、站点 CORS / HTTPS 是否与扩展请求匹配。
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/sync/bookmarks` | 全量替换同步（发送完整书签树） |
-| `PUT` | `/api/sync/bookmarks` | 增量合并同步（主同步端点，URL 去重） |
-| `GET` | `/api/sync/bookmarks/since` | 获取指定时间后的增量数据 |
-| `GET` | `/api/sync/bookmarks/full` | 获取全量书签数据 |
-| `POST` | `/api/sync/favicons` | 批量上传 favicon |
+### 日常操作
 
-### 同步流程
+| 你想… | 怎么做 |
+|--------|--------|
+| 把浏览器新增书签同步上去 | 打开扩展 → 同步（或等待已配置的定时同步） |
+| 收藏当前正在看的网页 | 点扩展图标的收藏 / 使用右键菜单「收藏到 FavsHub」 |
+| 快速找书签 | 扩展内搜索；或在网站首页搜索 |
+| 侧边栏管理 | 快捷键打开侧栏（见下表） |
+| 换语言 / 主题 | 扩展设置页 |
 
-1. 扩展读取浏览器 `chrome.bookmarks` 书签树
-2. 扁平化为 `{ title, url, folder_path, icon }` 格式
-3. `folder_path` 格式为 `收藏夹栏/子文件夹/...`，顶级文件夹的子文件夹提升为顶级
-4. 调用 `PUT /api/sync/bookmarks` 增量同步到服务端
-5. 服务端通过 `ensureFolderPath()` 递归创建层级文件夹
-6. 以 URL 为基准去重，已存在 URL 只变更标题和分类，不变更 icon
-7. 通过 `chrome.runtime.getURL('/_favicon/')` 获取浏览器缓存的 favicon 并上传
-8. icon 下载按 hostname 分组，每域名只下载一次
-
-### 增量同步引擎
-
-扩展内置差异比对引擎（`utils/diff-engine.ts`），基于本地同步快照（`utils/sync-snapshot.ts`）进行增量同步：
-
-- 首次同步：全量上传所有书签
-- 后续同步：对比本地快照，仅发送新增/修改/删除的书签
-- 快照存储在扩展 `storage` 中，记录上次同步的书签状态
-
-### 请求封装
-
-所有 API 请求通过 `utils/request.ts` 统一封装：
-
-- 自动拼接 `BASE_URL`（设置页可配置）
-- 自动携带 `Authorization: Bearer <token>` 认证头
-- 请求超时 90 秒（适应大量书签同步场景）
-- 统一错误处理与通知
-
-## 扩展权限
-
-```json
-{
-  "permissions": [
-    "storage",      // 存储用户配置和同步状态
-    "tabs",         // 获取当前标签页信息
-    "contextMenus", // 右键菜单
-    "notifications",// 同步结果通知
-    "bookmarks",    // 读取/修改浏览器书签
-    "sidePanel",    // 侧边栏模式
-    "commands",     // 快捷键（Alt+B 打开侧边栏）
-    "favicon",      // 获取网站 favicon
-    "history",      // 基于浏览历史推荐快捷链接
-    "scripting"     // 注入内容脚本
-  ],
-  "host_permissions": ["http://*/*", "https://*/*"]
-}
-```
-
-## 快捷键
+### 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Alt+B` (Mac: `Cmd+B`) | 打开侧边栏 |
+| `Alt+B`（Mac 上多为 `Cmd+B`，以浏览器实际绑定为准） | 打开侧边栏 |
 
-## 国际化
+可在浏览器的「扩展快捷键」页面中修改。
 
-扩展支持中文和英文界面，自动检测浏览器语言：
+### 和网站怎么分工
 
-- 浏览器语言为中文 → 默认中文界面
-- 其他语言 → 默认英文界面
-- 可在设置页面手动切换语言
+```text
+浏览器书签  ──同步──►  FavsHub 网站（长期保存、卡片展示、精选集、多设备访问）
+当前网页    ──收藏──►  同上
+网站上的管理、精选集、提示词  ──仅在网站完成──
+```
+
+- **删改文件夹结构**：以同步策略与网站后台为准；重要数据建议在网站侧确认后再大范围清理浏览器书签。  
+- **精选集 / 提示词**：只在网站使用，扩展不负责。
+
+---
+
+## 同步时会发生什么（通俗说明）
+
+1. 扩展读取浏览器书签树  
+2. 整理成「标题 + 网址 + 文件夹路径 + 图标」发给网站  
+3. 网站按 **网址** 判断是否已有：已有则更新标题/分类等，并尽量保留已有图标  
+4. 需要时上传 favicon，方便网站卡片展示  
+
+首次同步可能较久（书签很多时）；之后增量会快很多。
+
+---
+
+## 权限说明（为何需要）
+
+扩展会申请例如：
+
+| 权限 | 用途 |
+|------|------|
+| 书签 | 读取 / 配合同步浏览器书签 |
+| 存储 | 保存站点地址、登录状态、同步快照 |
+| 标签页 | 获取当前页以便一键收藏 |
+| 右键菜单 | 快捷收藏 |
+| 通知 | 同步成功 / 失败提示 |
+| 侧边栏 / 快捷键 | 侧栏与 `Alt+B` |
+| Favicon | 获取站点图标 |
+| 访问网页 | 与你配置的 FavsHub 站点通信、内容脚本（如浮动球） |
+
+仅在你加载并使用扩展时生效；站点地址由你在设置中指定。
+
+---
+
+## 想改扩展源码？
+
+实现约定、WXT 结构、`request` 封装等见本目录 **[CLAUDE.md](CLAUDE.md)**（开发者 / AI）。  
+网站同步接口见 [favshub-nuxt/CLAUDE.md](../favshub-nuxt/CLAUDE.md)。日常使用只需上文「安装」与「使用指南」。
+
+---
 
 ## 许可证
 
-**AGPL-3.0 License**（浏览器扩展采用强 Copyleft 许可证，确保衍生作品开源）
+**AGPL-3.0** — 若你修改并分发本扩展，需按 AGPL 义务提供对应源码。  
+网站本体许可证见 [favshub-nuxt/README.md](../favshub-nuxt/README.md)。

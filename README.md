@@ -5,142 +5,141 @@
 <h1 align="center">FavsHub</h1>
 
 <p align="center">
-  <strong>智能书签管理与 AI 提示词中心</strong>
+  <strong>智能书签工作台</strong> — 导航、搜索、精选集与 AI 提示词，一站搞定
 </p>
 
 <p align="center">
-  🔖 书签导航 · 🔍 搜索引擎聚合 · 📝 PromptPro 提示词管理
-</p>
-
-<p align="center">
-  <a href="#快速开始">快速开始</a> ·
-  <a href="favshub-nuxt/README.md">网站文档</a> ·
-  <a href="favshub-ext/README.md">扩展文档</a>
+  <a href="#它能做什么">功能</a> ·
+  <a href="#快速上手">快速上手</a> ·
+  <a href="favshub-nuxt/README.md">网站使用与部署</a> ·
+  <a href="favshub-ext/README.md">浏览器扩展</a>
 </p>
 
 ---
 
-## 项目简介
+## 它能做什么
 
-FavsHub 是一个**网站 + 浏览器扩展**项目，提供一站式书签管理和 AI 提示词管理：
+FavsHub 由 **网站** 与可选的 **浏览器扩展** 组成，面向日常「收藏 / 检索 / 提示词」场景：
 
-- **🔖 书签导航** — 将浏览器书签转化为精美的可视化卡片网格，支持文件夹分类、拖拽排序、标签管理
-- **🔍 搜索引擎聚合** — 内置 29 款搜索引擎（通用搜索、AI、社交），一键切换，多窗口对比检索
-- **📝 PromptPro** — 专业级 AI 提示词管理，版本追踪、差异对比、文件夹分类、标签筛选、协作审核
-- **🎨 15 套主题** — 浅色/暗色/壁纸背景，完整 CSS 变量主题系统，跟随系统或手动切换
-- **🔒 安全防护** — Rate Limiting、SSRF 防护、CSP 安全头、密码策略、JWT 自动生成与持久化
+| 你想… | 用什么 |
+|--------|--------|
+| 把书签做成卡片主页，按文件夹浏览、搜索 | 网站首页 |
+| 用 Google / 百度 / ChatGPT 等一键搜、对比搜 | 顶部搜索栏（约 29 款引擎） |
+| 浏览官方/公开导航合集，订阅或导入到自己的书签 | **精选集** |
+| 管理 AI 提示词、版本与协作修改 | **PromptPro** |
+| 把浏览器里的书签同步到网站 | **FavsHub 扩展** |
+| 自己改主题、壁纸、布局；管理自己的数据 | 设置与 `/admin` 后台 |
 
 <div align="center">
   <table>
     <tr>
       <td align="center" width="33%">
-        <a href="favshub-nuxt/docs/screenshots/homepage.png">
-          <img src="favshub-nuxt/docs/screenshots/homepage.png" alt="首页 — 书签导航" width="100%" />
-        </a>
-        <br />
-        <em>🔖 书签导航 — 可视化卡片网格</em>
+        <img src="favshub-nuxt/docs/screenshots/homepage.png" alt="书签导航" width="100%" />
+        <br /><em>书签卡片主页</em>
       </td>
       <td align="center" width="33%">
-        <a href="favshub-nuxt/docs/screenshots/search-engine-panel.png">
-          <img src="favshub-nuxt/docs/screenshots/search-engine-panel.png" alt="搜索引擎面板" width="100%" />
-        </a>
-        <br />
-        <em>🔍 搜索引擎聚合 — 29 款引擎一键切换</em>
+        <img src="favshub-nuxt/docs/screenshots/search-engine-panel.png" alt="搜索引擎" width="100%" />
+        <br /><em>多搜索引擎切换</em>
       </td>
       <td align="center" width="33%">
-        <a href="favshub-nuxt/docs/screenshots/prompts.png">
-          <img src="favshub-nuxt/docs/screenshots/prompts.png" alt="提示词管理" width="100%" />
-        </a>
-        <br />
-        <em>📝 PromptPro — 提示词管理与协作</em>
+        <img src="favshub-nuxt/docs/screenshots/prompts.png" alt="提示词" width="100%" />
+        <br /><em>AI 提示词管理</em>
       </td>
     </tr>
   </table>
 </div>
 
-## 项目结构
+---
+
+## 仓库里有什么
 
 ```
 FavsHub_web/
-├── favshub-nuxt/         # 网站前端 + 后端 API（Nuxt 3 全栈）
-├── favshub-ext/          # 浏览器扩展（Vue 3 + WXT）
-├── TMD_ref/              # 主题配色参考项目（Type-Markdown Editor）
-├── .github/              # GitHub Actions CI/CD
-├── AGENTS.md             # AI 开发指南（通用）
-├── CLAUDE.md             # Claude Code 开发指南
-└── README.md             # 本文件
+├── favshub-nuxt/     # 网站 → 用法与部署：favshub-nuxt/README.md
+├── favshub-ext/      # 扩展 → 安装与同步：favshub-ext/README.md
+├── README.md         # 本文件（使用者总览）
+└── CLAUDE.md         # 仅开发者 / AI 需要（可忽略）
 ```
 
-| 目录 | 技术栈 | 说明 |
-|------|--------|------|
-| [favshub-nuxt/](favshub-nuxt/) | Nuxt 3 + Vue 3 + SQLite + Docker | 网站主体，前端页面 + 后端 API + 数据库 |
-| [favshub-ext/](favshub-ext/) | Vue 3 + WXT + TypeScript + Naive UI | 浏览器扩展，书签同步到网站 |
-| [TMD_ref/](TMD_ref/) | React 18 + Vditor + Tauri | 主题配色参考项目（FavsHub 的 15 套主题灵感来源） |
+你只需要关心两份用户文档：
 
-## 快速开始
+1. **网站** → [favshub-nuxt/README.md](favshub-nuxt/README.md)  
+2. **扩展** → [favshub-ext/README.md](favshub-ext/README.md)
 
-### 网站部署（Docker 推荐）
+---
+
+## 快速上手
+
+### 1. 用 Docker 跑起网站（推荐）
 
 ```bash
-# 克隆仓库
 git clone https://github.com/huanyu-a/FavsHub_web.git
 cd FavsHub_web/favshub-nuxt
-
-# Docker Compose 一键启动
 docker compose up -d
 ```
 
-访问 `http://localhost:3090`，注册第一个用户自动成为管理员。
+浏览器打开 **http://localhost:3090**。
 
-JWT 密钥首次启动时自动生成并持久化到 `data/.jwt-secret`，无需手动配置。生产环境建议通过环境变量 `NUXT_JWT_SECRET` 覆盖。
+- 第一个注册的用户会成为**管理员**。
+- 数据默认落在 `favshub-nuxt/data/`，容器重启不会丢。
+- 更完整的部署、备份、环境变量见 [网站文档 · 部署](favshub-nuxt/README.md#部署)。
 
-详细部署方式见 [favshub-nuxt/README.md](favshub-nuxt/README.md)。
+### 2. （可选）安装浏览器扩展
 
-### 本地开发
+1. 先保证网站已可访问，并完成注册登录。  
+2. 按 [扩展文档](favshub-ext/README.md) 加载扩展，在扩展设置里填入网站地址与登录凭据。  
+3. 一键同步浏览器书签到网站。
+
+### 3. 不用 Docker、在本机直接跑网站（可选）
+
+需已安装 Node.js ≥ 20 与 pnpm ≥ 9：
 
 ```bash
 cd favshub-nuxt
 pnpm install
-pnpm dev          # http://localhost:3000
+pnpm dev          # 浏览器打开 http://localhost:3000
 ```
 
-### 浏览器扩展
+更完整的环境变量、备份与升级说明见 [网站文档](favshub-nuxt/README.md)。
 
-```bash
-cd favshub-ext
-pnpm install
-pnpm dev          # Chrome 开发模式
+---
+
+## 典型使用路径
+
+```text
+打开网站主页
+  → 注册 / 登录
+  → 在首页浏览书签、切换搜索引擎
+  → 打开「精选集」订阅或导入导航
+  → 打开「提示词」管理 Prompt
+  → 进入 /admin 管理自己的书签、设置、备份（管理员可管全站）
+  → （可选）装扩展，把浏览器书签同步进来
 ```
 
-在 `chrome://extensions/` 加载 `favshub-ext/.output/chrome-mv3/` 目录。
+权限一句话：
 
-## 环境变量
+- **访客**：看公开内容（视站点配置而定）。  
+- **登录用户**：管自己的书签 / 提示词 / 设置，进 `/admin` 自管。  
+- **管理员**：用户、全站配置、官方精选集、备份策略等。
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `NUXT_JWT_SECRET` | JWT 签名密钥。留空则首次启动自动生成并持久化到 `data/.jwt-secret` | 自动生成（48 字节随机） |
-| `NUXT_DB_PATH` | SQLite 数据库路径 | `./data/favshub.db` |
-| `NUXT_CORS_ORIGIN` | CORS 允许来源 | `http://localhost:3000` |
-| `NUXT_ADMIN_USERS` | 管理员用户名（逗号分隔） | 空（首个注册用户为管理员） |
-| `NUXT_TRUST_PROXY` | 是否信任反向代理的 X-Forwarded-For | `false` |
+---
 
-## 安全特性
+## 文档导航
 
-- **JWT 密钥管理** — 环境变量优先 → 持久化文件回退 → 自动生成，48 字节随机密钥
-- **Rate Limiting** — 登录/注册接口频率限制，5 次失败后账户锁定 15 分钟
-- **CSP 安全头** — X-Content-Type-Options、X-Frame-Options、Referrer-Policy、CSP 等完整安全头
-- **SSRF 防护** — favicon 下载限制协议、重定向次数、IP 黑名单
-- **密码策略** — 可配置最小密码长度（默认 8 位），bcrypt 哈希存储
-- **JWT 可配置过期** — 默认 7 天，通过系统配置调整
-- **错误脱敏** — 生产环境隐藏 5xx 错误细节，防止信息泄露
+| 文档 | 适合谁 | 内容 |
+|------|--------|------|
+| [本 README](README.md) | 所有使用者 | 产品是什么、最快怎么跑起来 |
+| [favshub-nuxt/README.md](favshub-nuxt/README.md) | 站长 / 日常用户 | 网站功能、Docker 部署、环境变量、备份与安全 |
+| [favshub-ext/README.md](favshub-ext/README.md) | 扩展用户 | 安装、连接站点、同步书签、权限与快捷键 |
+| [CLAUDE.md](CLAUDE.md) / 子目录 `CLAUDE.md` | **仅**开发者与 AI | 架构、命令、改代码约定 — **使用产品时不必阅读** |
 
-## 许可证
+---
 
-- **网站** (`favshub-nuxt/`)：ISC License
-- **浏览器扩展** (`favshub-ext/`)：AGPL-3.0 License
+## 许可证与致谢
 
-## 致谢
+| 部分 | 许可证 |
+|------|--------|
+| 网站 `favshub-nuxt/` | ISC |
+| 扩展 `favshub-ext/` | AGPL-3.0 |
 
-- [TabMark-Bookmark-New-Tab](https://github.com/Alanrk/TabMark-Bookmark-New-Tab) — 原项目参考
-- [TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown) — 主题配色参考
-- [TailwindCSS](https://tailwindcss.com/) · [Naive UI](https://www.naiveui.com/) · [Sortable.js](https://sortablejs.github.io/Sortable/) · [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) · [WXT](https://wxt.dev/)
+感谢 [TabMark-Bookmark-New-Tab](https://github.com/Alanrk/TabMark-Bookmark-New-Tab)、[TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown)，以及 Nuxt、Vue、Naive UI、WXT、better-sqlite3 等开源项目。
