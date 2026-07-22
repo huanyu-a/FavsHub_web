@@ -108,7 +108,9 @@ import { ref, computed, h, onMounted, onUnmounted, watch } from 'vue'
 definePageMeta({ layout: 'default' })
 
 interface ICollectionBookmark {
-  id: number; title: string; url: string; icon: string; description: string; category_id: number | null; sort_order: number
+  id: number; title: string; url: string; icon: string; description: string
+  category_id: number | null; sort_order: number
+  need_proxy?: number; folder_id?: number | null; folder_name?: string
 }
 interface ICollectionCategory {
   id: number; name: string; parent_id: number | null; _depth: number; bookmark_count: number; bookmarks: ICollectionBookmark[]; children: ICollectionCategory[]
@@ -192,6 +194,7 @@ const collection = computed(() => {
       const childrenIds = childIds.get(cat.id) || []
       const ownBookmarks = bookmarks.filter(bm => bm.category_id === cat.id)
       const childrenBookmarks = bookmarks.filter(bm => childrenIds.includes(bm.category_id))
+      // 子分类仅保留有书签的
       const children: ICollectionCategory[] = categories
         .filter(c => c.parent_id === cat.id)
         .map(child => {
@@ -206,6 +209,7 @@ const collection = computed(() => {
             children: []
           }
         })
+        .filter(child => child.bookmark_count > 0)
 
       return {
         id: cat.id,
@@ -217,6 +221,8 @@ const collection = computed(() => {
         children
       }
     })
+    // 顶级分类：自身与子分类书签均为 0 时不展示
+    .filter(cat => cat.bookmark_count > 0)
 
   // 添加未分类的书签
   const categorizedIds = new Set(categories.map(c => c.id))
@@ -321,7 +327,7 @@ async function importOne(bid: number) {
   finally { importing.value = false }
 }
 function getUrlDomain(u: string) { try { return new URL(u).hostname } catch { return u } }
-function getFavicon(b: ICollectionBookmark) { if (b.icon) return b.icon; try { return 'https://www.google.com/s2/favicons?domain=' + new URL(b.url).hostname } catch { return '' } }
+function getFavicon(b: ICollectionBookmark) { return resolveBookmarkIcon(b.icon, b.url) || '' }
 function onIconError(e: Event) { (e.target as HTMLImageElement).style.display = 'none' }
 let msgTimer: ReturnType<typeof setTimeout>
 function showToast(t: string, type: 'success' | 'error') { msg.value = t; msgType.value = type; clearTimeout(msgTimer); msgTimer = setTimeout(() => { msg.value = '' }, 2500) }

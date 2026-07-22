@@ -29,7 +29,7 @@
 
         <div class="sidebar-folders-panel">
           <!-- 精选集浏览模式：显示精选集分类（支持层级） -->
-          <ul v-if="activeCollectionId && collectionCategories?.length" id="categories-list">
+          <ul v-if="activeCollectionId && visibleCollectionCategories.length" id="categories-list">
             <li
               class="folder-item"
               :class="{ 'bg-emerald-500': activeCategoryId === null }"
@@ -38,10 +38,10 @@
             >
               <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">全部分类</span>
-              <span class="item-count" style="margin-left:auto;">{{ collectionCategories.reduce((s, c) => s + (c.bookmark_count || 0), 0) }}</span>
+              <span class="item-count" style="margin-left:auto;">{{ visibleCollectionTotal }}</span>
             </li>
-            <!-- 按层级渲染：父分类紧接着其子分类 -->
-            <template v-for="cat in collectionCategories.filter(c => !c.parent_id)" :key="cat.id">
+            <!-- 按层级渲染：父分类紧接着其子分类（隐藏空分类） -->
+            <template v-for="cat in visibleCollectionRoots" :key="cat.id">
               <li
                 class="folder-item"
                 :class="{ 'bg-emerald-500': activeCategoryId === cat.id }"
@@ -53,7 +53,7 @@
                 <span class="item-count" style="margin-left:auto;">{{ cat.bookmark_count || 0 }}</span>
               </li>
               <li
-                v-for="child in collectionCategories.filter(c => c.parent_id === cat.id)"
+                v-for="child in visibleCollectionChildren(cat.id)"
                 :key="child.id"
                 class="folder-item"
                 :class="{ 'bg-emerald-500': activeCategoryId === child.id }"
@@ -356,6 +356,23 @@ const bookmarkCountMap = computed(() => {
 
 const totalBookmarkCount = computed(() => bookmarksStore.bookmarks.length)
 
+// 精选集分类：隐藏书签数为 0 的项（父级若自身为 0 但子级有书签仍显示）
+const visibleCollectionCategories = computed(() => {
+  const list = props.collectionCategories || []
+  const childHas = (parentId: number) =>
+    list.some(c => c.parent_id === parentId && (c.bookmark_count || 0) > 0)
+  return list.filter(c => (c.bookmark_count || 0) > 0 || (!c.parent_id && childHas(c.id)))
+})
+const visibleCollectionRoots = computed(() =>
+  visibleCollectionCategories.value.filter(c => !c.parent_id),
+)
+function visibleCollectionChildren(parentId: number) {
+  return visibleCollectionCategories.value.filter(c => c.parent_id === parentId && (c.bookmark_count || 0) > 0)
+}
+const visibleCollectionTotal = computed(() =>
+  visibleCollectionCategories.value.reduce((s, c) => s + (c.bookmark_count || 0), 0),
+)
+
 const folderTree = computed(() => {
   const map = new Map<number, FolderNode>()
   const roots: FolderNode[] = []
@@ -380,6 +397,25 @@ const folderTree = computed(() => {
     }
   }
 
+  // 递归剔除「自身 + 子孙」书签数均为 0 的文件夹
+  function pruneEmpty(nodes: FolderNode[]): FolderNode[] {
+    const kept: FolderNode[] = []
+    for (const n of nodes) {
+      const children = pruneEmpty(n.children)
+      const total = n._count + children.reduce((s, c) => s + subtreeCount(c), 0)
+      if (total <= 0) continue
+      n.children = children
+      n._hasChildren = children.length > 0
+      kept.push(n)
+    }
+    return kept
+  }
+  function subtreeCount(n: FolderNode): number {
+    return n._count + n.children.reduce((s, c) => s + subtreeCount(c), 0)
+  }
+
+  const pruned = pruneEmpty(roots)
+
   // 设置 depth
   function setDepth(nodes: FolderNode[], depth: number) {
     for (const n of nodes) {
@@ -387,8 +423,8 @@ const folderTree = computed(() => {
       if (n.children.length) setDepth(n.children, depth + 1)
     }
   }
-  setDepth(roots, 0)
-  return roots
+  setDepth(pruned, 0)
+  return pruned
 })
 
 // 保持 flatFolderTree 兼容

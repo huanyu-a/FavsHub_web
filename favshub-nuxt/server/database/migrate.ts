@@ -382,23 +382,19 @@ export function runMigrations(db: Database.Database) {
       console.log('[DB] migrate: collection_bookmarks uses bookmark_id')
     }
 
-    // 4. 回填历史个人书签 label（避免首页/同步过滤后列表变空）
-    // 规则：label 为空 且（非管理员书签 / 有 container / source 表明来自 web·sync）→ 视为个人
+    // 4. 回填历史个人书签 label（仅非管理员；管理员 label='' 表示公共池，禁止改写）
+    // 规则：label 为空 且 非管理员 → 视为个人；admin 的空 label 保留为公共池
     try {
       const r = db.prepare(`
         UPDATE bookmarks
         SET label = CASE
           WHEN container IS NOT NULL AND container != '' THEN 'sync'
           WHEN source = 'web' THEN 'web'
-          WHEN source IS NOT NULL AND source != '' AND source != '[]' THEN 'legacy'
+          WHEN source = 'sync' OR source LIKE '%"sync"%' THEN 'sync'
           ELSE 'personal'
         END
         WHERE COALESCE(label, '') = ''
-          AND (
-            user_id NOT IN (SELECT id FROM users WHERE is_admin = 1)
-            OR (container IS NOT NULL AND container != '')
-            OR (source IS NOT NULL AND source != '' AND source != '[]')
-          )
+          AND user_id NOT IN (SELECT id FROM users WHERE is_admin = 1)
       `).run()
       if (r.changes > 0) {
         console.log(`[DB] migrate: backfilled label on ${r.changes} personal bookmarks`)

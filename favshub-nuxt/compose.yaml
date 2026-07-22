@@ -4,7 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
     image: favshub:latest
-    container_name: favshub
     environment:
       - TZ=Asia/Shanghai
       - NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-}
@@ -16,6 +15,19 @@ services:
       - 223.5.5.5
     volumes:
       - ./data:/opt/favshub/data
+      - ./data/favicons:/opt/favshub/.output/public/images/favicons
+    # 对外端口由 nginx 统一暴露
+    expose:
+      - "3000"
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - favshub
     ports:
-      - "3090:3000"
+      - "3090:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/favicons:/favicons:ro
     restart: always

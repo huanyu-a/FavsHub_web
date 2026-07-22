@@ -134,7 +134,7 @@ export default defineEventHandler(async (event) => {
   sql += ` ORDER BY b.created_at DESC LIMIT ?`
   params.push(getConfigInt('bookmarks_query_limit', 500))
 
-  const bookmarks = db.prepare(sql).all(...params)
+  const bookmarks = db.prepare(sql).all(...params) as { folder_id?: number | null }[]
 
   // 查询文件夹：按 login_required 过滤可见性（含继承）
   let folders: any[]
@@ -172,5 +172,29 @@ export default defineEventHandler(async (event) => {
     folders = filterByInheritance(allAdminFolders)
   }
 
+  // 首页侧栏：只返回「当前个人书签列表」中实际用到的文件夹及其祖先
+  // （公共池专用分类 bookmark 数为 0，不应出现在个人书签导航）
+  folders = filterFoldersUsedByBookmarks(folders, bookmarks)
+
   return { bookmarks, folders }
 })
+
+/** 保留书签实际引用的 folder_id 及其祖先，剔除空分类 */
+function filterFoldersUsedByBookmarks(folders: any[], bookmarks: { folder_id?: number | null }[]): any[] {
+  if (!folders.length) return folders
+
+  const byId = new Map<number, any>()
+  for (const f of folders) byId.set(f.id, f)
+
+  const keep = new Set<number>()
+  for (const b of bookmarks) {
+    let id = b.folder_id ?? null
+    while (id != null && byId.has(id) && !keep.has(id)) {
+      keep.add(id)
+      const parent = byId.get(id)?.parent_id
+      id = parent == null ? null : parent
+    }
+  }
+
+  return folders.filter(f => keep.has(f.id))
+}

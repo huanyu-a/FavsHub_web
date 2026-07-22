@@ -129,18 +129,33 @@ const folders = computed(() => {
   if (isPromptsPage.value) {
     return promptFolders.value
   }
-  // 精选集模式：用精选集分类，与桌面侧栏一致
+  // 精选集模式：用精选集分类，与桌面侧栏一致；隐藏空分类
   if (bookmarksStore.viewMode === 'collection') {
-    return bookmarksStore.collectionCategories.map(c => ({
-      id: c.id,
-      name: c.name,
-      parent_id: c.parent_id ?? null,
-      icon: undefined as string | undefined,
-      login_required: false,
-      bookmark_count: c.bookmark_count,
-    }))
+    return bookmarksStore.collectionCategories
+      .filter(c => (c.bookmark_count || 0) > 0)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        parent_id: c.parent_id ?? null,
+        icon: undefined as string | undefined,
+        login_required: false,
+        bookmark_count: c.bookmark_count || 0,
+      }))
   }
-  return bookmarksStore.folders
+  // 个人/公共书签：按当前书签列表统计数量，隐藏空文件夹
+  const countMap = new Map<number, number>()
+  for (const b of bookmarksStore.bookmarks) {
+    if (b.folder_id) countMap.set(b.folder_id, (countMap.get(b.folder_id) || 0) + 1)
+  }
+  const withCount = bookmarksStore.folders.map(f => ({
+    ...f,
+    bookmark_count: countMap.get(f.id) || 0,
+  }))
+  // 父级：自身或任一子级有书签才保留
+  return withCount.filter(f => {
+    if ((f.bookmark_count || 0) > 0) return true
+    return withCount.some(c => c.parent_id === f.id && (c.bookmark_count || 0) > 0)
+  })
 })
 
 // 一级分类（parent_id 为 null）
@@ -164,7 +179,7 @@ watch(isPromptsPage, (isPrompts) => {
   }
 }, { immediate: true })
 
-// 检查是否有子分类
+// 检查是否有子分类（仅计可见且非空的）
 function hasChildren(folderId: number): boolean {
   return folders.value.some(f => f.parent_id === folderId)
 }

@@ -46,7 +46,8 @@ export default defineNuxtConfig({
           'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
           // 'unsafe-eval' is required by Nuxt/Vue dev mode (hot reload uses eval);
           // can be removed in production builds where HMR is disabled.
-          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
+          // hm.baidu.com：百度统计；img/connect 已允许 https 外链图标与接口
+          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://hm.baidu.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
           // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
           'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
         },

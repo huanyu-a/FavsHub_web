@@ -305,7 +305,7 @@ async function loadBrowserHistory(query?: string) {
         text: item.title || item.url,
         url: item.url,
         type: 'history' as const,
-        icon: `https://www.google.com/s2/favicons?domain=${domain}&sz=32`,
+        icon: resolveBookmarkIcon(null, item.url) || '',
         relevance: Math.exp(-((now - (item.lastVisitTime || now)) / (1000 * 60 * 60 * 24)) / 7), // 7-day half-life
       })
     }

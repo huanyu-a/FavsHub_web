@@ -1,6 +1,9 @@
 /**
  * GET /api/collections/:id — 精选集详情
  * 返回：collection 信息 + categories 分组 + bookmarks 列表
+ *
+ * 分类展示规则：优先继承书签自身的 folders（folder_id）树；
+ * 若公共池书签无 folder，再回退到 collection_categories。
  */
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
@@ -27,8 +30,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, data: { error: '无权访问此精选集' } })
   }
 
-  // 查询分类（二级结构）
-  const categories = db.prepare(`
+  // 原始精选集内置分类（回退用）
+  const builtInCategories = db.prepare(`
     SELECT * FROM collection_categories
     WHERE collection_id = ?
     ORDER BY parent_id NULLS FIRST, sort_order
@@ -56,20 +59,117 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 查询书签（JOIN bookmarks 获取 title/url/icon）
+  // 查询书签：JOIN bookmarks + folders，继承书签自身分类
   let bookmarksSql = `
-    SELECT cb.*, b.url, b.title, b.icon, b.description
+    SELECT
+      cb.id,
+      cb.collection_id,
+      cb.bookmark_id,
+      cb.sort_order,
+      cb.created_at,
+      cb.category_id AS collection_category_id,
+      b.url, b.title, b.icon, b.description, b.need_proxy,
+      b.folder_id,
+      f.name AS folder_name,
+      f.parent_id AS folder_parent_id,
+      f.sort_order AS folder_sort,
+      pf.name AS folder_parent_name,
+      pf.sort_order AS folder_parent_sort
     FROM collection_bookmarks cb
     JOIN bookmarks b ON cb.bookmark_id = b.id
+    LEFT JOIN folders f ON b.folder_id = f.id
+    LEFT JOIN folders pf ON f.parent_id = pf.id
     WHERE cb.collection_id = ?
-    ORDER BY cb.category_id NULLS FIRST, cb.sort_order
+    ORDER BY
+      COALESCE(pf.sort_order, f.sort_order, 9999),
+      COALESCE(pf.name, f.name, ''),
+      COALESCE(f.sort_order, 9999),
+      COALESCE(f.name, ''),
+      cb.sort_order
   `
-  let bookmarks: any[]
+  let rawBookmarks: any[]
   if (limit && page) {
     bookmarksSql += ` LIMIT ? OFFSET ?`
-    bookmarks = db.prepare(bookmarksSql).all(id, limit, (page - 1) * limit) as any[]
+    rawBookmarks = db.prepare(bookmarksSql).all(id, limit, (page - 1) * limit) as any[]
   } else {
-    bookmarks = db.prepare(bookmarksSql).all(id) as any[]
+    rawBookmarks = db.prepare(bookmarksSql).all(id) as any[]
+  }
+
+  // 统计有 folder 的书签占比；有一定比例则按文件夹树展示
+  const withFolder = rawBookmarks.filter(b => b.folder_id != null).length
+  const useFolderCats = withFolder > 0 && withFolder >= Math.ceil(rawBookmarks.length * 0.3)
+
+  let categories: any[] = []
+  let bookmarks: any[] = []
+
+  if (useFolderCats) {
+    // 从书签 folder 构建二级分类树（id = folder.id，与前端 category_id 对齐）
+    const folderMap = new Map<number, any>()
+    for (const b of rawBookmarks) {
+      if (b.folder_id == null) continue
+      if (!folderMap.has(b.folder_id)) {
+        folderMap.set(b.folder_id, {
+          id: b.folder_id,
+          collection_id: id,
+          name: b.folder_name || '未命名',
+          parent_id: b.folder_parent_id ?? null,
+          sort_order: b.folder_sort ?? 0,
+          created_at: null,
+          _source: 'folder',
+        })
+      }
+      // 确保父分类节点也在列表中（即使父级本身没有直属书签）
+      if (b.folder_parent_id != null && !folderMap.has(b.folder_parent_id)) {
+        folderMap.set(b.folder_parent_id, {
+          id: b.folder_parent_id,
+          collection_id: id,
+          name: b.folder_parent_name || '未命名',
+          parent_id: null,
+          sort_order: b.folder_parent_sort ?? 0,
+          created_at: null,
+          _source: 'folder',
+        })
+      }
+    }
+    categories = [...folderMap.values()].sort((a, b) => {
+      const ap = a.parent_id ?? 0, bp = b.parent_id ?? 0
+      if (ap !== bp) return ap - bp
+      return (a.sort_order || 0) - (b.sort_order || 0) || String(a.name).localeCompare(String(b.name), 'zh')
+    })
+
+    // 响应中的 category_id 改为 folder_id，便于前端现有分组逻辑
+    bookmarks = rawBookmarks.map(b => ({
+      id: b.id,
+      collection_id: b.collection_id,
+      bookmark_id: b.bookmark_id,
+      category_id: b.folder_id ?? null,
+      sort_order: b.sort_order,
+      created_at: b.created_at,
+      url: b.url,
+      title: b.title,
+      icon: b.icon,
+      description: b.description,
+      need_proxy: b.need_proxy,
+      folder_id: b.folder_id,
+      folder_name: b.folder_name,
+    }))
+  } else {
+    categories = builtInCategories
+    bookmarks = rawBookmarks.map(b => ({
+      id: b.id,
+      collection_id: b.collection_id,
+      bookmark_id: b.bookmark_id,
+      category_id: b.collection_category_id ?? null,
+      sort_order: b.sort_order,
+      created_at: b.created_at,
+      url: b.url,
+      title: b.title,
+      icon: b.icon,
+      description: b.description,
+      need_proxy: b.need_proxy,
+      folder_id: b.folder_id,
+      folder_name: b.folder_name,
+    }))
   }
 
   // 如果是登录用户，返回订阅和导入状态
@@ -91,6 +191,7 @@ export default defineEventHandler(async (event) => {
       collection,
       categories,
       bookmarks,
+      category_source: useFolderCats ? 'folder' : 'collection',
       is_subscribed: !!isSubscribed,
       imported_count: importedCount.count,
       total_count: totalCount,
@@ -103,6 +204,7 @@ export default defineEventHandler(async (event) => {
     collection,
     categories,
     bookmarks,
+    category_source: useFolderCats ? 'folder' : 'collection',
     ...(page && { pagination: { page, limit, total: countResult.total, totalPages: Math.ceil(countResult.total / limit) } })
   }
 })

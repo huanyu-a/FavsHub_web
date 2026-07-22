@@ -47,13 +47,7 @@ const iconFailed = ref(false)
 
 const iconSrc = computed(() => {
   if (iconFailed.value) return null
-  if (props.bookmark.icon) return props.bookmark.icon
-  try {
-    const url = new URL(props.bookmark.url)
-    return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`
-  } catch {
-    return null
-  }
+  return resolveBookmarkIcon(props.bookmark.icon, props.bookmark.url)
 })
 
 const initialChar = computed(() => {
