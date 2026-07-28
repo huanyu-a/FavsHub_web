@@ -40,7 +40,7 @@
               <td><a :href="bm.url" target="_blank" rel="noopener" style="color:var(--primary);">{{ bm.title }}</a></td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ bm.url }}</td>
               <td>{{ bm.folder_name || '-' }}</td>
-              <td><span class="badge" :class="bm.label ? 'badge-public' : 'badge-locked'">{{ bm.label ? '个人' : '公共池' }}</span></td>
+              <td><span class="badge" :class="bm.label ? 'badge-public' : 'badge-locked'">{{ labelText(bm.label) }}</span></td>
               <td>{{ bm.username || bm.user_id }}</td>
               <td><span class="badge" :class="bm.login_required ? 'badge-private' : 'badge-public'">{{ bm.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
               <td class="actions">
@@ -133,7 +133,8 @@
             </select>
           </div>
           <div class="fg-row">
-            <div class="fg toggle-row"><label>个人书签</label><label class="switch"><input type="checkbox" v-model="ef._isPersonal" @change="ef.label = ef._isPersonal ? 'personal' : ''"><span class="slider round"></span></label></div>
+            <div class="fg toggle-row"><label>个人书签</label><label class="switch"><input type="checkbox" v-model="ef._isPersonal" @change="ef.label = ef._isPersonal ? (ef.label || 'personal') : ''"><span class="slider round"></span></label></div>
+            <div class="fg toggle-row"><label>同时加入公共池</label><label class="switch"><input type="checkbox" v-model="ef._inPool" :disabled="!ef._isPersonal"><span class="slider round"></span></label></div>
             <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
             <div class="fg toggle-row"><label>需要代理</label><label class="switch"><input type="checkbox" v-model="ef.need_proxy" :true-value="1" :false-value="0"><span class="slider round"></span></label></div>
           </div>
@@ -275,10 +276,28 @@ function toggleAllFolders() {
 }
 // Edit modal
 const editVisible = ref(false)
-const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0, label: '', description: '', need_proxy: 0, _isPersonal: false })
-function openEdit(bm: any) { Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0, label: bm.label || '', description: bm.description || '', need_proxy: bm.need_proxy || 0, _isPersonal: !!bm.label }); editVisible.value = true }
+const ef = reactive({ id: 0, title: '', url: '', icon: '', folder_id: null as number | null, login_required: 0, label: '', description: '', need_proxy: 0, _isPersonal: false, _inPool: false })
+// label 为逗号分隔标签集：个人标签（sync/personal/...）+ 保留标签 pool（同时具备公共池身份）
+function parseBmLabel(label: string | null) {
+  const tags = String(label || '').split(',').map(s => s.trim()).filter(Boolean)
+  const personal = tags.filter(t => t !== 'pool')
+  return { personal: personal.join(','), isPersonal: personal.length > 0, inPool: !label || tags.includes('pool') }
+}
+function labelText(label: string | null): string {
+  const { isPersonal, inPool } = parseBmLabel(label)
+  if (isPersonal && inPool) return '个人+公共池'
+  if (isPersonal) return '个人'
+  return '公共池'
+}
+function openEdit(bm: any) {
+  const { personal, isPersonal, inPool } = parseBmLabel(bm.label)
+  Object.assign(ef, { id: bm.id, title: bm.title, url: bm.url, icon: bm.icon || '', folder_id: bm.folder_id ?? null, login_required: bm.login_required || 0, label: personal, description: bm.description || '', need_proxy: bm.need_proxy || 0, _isPersonal: isPersonal, _inPool: isPersonal ? inPool : true })
+  editVisible.value = true
+}
 async function saveEdit() {
-  const body = { title: ef.title, url: ef.url, icon: ef.icon, folder_id: ef.folder_id, login_required: ef.login_required, label: ef._isPersonal ? (ef.label || 'personal') : '', description: ef.description, need_proxy: ef.need_proxy }
+  const personal = ef._isPersonal ? (ef.label.trim() || 'personal') : ''
+  const label = personal ? (ef._inPool ? `${personal},pool` : personal) : ''
+  const body = { title: ef.title, url: ef.url, icon: ef.icon, folder_id: ef.folder_id, login_required: ef.login_required, label, description: ef.description, need_proxy: ef.need_proxy }
   await $fetch(`/api/admin/bookmarks/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
   editVisible.value = false
   loadBookmarks()

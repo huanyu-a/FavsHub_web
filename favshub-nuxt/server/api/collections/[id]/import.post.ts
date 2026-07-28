@@ -11,6 +11,7 @@
  */
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
+import { normalizeUrl } from '../../../utils/bookmark-labels'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -76,10 +77,10 @@ export default defineEventHandler(async (event) => {
         categoryMap.set(cat.id, cat.name)
       }
 
-      // url → personal bookmark id
+      // url → personal bookmark id（按归一化 URL 匹配，避免仅尾 / 差异产生重复）
       const existingByUrl = new Map<string, number>()
       for (const b of db.prepare('SELECT id, url FROM bookmarks WHERE user_id = ?').all(user.id) as any[]) {
-        existingByUrl.set(b.url, b.id)
+        existingByUrl.set(normalizeUrl(b.url), b.id)
       }
 
       const existingFolders = new Map<string, number>()
@@ -107,9 +108,10 @@ export default defineEventHandler(async (event) => {
 
       for (const collBm of bookmarksToImport) {
         let personalBookmarkId: number | null = null
+        const normUrl = normalizeUrl(collBm.url || '')
 
-        if (existingByUrl.has(collBm.url)) {
-          personalBookmarkId = existingByUrl.get(collBm.url)!
+        if (existingByUrl.has(normUrl)) {
+          personalBookmarkId = existingByUrl.get(normUrl)!
           skipped++
         } else {
           let icon = collBm.icon || ''
@@ -136,14 +138,14 @@ export default defineEventHandler(async (event) => {
           const result = insertBookmarkStmt.run(
             user.id,
             collBm.title,
-            collBm.url,
+            normUrl,
             folderId,
             icon,
             now,
             now
           )
           personalBookmarkId = Number(result.lastInsertRowid)
-          existingByUrl.set(collBm.url, personalBookmarkId)
+          existingByUrl.set(normUrl, personalBookmarkId)
           imported++
         }
 

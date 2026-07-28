@@ -4,6 +4,7 @@
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { getConfigInt } from '../../../utils/config'
+import { hasPersonalLabel, normalizeUrl, SQL_IS_POOL } from '../../../utils/bookmark-labels'
 import { createError } from 'h3'
 
 function getMaxBookmarksPerSync(): number {
@@ -84,6 +85,8 @@ export default defineEventHandler(async (event) => {
 
   const tx = db.transaction(() => {
     // 全量替换：只删个人书签，保留公共池（精选集引用）
+    // 双属性书签（个人+公共池）先降级为纯公共池，避免精选集引用被级联删除
+    db.prepare(`UPDATE bookmarks SET label = '', updated_at = ? WHERE user_id = ? AND COALESCE(label, '') != '' AND ${SQL_IS_POOL}`).run(now, userId)
     db.prepare("DELETE FROM bookmarks WHERE user_id = ? AND COALESCE(label, '') != ''").run(userId)
 
     // 仅清理不再被任何书签引用的文件夹（避免误删公共池仍在用的文件夹）
@@ -112,9 +115,12 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, data: { error: `文件夹路径无效或过长（最大1024字符）` } })
       }
 
+      // URL 归一化：去掉结尾斜杠，避免仅尾 / 差异产生重复（须先于查重）
+      bm.url = normalizeUrl(bm.url)
+
       // 与公共池 URL 冲突时跳过（UNIQUE(user_id,url)），避免覆盖公共池
       const existing = db.prepare('SELECT id, label FROM bookmarks WHERE user_id = ? AND url = ?').get(userId, bm.url) as { id: number; label: string | null } | undefined
-      if (existing && !existing.label) continue
+      if (existing && !hasPersonalLabel(existing.label)) continue
 
       // folder_path 纯粹表达文件夹层级（不含容器名）
       const folderId = ensureFolderPath(bm.folder_path || bm.folder || null)

@@ -3,6 +3,7 @@
  * collection_bookmarks 只存 bookmark_id 引用；title/url 在 bookmarks 表
  */
 import type Database from 'better-sqlite3'
+import { isPoolBookmark, normalizeUrl, SQL_IS_POOL } from './bookmark-labels'
 
 const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
 
@@ -14,7 +15,7 @@ export function isDangerUrl(url: string | undefined | null): boolean {
 
 /**
  * 在用户（通常是管理员）书签池中按 URL upsert，返回 bookmark_id。
- * 优先匹配公共池（label=''）；若仅有个人书签则复用其 id 但不改写字段。
+ * 优先匹配公共池（label='' 或含 pool 标签）；若仅有个人书签则复用其 id 但不改写字段。
  * 新建时 label='' → 公共池。
  */
 export function upsertPoolBookmark(
@@ -23,19 +24,19 @@ export function upsertPoolBookmark(
   bm: { title?: string; url: string; icon?: string; description?: string },
   now = Date.now(),
 ): number {
-  const url = (bm.url || '').trim()
+  const url = normalizeUrl(bm.url || '')
   if (!url) throw new Error('url is required')
 
   // 优先公共池，再任意同 URL（UNIQUE 下最多一条）
   const existing = db.prepare(
     `SELECT id, label FROM bookmarks WHERE user_id = ? AND url = ?
-     ORDER BY CASE WHEN COALESCE(label, '') = '' THEN 0 ELSE 1 END
+     ORDER BY CASE WHEN ${SQL_IS_POOL} THEN 0 ELSE 1 END
      LIMIT 1`
   ).get(userId, url) as { id: number; label: string | null } | undefined
 
   if (existing) {
-    // 仅更新公共池展示字段；个人书签只复用 id，避免污染个人数据
-    if (!existing.label) {
+    // 仅更新公共池展示字段；纯个人书签只复用 id，避免污染个人数据
+    if (isPoolBookmark(existing.label)) {
       const sets: string[] = ['updated_at = ?']
       const params: any[] = [now]
       if (bm.title) { sets.push('title = ?'); params.push(String(bm.title).slice(0, 256)) }

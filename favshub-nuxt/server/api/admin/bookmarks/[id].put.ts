@@ -5,6 +5,7 @@
  */
 import { getRawDb } from '../../../database'
 import { getAuthRole } from '../../../utils/auth'
+import { normalizeUrl } from '../../../utils/bookmark-labels'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -58,7 +59,7 @@ export default defineEventHandler(async (event) => {
   const params: any[] = [now]
 
   if (title !== undefined) { setClauses.push('title = ?'); params.push(title) }
-  if (url !== undefined) { setClauses.push('url = ?'); params.push(url) }
+  if (url !== undefined) { setClauses.push('url = ?'); params.push(normalizeUrl(url)) }
   if (folder_id !== undefined) { setClauses.push('folder_id = ?'); params.push(folder_id !== 0 ? folder_id : null) }
   if (icon !== undefined) { setClauses.push('icon = ?'); params.push(icon) }
   if (isAdmin && login_required !== undefined) { setClauses.push('login_required = ?'); params.push(login_required ? 1 : 0) }
@@ -73,9 +74,16 @@ export default defineEventHandler(async (event) => {
 
   if (setClauses.length > 1) {
     params.push(bookmarkId)
-    db.transaction(() => {
-      db.prepare(`UPDATE bookmarks SET ${setClauses.join(', ')} WHERE id = ?`).run(...params)
-    })()
+    try {
+      db.transaction(() => {
+        db.prepare(`UPDATE bookmarks SET ${setClauses.join(', ')} WHERE id = ?`).run(...params)
+      })()
+    } catch (err: any) {
+      if (String(err?.message || '').includes('UNIQUE constraint failed')) {
+        throw createError({ statusCode: 409, data: { error: '该 URL 已被其他书签使用' } })
+      }
+      throw err
+    }
   }
 
   const updated = db.prepare(`

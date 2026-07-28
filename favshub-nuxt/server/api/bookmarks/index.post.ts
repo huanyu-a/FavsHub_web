@@ -3,6 +3,7 @@
  */
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
+import { normalizeUrl } from '../../utils/bookmark-labels'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -12,6 +13,8 @@ export default defineEventHandler(async (event) => {
   if (!title || !url) {
     throw createError({ statusCode: 400, data: { error: '标题和 URL 不能为空' } })
   }
+  // URL 归一化：去掉结尾斜杠，避免仅尾 / 差异产生重复
+  const normalizedUrl = normalizeUrl(url)
   if (title.length > 256 || url.length > 2048 || (icon && icon.length > 2048)) {
     throw createError({ statusCode: 400, data: { error: '字段长度超出限制' } })
   }
@@ -47,10 +50,18 @@ export default defineEventHandler(async (event) => {
   const insertStmt = db.prepare(
     'INSERT INTO bookmarks (user_id, title, url, folder_id, icon, description, sort_order, source, login_required, label, need_proxy, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
-  const result = db.transaction(() => {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM bookmarks WHERE user_id = ?').get(user.id) as { m: number | null } | undefined
-    return insertStmt.run(user.id, title, url, folder_id || null, icon || null, description || '', (maxOrder?.m || 0) + 1, 'web', lr, bmLabel, need_proxy ? 1 : 0, now, now)
-  })()
+  let result: { lastInsertRowid: number | bigint }
+  try {
+    result = db.transaction(() => {
+      const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM bookmarks WHERE user_id = ?').get(user.id) as { m: number | null } | undefined
+      return insertStmt.run(user.id, title, normalizedUrl, folder_id || null, icon || null, description || '', (maxOrder?.m || 0) + 1, 'web', lr, bmLabel, need_proxy ? 1 : 0, now, now)
+    })()
+  } catch (err: any) {
+    if (String(err?.message || '').includes('UNIQUE constraint failed')) {
+      throw createError({ statusCode: 409, data: { error: '该 URL 的书签已存在' } })
+    }
+    throw err
+  }
 
   const bookmark = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(result.lastInsertRowid)
   return { bookmark }

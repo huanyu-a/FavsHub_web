@@ -4,6 +4,7 @@
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { getConfigInt } from '../../../utils/config'
+import { hasPersonalLabel, isPoolBookmark, normalizeUrl } from '../../../utils/bookmark-labels'
 
 function getMaxBookmarksPerSync(): number {
   return getConfigInt('max_bookmarks_per_sync', 20000)
@@ -108,6 +109,8 @@ export default defineEventHandler(async (event) => {
     for (const bm of bookmarks) {
       // 跳过字段超长的条目
       if (!bm.url || bm.url.length > 2048) continue
+      // URL 归一化：去掉结尾斜杠，避免仅尾 / 差异产生重复
+      bm.url = normalizeUrl(bm.url)
       if (bm.title && bm.title.length > 256) bm.title = bm.title.slice(0, 256)
       if (bm.icon && bm.icon.length > 2048) bm.icon = null
 
@@ -115,8 +118,8 @@ export default defineEventHandler(async (event) => {
       const container = bm.container || ''
 
       const existing = checkExisting.get(userId, bm.url) as { id: number; source: string | null; label: string | null } | undefined
-      // 公共池 URL 不参与同步写入
-      if (existing && !existing.label) {
+      // 公共池 URL 不参与同步写入（无个人标签的记录 sync 不动）
+      if (existing && !hasPersonalLabel(existing.label)) {
         continue
       }
       incomingUrls.add(bm.url)
@@ -140,13 +143,19 @@ export default defineEventHandler(async (event) => {
       const containerList = [...syncedContainers]
       const placeholders = containerList.map(() => '?').join(',')
       const serverBookmarks = db.prepare(
-        `SELECT id, url FROM bookmarks WHERE user_id = ? AND container IN (${placeholders}) AND COALESCE(label, '') != ''`
-      ).all(userId, ...containerList) as { id: number; url: string }[]
+        `SELECT id, url, label FROM bookmarks WHERE user_id = ? AND container IN (${placeholders}) AND COALESCE(label, '') != ''`
+      ).all(userId, ...containerList) as { id: number; url: string; label: string | null }[]
 
       const deleteBookmark = db.prepare('DELETE FROM bookmarks WHERE id = ?')
+      // 双属性书签（个人+公共池）不物理删除，降级为纯公共池，避免精选集引用被级联删除
+      const demoteBookmark = db.prepare("UPDATE bookmarks SET label = '', updated_at = ? WHERE id = ?")
       for (const sb of serverBookmarks) {
         if (!incomingUrls.has(sb.url)) {
-          deleteBookmark.run(sb.id)
+          if (isPoolBookmark(sb.label)) {
+            demoteBookmark.run(Date.now(), sb.id)
+          } else {
+            deleteBookmark.run(sb.id)
+          }
           deleted++
         }
       }
