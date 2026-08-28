@@ -39,13 +39,13 @@
             <td class="actions">
               <button v-if="e._canEdit" class="btn btn-ghost btn-sm" @click="openEdit(e)">编辑</button>
               <button v-if="e._canDelete" class="btn btn-danger btn-sm" @click="del(e)">删除</button>
-              <button v-if="!isAdmin && e.status === 'approved'" class="btn btn-ghost btn-sm" :class="{ active: myDefault === e.name }" @click="setMyDefault(e)">{{ myDefault === e.name ? '✓ 默认' : '设为默认' }}</button>
+              <button v-if="!isAdmin && e.status === 'approved'" class="btn btn-ghost btn-sm" :class="{ active: myDefault === e.name }" @click="setMyDefault(e)"><i v-if="myDefault === e.name" class="ri-check-line"></i> {{ myDefault === e.name ? '默认' : '设为默认' }}</button>
               <!-- 管理员审核操作 -->
               <template v-if="isAdmin && e.status === 'pending'">
                 <button class="btn btn-primary btn-sm" @click="reviewEngine(e, 'approved')">通过</button>
                 <button class="btn btn-danger btn-sm" @click="reviewEngine(e, 'disabled')">拒绝</button>
               </template>
-              <span v-if="!e._canEdit && !e._canDelete && e.status !== 'pending'" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
+              <span v-if="!e._canEdit && !e._canDelete && e.status !== 'pending'" style="color:var(--text-tertiary);font-size:12px;"><i class="ri-lock-line"></i> 只读</span>
             </td>
           </tr>
         </tbody>

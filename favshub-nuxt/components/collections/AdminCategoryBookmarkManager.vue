@@ -4,7 +4,7 @@
     <div class="acbm-toolbar">
       <label class="acbm-label">当前精选集：</label>
       <select v-model="selectedId" class="acbm-select" @change="onSelectCollection">
-        <option v-for="c in collections" :key="c.id" :value="c.id">{{ c.icon || '📚' }} {{ c.name }}</option>
+        <option v-for="c in collections" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
       <button class="btn btn-ghost btn-sm" :disabled="!selectedId" @click="refresh">刷新</button>
       <span v-if="selectedCollection" class="acbm-info">({{ bookmarkCount }} 书签, {{ categories.length }} 分类)</span>
@@ -112,7 +112,7 @@
           </div>
         </div>
         <div class="acbm-modal-footer">
-          <span class="acbm-info">已选 {{ pickerSelected.size }} 项 → 分类：{{ getCatName(filterCategoryId) }}</span>
+          <span class="acbm-info">已选 {{ pickerSelected.size }} 项，添加到分类：{{ getCatName(filterCategoryId) }}</span>
           <div class="acbm-modal-actions">
             <button class="btn btn-ghost" @click="pickerVisible = false">取消</button>
             <button class="btn btn-primary" :disabled="pickerSelected.size === 0 || pickerSaving" @click="confirmAddFromPool">

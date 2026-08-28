@@ -3,7 +3,7 @@
  * 用于保护认证端点免受暴力破解
  * 支持 IP 级和用户名级双重限频
  *
- * ⚠️ 限制：基于进程内存的 Map，仅适用于单实例部署。
+ * 限制：基于进程内存的 Map，仅适用于单实例部署。
  * 若未来多实例部署（如负载均衡后端），每个实例各自计数，
  * 限频阈值实际被放大 N 倍。届时需迁移到 Redis 或共享存储。
  */
@@ -16,14 +16,25 @@ interface RateLimitEntry {
 
 const attempts = new Map<string, RateLimitEntry>()
 
-// 定期清理过期条目（每 5 分钟）
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
+// P11/S8: 清理定时器移入插件作用域，由 server/plugins/rate-limit-cleanup.ts 启动/停止，
+// 避免模块顶层 setInterval 在 HMR/多实例时泄漏
+let cleanupTimer: ReturnType<typeof setInterval> | null = null
+
+export function startRateLimitCleanup(intervalMs = 5 * 60 * 1000) {
+  if (cleanupTimer) return
+  cleanupTimer = setInterval(() => {
     const now = Date.now()
     for (const [key, entry] of attempts) {
       if (now > entry.resetAt) attempts.delete(key)
     }
-  }, 5 * 60 * 1000)
+  }, intervalMs)
+}
+
+export function stopRateLimitCleanup() {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer)
+    cleanupTimer = null
+  }
 }
 
 /**

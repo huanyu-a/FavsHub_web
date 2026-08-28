@@ -45,7 +45,7 @@ export const bookmarks = sqliteTable('bookmarks', {
   container: text('container').default(''),
   source: text('source').default('[]'),
   loginRequired: integer('login_required').default(0),
-  label: text('label').default(''),
+  label: text('label').notNull().default(''),
   needProxy: integer('need_proxy').default(0),
   createdAt: integer('created_at'),
   updatedAt: integer('updated_at'),
@@ -53,6 +53,8 @@ export const bookmarks = sqliteTable('bookmarks', {
   uniqueIndex('idx_bookmarks_user_url').on(table.userId, table.url),
   index('idx_bookmarks_user_id').on(table.userId),
   index('idx_bookmarks_folder_id').on(table.folderId),
+  // C4: 首页书签列表 WHERE user_id+login_required+label!='' ORDER BY created_at DESC 的覆盖索引
+  index('idx_bookmarks_user_label_created').on(table.userId, table.loginRequired, table.label, table.createdAt),
 ])
 
 // ─── prompt_folders ───────────────────────────────────────────
@@ -196,6 +198,8 @@ export const collectionBookmarks = sqliteTable('collection_bookmarks', {
   index('idx_cb_category').on(table.categoryId),
   index('idx_cb_bookmark').on(table.bookmarkId),
   uniqueIndex('idx_cb_collection_bookmark').on(table.collectionId, table.bookmarkId),
+  // M8: 精选集书签列表 JOIN + ORDER BY sort_order 的复合索引
+  index('idx_cb_collection_sort').on(table.collectionId, table.sortOrder),
 ])
 
 // ─── collection_subscriptions（用户订阅关系）──────────────────

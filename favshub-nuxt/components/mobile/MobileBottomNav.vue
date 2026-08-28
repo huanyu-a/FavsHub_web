@@ -1,11 +1,11 @@
 <template>
   <nav v-if="isMobile" class="mobile-bottom-nav">
     <NuxtLink v-if="isPromptsPage" to="/" class="mobile-nav-item" @click="closeDrawer">
-      <span class="mobile-nav-icon">🏠</span>
+      <span class="mobile-nav-icon"><i class="ri-home-5-line"></i></span>
       <span class="mobile-nav-label">首页</span>
     </NuxtLink>
     <NuxtLink v-else to="/prompts" class="mobile-nav-item" @click="closeDrawer">
-      <span class="mobile-nav-icon">💬</span>
+      <span class="mobile-nav-icon"><i class="ri-chat-3-line"></i></span>
       <span class="mobile-nav-label">提示词</span>
     </NuxtLink>
     <NuxtLink
@@ -14,23 +14,23 @@
       :class="{ active: isCollectionsPage }"
       @click="closeDrawer"
     >
-      <span class="mobile-nav-icon">📚</span>
+      <span class="mobile-nav-icon"><i class="ri-book-2-line"></i></span>
       <span class="mobile-nav-label">精选集</span>
     </NuxtLink>
     <button class="mobile-nav-item" type="button" @click="toggleFolderPanel">
-      <span class="mobile-nav-icon">📂</span>
+      <span class="mobile-nav-icon"><i class="ri-folder-open-line"></i></span>
       <span class="mobile-nav-label">分类</span>
     </button>
     <button class="mobile-nav-item" type="button" @click="openSearchSheet">
-      <span class="mobile-nav-icon">🔍</span>
+      <span class="mobile-nav-icon"><i class="ri-search-line"></i></span>
       <span class="mobile-nav-label">搜索</span>
     </button>
     <button class="mobile-nav-item" type="button" @click="cycleTheme">
-      <span class="mobile-nav-icon">{{ themeIcon }}</span>
+      <span class="mobile-nav-icon"><i :class="themeIcon"></i></span>
       <span class="mobile-nav-label">主题</span>
     </button>
     <NuxtLink to="/admin" class="mobile-nav-item">
-      <span class="mobile-nav-icon">👤</span>
+      <span class="mobile-nav-icon"><i class="ri-user-3-line"></i></span>
       <span class="mobile-nav-label">我的</span>
     </NuxtLink>
   </nav>
@@ -41,7 +41,7 @@
     <Transition name="folder-float">
       <div v-if="isMobile && showFolderPanel" class="mobile-folder-float">
         <div class="mobile-folder-item" :class="{ active: isFolderActive('all') }" @click="selectFolder('all')">
-          <span class="mobile-folder-icon">📁</span>
+          <span class="mobile-folder-icon"><i class="ri-folder-line"></i></span>
           <span class="mobile-folder-name">全部</span>
         </div>
         <!-- 一级分类 -->
@@ -51,9 +51,9 @@
             :class="{ active: isFolderActive(folder.id) || expandedFolderId === folder.id }"
             @click="toggleExpandFolder(folder.id)"
           >
-            <span class="mobile-folder-icon">{{ folder.icon || '📂' }}</span>
+            <span class="mobile-folder-icon"><AppIcon :value="folder.icon" fallback="ri-folder-open-line" /></span>
             <span class="mobile-folder-name">{{ folder.name }}</span>
-            <span v-if="folder.login_required" title="登录可见" style="font-size:10px;">🔒</span>
+            <span v-if="folder.login_required" title="登录可见" class="mobile-folder-lock"><i class="ri-lock-line"></i></span>
           </div>
           <!-- 二级分类 -->
           <Transition name="folder-sub">
@@ -65,7 +65,7 @@
                 :class="{ active: isFolderActive(child.id) }"
                 @click="selectFolder(child.id)"
               >
-                <span class="mobile-folder-icon sub">{{ child.icon || '📄' }}</span>
+                <span class="mobile-folder-icon sub"><AppIcon :value="child.icon" fallback="ri-file-line" /></span>
                 <span class="mobile-folder-name">{{ child.name }}</span>
               </div>
             </div>
@@ -267,8 +267,8 @@ onMounted(() => {
 const { cycleTheme } = useTheme()
 
 const themeIcon = computed(() => {
-  const icons: Record<string, string> = { light: '☀️', dark: '🌙', auto: '🖥️' }
-  return icons[uiStore.theme] || '☀️'
+  const icons: Record<string, string> = { light: 'ri-sun-line', dark: 'ri-moon-line', auto: 'ri-computer-line' }
+  return icons[uiStore.theme] || 'ri-sun-line'
 })
 </script>
 

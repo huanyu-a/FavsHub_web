@@ -26,7 +26,7 @@
         <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="downloadAllFavicons">下载图标</button>
         <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="retryFailed">重试失败</button>
         <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="forceLocalize">强制本地化</button>
-        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="exportBookmarks">📥 导出书签</button>
+        <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="exportBookmarks"><i class="ri-file-download-line"></i> 导出书签</button>
       </div>
       <div class="card">
         <table>
@@ -42,7 +42,7 @@
               <td>{{ bm.folder_name || '-' }}</td>
               <td><span class="badge" :class="bm.label ? 'badge-public' : 'badge-locked'">{{ labelText(bm.label) }}</span></td>
               <td>{{ bm.username || bm.user_id }}</td>
-              <td><span class="badge" :class="bm.login_required ? 'badge-private' : 'badge-public'">{{ bm.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
+              <td><span class="badge" :class="bm.login_required ? 'badge-private' : 'badge-public'"><i v-if="bm.login_required" class="ri-lock-line"></i> {{ bm.login_required ? '仅自己' : '公开' }}</span></td>
               <td class="actions">
                 <button class="btn btn-ghost btn-sm" @click="openEdit(bm)">编辑</button>
                 <button v-if="canDeleteBm(bm)" class="btn btn-danger btn-sm" @click="delBm(bm)">删除</button>
@@ -79,17 +79,17 @@
             :style="{ paddingLeft: (f._depth * 20 + 12) + 'px' }"
           >
             <span class="folder-drag-handle" title="拖拽排序">⠿</span>
-            <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)">{{ collapsedIds.has(f.id) ? '▶' : '▼' }}</span>
+            <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)"><i :class="collapsedIds.has(f.id) ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'"></i></span>
             <span v-else style="display:inline-block;width:16px;"></span>
             <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
             <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary);"></i>
             <span class="folder-drag-name">{{ f.name }}</span>
-            <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
+            <span v-if="f.login_required" title="登录可见" style="margin-left:4px;"><i class="ri-lock-line"></i></span>
             <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.bookmark_count || 0 }}个</span>
             <span class="folder-drag-actions">
               <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
               <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delFolder(f)">删除</button>
-              <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒</span>
+              <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;"><i class="ri-lock-line"></i></span>
             </span>
           </div>
         </div>
@@ -238,16 +238,32 @@ const displayFolders = computed(() => {
   walk(tree, 0)
   return result
 })
+let bookmarksLoading = false
+let bookmarksReloadQueued = false
 async function loadBookmarks() {
+  if (bookmarksLoading) {
+    // M12: 请求去重；并发期间的新变更排队，待当前请求结束后重载（避免静默丢弃翻页/筛选）
+    bookmarksReloadQueued = true
+    return
+  }
+  bookmarksLoading = true
   loading.value = true
-  const p = new URLSearchParams({ page: String(page.value), limit: String(pageSize) })
-  if (filterFolder.value) p.set('folder_id', String(filterFolder.value))
-  if (filterTitle.value) p.set('q', filterTitle.value)
-  if (filterUrl.value) p.set('url', filterUrl.value)
-  const r = await $fetch<any>(`/api/admin/bookmarks?${p}`, { headers: getAuthHeaders() })
-  bookmarks.value = r.bookmarks || []
-  total.value = r.total || 0
-  loading.value = false
+  try {
+    const p = new URLSearchParams({ page: String(page.value), limit: String(pageSize) })
+    if (filterFolder.value) p.set('folder_id', String(filterFolder.value))
+    if (filterTitle.value) p.set('q', filterTitle.value)
+    if (filterUrl.value) p.set('url', filterUrl.value)
+    const r = await $fetch<any>(`/api/admin/bookmarks?${p}`, { headers: getAuthHeaders() })
+    bookmarks.value = r.bookmarks || []
+    total.value = r.total || 0
+  } finally {
+    loading.value = false
+    bookmarksLoading = false
+    if (bookmarksReloadQueued) {
+      bookmarksReloadQueued = false
+      loadBookmarks()
+    }
+  }
 }
 let dt: any = null
 function debouncedLoad() { clearTimeout(dt); dt = setTimeout(loadBookmarks, 400) }

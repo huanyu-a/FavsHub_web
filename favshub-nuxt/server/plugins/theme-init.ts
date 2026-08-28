@@ -15,25 +15,34 @@
  * 3. 无 cookie → 默认浅色 + 客户端兜底脚本
  */
 
-/** 所有有效主题 class（含旧 gradient-background-* 自动迁移） */
+/** 所有有效主题 class（含旧值自动迁移） */
 const VALID_THEMES: Record<string, true> = {
-  // 原有 7 套浅色主题
-  'theme-bg-1': true, 'theme-bg-2': true, 'theme-bg-3': true,
-  'theme-bg-4': true, 'theme-bg-5': true, 'theme-bg-6': true,
+  // 浅色主题
+  'theme-bg-1': true, 'theme-bg-4': true, 'theme-bg-6': true,
   'theme-bg-7': true,
-  // TMD 浅色主题
-  'theme-bg-chen-guang': true, 'theme-bg-tian-qing': true,
-  'theme-bg-hu-po': true, 'theme-bg-na-tie': true,
-  // TMD 深色主题
+  'theme-bg-tian-qing': true, 'theme-bg-hu-po': true, 'theme-bg-na-tie': true,
+  // 深色主题
   'theme-bg-mo-ye': true, 'theme-bg-xing-yun': true,
   'theme-bg-ji-guang': true, 'theme-bg-zi-teng': true,
 }
 
-/** 将旧 gradient-background-N 迁移为 theme-bg-N */
+/** 已下线主题 → 迁移目标 */
+const THEME_MIGRATIONS: Record<string, string> = {
+  'theme-bg-2': 'theme-bg-tian-qing',
+  'theme-bg-3': 'theme-bg-6',
+  'theme-bg-5': 'theme-bg-hu-po',
+  'theme-bg-chen-guang': 'theme-bg-tian-qing',
+}
+
+/** 将旧值（gradient-background-N / 已下线主题）迁移为现行主题 class */
 function normalizeBg(bg: string | undefined): string | null {
   if (!bg) return null
   const m = bg.match(/^gradient-background-(\d+)$/)
-  if (m) return `theme-bg-${m[1]}`
+  if (m) {
+    const legacy = `theme-bg-${m[1]}`
+    return THEME_MIGRATIONS[legacy] || legacy
+  }
+  if (THEME_MIGRATIONS[bg]) return THEME_MIGRATIONS[bg]
   if (VALID_THEMES[bg]) return bg
   return null
 }
@@ -96,9 +105,11 @@ if(th==='auto'){th=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'lig
 h.setAttribute('data-theme',th);
 h.style.colorScheme=th;
 var bg=localStorage.getItem('favshub_bg')||'${DEFAULT_BG}';
-// 迁移旧 gradient-background-N → theme-bg-N
+// 迁移旧 gradient-background-N 与已下线主题
 var m=bg.match(/^gradient-background-(\\d+)$/);
 if(m) bg='theme-bg-'+m[1];
+var MIG={'theme-bg-2':'theme-bg-tian-qing','theme-bg-3':'theme-bg-6','theme-bg-5':'theme-bg-hu-po','theme-bg-chen-guang':'theme-bg-tian-qing'};
+if(MIG[bg]) bg=MIG[bg];
 h.classList.add(bg);
 var t=localStorage.getItem('favshub_token');
 if(t&&t!=='cookie_auth'){try{var p=JSON.parse(atob(t.split('.')[1]));if(p.isAdmin)h.setAttribute('data-admin','true')}catch(e){}}

@@ -47,7 +47,8 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   backup_minute: '0',
   backup_keep_copies: '7',
   // Favicon
-  favicon_source_url: 'https://www.google.com/s2/favicons?domain={domain}&sz={size}',
+  // 默认源改为国内可达的通用 favicon 服务（Google 的 s2/favicons 国内被墙，会导致下载挂起超时）
+  favicon_source_url: 'https://favicon.im/{domain}',
   favicon_size: '32',
   favicon_download_timeout: '10000',
   favicon_max_redirects: '3',

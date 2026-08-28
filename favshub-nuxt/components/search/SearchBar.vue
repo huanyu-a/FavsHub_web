@@ -14,7 +14,7 @@
             :alt="currentEngine?.name || 'search-engine-icon'"
             class="search-engine-icon"
           >
-          <span class="dropdown-indicator">▼</span>
+          <span class="dropdown-indicator"><i class="ri-arrow-down-s-line"></i></span>
         </div>
         <textarea
           ref="inputRef"
@@ -137,6 +137,7 @@
 import SearchEngineDropdown from './SearchEngineDropdown.vue'
 import { useSettingsStore } from '~/stores/settings'
 import { useSearchEnginesStore } from '~/stores/searchEngines'
+import { useAuthStore } from '~/stores/auth'
 
 const settingsStore = useSettingsStore()
 const searchEngineStore = useSearchEnginesStore()
@@ -496,10 +497,12 @@ function searchWithEngine(engine: Engine) {
 
 function applySuggestion(s: SuggestionItem) {
   if (s.type === 'prompt') {
-    // Navigate to prompt detail or open prompt page
+    // Navigate to prompt detail or open prompt page（frontend #11：跳转携带 prompt_id，避免目标丢失）
     const promptId = s.rawData?.prompt_id || s.rawData?.id
     if (promptId) {
-      window.location.href = `/prompts`
+      window.location.href = `/prompts?prompt_id=${encodeURIComponent(String(promptId))}`
+    } else {
+      window.location.href = '/prompts'
     }
     query.value = s.text
   } else if (s.type === 'search') {
@@ -589,6 +592,12 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 function toggleEngine(engine: Engine) {
+  // frontend #6：非管理员无法修改搜索引擎默认状态，前端守卫 + 明确提示，避免静默失败
+  const auth = useAuthStore()
+  if (!auth.isAdmin) {
+    alert('仅管理员可修改搜索引擎默认状态')
+    return
+  }
   if (enabledEngineIds.value.has(engine.id)) enabledEngineIds.value.delete(engine.id)
   else enabledEngineIds.value.add(engine.id)
   enabledEngineIds.value = new Set(enabledEngineIds.value)
@@ -598,7 +607,13 @@ function toggleEngine(engine: Engine) {
   }).then(() => {
     // Sync back to Pinia store so the search bar icon/tabs update
     searchEngineStore.fetchEngines()
-  }).catch(() => {})
+  }).catch(() => {
+    // 回滚本地状态，避免与后端不一致后静默失效
+    if (enabledEngineIds.value.has(engine.id)) enabledEngineIds.value.delete(engine.id)
+    else enabledEngineIds.value.add(engine.id)
+    enabledEngineIds.value = new Set(enabledEngineIds.value)
+    alert('操作失败，请稍后重试')
+  })
 }
 
 // ── Textarea auto-resize ────────────────────────────────────────

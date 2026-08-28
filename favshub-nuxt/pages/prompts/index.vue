@@ -165,7 +165,7 @@
                 </div>
                 <div class="meta-right">
                   <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
-                  <span v-if="prompt.usage_count >= 50" class="usage-badge" :title="`已被使用 ${prompt.usage_count} 次`">🔥 {{ prompt.usage_count }}</span>
+                  <span v-if="prompt.usage_count >= 50" class="usage-badge" :title="`已被使用 ${prompt.usage_count} 次`"><i class="ri-fire-line"></i> {{ prompt.usage_count }}</span>
                 </div>
               </div>
             </div>
@@ -297,7 +297,7 @@ useHead({
   title: 'PromptPro-AI提示词管理与分享平台',
   titleTemplate: (title?: string) => title ? `${title}_FavsHub` : 'PromptPro-AI提示词管理与分享平台_FavsHub', // 覆盖布局的 titleTemplate，确保以_FavsHub结尾
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260703a' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260828' },
   ],
 })
 
@@ -331,6 +331,7 @@ useHead({
 const { isGuest } = useAuth()
 const authStore = useAuthStore()
 const currentUserId = computed(() => authStore.user?.id)
+const route = useRoute()
 
 interface Prompt {
   id: string
@@ -823,7 +824,7 @@ async function savePrompt() {
     if (res?.review_required) {
       showEditDialog.value = false
       isReviewMode.value = false
-      alert('✅ 修改已提交审核，等待管理员审批')
+      alert('修改已提交审核，等待管理员审批')
       return
     }
   }
@@ -938,7 +939,7 @@ const tplVarModalVisible = ref(false)
 const tplVarContent = ref('')
 const tplVarPromptId = ref<string | undefined>(undefined)
 
-// 排序选项映射：前端值 → API sort 参数
+// 排序选项映射：前端值对应 API sort 参数
 const sortParamMap: Record<string, string> = {
   updated: '',
   usage: 'usage',
@@ -954,7 +955,7 @@ const sortParamMap: Record<string, string> = {
 function copyContent(content: string, promptId?: string) {
   const vars = parseTemplateVariables(content)
   if (vars.length > 0) {
-    // 有模板变量 → 打开填写弹窗
+    // 有模板变量时打开填写弹窗
     tplVarContent.value = content
     tplVarPromptId.value = promptId
     tplVarModalVisible.value = true
@@ -1010,7 +1011,20 @@ watch(sortBy, () => loadPrompts())
 
 onMounted(async () => {
   await Promise.all([loadPrompts(), loadFolders(), loadTags(), refreshRecycleCount()])
+  // frontend #11：支持 ?prompt_id= 直达详情（首页搜索建议跳转携带）
+  const promptId = route.query.prompt_id as string | undefined
+  if (promptId) viewPromptById(promptId)
 })
+
+// 根据 ID 拉取单个提示词并打开详情（供 ?prompt_id= 直达）
+async function viewPromptById(promptId: string) {
+  try {
+    const res = await $fetch<{ prompt: any }>(`/api/prompts/${encodeURIComponent(promptId)}`, {
+      credentials: 'include',
+    })
+    if (res?.prompt) viewPrompt(res.prompt)
+  } catch { /* 不存在或无权限时静默 */ }
+}
 </script>
 
 <style scoped>

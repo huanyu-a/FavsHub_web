@@ -82,7 +82,8 @@
 .mobile-nav-item.active, .mobile-nav-item:active {
   color: var(--primary); background: var(--primary-light);
 }
-.mobile-nav-icon { font-size: 20px; line-height: 1; }
+.mobile-nav-icon { font-size: 20px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.mobile-nav-icon i { font-size: 20px; }
 .mobile-nav-label { font-size: 10px; font-weight: 500; line-height: 1; white-space: nowrap; }
 
 /* --- 搜索弹窗 --- */
@@ -295,7 +296,10 @@
 }
 .mobile-folder-item:active { background: var(--surface-hover); }
 .mobile-folder-item.active { background: var(--primary-light, var(--primary-medium)); color: var(--primary); }
-.mobile-folder-icon { font-size: 22px; line-height: 1; }
+.mobile-folder-icon { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.mobile-folder-icon i { font-size: 20px; }
+.mobile-folder-icon.sub i { font-size: 15px; }
+.mobile-folder-lock { font-size: 12px; color: var(--text-tertiary); display: flex; align-items: center; }
 .mobile-folder-name {
   font-size: 10px; color: var(--text-primary);
   text-align: center; white-space: nowrap;

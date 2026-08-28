@@ -65,13 +65,12 @@ function toggleExpand(e: Event) {
     <span v-if="isEmoji" style="font-size:16px;flex-shrink:0;width:20px;text-align:center;">{{ node.icon }}</span>
     <i v-else :class="iconClass" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
     <span :title="node.name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ node.name }}</span>
-    <span v-if="node.login_required" title="登录可见" style="flex-shrink:0;font-size:11px;margin-left:2px;">🔒</span>
+    <span v-if="node.login_required" title="登录可见" style="flex-shrink:0;font-size:12px;margin-left:2px;color:var(--text-tertiary);display:inline-flex;align-items:center;"><i class="ri-lock-line"></i></span>
     <span
       v-if="node._hasChildren"
       style="cursor:pointer;display:inline-flex;align-items:center;flex-shrink:0;margin-left:2px;"
       @click="toggleExpand"
     >
-      <!-- eslint-disable-next-line vue/no-v-html -->
       <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M480-541.85 317.08-378.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.7-8.69-21.08 0-12.38 8.69-21.08l179.77-179.77q10.85-10.84 25.31-10.84 14.46 0 25.31 10.84l179.77 179.77q8.3 8.31 8.5 20.89.19 12.57-8.5 21.27-8.7 8.69-21.08 8.69-12.38 0-21.08-8.69L480-541.85Z"/></svg>
       <svg v-else xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
     </span>

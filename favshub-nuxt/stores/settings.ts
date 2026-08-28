@@ -1,6 +1,14 @@
 import { defineStore } from 'pinia'
 import { useAuthStore } from '~/stores/auth'
 
+/** 已下线主题迁移目标（与服务端 theme-init.ts 保持一致） */
+const THEME_MIGRATIONS: Record<string, string> = {
+  'theme-bg-2': 'theme-bg-tian-qing',
+  'theme-bg-3': 'theme-bg-6',
+  'theme-bg-5': 'theme-bg-hu-po',
+  'theme-bg-chen-guang': 'theme-bg-tian-qing',
+}
+
 /** 系统级配置字段名 — 仅管理员可写入，普通用户 set() 时自动过滤 */
 const SYSTEM_ONLY_KEYS = [
   'siteTitle', 'siteDescription', 'siteKeywords',
@@ -63,6 +71,8 @@ export const useSettingsStore = defineStore('settings', {
     settings: {} as Record<string, any>,
     isLoading: false,
     _persistTimer: null as ReturnType<typeof setTimeout> | null,
+    // frontend #8：持久化失败时置 true，成功/重新拉取后清除，暴露给 UI 提示"待同步"
+    _pendingSync: false,
   }),
 
   getters: {
@@ -71,6 +81,9 @@ export const useSettingsStore = defineStore('settings', {
 
     theme: (state) => state.settings.theme ?? SETTINGS_DEFAULTS.theme,
     bookmarkWidth: (state) => state.settings.bookmarkWidth ?? SETTINGS_DEFAULTS.bookmarkWidth,
+
+    /** 是否有未同步到后端的设置变更 */
+    pendingSync: (state) => state._pendingSync,
   },
 
   actions: {
@@ -83,6 +96,7 @@ export const useSettingsStore = defineStore('settings', {
         if (token && token !== 'cookie_auth') headers.Authorization = `Bearer ${token}`
         const res = await $fetch<{ data: Record<string, any> }>('/api/settings', { headers, credentials: 'include' })
         this.settings = { ...SETTINGS_DEFAULTS, ...res.data }
+        this._pendingSync = false
         // 显式应用背景（useTheme watcher 可能因对象替换不触发）
         if (import.meta.client) {
           this._applyBackground()
@@ -92,12 +106,15 @@ export const useSettingsStore = defineStore('settings', {
       }
     },
 
-    /** 将旧 gradient-background-N 值迁移为 theme-bg-N */
+    /** 将旧 gradient-background-N 值迁移为 theme-bg-N，并把已下线主题迁移到映射目标 */
     _normalizeBg(bg: string): string {
       if (!bg) return ''
       const m = bg.match(/^gradient-background-(\d+)$/)
-      if (m) return `theme-bg-${m[1]}`
-      return bg
+      if (m) {
+        const legacy = `theme-bg-${m[1]}`
+        return THEME_MIGRATIONS[legacy] || legacy
+      }
+      return THEME_MIGRATIONS[bg] || bg
     },
 
     /** 将 selectedBackground 同步到 <html> class
@@ -201,8 +218,17 @@ export const useSettingsStore = defineStore('settings', {
         })
         // 合并服务器响应，保留系统设置不被覆盖
         this.settings = { ...this.settings, ...res.data }
-      } catch {
-        // Silently ignore — next set() call will retry
+        this._pendingSync = false
+      } catch (err: any) {
+        // frontend #8：不再静默吞错——标记待同步，401 时尝试刷新会话
+        this._pendingSync = true
+        const status = (err as any)?.statusCode || (err as any)?.status
+        if (status === 401) {
+          const auth = useAuthStore()
+          auth.fetchMe().catch(() => auth.logout())
+        } else {
+          console.warn('[Settings] 设置持久化失败，将保留本地状态并在下次变更时重试:', err?.message || err)
+        }
       }
     },
 

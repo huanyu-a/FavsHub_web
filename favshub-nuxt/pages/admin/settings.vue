@@ -85,18 +85,14 @@
 definePageMeta({ middleware: 'admin', layout: 'admin', ssr: false })
 useHead({ title: '个人设置' })
 
-// ── 15 套主题配色（11 浅 + 4 深）──
+// ── 11 套主题配色（7 浅 + 4 深）──
 
-// 浅色主题（11 套）
+// 浅色主题（7 套）
 const lightThemes = [
   { value: 'theme-bg-1', label: '薄雾灰', accent: '#0D9488', style: { background: '#CBD5E1' } },
-  { value: 'theme-bg-2', label: '天空白', accent: '#2563EB', style: { background: '#BFDBFE' } },
-  { value: 'theme-bg-3', label: '淡紫薰', accent: '#9333EA', style: { background: '#E9D5FF' } },
   { value: 'theme-bg-4', label: '薄荷绿', accent: '#059669', style: { background: '#F2F8F0' } },
-  { value: 'theme-bg-5', label: '米白纸', accent: '#D97706', style: { background: '#FCFCF7' } },
   { value: 'theme-bg-6', label: '淡藤紫', accent: '#7C3AED', style: { background: '#F4F1F8' } },
   { value: 'theme-bg-7', label: '暖灰白', accent: '#4F46E5', style: { background: '#F8F7F4' } },
-  { value: 'theme-bg-chen-guang', label: '晨光', accent: '#3b82f6', style: { background: '#ffffff' } },
   { value: 'theme-bg-tian-qing', label: '天青', accent: '#3b82f6', style: { background: '#f8fafc' } },
   { value: 'theme-bg-hu-po', label: '琥珀', accent: '#D97757', style: { background: '#FAF9F5' } },
   { value: 'theme-bg-na-tie', label: '霜华', accent: '#1e66f5', style: { background: '#eff1f5' } },
@@ -118,12 +114,18 @@ if (!settingsStore.isLoading && Object.keys(settingsStore.settings).length === 0
   await settingsStore.fetchSettings(auth.token && auth.token !== 'cookie_auth' ? auth.token : undefined)
 }
 
-// 从 settingsStore 初始化表单（兼容旧 gradient-background-* 值）
+// 从 settingsStore 初始化表单（兼容旧 gradient-background-* 与已下线主题值）
 function normalizeBg(bg: string): string {
   if (!bg) return ''
   const m = bg.match(/^gradient-background-(\d+)$/)
   if (m) return `theme-bg-${m[1]}`
-  return bg
+  const MIGRATIONS: Record<string, string> = {
+    'theme-bg-2': 'theme-bg-tian-qing',
+    'theme-bg-3': 'theme-bg-6',
+    'theme-bg-5': 'theme-bg-hu-po',
+    'theme-bg-chen-guang': 'theme-bg-tian-qing',
+  }
+  return MIGRATIONS[bg] || bg
 }
 
 const form = reactive<Record<string, any>>({

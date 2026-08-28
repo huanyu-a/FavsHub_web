@@ -68,7 +68,7 @@
             <div class="form-btns">
               <button class="btn btn-ghost" @click="emit('close')">取消</button>
               <button class="btn btn-primary" @click="parseJSON" :disabled="!jsonInput && !uploadedFile">
-                下一步 →
+                下一步
               </button>
             </div>
           </div>
@@ -109,9 +109,9 @@
               </div>
             </div>
             <div class="form-btns">
-              <button class="btn btn-ghost" @click="step = 1">← 上一步</button>
+              <button class="btn btn-ghost" @click="step = 1">上一步</button>
               <button class="btn btn-primary" @click="step = 3" :disabled="!!parseError">
-                下一步 →
+                下一步
               </button>
             </div>
           </div>
@@ -166,7 +166,7 @@
               导入成功！共导入 {{ importResult.bookmark_count }} 个书签，{{ importResult.category_count }} 个分类
             </div>
             <div class="form-btns">
-              <button class="btn btn-ghost" @click="step = 2" :disabled="importing">← 上一步</button>
+              <button class="btn btn-ghost" @click="step = 2" :disabled="importing">上一步</button>
               <button
                 v-if="!importResult"
                 class="btn btn-primary"

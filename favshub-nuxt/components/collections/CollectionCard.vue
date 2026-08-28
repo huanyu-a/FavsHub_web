@@ -1,9 +1,9 @@
 <template>
   <NuxtLink :to="`/collections/${collection.id}`" class="collection-card">
     <div class="collection-card-header">
-      <span v-if="collection.icon" class="collection-icon">{{ collection.icon }}</span>
-      <span v-else class="collection-icon placeholder">📚</span>
-      <span v-if="collection.is_official" class="official-badge" title="官方推荐">⭐</span>
+      <span v-if="collection.icon" class="collection-icon"><AppIcon :value="collection.icon" fallback="ri-book-2-line" /></span>
+      <span v-else class="collection-icon placeholder"><i class="ri-book-2-line"></i></span>
+      <span v-if="collection.is_official" class="official-badge" title="官方推荐"><i class="ri-star-line"></i></span>
     </div>
     <h3 class="collection-name">{{ collection.name }}</h3>
     <p class="collection-desc">{{ collection.description || '暂无描述' }}</p>

@@ -3744,10 +3744,15 @@ body {
   opacity: 0.85;
 }
 .prompt-card.read-only .prompt-title::after {
-  content: '🔒';
-  font-size: 12px;
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
   margin-left: 6px;
   vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M18 8h-1V6a5 5 0 0 0-10 0v2H6a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1zm-9-2a3 3 0 0 1 6 0v2H9V6z'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M18 8h-1V6a5 5 0 0 0-10 0v2H6a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1zm-9-2a3 3 0 0 1 6 0v2H9V6z'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -4456,10 +4461,15 @@ body {
 }
 
 .custom-select-option.selected::before {
-    content: '✓';
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--primary);
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    vertical-align: middle;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M10 15.172l9.192-9.193 1.415 1.414L10 18l-6.364-6.364 1.414-1.414z'/%3E%3C/svg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' d='M10 15.172l9.192-9.193 1.415 1.414L10 18l-6.364-6.364 1.414-1.414z'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 /* 浅色模式 - 文件夹图标 */

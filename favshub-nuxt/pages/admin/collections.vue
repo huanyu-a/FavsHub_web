@@ -225,7 +225,15 @@ const cPages = computed(() => {
 const searchQuery = ref('')
 const filterType = ref('')
 
+let collectionsLoading = false
+let collectionsReloadQueued = false
 async function loadCollections() {
+  if (collectionsLoading) {
+    // M12: 请求去重；并发期间的新变更排队，待当前请求结束后重载
+    collectionsReloadQueued = true
+    return
+  }
+  collectionsLoading = true
   cLoading.value = true
   try {
     const params = new URLSearchParams({
@@ -243,6 +251,11 @@ async function loadCollections() {
     collections.value = []
   } finally {
     cLoading.value = false
+    collectionsLoading = false
+    if (collectionsReloadQueued) {
+      collectionsReloadQueued = false
+      loadCollections()
+    }
   }
 }
 

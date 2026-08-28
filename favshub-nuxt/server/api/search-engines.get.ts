@@ -6,6 +6,7 @@
  */
 import { getRawDb } from '../database'
 import { optionalAuth } from '../utils/auth'
+import { getCachedUserSettings } from '../utils/settings-cache'
 
 export default defineEventHandler(async (event) => {
   const user = optionalAuth(event)
@@ -25,32 +26,29 @@ export default defineEventHandler(async (event) => {
       id
   `).all() as any[]
 
-  // 登录用户：应用用户自定义排序
+  // 登录用户：应用用户自定义排序（M3/P7：解析结果走 TTL 缓存，避免每次请求 JSON.parse）
   if (user) {
-    try {
-      const settingsRow = db.prepare('SELECT data FROM settings WHERE user_id = ?').get(user.id) as { data: string } | undefined
-      if (settingsRow) {
-        const userSettings = JSON.parse(settingsRow.data) as Record<string, any>
-        const customOrder = userSettings.search_engine_order as number[] | undefined
-        if (Array.isArray(customOrder) && customOrder.length > 0) {
-          // 按用户自定义顺序排序（不在自定义列表中的排最后）
-          const orderMap = new Map(customOrder.map((id, idx) => [id, idx]))
-          engines.sort((a, b) => {
-            const oa = orderMap.has(a.id) ? orderMap.get(a.id)! : 999
-            const ob = orderMap.has(b.id) ? orderMap.get(b.id)! : 999
-            return oa - ob
-          })
-        }
-        // 应用用户自定义默认引擎
-        const customDefault = userSettings.search_engine_default as string | undefined
-        if (customDefault) {
-          engines = engines.map(e => ({
-            ...e,
-            is_default: e.name === customDefault ? 1 : 0,
-          }))
-        }
+    const userSettings = getCachedUserSettings(user.id, db)
+    if (userSettings) {
+      const customOrder = userSettings.search_engine_order as number[] | undefined
+      if (Array.isArray(customOrder) && customOrder.length > 0) {
+        // 按用户自定义顺序排序（不在自定义列表中的排最后）
+        const orderMap = new Map(customOrder.map((id, idx) => [id, idx]))
+        engines.sort((a, b) => {
+          const oa = orderMap.has(a.id) ? orderMap.get(a.id)! : 999
+          const ob = orderMap.has(b.id) ? orderMap.get(b.id)! : 999
+          return oa - ob
+        })
       }
-    } catch { /* 解析失败忽略，使用默认排序 */ }
+      // 应用用户自定义默认引擎
+      const customDefault = userSettings.search_engine_default as string | undefined
+      if (customDefault) {
+        engines = engines.map(e => ({
+          ...e,
+          is_default: e.name === customDefault ? 1 : 0,
+        }))
+      }
+    }
   }
 
   return { engines }

@@ -1,8 +1,10 @@
 /**
  * DELETE /api/admin/users/:id — 删除用户及其所有数据
+ * D7/A7: 数据清理集中在 server/utils/delete-user.ts，避免手写多条 DELETE 遗漏新表
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
+import { deleteUserData } from '../../../utils/delete-user'
 import { createError, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -24,21 +26,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '用户不存在' } })
   }
 
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM bookmarks WHERE user_id = ?').run(userId)
-    db.prepare('UPDATE folders SET parent_id = NULL WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM folders WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM prompt_tags WHERE prompt_id IN (SELECT id FROM prompts WHERE user_id = ?)').run(userId)
-    db.prepare('DELETE FROM prompt_versions WHERE prompt_id IN (SELECT id FROM prompts WHERE user_id = ?)').run(userId)
-    db.prepare('DELETE FROM prompts WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM prompt_folders WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM tags WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM settings WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM collection_bookmarks WHERE collection_id IN (SELECT id FROM collections WHERE user_id = ?)').run(userId)
-    db.prepare('DELETE FROM collections WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId)
-  })
-  tx()
+  deleteUserData(db, userId)
 
   return { success: true, message: `已删除用户 ${user.username} 及其所有数据` }
 })

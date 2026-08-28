@@ -43,7 +43,7 @@
             <td>{{ p.username || p.user_id }}</td>
             <td>{{ p.current_version || '1.0.0' }}</td>
             <td>{{ p.updated_at ? new Date(p.updated_at).toLocaleString() : '-' }}</td>
-            <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'">{{ p.login_required ? '🔒 仅自己' : '🌐 公开' }}</span></td>
+            <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'"><i v-if="p.login_required" class="ri-lock-line"></i> {{ p.login_required ? '仅自己' : '公开' }}</span></td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
               <button v-if="!isAdmin && p.owner_is_admin" class="btn btn-ghost btn-sm" @click="openEdit(p)">申请修改</button>
@@ -79,17 +79,17 @@
           :style="{ paddingLeft: (f._depth * 20 + 12) + 'px' }"
         >
           <span class="folder-drag-handle" title="拖拽排序">⠿</span>
-          <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)">{{ pCollapsedIds.has(f.id) ? '▶' : '▼' }}</span>
+          <span v-if="f._hasChildren" class="expand-btn" @click="pCollapsedIds.has(f.id) ? pCollapsedIds.delete(f.id) : pCollapsedIds.add(f.id)"><i :class="pCollapsedIds.has(f.id) ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'"></i></span>
           <span v-else style="display:inline-block;width:16px;"></span>
           <span v-if="f.icon && isEmoji(f.icon)" style="margin-right:4px;font-size:14px;">{{ f.icon }}</span>
           <i v-else-if="f.icon" :class="f.icon" style="margin-right:4px;font-size:14px;color:var(--primary);"></i>
           <span class="folder-drag-name">{{ f.name }}</span>
-          <span v-if="f.login_required" title="登录可见" style="margin-left:4px;">🔒</span>
+          <span v-if="f.login_required" title="登录可见" style="margin-left:4px;"><i class="ri-lock-line"></i></span>
           <span class="folder-drag-meta">{{ f.parent_name || '顶级' }} · {{ f.username || f.user_id }} · {{ f.prompt_count || 0 }}个</span>
           <span class="folder-drag-actions">
             <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-ghost btn-sm" @click="openFolderEdit(f)">编辑</button>
             <button v-if="isAdmin || f.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delPFolder(f)">删除</button>
-            <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒</span>
+            <span v-if="!isAdmin && f.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;"><i class="ri-lock-line"></i></span>
           </span>
         </div>
       </div>
@@ -110,7 +110,7 @@
             <td>{{ t.prompt_count || 0 }}</td>
             <td class="actions">
               <button v-if="isAdmin || t.user_id === currentUserId" class="btn btn-danger btn-sm" @click="delTag(t)">删除</button>
-              <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;">🔒 只读</span>
+              <span v-if="!isAdmin && t.user_id !== currentUserId" style="color:var(--text-tertiary);font-size:12px;"><i class="ri-lock-line"></i> 只读</span>
             </td>
           </tr>
         </tbody>
@@ -269,7 +269,7 @@
 	      <div class="modal">
 	        <div class="modal-header"><h3>{{ ef._reviewMode ? '申请修改' : '编辑提示词' }}</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
 	        <div class="modal-body">
-	          <div v-if="ef._reviewMode" class="review-hint">⚠️ 此提示词由管理员创建，修改将提交给管理员审核</div>
+	          <div v-if="ef._reviewMode" class="review-hint"><i class="ri-alert-line"></i> 此提示词由管理员创建，修改将提交给管理员审核</div>
 	          <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
 	          <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
 	          <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
@@ -287,14 +287,14 @@
           <h4 style="margin: 0 0 8px;">填充测试数据</h4>
           <p style="color: var(--text-tertiary); font-size: 13px; margin: 0 0 12px;">一键生成 12 条示例提示词、文件夹、标签和版本历史（仅当您的提示词 ≤ 5 条时可用，避免重复填充）。</p>
           <button class="btn btn-primary btn-sm" :disabled="devLoading" @click="seedDevData">
-            {{ devLoading ? '生成中...' : '🔧 填充测试数据' }}
+            {{ devLoading ? '生成中...' : '填充测试数据' }}
           </button>
         </div>
         <div style="margin-bottom: 20px;">
           <h4 style="margin: 0 0 8px;">清空数据</h4>
           <p style="color: var(--text-tertiary); font-size: 13px; margin: 0 0 12px;">永久删除您创建的所有提示词、文件夹和标签数据，不可恢复。</p>
           <button class="btn btn-danger btn-sm" :disabled="devLoading" @click="clearDevData">
-            🗑️ 清空全部数据
+            清空全部数据
           </button>
         </div>
         <div v-if="devMsg" :class="['message', devMsgType]" style="margin-top: 8px;">{{ devMsg }}</div>
@@ -554,7 +554,7 @@ async function saveEdit() {
     const res = await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
     editVisible.value = false
     if (res?.review_required) {
-      alert('✅ 修改已提交审核，等待管理员审批')
+      alert('修改已提交审核，等待管理员审批')
     }
     loadPrompts() 
   } catch (e: any) {

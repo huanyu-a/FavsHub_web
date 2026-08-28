@@ -148,14 +148,14 @@
                   class="collection-item"
                   @click="$emit('select-collection', c.id)"
                 >
-                  <span class="collection-item-icon">{{ c.icon || '📚' }}</span>
+                  <span class="collection-item-icon"><AppIcon :value="c.icon" fallback="ri-book-2-line" /></span>
                   <span class="collection-item-name">{{ c.name }}</span>
                   <span class="collection-item-count">{{ c.bookmark_count }}</span>
                   <span v-if="c.new_count && c.new_count > 0" class="collection-new-badge">{{ c.new_count }}</span>
                 </li>
               </ul>
               <NuxtLink v-else to="/collections" class="collections-empty">
-                浏览精选集市场 →
+                浏览精选集市场
               </NuxtLink>
             </template>
             <template v-else>
@@ -163,7 +163,7 @@
                 <span>精选集</span>
               </div>
               <NuxtLink to="/collections" class="collections-entry-link">
-                <span class="collections-entry-icon">📚</span>
+                <span class="collections-entry-icon"><i class="ri-book-2-line"></i></span>
                 <span class="collections-entry-text">进入精选集市场</span>
                 <i class="ri-arrow-right-s-line"></i>
               </NuxtLink>
@@ -553,7 +553,8 @@ async function deleteFolder(folder: FolderNode) {
   position: relative;
 }
 .collection-item:hover { background: var(--bg-secondary, #f3f4f6); }
-.collection-item-icon { font-size: 16px; flex-shrink: 0; }
+.collection-item-icon { font-size: 16px; flex-shrink: 0; display: inline-flex; align-items: center; }
+.collection-item-icon i { font-size: 15px; }
 .collection-item-name {
   flex: 1;
   font-size: 13px;
@@ -602,7 +603,7 @@ async function deleteFolder(folder: FolderNode) {
   transition: background 0.15s;
 }
 .collections-entry-link:hover { background: var(--bg-tertiary, #e5e7eb); }
-.collections-entry-icon { font-size: 18px; }
+.collections-entry-icon { font-size: 18px; display: inline-flex; align-items: center; }
 .collections-entry-text { flex: 1; font-size: 13px; font-weight: 500; }
 .collections-entry-link i { color: var(--text-tertiary, #9ca3af); }
 </style>

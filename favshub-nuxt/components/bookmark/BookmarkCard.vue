@@ -16,7 +16,8 @@
         :src="iconSrc"
         :alt="bookmark.title"
         class="card-favicon-img"
-        loading="lazy"
+        :fetchpriority="faviconPriority ? 'high' : 'auto'"
+        :loading="faviconPriority ? 'eager' : 'lazy'"
         @load="onIconLoad"
         @error="onIconError"
       >
@@ -33,8 +34,11 @@
 </template>
 
 <script setup lang="ts">
+import { getBookmarkColor, setBookmarkColor } from '~/utils/bookmark-colors'
+
 const props = defineProps<{
   bookmark: any
+  faviconPriority?: boolean
 }>()
 
 defineEmits<{
@@ -111,24 +115,16 @@ function applyColors(el: HTMLElement, colors: ExtractedColors) {
   el.style.border = `1px solid rgba(${p.r},${p.g},${p.b},${isDark ? 0.1 : 0.01})`
 }
 
-const CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
-
 function onIconLoad() {
   if (!import.meta.client || !cardRef.value || !imgRef.value) return
-  const cacheKey = `bookmark-colors-${props.bookmark.id}`
-  const cached = localStorage.getItem(cacheKey)
+  const cached = getBookmarkColor(props.bookmark.user_id, props.bookmark.id)
   if (cached) {
-    try {
-      const parsed = JSON.parse(cached)
-      if (parsed.ts && Date.now() - parsed.ts < CACHE_TTL) {
-        applyColors(cardRef.value, parsed)
-        return
-      }
-    } catch { /* ignore */ }
+    applyColors(cardRef.value, cached)
+    return
   }
   const colors = getColors(imgRef.value)
   applyColors(cardRef.value, colors)
-  localStorage.setItem(cacheKey, JSON.stringify({ ...colors, ts: Date.now() }))
+  setBookmarkColor(props.bookmark.user_id, props.bookmark.id, colors)
 }
 
 function onIconError() {
@@ -142,23 +138,15 @@ function onIconError() {
 // Re-apply colors on theme change
 onMounted(() => {
   if (!import.meta.client) return
-  const cacheKey = `bookmark-colors-${props.bookmark.id}`
-  const cached = localStorage.getItem(cacheKey)
+  const cached = getBookmarkColor(props.bookmark.user_id, props.bookmark.id)
   if (cached && cardRef.value) {
-    try {
-      const parsed = JSON.parse(cached)
-      if (parsed.ts && Date.now() - parsed.ts < CACHE_TTL) {
-        applyColors(cardRef.value, parsed)
-      }
-    } catch { /* ignore */ }
+    applyColors(cardRef.value, cached)
   }
   // Watch for theme changes (re-read cache each time to avoid stale closure)
   const observer = new MutationObserver(() => {
     if (cardRef.value) {
-      try {
-        const fresh = localStorage.getItem(cacheKey)
-        if (fresh) applyColors(cardRef.value, JSON.parse(fresh))
-      } catch {}
+      const fresh = getBookmarkColor(props.bookmark.user_id, props.bookmark.id)
+      if (fresh) applyColors(cardRef.value, fresh)
     }
   })
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })

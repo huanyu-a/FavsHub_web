@@ -59,7 +59,7 @@
             :class="{ active: currentCollectionId === col.id }"
             @click="router.push({ query: { collection: col.id } })"
           >
-            <span class="tab-icon">{{ col.icon || '📚' }}</span>
+            <span class="tab-icon"><AppIcon :value="col.icon" fallback="ri-book-2-line" /></span>
             <span class="tab-name">{{ col.name }}</span>
             <span v-if="col.new_count && col.new_count > 0" class="tab-badge">{{ col.new_count }}</span>
           </button>
@@ -225,14 +225,19 @@ const displayFolders = computed(() => {
 // ── SSR 数据预取 + 客户端 hydration ──────────────────────
 // 使用 useFetch 而非 store 的 $fetch，确保 SSR 正确转发请求上下文
 
-const { data: bookmarksData } = await useFetch('/api/bookmarks', {
+// C2: SSR/hydration 只加载前 30 条，降低 HTML 体积与 DOM 节点数；客户端挂载后补齐剩余
+const SSR_LOAD_LIMIT = 30
+
+const { data: bookmarksData } = await useFetch(`/api/bookmarks?limit=${SSR_LOAD_LIMIT}`, {
   headers: authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {},
   credentials: 'include',
+  dedupe: 'defer',
 })
-const { data: enginesData } = await useFetch('/api/search-engines')
+const { data: enginesData } = await useFetch('/api/search-engines', { dedupe: 'defer' })
 const { data: settingsData } = await useFetch('/api/settings', {
   headers: authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {},
   credentials: 'include',
+  dedupe: 'defer',
 })
 
 // 同步到 store
@@ -252,16 +257,35 @@ watchEffect(() => {
   }
 })
 
+// C2: 首屏只 SSR 30 条，挂载后补齐剩余书签
+let bookmarksFullyLoaded = false
+async function loadRemainingBookmarks() {
+  if (bookmarksFullyLoaded) return
+  bookmarksFullyLoaded = true
+  const currentCount = bookmarksStore.bookmarks.length
+  const res = bookmarksData.value as any
+  const total = res?.pagination?.total
+  if (total != null && currentCount >= total) return
+  await bookmarksStore.fetchBookmarks()
+}
+
 // 按 collection_id 加载精选集书签（直接从 collection_bookmarks 表读取）
+// frontend #14：去重守卫，避免 watch 与 onMounted 在 hydration 阶段重复加载
+let lastLoadedCollectionId: string | null | undefined
+let collectionLoadToken = 0
 async function loadCollectionBookmarks(collectionId: string) {
+  if (lastLoadedCollectionId === collectionId) return
+  lastLoadedCollectionId = collectionId
+  const token = ++collectionLoadToken
   bookmarksStore.isLoading = true
   try {
     await bookmarksStore.fetchCollectionData(collectionId)
+    if (token !== collectionLoadToken) return // 已被更新的请求取代
     bookmarksStore.setCurrentCollection(collectionId)
   } catch (err) {
     console.error('加载精选集书签失败', err)
   } finally {
-    bookmarksStore.isLoading = false
+    if (token === collectionLoadToken) bookmarksStore.isLoading = false
   }
 }
 
@@ -278,6 +302,8 @@ watch(currentCollectionId, async (newId, oldId) => {
 
 // SSR hydration 后检查 URL 是否带有 collection 参数，加载对应书签
 onMounted(async () => {
+  // C2: 补齐 SSR 未加载的剩余书签
+  loadRemainingBookmarks()
   if (authStore.isLoggedIn) {
     await bookmarksStore.fetchMyCollections()
   }
@@ -291,6 +317,21 @@ function selectCollection(id: string) {
   router.push({ query: { collection: id } })
 }
 
+// C6: 保存滚动高亮的 timeout ID，卸载时统一 clearTimeout
+let highlightTimeouts: ReturnType<typeof setTimeout>[] = []
+function scheduleHighlightClear(fn: () => void, delay: number) {
+  const id = setTimeout(() => {
+    highlightTimeouts = highlightTimeouts.filter(t => t !== id)
+    fn()
+  }, delay)
+  highlightTimeouts.push(id)
+}
+
+onBeforeUnmount(() => {
+  for (const t of highlightTimeouts) clearTimeout(t)
+  highlightTimeouts = []
+})
+
 function selectCollectionCategory(categoryId: number | null) {
   bookmarksStore.setActiveCategory(categoryId)
   // 平滑滚动到对应分类区块（不过滤，全部书签可见）
@@ -301,7 +342,7 @@ function selectCollectionCategory(categoryId: number | null) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       el.style.transition = 'background-color 0.3s'
       el.style.backgroundColor = 'rgba(16, 185, 129, 0.06)'
-      setTimeout(() => { el.style.backgroundColor = '' }, 1200)
+      scheduleHighlightClear(() => { el.style.backgroundColor = '' }, 1200)
     }
   })
 }
@@ -317,7 +358,7 @@ function selectFolder(id: number | null) {
         // 短暂高亮效果
         el.style.transition = 'background-color 0.3s'
         el.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'
-        setTimeout(() => { el.style.backgroundColor = '' }, 1500)
+        scheduleHighlightClear(() => { el.style.backgroundColor = '' }, 1500)
       }
     })
   }

@@ -31,7 +31,7 @@ export function createTables(db: Database.Database) {
       parent_id INTEGER,
       sort_order INTEGER DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s','now') * 1000),
-      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (parent_id) REFERENCES folders(id)
     );
 
@@ -54,7 +54,7 @@ export function createTables(db: Database.Database) {
       name TEXT NOT NULL,
       created_at INTEGER,
       updated_at INTEGER,
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS prompts (
@@ -316,8 +316,9 @@ export function runMigrations(db: Database.Database) {
 
     // 1. Add missing columns
     if (!bcols.some(c => c.name === 'label')) {
-      db.exec("ALTER TABLE bookmarks ADD COLUMN label TEXT DEFAULT ''")
-      console.log('[DB] migrate: added bookmarks.label')
+      // A5: NOT NULL DEFAULT '' — 保证 b.label != '' 查询与复合索引对全行生效
+      db.exec("ALTER TABLE bookmarks ADD COLUMN label TEXT NOT NULL DEFAULT ''")
+      console.log('[DB] migrate: added bookmarks.label (NOT NULL DEFAULT \'\')')
     }
     if (!bcols.some(c => c.name === 'description')) {
       db.exec("ALTER TABLE bookmarks ADD COLUMN description TEXT DEFAULT ''")
@@ -344,7 +345,7 @@ export function runMigrations(db: Database.Database) {
           container TEXT DEFAULT '',
           source TEXT DEFAULT '[]',
           login_required INTEGER DEFAULT 0,
-          label TEXT DEFAULT '',
+          label TEXT NOT NULL DEFAULT '',
           need_proxy INTEGER DEFAULT 0,
           created_at INTEGER,
           updated_at INTEGER,
@@ -402,8 +403,87 @@ export function runMigrations(db: Database.Database) {
     } catch (err: any) {
       console.warn('[DB] migrate label backfill skipped:', err.message)
     }
+
+    // 5. 归一化历史 NULL label → ''（早期版本 label 可空，存量行可能为 NULL，
+    //    b.label != '' 查询与复合索引对 NULL 行不生效）
+    try {
+      const nullLabels = db.prepare('SELECT COUNT(*) as c FROM bookmarks WHERE label IS NULL').get() as { c: number }
+      if (nullLabels.c > 0) {
+        db.prepare("UPDATE bookmarks SET label = '' WHERE label IS NULL").run()
+        console.log(`[DB] migrate: 已将 ${nullLabels.c} 条书签的 NULL label 归一化为 ''`)
+      }
+    } catch { /* 表或列不存在时忽略 */ }
   } catch (e: any) {
     console.error('[DB] migrate simplified arch failed:', e.message)
+  }
+
+  // D1: 存量库重建 folders / prompt_folders，使 user_id 外键带 ON DELETE CASCADE
+  ensureFkCascade(db)
+}
+
+/**
+ * D1: 为已有库补上 folders / prompt_folders 的 user_id 外键 ON DELETE CASCADE。
+ * 新库由 createTables 直接声明；存量库需重建表（SQLite 无法 ALTER 外键动作）。
+ * 失败时仅记录日志，不影响启动——管理员删除用户仍由集中清理函数显式删除各表数据。
+ */
+function ensureFkCascade(db: Database.Database) {
+  try {
+    const needsRebuild = (table: string, from: string): boolean => {
+      const fks = db.prepare(`PRAGMA foreign_key_list(${table})`).all() as { from: string; on_delete: string }[]
+      return fks.some(f => f.from === from && f.on_delete !== 'CASCADE')
+    }
+    const rebuildFolders = needsRebuild('folders', 'user_id')
+    const rebuildPromptFolders = needsRebuild('prompt_folders', 'user_id')
+    if (!rebuildFolders && !rebuildPromptFolders) return
+
+    const wasOn = (db.pragma('foreign_keys', { simple: true }) as number) === 1
+    db.pragma('foreign_keys = OFF')
+    try {
+      if (rebuildFolders) {
+        db.exec(`
+          CREATE TABLE folders_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            parent_id INTEGER REFERENCES folders(id),
+            sort_order INTEGER DEFAULT 0,
+            icon TEXT DEFAULT '',
+            login_required INTEGER DEFAULT 0,
+            created_at INTEGER,
+            updated_at INTEGER
+          );
+          INSERT INTO folders_new (id, user_id, name, parent_id, sort_order, icon, login_required, created_at, updated_at)
+            SELECT id, user_id, name, parent_id, COALESCE(sort_order, 0), COALESCE(icon, ''), COALESCE(login_required, 0), created_at, updated_at FROM folders;
+          DROP TABLE folders;
+          ALTER TABLE folders_new RENAME TO folders;
+        `)
+        console.log('[DB] 迁移: folders.user_id 外键已加 ON DELETE CASCADE')
+      }
+      if (rebuildPromptFolders) {
+        db.exec(`
+          CREATE TABLE prompt_folders_new (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            parent_id TEXT,
+            icon TEXT DEFAULT '',
+            sort_order INTEGER DEFAULT 0,
+            login_required INTEGER DEFAULT 0,
+            created_at INTEGER,
+            updated_at INTEGER
+          );
+          INSERT INTO prompt_folders_new (id, user_id, name, parent_id, icon, sort_order, login_required, created_at, updated_at)
+            SELECT id, user_id, name, parent_id, COALESCE(icon, ''), COALESCE(sort_order, 0), COALESCE(login_required, 0), created_at, updated_at FROM prompt_folders;
+          DROP TABLE prompt_folders;
+          ALTER TABLE prompt_folders_new RENAME TO prompt_folders;
+        `)
+        console.log('[DB] 迁移: prompt_folders.user_id 外键已加 ON DELETE CASCADE')
+      }
+    } finally {
+      if (wasOn) db.pragma('foreign_keys = ON')
+    }
+  } catch (err: any) {
+    console.error('[DB] 迁移外键 CASCADE 失败（忽略，仍由集中删除逻辑兜底）:', err.message)
   }
 }
 
@@ -429,11 +509,25 @@ export function createIndexes(db: Database.Database) {
   }
 
   // 性能索引
+  // D9: 先清理 prompt_tags 重复关联，避免下方 UNIQUE 索引创建失败
+  try {
+    db.exec(`
+      DELETE FROM prompt_tags WHERE rowid NOT IN (
+        SELECT MIN(rowid) FROM prompt_tags GROUP BY prompt_id, tag_id
+      )
+    `)
+  } catch { /* 表不存在时忽略 */ }
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_folder_id ON bookmarks(folder_id);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_has_sync ON bookmarks(user_id, has_sync);
+      /* C4: 首页书签列表 WHERE user_id+login_required+label!='' ORDER BY created_at DESC 的覆盖索引 */
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_user_label_created ON bookmarks(user_id, login_required, label, created_at);
+      /* D10/A9: 增量同步时间范围查询 — since.get.ts 用 COALESCE(updated_at, created_at)，
+         单列 updated_at 索引无法命中，改为用户维度表达式索引 */
+      DROP INDEX IF EXISTS idx_bookmarks_updated_at;
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_updated_at ON bookmarks(user_id, (COALESCE(updated_at, created_at)));
       CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
@@ -443,16 +537,23 @@ export function createIndexes(db: Database.Database) {
       CREATE INDEX IF NOT EXISTS idx_prompt_tags_tag_id ON prompt_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
       CREATE INDEX IF NOT EXISTS idx_prompt_folders_user_id ON prompt_folders(user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_tags_unique ON prompt_tags(prompt_id, tag_id);
       CREATE INDEX IF NOT EXISTS idx_collections_user_id ON collections(user_id);
       CREATE INDEX IF NOT EXISTS idx_collections_public ON collections(is_public, is_official);
       CREATE INDEX IF NOT EXISTS idx_cc_collection ON collection_categories(collection_id);
       CREATE INDEX IF NOT EXISTS idx_cc_parent ON collection_categories(parent_id);
       CREATE INDEX IF NOT EXISTS idx_cb_collection ON collection_bookmarks(collection_id);
+      /* M8: 精选集书签排序索引 — 服务 admin/collections/[id]/bookmarks 的 ORDER BY sort_order；
+         前台详情查询按 JOIN 的 folders 列 COALESCE 排序，该索引无法覆盖 */
+      CREATE INDEX IF NOT EXISTS idx_cb_collection_sort ON collection_bookmarks(collection_id, sort_order);
       CREATE INDEX IF NOT EXISTS idx_cb_category ON collection_bookmarks(category_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_cb_collection_bookmark ON collection_bookmarks(collection_id, bookmark_id);
       CREATE INDEX IF NOT EXISTS idx_cs_user ON collection_subscriptions(user_id);
       CREATE INDEX IF NOT EXISTS idx_ci_user_collection ON collection_imports(user_id, collection_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_ci_unique ON collection_imports(user_id, collection_id, collection_bookmark_id);
+      /* D2: 搜索引擎公开查询按 status='approved' 过滤，status 作前导列 */
+      DROP INDEX IF EXISTS idx_search_engines_category;
+      CREATE INDEX IF NOT EXISTS idx_search_engines_category ON search_engines(status, category, sort_order);
     `)
   } catch (err: any) {
     console.error('[DB] 创建性能索引失败:', err.message)
@@ -490,7 +591,7 @@ export function seedDefaults(db: Database.Database) {
       console.log('[Security] 初始管理员账号已创建')
       console.log('[Security]   用户名: admin_favs')
       console.log(`[Security]   密码已写入: ${passwordFile}`)
-      console.log('[Security] ⚠ 请立即登录并修改密码！')
+      console.log('[Security] 请立即登录并修改密码。')
       console.log('═══════════════════════════════════════════════════')
     } catch {
       // 文件写入失败时回退到控制台输出（开发环境安全）
@@ -498,7 +599,7 @@ export function seedDefaults(db: Database.Database) {
       console.log('[Security] 初始管理员账号已创建')
       console.log('[Security]   用户名: admin_favs')
       console.log(`[Security]   密码: ${randomPassword}`)
-      console.log('[Security] ⚠ 请立即登录并修改密码！此密码仅显示一次。')
+      console.log('[Security] 请立即登录并修改密码，此密码仅显示一次。')
       console.log('═══════════════════════════════════════════════════')
     }
   }
@@ -508,6 +609,9 @@ export function seedDefaults(db: Database.Database) {
 
   // 初始化 system_config 默认值 + 从 settings 迁移旧 TDK 数据
   migrateSystemConfig(db)
+
+  // 历史 emoji 图标一次性迁移为 Remix Icon 类名
+  migrateEmojiIcons(db)
 
   // 如果没有任何管理员，将第一个用户设为管理员
   const adminCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get() as { c: number }).c
@@ -535,6 +639,67 @@ export function seedDefaults(db: Database.Database) {
   const collectionCount = (db.prepare('SELECT COUNT(*) as c FROM collections').get() as { c: number }).c
   if (collectionCount === 0) {
     seedDefaultCollections(db)
+  }
+}
+
+/**
+ * 一次性迁移：历史 emoji 图标值 → Remix Icon 类名
+ *
+ * IconPicker 旧版允许在文件夹/提示词文件夹/精选集的 icon 字段存 emoji，
+ * 新版界面已全面使用 Remix Icon。常见 emoji 按语义映射为对应图标，
+ * 未收录的 emoji 统一清空（前端用 fallback 图标兜底）。
+ * 以 system_config 标记位保证只跑一次，迁移后用户仍可重新自选图标。
+ */
+function migrateEmojiIcons(db: Database.Database) {
+  const EMOJI_RE = /\p{Extended_Pictographic}/u
+
+  const MARKER = 'emoji_icons_migrated'
+  const done = db.prepare("SELECT value FROM system_config WHERE key = ?").get(MARKER)
+  if (done) return
+
+  const EMOJI_MAP: Record<string, string> = {
+    '🤖': 'ri-robot-2-line', '🌐': 'ri-global-line', '🛠️': 'ri-tools-line', '🛠': 'ri-tools-line',
+    '🎨': 'ri-palette-line', '💻': 'ri-computer-line', '📚': 'ri-book-2-line', '💼': 'ri-briefcase-line',
+    '☁️': 'ri-cloud-line', '☁': 'ri-cloud-line', '🎬': 'ri-movie-line', '💾': 'ri-save-3-line',
+    '🎮': 'ri-gamepad-line', '📊': 'ri-bar-chart-grouped-line', '🏠': 'ri-home-5-line',
+    '📣': 'ri-megaphone-line', '🛡️': 'ri-shield-check-line', '🛡': 'ri-shield-check-line',
+    '📁': 'ri-folder-line', '📂': 'ri-folder-open-line', '📄': 'ri-file-line', '📝': 'ri-file-list-line',
+    '🔧': 'ri-tools-line', '⚙️': 'ri-settings-line', '⚙': 'ri-settings-line', '⏱️': 'ri-time-line',
+    '⏱': 'ri-time-line', '⚽': 'ri-football-line', '✉️': 'ri-mail-line', '✉': 'ri-mail-line',
+    '✍️': 'ri-edit-line', '✍': 'ri-edit-line', '✏️': 'ri-pencil-line', '✏': 'ri-pencil-line',
+    '✨': 'ri-sparkling-line', '🌊': 'ri-water-flash-line', '🔥': 'ri-fire-line', '⭐': 'ri-star-line',
+    '🔗': 'ri-link-m', '💡': 'ri-lightbulb-line', '🎵': 'ri-music-line', '📷': 'ri-camera-line',
+    '🛒': 'ri-shopping-cart-line', '💰': 'ri-money-cny-circle-line', '📈': 'ri-line-chart-line',
+    '🧪': 'ri-test-tube-line', '🔒': 'ri-lock-line', '🔑': 'ri-key-2-line', '🚀': 'ri-rocket-line',
+    '🌱': 'ri-plant-line', '🍃': 'ri-leaf-line', '☁': 'ri-cloud-line',
+  }
+
+  const targets = [
+    { table: 'folders' },
+    { table: 'prompt_folders' },
+    { table: 'collections' },
+  ]
+
+  let migratedCount = 0
+  for (const { table } of targets) {
+    try {
+      const rows = db.prepare(`SELECT id, icon FROM ${table} WHERE icon IS NOT NULL AND icon != ''`).all() as { id: any; icon: string }[]
+      const update = db.prepare(`UPDATE ${table} SET icon = ? WHERE id = ?`)
+      for (const row of rows) {
+        if (!EMOJI_RE.test(row.icon)) continue
+        const mapped = EMOJI_MAP[row.icon.trim()] || ''
+        update.run(mapped, row.id)
+        migratedCount++
+      }
+    } catch (e) {
+      console.warn(`[DB] emoji 图标迁移跳过表 ${table}: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  db.prepare('INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)')
+    .run(MARKER, String(Date.now()), Date.now())
+  if (migratedCount > 0) {
+    console.log(`[DB] 已将 ${migratedCount} 条历史 emoji 图标迁移为 Remix Icon`)
   }
 }
 
@@ -662,7 +827,7 @@ function seedDefaultPrompts(db: Database.Database) {
 5. **最佳实践** — 是否符合该语言/框架的惯用写法
 
 ## 输出格式
-对每个问题标注严重程度（🔴严重 / 🟡建议 / 🟢优化），给出具体行号和修改方案。`,
+对每个问题标注严重程度（严重 / 建议 / 优化），给出具体行号和修改方案。`,
       tags: '编程,代码审查,开发工具',
     },
     {

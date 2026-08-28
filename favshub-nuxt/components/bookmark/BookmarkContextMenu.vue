@@ -8,35 +8,35 @@
     >
       <div class="custom-context-menu" :style="menuStyle" style="display:block;" @click.stop>
         <div class="custom-context-menu-item" @click="openInNewTab">
-          <span class="material-icons"><i class="ri-external-link-line"></i></span>
+          <i class="ri-external-link-line"></i>
           <span>在新标签页打开</span>
         </div>
         <div class="custom-context-menu-item" @click="openInNewWindow">
-          <span class="material-icons"><i class="ri-window-line"></i></span>
+          <i class="ri-window-line"></i>
           <span>在新窗口打开</span>
         </div>
         <div class="custom-context-menu-item" @click="openIncognito">
-          <span class="material-icons"><i class="ri-user-heart-line"></i></span>
+          <i class="ri-user-heart-line"></i>
           <span>在无痕窗口打开</span>
         </div>
         <template v-if="!isGuest && isOwn">
           <div class="custom-context-menu-divider"></div>
           <div class="custom-context-menu-item" @click="$emit('edit', bookmark); $emit('close')">
-            <span class="material-icons"><i class="ri-edit-line"></i></span>
+            <i class="ri-edit-line"></i>
             <span>编辑</span>
           </div>
           <div class="custom-context-menu-item custom-context-menu-item--danger" @click="confirmDelete">
-            <span class="material-icons"><i class="ri-delete-bin-line"></i></span>
+            <i class="ri-delete-bin-line"></i>
             <span>删除</span>
           </div>
         </template>
         <div class="custom-context-menu-divider"></div>
         <div class="custom-context-menu-item" @click="copyUrl">
-          <span class="material-icons"><i class="ri-file-copy-line"></i></span>
+          <i class="ri-file-copy-line"></i>
           <span>{{ copyLabel }}</span>
         </div>
         <div class="custom-context-menu-item" @click="showQrCode">
-          <span class="material-icons"><i class="ri-qr-code-line"></i></span>
+          <i class="ri-qr-code-line"></i>
           <span>生成二维码</span>
         </div>
       </div>
@@ -50,7 +50,8 @@
           <button class="qr-close" @click="qrVisible = false">&times;</button>
         </div>
         <div class="qr-body">
-          <img :src="qrUrl" alt="QR Code" class="qr-image">
+          <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code" class="qr-image">
+          <p v-else class="qr-link" style="min-height:200px;display:flex;align-items:center;justify-content:center;">{{ qrError ? '二维码生成失败' : '生成中…' }}</p>
           <p class="qr-link">{{ bookmark?.url }}</p>
         </div>
       </div>
@@ -92,6 +93,8 @@ const emit = defineEmits<{
 }>()
 
 const qrVisible = ref(false)
+const qrDataUrl = ref('')
+const qrError = ref(false)
 const copyLabel = ref('复制链接')
 const deleteConfirmVisible = ref(false)
 
@@ -103,11 +106,6 @@ const menuStyle = computed(() => {
   const x = props.x + menuWidth > vw ? vw - menuWidth - 8 : props.x
   const y = props.y + menuHeight > vh ? vh - menuHeight - 8 : props.y
   return { left: `${x}px`, top: `${y}px` }
-})
-
-const qrUrl = computed(() => {
-  if (!props.bookmark?.url) return ''
-  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(props.bookmark.url)}`
 })
 
 // 安全打开 URL：拒绝危险协议（javascript:/data:/vbscript:/file:）
@@ -147,8 +145,23 @@ function copyUrl() {
   emit('close')
 }
 
-function showQrCode() {
+async function showQrCode() {
+  // frontend #10：本地生成二维码，不再把用户书签 URL 明文发送给第三方服务
   qrVisible.value = true
+  qrError.value = false
+  qrDataUrl.value = ''
+  if (props.bookmark?.url) {
+    try {
+      const QRCode = (await import('qrcode')).default
+      qrDataUrl.value = await QRCode.toDataURL(props.bookmark.url, {
+        width: 200,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      })
+    } catch {
+      qrError.value = true
+    }
+  }
   emit('close')
 }
 

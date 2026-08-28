@@ -178,7 +178,7 @@ async function loadData() {
 
       // 加载分类和书签（扁平数据结构，支持二级层级）
       if (res.categories && Array.isArray(res.categories)) {
-        // 先建 db_id → temp_id 映射，用于 parent_id 解析
+        // 先建 db_id 与 temp_id 的映射，用于 parent_id 解析
         const dbToTemp = new Map<number, string>()
         const tempCats = res.categories.map((cat: any, idx: number) => {
           const tempId = `cat-${idx}`

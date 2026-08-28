@@ -25,7 +25,7 @@ export const DEFAULT_COLLECTIONS: SeedCollection[] = [
   {
     name: 'AI 开发者工具',
     description: 'AI 编程助手、模型平台、开发框架一站式收藏',
-    icon: '🤖',
+    icon: 'ri-robot-2-line',
     bookmarks: [
       { title: 'ChatGPT', url: 'https://chat.openai.com', description: 'OpenAI 对话式 AI', category_name: '对话 AI', sort_order: 1 },
       { title: 'Claude', url: 'https://claude.ai', description: 'Anthropic 安全 AI 助手', category_name: '对话 AI', sort_order: 2 },
@@ -45,7 +45,7 @@ export const DEFAULT_COLLECTIONS: SeedCollection[] = [
   {
     name: '设计师资源',
     description: 'UI 设计、配色、图标、字体、灵感必备',
-    icon: '🎨',
+    icon: 'ri-palette-line',
     bookmarks: [
       { title: 'Dribbble', url: 'https://dribbble.com', description: '全球设计师作品展示', category_name: '灵感社区', sort_order: 1 },
       { title: 'Behance', url: 'https://www.behance.net', description: 'Adobe 设计师社区', category_name: '灵感社区', sort_order: 2 },
@@ -66,7 +66,7 @@ export const DEFAULT_COLLECTIONS: SeedCollection[] = [
   {
     name: '产品经理工具箱',
     description: 'PRD 撰写、原型设计、数据分析、竞品研究',
-    icon: '📊',
+    icon: 'ri-bar-chart-grouped-line',
     bookmarks: [
       { title: 'Notion', url: 'https://www.notion.so', description: '全能笔记+文档协作', category_name: '文档协作', sort_order: 1 },
       { title: '飞书文档', url: 'https://docs.feishu.cn', description: '字节跳动协作平台', category_name: '文档协作', sort_order: 2 },

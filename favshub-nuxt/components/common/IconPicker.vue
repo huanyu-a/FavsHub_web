@@ -1,39 +1,29 @@
 <template>
   <div class="icon-picker-wrapper">
     <div v-if="modelValue" class="icon-picker-preview">
-      <span v-if="isEmoji(modelValue)" class="icon-picker-emoji">{{ modelValue }}</span>
+      <span v-if="isLegacyEmoji(modelValue)" class="icon-picker-emoji">{{ modelValue }}</span>
       <i v-else :class="modelValue" style="font-size:24px;color:var(--primary)"></i>
       <button class="icon-picker-clear" type="button" @click="$emit('update:modelValue', '')">&times;</button>
     </div>
     <input v-model="search" type="text" class="icon-picker-search" placeholder="搜索图标...">
-    <div class="icon-picker-tabs">
-      <button :class="{ active: activeTab === 'emoji' }" @click="activeTab = 'emoji'">表情</button>
-      <button :class="{ active: activeTab === 'icon' }" @click="activeTab = 'icon'">图标</button>
+    <div v-if="isLegacyEmoji(modelValue)" class="icon-picker-legacy-tip">
+      当前为历史 emoji 图标，重新选择后将替换为图标字体
     </div>
     <div class="icon-picker-grid">
-      <template v-if="activeTab === 'emoji'">
-        <span
-          v-for="em in filteredEmojis"
-          :key="em"
-          class="icon-picker-option emoji"
-          :class="{ active: modelValue === em }"
-          @click="$emit('update:modelValue', modelValue === em ? '' : em)"
-        >{{ em }}</span>
-      </template>
-      <template v-else>
-        <span
-          v-for="ic in filteredIcons"
-          :key="ic"
-          class="icon-picker-option"
-          :class="{ active: modelValue === ic }"
-          @click="$emit('update:modelValue', modelValue === ic ? '' : ic)"
-        ><i :class="ic"></i></span>
-      </template>
+      <span
+        v-for="ic in filteredIcons"
+        :key="ic"
+        class="icon-picker-option"
+        :class="{ active: modelValue === ic }"
+        @click="$emit('update:modelValue', modelValue === ic ? '' : ic)"
+      ><i :class="ic"></i></span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { isEmoji as isLegacyEmoji } from '~/utils/icon'
+
 const props = defineProps<{
   modelValue?: string
 }>()
@@ -43,33 +33,6 @@ defineEmits<{
 }>()
 
 const search = ref('')
-const activeTab = ref<'emoji' | 'icon'>('emoji')
-
-function isEmoji(val: string): boolean {
-  return /[\p{Emoji}]/u.test(val) && !/ri-/.test(val)
-}
-
-const allEmojis = [
-  '📁', '📂', '🗂️', '📋', '📌', '📎', '🔖', '🏷️',
-  '💼', '📦', '🗄️', '🗃️', '📒', '📓', '📔', '📕',
-  '📖', '📗', '📘', '📙', '📚', '📰', '🗞️', '📑',
-  '💬', '💭', '🗯️', '🗨️', '✉️', '📧', '📨', '📩',
-  '📤', '📥', '📪', '📫', '📬', '📭', '📮', '🗳️',
-  '✅', '☑️', '✔️', '❌', '❎', '➕', '➖', '➗',
-  '💲', '🔗', '🔒', '🔓', '🔑', '🗝️', '🔐', '🔏',
-  '⭐', '🌟', '💫', '✨', '🔥', '💯', '🎉', '🎊',
-  '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️',
-  '🎨', '🎭', '🎪', '🎬', '🎤', '🎧', '🎵', '🎶',
-  '🔔', '🔕', '📢', '📣', '🔍', '🔎', '⚙️', '🔧',
-  '💻', '🖥️', '📱', '📲', '📞', '📟', '📠', '🖨️',
-  '🌐', '🗺️', '🌍', '🌎', '🌏', '🧭', '⛰️', '🏔️',
-  '🚀', '✈️', '🚗', '🚕', '🚌', '🚓', '🚑', '🚒',
-  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
-  '👍', '👎', '👏', '🙌', '🤝', '🙏', '💪', '🎯',
-  '📚', '📖', '📝', '✏️', '🖊️', '🖋️', '📐', '📏',
-  '🤖', '👾', '🎮', '🕹️', '🎲', '🧩', '♟️', '🎭',
-  '🌸', '🌺', '🌻', '🌹', '🌷', '🌱', '🌿', '🍀',
-]
 
 const allIcons = [
   'ri-folder-3-line', 'ri-folder-line', 'ri-folder-star-line', 'ri-code-s-slash-line', 'ri-quill-pen-line', 'ri-lightbulb-line', 'ri-book-open-line', 'ri-chat-3-line', 'ri-image-line', 'ri-tools-line', 'ri-database-2-line', 'ri-rocket-line',
@@ -105,12 +68,6 @@ const allIcons = [
   'ri-robot-line', 'ri-robot-2-line', 'ri-robot-3-line', 'ri-ai-generate', 'ri-bard-line', 'ri-openai-line',
 ]
 
-const filteredEmojis = computed(() => {
-  const q = search.value.toLowerCase().trim()
-  if (!q) return allEmojis
-  return allEmojis
-})
-
 const filteredIcons = computed(() => {
   const q = search.value.toLowerCase().trim()
   if (!q) return allIcons
@@ -119,27 +76,14 @@ const filteredIcons = computed(() => {
 </script>
 
 <style scoped>
-.icon-picker-tabs {
-  display: flex;
-  gap: 4px;
+.icon-picker-search {
   margin-bottom: 8px;
 }
 
-.icon-picker-tabs button {
-  flex: 1;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
+.icon-picker-legacy-tip {
   font-size: 12px;
-  transition: all 0.15s;
-}
-
-.icon-picker-tabs button.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
 }
 
 .icon-picker-option.emoji {
@@ -152,4 +96,3 @@ const filteredIcons = computed(() => {
   line-height: 1;
 }
 </style>
-

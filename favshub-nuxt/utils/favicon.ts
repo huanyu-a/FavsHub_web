@@ -1,5 +1,5 @@
 /**
- * 书签图标解析：优先本地 icon；无 icon 时对公网域名走 Google 回退；
+ * 书签图标解析：优先本地 icon；无 icon 时走服务端代理 /api/favicon（含本地缓存与 SSRF 防护）；
  * 内网/私有/沙箱域名不请求外网（避免无意义 404）。
  */
 
@@ -35,7 +35,8 @@ export function resolveBookmarkIcon(icon: string | null | undefined, url: string
   try {
     const hostname = new URL(url).hostname
     if (isPrivateOrLocalHost(hostname)) return null
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=32`
+    // C3: 走服务端代理 + 本地缓存，避免客户端直连 Google（国内被墙时请求阻塞）
+    return `/api/favicon?domain=${encodeURIComponent(hostname)}`
   } catch {
     return null
   }

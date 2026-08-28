@@ -14,14 +14,17 @@ const lockedFoldersCache = new LRUCache<number, Set<number>>({
   ttl: 60000 // 1 分钟
 })
 
-/** 根据继承规则过滤文件夹（子文件夹继承父文件夹的 login_required） */
+/** 根据继承规则过滤文件夹（子文件夹继承父文件夹的 login_required）——用 Map 替换 find，O(n) 建表 + O(1) 查父 */
 function filterByInheritance(folders: any[]): any[] {
+  const byId = new Map<number, any>()
+  for (const f of folders) byId.set(f.id, f)
+
   function isLocked(f: any, visited = new Set<number>()): boolean {
     if (f.login_required) return true
     if (f.parent_id == null) return false
     if (visited.has(f.parent_id)) return false
     visited.add(f.parent_id)
-    const parent = folders.find(p => p.id === f.parent_id)
+    const parent = byId.get(f.parent_id)
     if (!parent) return false
     return isLocked(parent, visited)
   }
@@ -38,13 +41,15 @@ function getLockedFolders(userId: number | null, db: any): Set<number> {
 
   const lockedFolderIds = new Set<number>()
   const allFolders = db.prepare('SELECT id, parent_id, login_required FROM folders').all() as { id: number; parent_id: number | null; login_required: number }[]
+  const byId = new Map<number, typeof allFolders[0]>()
+  for (const f of allFolders) byId.set(f.id, f)
 
   function isLocked(f: typeof allFolders[0], visited = new Set<number>()): boolean {
     if (f.login_required) return true
     if (f.parent_id == null) return false
     if (visited.has(f.parent_id)) return false
     visited.add(f.parent_id)
-    const parent = allFolders.find(p => p.id === f.parent_id)
+    const parent = byId.get(f.parent_id)
     if (!parent) return false
     return isLocked(parent, visited)
   }
@@ -92,18 +97,29 @@ export default defineEventHandler(async (event) => {
   }
 
   // 首页/个人书签列表只显示有 label 的个人书签；label='' 为精选集公共池，不混入
-  let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause} AND COALESCE(b.label, '') != ''`
+  // 注意：label 列迁移后为 NOT NULL DEFAULT ''，此处不再用 COALESCE（COALESCE 会让复合索引失效）
+  let sql = `SELECT b.*, f.name as folder_name FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause} AND b.label != ''`
   const params: any[] = [...visParams]
+
+  // M1: 分页参数 ?page=&limit=（limit 默认取系统配置，页面显式传入时生效）
+  const limitParam = query.limit ? Math.max(1, Math.min(500, parseInt(query.limit as string) || 500)) : null
+  const pageParam = query.page ? Math.max(1, parseInt(query.page as string) || 1) : null
+
+  // 供分页总数查询复用的条件（与主查询共享 WHERE 条件）
+  let countSql = `SELECT COUNT(*) as c FROM bookmarks b LEFT JOIN folders f ON b.folder_id = f.id WHERE ${visibilityClause} AND b.label != ''`
+  const addCondition = (cond: string, condParams: any[]) => {
+    sql += ` AND ${cond}`
+    countSql += ` AND ${cond}`
+    params.push(...condParams)
+  }
 
   // 非管理员排除"文件夹继承 login_required"的书签（但登录用户仍可看自己文件夹里的）
   // 注意：folder_id IS NULL 的书签（未分类）不受文件夹锁定影响，必须保留
   if (lockedFolderIds.size > 0) {
     if (user) {
-      sql += ` AND (b.user_id = ? OR b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
-      params.push(user.id, ...lockedFolderIds)
+      addCondition(`(b.user_id = ? OR b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`, [user.id, ...lockedFolderIds])
     } else {
-      sql += ` AND (b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`
-      params.push(...lockedFolderIds)
+      addCondition(`(b.folder_id IS NULL OR b.folder_id NOT IN (${[...lockedFolderIds].map(() => '?').join(',')}))`, [...lockedFolderIds])
     }
   }
 
@@ -111,28 +127,36 @@ export default defineEventHandler(async (event) => {
     // 转义 LIKE 通配符，防止注入
     const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&')
     const keywords = search.split(/\s+/).filter((k: string) => k.length > 0)
-    const conditions = keywords.map((k) => {
-      const escaped = escapeLike(k)
-      params.push(`%${escaped}%`, `%${escaped}%`)
-      return `(b.title LIKE ? ESCAPE '\\' OR b.url LIKE ? ESCAPE '\\')`
-    })
-    sql += ` AND (${conditions.join(' AND ')})`
+    const conditions = keywords.map(() =>
+      `(b.title LIKE ? ESCAPE '\\' OR b.url LIKE ? ESCAPE '\\')`
+    )
+    addCondition(`(${conditions.join(' AND ')})`, keywords.map(k => `%${escapeLike(k)}%`).flatMap(v => [v, v]))
   }
 
   if (folder_id && folder_id !== 'all') {
-    sql += ' AND b.folder_id = ?'
-    params.push(folder_id as string)
+    addCondition('b.folder_id = ?', [folder_id as string])
   }
 
   // 按精选集筛选：source LIKE '%"collection:xxx"%'（转义 _ 和 %）
   if (collection_id && typeof collection_id === 'string') {
     const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&')
-    sql += ` AND b.source LIKE ? ESCAPE '\\'`
-    params.push(`%"collection:${escapeLike(collection_id)}"%`)
+    addCondition(`b.source LIKE ? ESCAPE '\\'`, [`%"collection:${escapeLike(collection_id)}"%`])
   }
 
+  // M1: 显式分页时返回总数；否则保持旧行为（默认取系统配置上限）
+  let pagination: { page: number; limit: number; total: number } | undefined
+  if (limitParam || pageParam) {
+    const row = db.prepare(countSql).get(...params) as { c: number }
+    pagination = { page: pageParam || 1, limit: limitParam || getConfigInt('bookmarks_query_limit', 500), total: row.c }
+  }
+
+  const limit = limitParam || getConfigInt('bookmarks_query_limit', 500)
   sql += ` ORDER BY b.created_at DESC LIMIT ?`
-  params.push(getConfigInt('bookmarks_query_limit', 500))
+  params.push(limit)
+  if (pageParam) {
+    sql += ` OFFSET ?`
+    params.push((pageParam - 1) * limit)
+  }
 
   const bookmarks = db.prepare(sql).all(...params) as { folder_id?: number | null }[]
 
@@ -176,7 +200,7 @@ export default defineEventHandler(async (event) => {
   // （公共池专用分类 bookmark 数为 0，不应出现在个人书签导航）
   folders = filterFoldersUsedByBookmarks(folders, bookmarks)
 
-  return { bookmarks, folders }
+  return { bookmarks, folders, ...(pagination ? { pagination } : {}) }
 })
 
 /** 保留书签实际引用的 folder_id 及其祖先，剔除空分类 */

@@ -72,7 +72,7 @@
                             <span v-if="v.is_current" class="vtag-cur">当前</span>
                           </span>
                           <span class="vcol-time">{{ formatTime(v.created_at) }}</span>
-                          <span v-if="v.change_note" class="vcol-note" :title="v.change_note">📝 {{ v.change_note }}</span>
+                          <span v-if="v.change_note" class="vcol-note" :title="v.change_note"><i class="ri-file-list-line"></i> {{ v.change_note }}</span>
                           <span class="vcol-size">{{ v.content ? (v.content.length / 1024).toFixed(1) : '0' }} KB</span>
                         </label>
                         <div class="vcol-actions">
@@ -116,7 +116,7 @@
           <button class="modal-close" @click="$emit('close-edit')"><i class="ri-close-line"></i></button>
         </div>
         <div class="modal-body">
-          <div class="review-hint" v-if="isReviewMode">⚠️ 此提示词由管理员创建，修改将提交给管理员审核</div>
+          <div class="review-hint" v-if="isReviewMode"><i class="ri-alert-line"></i> 此提示词由管理员创建，修改将提交给管理员审核</div>
           <div class="edit-form-grid">
             <div class="form-group full-width">
               <label><i class="ri-edit-line"></i> 标题 *</label>

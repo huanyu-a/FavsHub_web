@@ -94,10 +94,10 @@ export default defineNitroPlugin(() => {
     }
   } catch {}
 
-  // 每 30 秒检查一次是否需要备份
+  // M4/P8: 按天执行的任务每 60 秒检查一次即可（原 30 秒过于频繁）
   const timer = setInterval(() => {
     checkAndBackup(dbPath)
-  }, 30 * 1000)
+  }, 60 * 1000)
 
   console.log('[Backup] 自动备份调度已启动')
 

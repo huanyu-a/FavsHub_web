@@ -6,7 +6,7 @@
           <NuxtLink to="/" class="collections-header-logo" title="返回主页">
             <img src="/images/logo.svg" alt="Logo" class="collections-header-logo-img">
           </NuxtLink>
-          <h1 class="collections-header-title">📚 精选集市场</h1>
+          <h1 class="collections-header-title"><i class="ri-book-2-line"></i> 精选集市场</h1>
         </div>
         <nav class="collections-header-nav">
           <NuxtLink to="/" class="collections-header-link" title="主页">

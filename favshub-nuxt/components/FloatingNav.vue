@@ -1,19 +1,19 @@
 <template>
   <div class="floating-nav">
     <a v-if="settingsStore.get('showHistoryLink', true)" href="#" class="floating-nav-item" title="历史记录" @click.prevent="openChromePage('history')">
-      <span class="floating-nav-icon">🕐</span>
+      <span class="floating-nav-icon"><i class="ri-time-line"></i></span>
       <span class="floating-nav-label">历史</span>
     </a>
     <a v-if="settingsStore.get('showDownloadsLink', true)" href="#" class="floating-nav-item" title="下载记录" @click.prevent="openChromePage('downloads')">
-      <span class="floating-nav-icon">📥</span>
+      <span class="floating-nav-icon"><i class="ri-download-2-line"></i></span>
       <span class="floating-nav-label">下载</span>
     </a>
     <a v-if="settingsStore.get('showPasswordsLink', true)" href="#" class="floating-nav-item" title="密码管理" @click.prevent="openChromePage('passwords')">
-      <span class="floating-nav-icon">🔑</span>
+      <span class="floating-nav-icon"><i class="ri-key-2-line"></i></span>
       <span class="floating-nav-label">密码</span>
     </a>
     <a v-if="settingsStore.get('showExtensionsLink', true)" href="#" class="floating-nav-item" title="扩展管理" @click.prevent="openChromePage('extensions')">
-      <span class="floating-nav-icon">🧩</span>
+      <span class="floating-nav-icon"><i class="ri-puzzle-line"></i></span>
       <span class="floating-nav-label">扩展</span>
     </a>
   </div>
@@ -128,6 +128,9 @@ onBeforeUnmount(() => {
 .floating-nav-icon {
   font-size: 22px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .floating-nav-label {

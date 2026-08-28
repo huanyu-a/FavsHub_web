@@ -14,8 +14,17 @@ const { initThemeWatchers } = useTheme()
 const { isMobile, drawerOpen } = useMobile()
 const route = useRoute()
 
-// Apply mobile-drawer-open class to sidebar when drawer is open
-if (import.meta.client) {
+// 具名 keydown 处理器（frontend #3）：Escape 关闭移动端抽屉。
+// 具名函数保证 onBeforeUnmount 能用同一引用移除监听，避免匿名函数引用不匹配。
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && drawerOpen.value) {
+    drawerOpen.value = false
+  }
+}
+
+// 客户端 DOM 初始化（frontend #9）：移入 onMounted，避免 setup 顶层直接操作 DOM，
+// 防止 SSR/客户端求值顺序不同导致 hydration mismatch
+onMounted(() => {
   // 检测 Chrome 侧边栏模式（?context=side_panel）
   if (route.query.context === 'side_panel') {
     document.body.classList.add('is-sidepanel')
@@ -24,21 +33,22 @@ if (import.meta.client) {
     if (nuxtSidebar) nuxtSidebar.classList.add('is-sidepanel')
   }
 
+  // Apply mobile-drawer-open class to sidebar when drawer is open
   watch(drawerOpen, (open) => {
     const sidebar = document.querySelector('aside.custom-width, aside.sidebar')
     if (sidebar) {
       if (open) sidebar.classList.add('mobile-drawer-open')
       else sidebar.classList.remove('mobile-drawer-open')
     }
-  })
+  }, { immediate: true })
 
   // Close drawer on Escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawerOpen.value) {
-      drawerOpen.value = false
-    }
-  })
-}
+  document.addEventListener('keydown', onGlobalKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onGlobalKeydown)
+})
 
 // 全局资源：直接复用旧框架 CSS，保证主题样式 100% 一致
 const { data: tdk } = await useFetch('/api/tdk', {
@@ -60,9 +70,9 @@ useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
-    { rel: 'stylesheet', href: '/css/themes.css?v=20260703c' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260720' },
-    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260717d' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260828' },
+    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260828' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     // Canonical URL: 基于当前路由，防止重复内容
     { rel: 'canonical', href: canonicalUrl },

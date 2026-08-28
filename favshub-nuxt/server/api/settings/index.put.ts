@@ -5,6 +5,7 @@
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
 import { SYSTEM_ONLY_KEYS } from '../../utils/constants'
+import { invalidateUserSettingsCache } from '../../utils/settings-cache'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -41,6 +42,9 @@ export default defineEventHandler(async (event) => {
     INSERT INTO settings (user_id, data) VALUES (?, ?)
     ON CONFLICT(user_id) DO UPDATE SET data = excluded.data
   `).run(user.id, jsonStr)
+
+  // 使 search-engines 等端点的设置解析缓存失效
+  invalidateUserSettingsCache(user.id)
 
   return { data: merged }
 })

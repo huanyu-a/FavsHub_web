@@ -23,7 +23,7 @@ export function useTheme() {
   const settingsStore = useSettingsStore()
   const authStore = useAuthStore()
 
-  /** 解析主题为实际生效值（auto → 根据系统偏好） */
+  /** 解析主题为实际生效值（auto 时根据系统偏好） */
   function resolveTheme(t: Theme): EffectiveTheme {
     if (t === 'auto') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -51,7 +51,7 @@ export function useTheme() {
     })
   }
 
-  /** 三态循环切换：light → dark → auto → light */
+  /** 三态循环切换：light、dark、auto 依次循环 */
   function cycleTheme() {
     const order: Theme[] = ['light', 'dark', 'auto']
     const idx = order.indexOf(uiStore.theme)
@@ -83,9 +83,9 @@ export function useTheme() {
    * 启动主题监听（在每个布局的 setup 中调用一次）
    *
    * 1. 从 DOM/localStorage 同步 store（修复 FOUC）
-   * 2. 响应 store 主题变化 → 应用到 DOM
+   * 2. 响应 store 主题变化并应用到 DOM
    * 3. 监听系统主题变化（auto 模式下）
-   * 4. 响应后端 settings 变化 → 同步到 store
+   * 4. 响应后端 settings 变化并同步到 store
    */
   function initThemeWatchers() {
     if (import.meta.server) return
@@ -93,7 +93,7 @@ export function useTheme() {
     // 1. hydrate 时从 DOM/localStorage 同步 store（信任 SSR 注入，避免 FOUC）
     syncFromDOM()
 
-    // 2. 响应 uiStore.theme 变化 → 应用到 DOM（非 immediate，不覆盖 SSR 注入）
+    // 2. 响应 uiStore.theme 变化并应用到 DOM（非 immediate，不覆盖 SSR 注入）
     watch(() => uiStore.theme, (t) => {
       const effective = resolveTheme(t)
       const html = document.documentElement
@@ -114,7 +114,7 @@ export function useTheme() {
     mql.addEventListener('change', handler)
     onScopeDispose(() => mql.removeEventListener('change', handler))
 
-    // 4. 响应后端 settings 变化 → 同步到 store（用 setTheme 确保写 localStorage）
+    // 4. 响应后端 settings 变化并同步到 store（用 setTheme 确保写 localStorage）
     //    仅登录用户：后端 settings 才是其主题真值。
     //    游客的主题真值是 localStorage（由 setTheme/cycleTheme 驱动），
     //    fetchSettings 对游客返回的是系统默认（theme=auto），不能用它覆盖游客的本地选择。
@@ -132,12 +132,20 @@ export function useTheme() {
     //    immediate 应用初始值；但游客场景下，初始值来自系统默认而非本地选择，
     //    因此游客只在「确有本地背景」时才以 localStorage 为准（见下方 guestBg 兜底）。
 
-    /** 将旧 gradient-background-N 值迁移为 theme-bg-N */
+    /** 已下线主题迁移目标（与服务端 theme-init.ts 保持一致） */
+    const THEME_MIGRATIONS: Record<string, string> = {
+      'theme-bg-2': 'theme-bg-tian-qing',
+      'theme-bg-3': 'theme-bg-6',
+      'theme-bg-5': 'theme-bg-hu-po',
+      'theme-bg-chen-guang': 'theme-bg-tian-qing',
+    }
+
+    /** 将旧 gradient-background-N 值迁移为 theme-bg-N，并归并已下线主题 */
     function normalizeBg(bg: string): string {
       if (!bg) return ''
       const m = bg.match(/^gradient-background-(\d+)$/)
       if (m) return `theme-bg-${m[1]}`
-      return bg
+      return THEME_MIGRATIONS[bg] || bg
     }
 
     function applyBackground() {
@@ -147,7 +155,7 @@ export function useTheme() {
       if (!authStore.isLoggedIn) {
         const localBg = (() => { try { return localStorage.getItem('favshub_bg') } catch { return null } })()
         const normalizedLocal = normalizeBg(localBg || '')
-        // 已有本地选择且与传入值不同 → 不让系统默认覆盖（首屏脚本已据 localStorage 应用）
+        // 已有本地选择且与传入值不同时不让系统默认覆盖（首屏脚本已据 localStorage 应用）
         if (normalizedLocal && normalizedLocal !== bg) return
       }
       const html = document.documentElement
@@ -166,7 +174,7 @@ export function useTheme() {
       }
     }
     watch(() => settingsStore.get('selectedBackground'), applyBackground, { immediate: true })
-    // 主题切换时也要重新应用背景（light↔dark 切换时 CSS 选择器自动匹配）
+    // 主题切换时也要重新应用背景（明暗切换时 CSS 选择器自动匹配）
     watch(() => uiStore.theme, applyBackground)
   }
 

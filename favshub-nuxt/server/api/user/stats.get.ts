@@ -14,7 +14,8 @@ export default defineEventHandler(async (event) => {
   const promptFolders = (db.prepare('SELECT COUNT(*) as count FROM prompt_folders WHERE user_id = ?').get(user.id) as any).count
   const tags = (db.prepare('SELECT COUNT(DISTINCT t.id) as count FROM tags t JOIN prompt_tags pt ON t.id = pt.tag_id JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
   const favoritePrompts = (db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(user.id) as any).count
-  const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions WHERE prompt_id IN (SELECT id FROM prompts WHERE user_id = ?)').get(user.id) as any).count
+  // D5/A8: JOIN + GROUP BY 替代每行子查询，避免 N+1
+  const promptVersions = (db.prepare('SELECT COUNT(*) as count FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?').get(user.id) as any).count
 
   // 今日新增
   const todayStart = new Date()

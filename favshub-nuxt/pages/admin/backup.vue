@@ -96,7 +96,7 @@
               <span>导出我的书签</span>
             </div>
             <div class="export-card-body">
-              <button class="btn btn-primary btn-sm" @click="exportMyBookmarks">📥 导出（HTML）</button>
+              <button class="btn btn-primary btn-sm" @click="exportMyBookmarks"><i class="ri-file-download-line"></i> 导出（HTML）</button>
               <p class="export-hint">Netscape HTML 格式，兼容浏览器导入</p>
             </div>
           </div>
@@ -106,7 +106,7 @@
               <span>导出我的提示词</span>
             </div>
             <div class="export-card-body">
-              <button class="btn btn-primary btn-sm" @click="exportMyPrompts">📥 导出（JSON）</button>
+              <button class="btn btn-primary btn-sm" @click="exportMyPrompts"><i class="ri-file-download-line"></i> 导出（JSON）</button>
               <p class="export-hint">JSON 格式（兼容 promptpro v2.0）</p>
             </div>
           </div>
@@ -117,7 +117,7 @@
             </div>
             <div class="export-card-body">
               <label class="btn btn-primary btn-sm" style="cursor:pointer;">
-                📤 导入（JSON）
+                <i class="ri-file-upload-line"></i> 导入（JSON）
                 <input type="file" accept=".json,application/json" style="display:none" @change="importPrompts">
               </label>
               <p class="export-hint">支持 promptpro / FavsHub 备份文件</p>
