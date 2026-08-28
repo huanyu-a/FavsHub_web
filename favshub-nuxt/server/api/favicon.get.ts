@@ -10,9 +10,10 @@ import { sendRedirect, createError, getQuery, setResponseHeaders } from 'h3'
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { downloadFavicon, isPrivateHostname } from '../utils/favicon-download'
+import { getFaviconDir, resolveExistingFaviconFile } from '../utils/favicon-dir'
 import { getConfig } from '../utils/config'
 
-const FAVICON_DIR = join(process.cwd(), 'public', 'images', 'favicons')
+const FAVICON_DIR = getFaviconDir()
 
 // 同一域名的并发下载去重：多个卡片同时请求未缓存域名时只下载一次
 const inflight = new Map<string, Promise<void>>()
@@ -21,7 +22,8 @@ const inflight = new Map<string, Promise<void>>()
 const failedDomains = new Map<string, number>()
 const FAILED_RETRY_MS = 60 * 60 * 1000 // 1 小时后允许重试
 
-function ensureFavicon(safeHostname: string, filepath: string, faviconUrl: string): Promise<void> {
+function ensureFavicon(safeHostname: string, targetDir: string, faviconUrl: string): Promise<void> {
+  const filepath = join(targetDir, `${safeHostname}.png`)
   if (existsSync(filepath)) return Promise.resolve()
   const running = inflight.get(safeHostname)
   if (running) return running
@@ -45,10 +47,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '不支持的域名' } })
   }
 
-  const filepath = join(FAVICON_DIR, `${safeHostname}.png`)
   const localPath = `/images/favicons/${safeHostname}.png`
 
-  if (!existsSync(filepath)) {
+  // 兼容历史两个落盘位置（.output/public 与 public），命中任一即可
+  const existing = resolveExistingFaviconFile(safeHostname)
+
+  if (!existing) {
     // 记忆的失败域名直接 404，避免每次页面加载重试下载
     const lastFailed = failedDomains.get(safeHostname)
     if (lastFailed && Date.now() - lastFailed < FAILED_RETRY_MS) {
@@ -56,11 +60,11 @@ export default defineEventHandler(async (event) => {
     }
 
     if (!existsSync(FAVICON_DIR)) mkdirSync(FAVICON_DIR, { recursive: true })
-    const sourceUrl = getConfig('favicon_source_url') || 'https://www.google.com/s2/favicons?domain={domain}&sz={size}'
+    const sourceUrl = getConfig('favicon_source_url') || 'https://favicon.im/{domain}'
     const sz = getConfig('favicon_size') || '32'
     const faviconUrl = sourceUrl.replace('{domain}', safeHostname).replace('{size}', sz)
     try {
-      await ensureFavicon(safeHostname, filepath, faviconUrl)
+      await ensureFavicon(safeHostname, FAVICON_DIR, faviconUrl)
     } catch {
       failedDomains.set(safeHostname, Date.now())
       // 顺手清理过期的失败记忆，防止 Map 无限增长

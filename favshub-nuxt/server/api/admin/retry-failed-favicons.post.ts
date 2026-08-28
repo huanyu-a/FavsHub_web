@@ -5,6 +5,7 @@
 import { getRawDb } from '../../database'
 import { requireAdmin } from '../../utils/auth'
 import { getConfig, getConfigInt } from '../../utils/config'
+import { getFaviconDir } from '../../utils/favicon-dir'
 import { existsSync, mkdirSync, createWriteStream } from 'node:fs'
 import { join } from 'node:path'
 import https from 'node:https'
@@ -67,7 +68,7 @@ export default defineEventHandler(async (event) => {
   requireAdmin(event)
   const db = getRawDb()
 
-  const faviconDir = join(process.cwd(), 'public', 'images', 'favicons')
+  const faviconDir = getFaviconDir()
   if (!existsSync(faviconDir)) mkdirSync(faviconDir, { recursive: true })
 
   const bookmarks = db.prepare(`
@@ -103,7 +104,7 @@ export default defineEventHandler(async (event) => {
       continue
     }
 
-    const sourceUrl = getConfig('favicon_source_url') || 'https://www.google.com/s2/favicons?domain={domain}&sz={size}'
+    const sourceUrl = getConfig('favicon_source_url') || 'https://favicon.im/{domain}'
     const sz = getConfig('favicon_size') || '32'
     const faviconUrl = sourceUrl.replace('{domain}', hostname).replace('{size}', sz)
     try {

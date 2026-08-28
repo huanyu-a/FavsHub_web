@@ -12,6 +12,7 @@
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { normalizeUrl } from '../../../utils/bookmark-labels'
+import { isPrivateOrLocalHost } from '../../../../utils/favicon'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -116,9 +117,10 @@ export default defineEventHandler(async (event) => {
         } else {
           let icon = collBm.icon || ''
           if (!icon) {
+            // 不落远程 URL：留空即可，前端 resolveBookmarkIcon 会走 /api/favicon 代理本地化
             try {
               const hostname = new URL(collBm.url).hostname
-              icon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`
+              if (isPrivateOrLocalHost(hostname)) icon = ''
             } catch { /* keep empty */ }
           }
 

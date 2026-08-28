@@ -613,6 +613,9 @@ export function seedDefaults(db: Database.Database) {
   // 历史 emoji 图标一次性迁移为 Remix Icon 类名
   migrateEmojiIcons(db)
 
+  // 历史 Google s2 远程图标一次性本地化 + 修正旧默认 favicon 源
+  migrateGoogleIcons(db)
+
   // 如果没有任何管理员，将第一个用户设为管理员
   const adminCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1').get() as { c: number }).c
   if (adminCount === 0) {
@@ -700,6 +703,52 @@ function migrateEmojiIcons(db: Database.Database) {
     .run(MARKER, String(Date.now()), Date.now())
   if (migratedCount > 0) {
     console.log(`[DB] 已将 ${migratedCount} 条历史 emoji 图标迁移为 Remix Icon`)
+  }
+}
+
+/**
+ * 一次性迁移：Google s2 远程图标 URL → 本地路径 /images/favicons/{hostname}.png
+ *
+ * 旧版导入/下载逻辑把 icon 存成 https://www.google.com/s2/favicons?domain=...，
+ * 该源国内被墙导致图标永远加载失败。迁移为本地路径后，
+ * 缺失文件的域名由 /api/favicon 代理按 favicon_source_url 自动补下。
+ * 同时将仍在使用旧 Google 默认值的 favicon_source_url 配置修正为当前默认源。
+ */
+function migrateGoogleIcons(db: Database.Database) {
+  const MARKER = 'google_icons_localized'
+  const done = db.prepare('SELECT value FROM system_config WHERE key = ?').get(MARKER)
+  if (done) return
+
+  const rows = db.prepare(
+    "SELECT id, url FROM bookmarks WHERE icon LIKE 'https://www.google.com/s2/favicons?%'"
+  ).all() as { id: any; url: string }[]
+
+  const update = db.prepare('UPDATE bookmarks SET icon = ? WHERE id = ?')
+  let migratedCount = 0
+  for (const row of rows) {
+    try {
+      const hostname = new URL(row.url).hostname
+      // 与下载端点相同的净化规则，防止非法字符进入路径
+      const safeHostname = hostname.replace(/[^a-zA-Z0-9.-]/g, '')
+      if (!safeHostname || safeHostname.includes('..')) continue
+      update.run(`/images/favicons/${safeHostname}.png`, row.id)
+      migratedCount++
+    } catch { /* 无效 URL 保留原值 */ }
+  }
+
+  // 修正仍为旧 Google 默认值的 favicon 源配置（用户自定义过的值不动）
+  try {
+    const cfg = db.prepare("SELECT value FROM system_config WHERE key = 'favicon_source_url'").get() as { value: string } | undefined
+    if (!cfg || cfg.value.includes('google.com/s2/favicons')) {
+      db.prepare("UPDATE system_config SET value = ?, updated_at = ? WHERE key = 'favicon_source_url'")
+        .run('https://favicon.im/{domain}', Date.now())
+    }
+  } catch { /* system_config 可能尚未建表，忽略 */ }
+
+  db.prepare('INSERT OR REPLACE INTO system_config (key, value, updated_at) VALUES (?, ?, ?)')
+    .run(MARKER, String(Date.now()), Date.now())
+  if (migratedCount > 0) {
+    console.log(`[DB] 已将 ${migratedCount} 条 Google s2 远程图标迁移为本地路径`)
   }
 }
 
