@@ -14,3 +14,4 @@ compose.yaml
 Dockerfile
 .dockerignore
 build.sh
+.output
