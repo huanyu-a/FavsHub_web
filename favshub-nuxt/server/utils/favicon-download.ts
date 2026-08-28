@@ -40,7 +40,11 @@ export function downloadFavicon(url: string, destPath: string, _redirectDepth = 
         if (dnsErr) return reject(new Error('DNS 解析失败: ' + dnsErr.message))
         if (isPrivateIP(address)) return reject(new Error('不允许访问内网地址'))
 
-        const req = https.get(url, { timeout }, (response) => {
+        // 无 UA 的请求会被 favicon 源（如 favicon.im 的 Cloudflare）直接 403
+        const req = https.get(url, {
+          timeout,
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' },
+        }, (response) => {
           if (response.statusCode! >= 300 && response.statusCode! < 400 && response.headers.location) {
             if (_redirectDepth >= MAX_REDIRECTS) return reject(new Error('重定向次数超限'))
             const redirectUrl = response.headers.location.startsWith('http')
