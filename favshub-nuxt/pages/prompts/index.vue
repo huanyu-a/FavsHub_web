@@ -113,26 +113,32 @@
     <!-- 右侧主内容 -->
     <main class="main-content">
       <div class="main-area">
-        <div class="main-toolbar">
-          <div class="search-box">
-            <i class="ri-search-line"></i>
-            <input v-model="searchQuery" type="text" placeholder="搜索提示词..." @input="debouncedSearch">
+        <section class="prompts-hero">
+          <h1 class="hero-title">提示词库</h1>
+          <p class="hero-sub">沉淀可复用的提示词模板，搜索后一键复制即用。共 {{ allPromptsCache.length }} 条提示词。</p>
+          <div class="hero-toolbar">
+            <div class="search-box">
+              <i class="ri-search-line"></i>
+              <input v-model="searchQuery" type="text" placeholder="搜索提示词..." @input="debouncedSearch">
+            </div>
+            <button class="btn-favorite" :class="{ active: activeFolderId === '_favorites' }" title="收藏筛选" @click="toggleFavoritesView">
+              <i :class="activeFolderId === '_favorites' ? 'ri-star-fill' : 'ri-star-line'"></i>
+              <span>收藏</span>
+            </button>
+            <div class="sort-tabs" role="tablist" title="排序方式">
+              <button
+                v-for="opt in sortOptions"
+                :key="opt.value"
+                :class="{ active: sortBy === opt.value }"
+                @click="setSortBy(opt.value)"
+              >{{ opt.label }}</button>
+            </div>
+            <button v-if="!isGuest" class="btn-hero-create client-only-user" @click="openCreate">
+              <i class="ri-add-line"></i>
+              <span>新建提示词</span>
+            </button>
           </div>
-          <button class="btn-favorite" :class="{ active: activeFolderId === '_favorites' }" title="收藏筛选" @click="toggleFavoritesView">
-            <i :class="activeFolderId === '_favorites' ? 'ri-star-fill' : 'ri-star-line'"></i>
-            <span>收藏</span>
-          </button>
-          <select v-model="sortBy" class="sort-select" title="排序方式">
-            <option value="updated">最新</option>
-            <option value="usage">热度</option>
-            <option value="created">创建</option>
-            <option value="title">名称</option>
-          </select>
-          <button v-if="!isGuest" class="btn btn-primary client-only-user" @click="openCreate">
-            <i class="ri-add-line"></i>
-            <span>新建提示词</span>
-          </button>
-        </div>
+        </section>
 
         <div class="prompts-container">
           <div v-if="!isLoading && prompts.length > 0" class="prompts-grid" id="promptsGrid">
@@ -297,7 +303,7 @@ useHead({
   title: 'PromptPro-AI提示词管理与分享平台',
   titleTemplate: (title?: string) => title ? `${title}_FavsHub` : 'PromptPro-AI提示词管理与分享平台_FavsHub', // 覆盖布局的 titleTemplate，确保以_FavsHub结尾
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260828' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260830' },
   ],
 })
 
@@ -372,6 +378,15 @@ const searchQuery = ref('')
 const activeFolderId = useState<string | null>('activePromptFolderId', () => null)
 const activeTagIds = ref<number[]>([])
 const sortBy = useState<string>('promptSortBy', () => 'updated')
+const sortOptions = [
+  { value: 'updated', label: '最新' },
+  { value: 'usage', label: '热度' },
+  { value: 'created', label: '创建' },
+  { value: 'title', label: '名称' },
+] as const
+function setSortBy(v: string) {
+  sortBy.value = v
+}
 const expandedFolderIds = ref(new Set<string>())
 
 // 全量缓存：用于客户端拼音搜索
@@ -1028,6 +1043,136 @@ async function viewPromptById(promptId: string) {
 </script>
 
 <style scoped>
+/* ── 主色横幅：页面视觉锚点（与精选集市场同语言） ── */
+.prompts-hero {
+  background: var(--primary, #10b981);
+  border-radius: 20px;
+  padding: 28px 28px 26px;
+  margin-bottom: 20px;
+  color: var(--text-inverse, #fff);
+}
+.hero-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.022em;
+  color: var(--text-inverse, #fff);
+}
+.hero-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--text-inverse, #fff) 80%, transparent);
+}
+.hero-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.hero-toolbar .search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--surface-raised, #fff);
+  flex: 1;
+  min-width: 220px;
+  transition: box-shadow 0.18s;
+}
+.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
+.hero-toolbar .search-box:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-inverse, #fff) 45%, transparent);
+}
+.hero-toolbar .search-box:focus-within i { color: var(--primary); }
+.hero-toolbar .search-box input {
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 13.5px;
+  width: 100%;
+  color: var(--text-primary);
+}
+.hero-toolbar .search-box input::placeholder { color: var(--text-tertiary); }
+.hero-toolbar .btn-favorite {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
+  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  white-space: nowrap;
+}
+.hero-toolbar .btn-favorite:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 28%, transparent); color: var(--text-inverse, #fff); }
+.hero-toolbar .btn-favorite.active {
+  background: var(--surface-raised, #fff);
+  color: var(--warning, #f59e0b);
+  font-weight: 600;
+}
+.hero-toolbar .sort-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
+  border-radius: 12px;
+}
+.hero-toolbar .sort-tabs button {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.hero-toolbar .sort-tabs button:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 14%, transparent); }
+.hero-toolbar .sort-tabs button.active {
+  background: var(--surface-raised, #fff);
+  color: var(--primary, #10b981);
+  font-weight: 600;
+}
+.btn-hero-create {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--surface-raised, #fff);
+  color: var(--primary, #10b981);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.18s, transform 0.18s;
+  white-space: nowrap;
+}
+.btn-hero-create:hover {
+  box-shadow: 0 6px 14px -4px rgba(16, 24, 40, 0.28);
+  transform: translateY(-1px);
+}
+@media (max-width: 1024px) {
+  /* 移动端头部已提供收藏/排序/新建，横幅内仅保留搜索 */
+  .hero-toolbar .btn-favorite,
+  .hero-toolbar .sort-tabs,
+  .btn-hero-create { display: none; }
+  .hero-toolbar .search-box { flex: 1; min-width: 0; }
+}
+@media (max-width: 768px) {
+  .prompts-hero { padding: 22px 20px 20px; border-radius: 16px; }
+  .hero-title { font-size: 22px; }
+}
+
 .sort-select {
   padding: 6px 10px;
   font-size: 13px;

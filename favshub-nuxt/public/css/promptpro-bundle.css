@@ -103,7 +103,6 @@ body {
     border-radius: 10px;
     margin-bottom: 20px;
     font-size: 13px;
-    backdrop-filter: blur(10px);
 }
 
 .filter-text {
@@ -149,42 +148,23 @@ body {
     min-width: 0;
 }
 
-/* 杝示话坡�?- macOS 风格 */
+/* 提示词卡片 - 阴影分层（与精选集同语言） */
 .prompt-card {
     background: var(--surface-raised);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--radius-lg);
+    border-radius: 16px;
     padding: 18px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -2px rgba(16, 24, 40, 0.05);
+    transition: box-shadow 0.18s, transform 0.18s;
     cursor: pointer;
     position: relative;
     overflow: hidden;
     min-width: 0;
 }
 
-.prompt-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--surface-raised), transparent);
-    opacity: 0;
-    transition: opacity 0.25s;
-}
-
 .prompt-card:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
-    border-color: var(--border);
-}
-
-.prompt-card:hover::before {
-    opacity: 1;
+    box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.13), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+    transform: translateY(-3px);
 }
 
 .prompt-card-header {
@@ -389,8 +369,6 @@ body {
     left: auto;
     transform: none;
     background: var(--surface-raised);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
     border-radius: var(--radius-xl);
     max-width: 600px;
     max-height: 85vh;
@@ -4747,12 +4725,12 @@ body {
 .btn-favorite:hover {
     color: var(--warning);
     border-color: var(--warning);
-    background: light-dark(light-dark(rgba(245,158,11,0.04), rgba(245,158,11,0.1)), rgba(245,158,11,0.1));
+    background: rgba(245,158,11,0.06);
 }
 .btn-favorite.active {
     color: var(--warning);
     border-color: var(--warning);
-    background: light-dark(light-dark(rgba(245,158,11,0.08), rgba(245,158,11,0.15)), rgba(245,158,11,0.15));
+    background: rgba(245,158,11,0.1);
     font-weight: 600;
 }
 
