@@ -121,11 +121,13 @@
       </button>
     </div>
     <div v-if="msg" class="toast" :class="msgType">{{ msg }}</div>
+    <BackToTop />
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { ref, computed, h, onMounted, onUnmounted, watch } from 'vue'
+import BackToTop from '~/components/BackToTop.vue'
 
 definePageMeta({ layout: 'default' })
 

@@ -147,6 +147,7 @@
       @close="importDialogVisible = false"
       @imported="onImported"
     />
+    <BackToTop />
   </div>
 </template>
 
@@ -155,6 +156,7 @@ import CollectionStats from '~/components/collections/CollectionStats.vue'
 import CollectionEditor from '~/components/collections/CollectionEditor.vue'
 import BatchImportDialog from '~/components/collections/BatchImportDialog.vue'
 import AdminCategoryBookmarkManager from '~/components/collections/AdminCategoryBookmarkManager.vue'
+import BackToTop from '~/components/BackToTop.vue'
 
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '精选集管理' })

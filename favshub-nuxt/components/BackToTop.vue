@@ -10,59 +10,78 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 回到顶部按钮（全滚动容器自适应）。
+ *
+ * 滚动可能发生在 window、html、body（main-bundle.css 将 html/body 限高 100vh，
+ * 移动端 .home-shell 解除内部滚动后 body 成为实际滚动容器）、main 或任意内部
+ * 容器上。scroll 事件不冒泡，但在 document 上以 capture 监听可截获所有元素的
+ * 滚动，再配合候选容器度量，保证任意滚动方式下按钮都能出现。
+ */
 const scrollPercent = ref(0)
 const showButton = ref(false)
+const lastScroller = ref<HTMLElement | null>(null)
 
-function getScrollTop(): number {
-  // 优先取 window，再取 main 元素
-  const winST = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop
-  if (winST > 0) return winST
-  const mainEl = document.querySelector('main') as HTMLElement | null
-  return mainEl?.scrollTop || 0
-}
+interface ScrollMetrics { scrollTop: number; maxScroll: number }
 
-function getScrollMetrics() {
-  // 优先用 window 的滚动高度
-  const winST = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop
-  if (winST > 0 || document.documentElement.scrollHeight > document.documentElement.clientHeight) {
+function metricsOf(el: HTMLElement | typeof window): ScrollMetrics {
+  if (el === window) {
     return {
-      scrollTop: winST,
-      scrollHeight: document.documentElement.scrollHeight,
-      clientHeight: document.documentElement.clientHeight,
+      scrollTop: window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0,
+      maxScroll: Math.max(
+        document.documentElement.scrollHeight - document.documentElement.clientHeight,
+        document.body.scrollHeight - document.body.clientHeight,
+      ),
     }
   }
-  // fallback: main 元素
-  const mainEl = document.querySelector('main') as HTMLElement | null
-  if (mainEl && mainEl.scrollHeight > mainEl.clientHeight) {
-    return { scrollTop: mainEl.scrollTop, scrollHeight: mainEl.scrollHeight, clientHeight: mainEl.clientHeight }
-  }
-  return { scrollTop: 0, scrollHeight: 0, clientHeight: 0 }
+  const node = el as HTMLElement
+  return { scrollTop: node.scrollTop, maxScroll: node.scrollHeight - node.clientHeight }
 }
 
-function handleScroll() {
-  const { scrollTop, scrollHeight, clientHeight } = getScrollMetrics()
-  const maxScroll = scrollHeight - clientHeight
-  scrollPercent.value = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * 100) : 0
-  showButton.value = scrollTop > 50
+function collectCandidates(): Array<HTMLElement | typeof window> {
+  const list: Array<HTMLElement | typeof window> = [window]
+  if (document.body) list.push(document.body)
+  if (lastScroller.value) list.push(lastScroller.value)
+  const mainEl = document.querySelector('main') as HTMLElement | null
+  if (mainEl && mainEl !== lastScroller.value) list.push(mainEl)
+  return list
+}
+
+function handleScroll(e?: Event) {
+  // 记录实际在滚动的内部容器（html/body/window 的滚动走候选列表兜底）
+  const target = e?.target
+  if (target instanceof HTMLElement && target !== document.body && target !== document.documentElement) {
+    lastScroller.value = target
+  }
+
+  let shown = false
+  let best = 0
+  for (const el of collectCandidates()) {
+    const { scrollTop, maxScroll } = metricsOf(el)
+    if (scrollTop > 50) shown = true
+    if (maxScroll > 0) best = Math.max(best, Math.min(scrollTop / maxScroll, 1))
+  }
+  showButton.value = shown
+  scrollPercent.value = Math.round(best * 100)
 }
 
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
+  for (const el of [document.documentElement, document.body, lastScroller.value]) {
+    if (el instanceof HTMLElement) el.scrollTo({ top: 0, behavior: 'smooth' })
+  }
   const mainEl = document.querySelector('main') as HTMLElement | null
   if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(() => {
-  window.addEventListener('scroll', handleScroll, { passive: true } as any)
-  const mainEl = document.querySelector('main') as HTMLElement | null
-  if (mainEl) mainEl.addEventListener('scroll', handleScroll, { passive: true } as any)
+  // capture：截获 window / body / main / 任意内部容器的 scroll（scroll 不冒泡）
+  document.addEventListener('scroll', handleScroll, { capture: true, passive: true })
   handleScroll()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll as any)
-  const mainEl = document.querySelector('main') as HTMLElement | null
-  if (mainEl) mainEl.removeEventListener('scroll', handleScroll as any)
+  document.removeEventListener('scroll', handleScroll, { capture: true })
 })
 </script>
 

@@ -1198,8 +1198,6 @@ span.material-icons.ml-auto {
 
 aside.custom-width {
   background: var(--sidebar-bg);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
   border-right: 1px solid var(--border);
   padding: 1rem 1rem 1rem 1rem;
 }
@@ -1597,7 +1595,7 @@ aside .card-link:hover,
 .bookmark-folder.card:hover {
   background-color: var(--surface-hover);
   cursor: pointer;
-  transform: scale(1.03);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 /* Bookmark placeholder styles */
@@ -2381,8 +2379,8 @@ svg.suggestion-icon {
 }
 
 .quick-link-item:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 8px var(--overlay);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.12);
 }
 
 /* Favicon icon */
@@ -4833,14 +4831,12 @@ body .default-folders-tabs.sidebar-expanded {
   padding: 1.5rem;
   background: var(--surface-raised);
   border-radius: 16px;
-  box-shadow: 0 4px 6px -1px var(--border), 0 2px 4px -2px var(--border);
-  backdrop-filter: blur(10px);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -2px rgba(16, 24, 40, 0.05);
+  transition: box-shadow 0.2s ease;
 }
 
 .folder-group:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px var(--overlay), 0 4px 6px -2px var(--surface-hover);
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.05), 0 8px 20px -4px rgba(16, 24, 40, 0.08);
 }
 
 .folder-group-title {
@@ -4918,8 +4914,8 @@ aside .card,
 aside .card:hover,
 .sidebar-folders-panel .card:hover,
 .bookmarks-container .card:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 4px 12px var(--overlay);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
 }
 
 body.is-sorting-bookmarks .bookmark-card,
@@ -4990,7 +4986,6 @@ body.is-sorting-bookmarks .card:hover {
   padding: 1rem;
   background: var(--sidebar-bg);
   border-radius: 12px;
-  border: 1px dashed var(--border);
 }
 
 .subgroup-title {
@@ -5023,7 +5018,6 @@ body.is-sorting-bookmarks .card:hover {
   background: var(--surface-raised);
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
 }
 
 
@@ -5678,8 +5672,6 @@ body.nav-compact-mode {
 
 .unified-navbar {
     background: var(--surface-raised);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;

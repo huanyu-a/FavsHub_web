@@ -300,10 +300,12 @@
         <div v-if="devMsg" :class="['message', devMsgType]" style="margin-top: 8px;">{{ devMsg }}</div>
       </div>
     </div>
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '提示词管理' })
 function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }

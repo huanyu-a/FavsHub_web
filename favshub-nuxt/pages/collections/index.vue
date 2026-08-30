@@ -67,6 +67,7 @@
       <span class="page-info">{{ pagination.page }} / {{ pagination.totalPages }}</span>
       <button :disabled="pagination.page >= pagination.totalPages" @click="nextPage">下一页</button>
     </div>
+    <BackToTop />
     </div>
   </div>
 </template>
@@ -74,6 +75,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted, watch } from 'vue'
 import CollectionCard from '~/components/collections/CollectionCard.vue'
+import BackToTop from '~/components/BackToTop.vue'
 
 definePageMeta({ layout: 'default' })
 
