@@ -52,8 +52,8 @@
     <!-- 空状态 -->
     <div v-else-if="collections.length === 0" class="empty-state">
       <i class="ri-inbox-line"></i>
-      <p>暂无精选集</p>
-      <span>成为第一个创建精选集的人吧！</span>
+      <p>{{ search ? '没有找到匹配的精选集' : '暂无精选集' }}</p>
+      <span>{{ search ? '换个关键词试试' : '成为第一个创建精选集的人吧' }}</span>
     </div>
 
     <!-- 卡片网格 -->
