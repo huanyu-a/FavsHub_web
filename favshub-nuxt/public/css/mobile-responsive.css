@@ -10,6 +10,7 @@
    4. @media (max-width:768px)  — 手机特有（侧边栏抽屉、布局重置等）
    5. @media (max-width:480px)  — 小屏微调
    6. 文件夹浮动导航（所有尺寸通用）
+   7. 回到顶部按钮避让底栏（@layer 外，未分层覆盖未分层）
    ============================================================ */
 
 /* ════════════════════════════════════════════
@@ -135,8 +136,8 @@
   .main-toolbar { display: none; }
   /* 主内容区留出顶部（MobileHeader 56px）和底部空间（底栏 + safe-area） */
   main.flex-1, .main-content { padding-top: 60px !important; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  /* 回到顶部按钮在底部导航上方 */
-  #back-to-top-container { z-index: 10004; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  /* 回到顶部按钮避让底栏：见文件末尾第 7 节——必须放在 @layer 外才能
+     覆盖 main-bundle.css 顶层（未分层）的 bottom:0; z-index:999999 */
   /* 搜索引擎下拉突破弹窗裁剪 */
   .mobile-search-sheet-body .search-engine-dropdown {
     position: fixed; left: 16px; right: 16px; width: auto;
@@ -343,5 +344,18 @@
   .main-toolbar .search-box {
     width: 100% !important;
     max-width: 360px !important;
+  }
+}
+
+/* ════════════════════════════════════════════
+   7. 回到顶部按钮避让底栏（顶层规则，不入 @layer）
+   main-bundle.css 的 #back-to-top-container 是顶层（未分层）规则
+   bottom:0; z-index:999999；未分层规则优先级高于任何 @layer 内规则，
+   因此覆盖必须同样写在 @layer 外（见上文件头注释 6→7 编号）
+   ════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  #back-to-top-container {
+    z-index: 10004;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 }

@@ -72,7 +72,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260830b' },
-    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260828' },
+    { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260830c' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     // Canonical URL: 基于当前路由，防止重复内容
     { rel: 'canonical', href: canonicalUrl },
