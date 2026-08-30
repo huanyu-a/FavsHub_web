@@ -25,7 +25,18 @@
       </div>
     </header>
     <div class="collections-page">
-      <p class="collections-subtitle">发现高质量主题书签集，一键导入你的书库</p>
+      <section class="market-hero">
+        <span class="hero-orb hero-orb-a" aria-hidden="true"></span>
+        <span class="hero-orb hero-orb-b" aria-hidden="true"></span>
+        <span class="hero-orb hero-orb-c" aria-hidden="true"></span>
+        <h1 class="hero-title">发现高质量主题书签集</h1>
+        <p class="hero-sub">浏览社区精选的主题书签集，一键导入你的书库</p>
+        <div class="hero-chips">
+          <span class="hero-chip"><i class="ri-bookmark-2-line"></i> {{ pagination.total }} 个精选集</span>
+          <span class="hero-chip"><i class="ri-flashlight-line"></i> 一键导入</span>
+          <span class="hero-chip"><i class="ri-loop-left-line"></i> 持续更新</span>
+        </div>
+      </section>
 
     <!-- 搜索 & 排序 -->
     <div class="toolbar">
@@ -55,7 +66,7 @@
 
     <!-- 卡片网格 -->
     <div v-else class="collections-grid">
-      <CollectionCard v-for="c in collections" :key="c.id" :collection="c" />
+      <CollectionCard v-for="(c, i) in collections" :key="c.id" :collection="c" :stagger-index="i" />
     </div>
 
     <!-- 分页 -->
@@ -250,12 +261,90 @@ onUnmounted(() => {
   background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
 }
 .collections-header-link.active svg { opacity: 1; }
-.collections-subtitle {
-  margin: 0 0 20px;
-  color: var(--text-tertiary, #9ca3af);
-  font-size: 14px;
-  line-height: 1.5;
+.market-hero {
+  position: relative;
+  padding: 34px 28px 30px;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(ellipse 60% 120% at 85% -20%, color-mix(in srgb, var(--accent-purple, #8b5cf6) 14%, transparent), transparent),
+    radial-gradient(ellipse 50% 110% at 8% -10%, color-mix(in srgb, var(--accent-blue, #3b82f6) 12%, transparent), transparent),
+    var(--surface-raised, #fff);
+  overflow: hidden;
 }
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: orb-float 9s ease-in-out infinite alternate;
+}
+.hero-orb-a {
+  width: 220px; height: 220px;
+  left: -60px; top: -110px;
+  background: color-mix(in srgb, var(--accent-blue, #3b82f6) 34%, transparent);
+}
+.hero-orb-b {
+  width: 260px; height: 260px;
+  right: -80px; top: -130px;
+  background: color-mix(in srgb, var(--accent-purple, #8b5cf6) 30%, transparent);
+  animation-delay: -3s;
+}
+.hero-orb-c {
+  width: 170px; height: 170px;
+  left: 42%; bottom: -130px;
+  background: color-mix(in srgb, var(--primary, #10b981) 26%, transparent);
+  animation-delay: -6s;
+}
+@keyframes orb-float {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(26px, 14px) scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb { animation: none; }
+}
+.hero-title {
+  position: relative;
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  background: linear-gradient(100deg, var(--text-primary) 30%, var(--accent-blue, #3b82f6) 68%, var(--accent-purple, #8b5cf6));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
+}
+.hero-sub {
+  position: relative;
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.hero-chips {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-raised, #fff) 62%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.hero-chip i { color: var(--primary); font-size: 14px; }
 .collections-page {
   max-width: 1200px;
   margin: 0 auto;
@@ -272,13 +361,20 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface-raised, #fff);
   flex: 1;
   min-width: 200px;
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
+.search-box i { color: var(--text-tertiary); transition: color 0.18s; }
+.search-box:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.search-box:focus-within i { color: var(--primary); }
 .search-box input {
   border: none;
   background: none;
@@ -292,28 +388,30 @@ onUnmounted(() => {
   gap: 4px;
   padding: 3px;
   background: var(--surface-sunken, #f3f4f6);
-  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
 }
 .sort-tabs button {
-  padding: 5px 12px;
+  padding: 5px 14px;
   font-size: 12px;
   border: none;
   background: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   color: var(--text-secondary, #6b7280);
-  transition: all 0.15s;
+  transition: all 0.18s;
 }
+.sort-tabs button:hover { color: var(--text-primary); }
 .sort-tabs button.active {
   background: var(--surface-raised, #fff);
-  color: var(--text-primary, #111827);
-  font-weight: 500;
+  color: var(--primary);
+  font-weight: 600;
   box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
 }
 .collections-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 18px;
   margin-bottom: 24px;
 }
 @media (max-width: 640px) {
@@ -347,12 +445,19 @@ onUnmounted(() => {
   gap: 10px;
 }
 .pagination button {
-  padding: 5px 14px;
+  padding: 6px 16px;
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 6px;
+  border-radius: 999px;
   background: var(--surface-raised, #fff);
   cursor: pointer;
   font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.18s;
+}
+.pagination button:not(:disabled):hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 .pagination button:disabled {
   opacity: 0.5;
@@ -361,6 +466,7 @@ onUnmounted(() => {
 .page-info {
   font-size: 12px;
   color: var(--text-secondary, #6b7280);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 移动端适配 ── */

@@ -10,7 +10,7 @@
             <NuxtLink to="/collections" class="breadcrumb-link">精选集市场</NuxtLink>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-current">
-              <span v-if="collection && collection.icon" class="title-icon">{{ collection.icon }}</span>
+              <span v-if="collection && collection.icon" class="title-icon"><AppIcon :value="collection.icon" fallback="ri-book-2-line" /></span>
               {{ collection ? collection.name : '' }}
               <span v-if="collection && collection.is_official" class="official-tag">官方</span>
             </span>
@@ -36,7 +36,28 @@
       </div>
     </header>
     <div class="collection-detail-page">
-    <p v-if="collection && collection.description" class="detail-desc-inline">{{ collection.description }}</p>
+    <section v-if="collection" class="detail-hero" :style="collectionCoverStyle(collection.id)">
+      <span class="hero-orb hero-orb-a" aria-hidden="true"></span>
+      <span class="hero-orb hero-orb-b" aria-hidden="true"></span>
+      <div class="detail-hero-top">
+        <span class="detail-icon-wrap">
+          <AppIcon :value="collection.icon" fallback="ri-book-2-line" class="detail-hero-icon" />
+        </span>
+        <div class="detail-hero-headings">
+          <h1 class="detail-hero-name">
+            {{ collection.name }}
+            <span v-if="collection.is_official" class="detail-official-pill"><i class="ri-verified-badge-fill"></i> 官方精选</span>
+          </h1>
+          <p v-if="collection.description" class="detail-hero-desc">{{ collection.description }}</p>
+        </div>
+      </div>
+      <div class="detail-hero-stats">
+        <span class="detail-stat"><i class="ri-folder-2-line"></i> {{ collection.categories?.length || 0 }} 个分类</span>
+        <span class="detail-stat"><i class="ri-bookmark-line"></i> {{ collection.bookmark_count }} 条书签</span>
+        <span class="detail-stat"><i class="ri-user-3-line"></i> {{ collection.username || '匿名' }}</span>
+        <span v-if="collection.updated_at || collection.created_at" class="detail-stat"><i class="ri-refresh-line"></i> 更新于 {{ formatHeroDate(collection.updated_at || collection.created_at) }}</span>
+      </div>
+    </section>
     <div v-if="loading" class="loading-state"><i class="ri-loader-4-line spin"></i><p>加载中...</p></div>
     <div v-else-if="collection && (!collection.categories || collection.categories.length === 0)" class="empty-state"><p>该精选集暂无书签</p></div>
     <div v-else class="categories-list">
@@ -327,6 +348,11 @@ async function importOne(bid: number) {
   finally { importing.value = false }
 }
 function getUrlDomain(u: string) { try { return new URL(u).hostname } catch { return u } }
+function formatHeroDate(ts: number) {
+  try {
+    return new Date(ts).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+  } catch { return '' }
+}
 function getFavicon(b: ICollectionBookmark) { return resolveBookmarkIcon(b.icon, b.url) || '' }
 function onIconError(e: Event, b: ICollectionBookmark) {
   const img = e.target as HTMLImageElement
@@ -457,14 +483,126 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .collections-header-link.active svg { opacity: 1; }
 
 .collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+/* ── 详情页 Hero ── */
+.detail-hero {
+  position: relative;
+  padding: 26px 26px 22px;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--cover-c1, #10b981) 14%, transparent), transparent 58%),
+    radial-gradient(ellipse 55% 120% at 92% -30%, color-mix(in srgb, var(--cover-c2, #0d9488) 20%, transparent), transparent),
+    var(--surface-raised, #fff);
+  overflow: hidden;
+}
+.detail-hero .hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.42;
+  pointer-events: none;
+  animation: detail-orb-float 10s ease-in-out infinite alternate;
+}
+.detail-hero .hero-orb-a {
+  width: 240px; height: 240px;
+  right: -70px; top: -130px;
+  background: color-mix(in srgb, var(--cover-c1, #10b981) 46%, transparent);
+}
+.detail-hero .hero-orb-b {
+  width: 200px; height: 200px;
+  left: -60px; bottom: -120px;
+  background: color-mix(in srgb, var(--cover-c2, #0d9488) 40%, transparent);
+  animation-delay: -4s;
+}
+@keyframes detail-orb-float {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-22px, 16px) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-hero .hero-orb { animation: none; }
+}
+.detail-hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.detail-icon-wrap {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--cover-c1, #10b981), var(--cover-c2, #0d9488));
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--cover-c2, #0d9488) 60%, transparent);
+}
+.detail-hero-icon { font-style: normal; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.22)); }
+.detail-hero-headings { min-width: 0; }
+.detail-hero-name {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.detail-official-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent-blue, #3b82f6), var(--accent-purple, #8b5cf6));
+  letter-spacing: 0.01em;
+}
+.detail-hero-desc {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.detail-hero-stats {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.detail-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-sunken, #f3f4f6) 78%, transparent);
+  border: 1px solid var(--border);
+}
+.detail-stat i { color: var(--primary); font-size: 14px; }
+
 .detail-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .breadcrumb-link { color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
 .breadcrumb-link:hover { color: var(--primary, #10b981); }
 .breadcrumb-sep { color: var(--text-quaternary, #d1d5db); font-size: 13px; user-select: none; }
 .breadcrumb-current { display: inline-flex; align-items: center; gap: 5px; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
-.title-icon { font-size: 15px; }
+.title-icon { font-size: 15px; display: inline-flex; align-items: center; color: var(--primary); }
 .official-tag { font-size: 11px; font-weight: 600; color: #f59e0b; background: color-mix(in srgb, #f59e0b 12%, transparent); padding: 2px 8px; border-radius: 10px; }
-.detail-desc-inline { margin: 0 0 16px; color: var(--text-tertiary, #9ca3af); font-size: 13px; }
 .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .selected-count { font-size: 13px; color: var(--text-secondary, #6b7280); }
 .btn { display: inline-flex; align-items: center; gap: 3px; padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
@@ -488,8 +626,24 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .loading-state, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-tertiary, #9ca3af); }
 .categories-list { display: flex; flex-direction: column; gap: 24px; }
-.category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border, #e5e7eb); }
-.category-name { margin: 0; font-size: 18px; font-weight: 600; }
+.category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.category-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.category-name::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--accent-blue, #3b82f6) 70%, var(--primary)));
+  flex-shrink: 0;
+}
 .category-name.sub { font-size: 15px; font-weight: 500; }
 .sub-category { margin-left: 24px; padding-left: 16px; border-left: 2px solid var(--border, #e5e7eb); }
 .count { font-size: 14px; font-weight: 400; color: var(--text-tertiary, #9ca3af); }
