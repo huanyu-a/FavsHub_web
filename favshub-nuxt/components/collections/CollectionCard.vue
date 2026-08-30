@@ -125,64 +125,62 @@ async function quickImport() {
 .collection-card {
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
+  padding: 18px;
+  border-radius: 16px;
   background: var(--surface-raised, #fff);
   text-decoration: none;
   color: inherit;
   position: relative;
-  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+  transition: box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .collection-card:hover {
-  border-color: color-mix(in srgb, var(--primary, #10b981) 40%, var(--border, #e5e7eb));
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.06));
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -8px rgba(16, 24, 40, 0.14), 0 4px 8px -4px rgba(16, 24, 40, 0.06);
 }
 .collection-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .collection-icon-wrap {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 22px;
   color: var(--primary);
-  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
+  background: color-mix(in srgb, var(--primary, #10b981) 10%, transparent);
 }
 .collection-icon { font-style: normal; }
 .official-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
-}
-.official-badge i { font-size: 12px; color: var(--accent-yellow, #f59e0b); }
-.collection-name {
-  margin: 0 0 5px;
-  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
+}
+.official-badge i { font-size: 12px; }
+.collection-name {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .collection-desc {
-  margin: 0 0 12px;
-  font-size: 12.5px;
+  margin: 0 0 14px;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.55;
   display: -webkit-box;
@@ -190,7 +188,7 @@ async function quickImport() {
   -webkit-box-orient: vertical;
   overflow: hidden;
   flex: 1;
-  min-height: 39px;
+  min-height: 40px;
 }
 .collection-meta {
   display: flex;
@@ -198,7 +196,7 @@ async function quickImport() {
   gap: 8px;
   font-size: 12px;
   color: var(--text-tertiary);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .meta-item {
   display: inline-flex;
@@ -211,20 +209,20 @@ async function quickImport() {
   height: 3px;
   border-radius: 50%;
   background: var(--text-tertiary);
-  opacity: 0.5;
+  opacity: 0.45;
 }
 .collection-actions {
   display: flex;
   gap: 8px;
 }
 .btn-subscribe {
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 7px 14px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   transition: color 0.18s, border-color 0.18s, background 0.18s;
   display: inline-flex;
@@ -237,21 +235,21 @@ async function quickImport() {
 }
 .btn-subscribe.subscribed {
   color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 .btn-subscribe:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-import {
   flex: 1;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text-inverse, #fff);
   background: var(--primary, #10b981);
-  border: 1px solid var(--primary, #10b981);
-  border-radius: 8px;
+  border: none;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.18s, border-color 0.18s;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -259,7 +257,8 @@ async function quickImport() {
 }
 .btn-import:hover {
   background: var(--primary-hover, #059669);
-  border-color: var(--primary-hover, #059669);
+  box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--primary, #10b981) 50%, transparent);
+  transform: translateY(-1px);
 }
 .btn-import:disabled { opacity: 0.6; cursor: not-allowed; }
 .card-toast {
@@ -268,13 +267,13 @@ async function quickImport() {
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 12px;
   color: #fff;
   z-index: 10;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
 }
 .card-toast-success { background: var(--success, #10b981); }
 .card-toast-error { background: var(--danger, #ef4444); }
