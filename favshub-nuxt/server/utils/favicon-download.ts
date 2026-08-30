@@ -1,10 +1,30 @@
 /**
  * favicon 下载工具（SSRF 防护）— 供 admin 下载端点和公开代理端点复用
  */
-import { createWriteStream } from 'node:fs'
+import { writeFile } from 'node:fs'
 import https from 'node:https'
 import dns from 'node:dns'
 import { getConfigInt } from './config'
+
+/** 图标体积上限：正常 favicon 都在几百 KB 内，超限视为异常响应 */
+const MAX_ICON_BYTES = 2 * 1024 * 1024
+
+/**
+ * 校验响应体是真实位图图标（PNG/JPEG/GIF/WebP/ICO/BMP）。
+ * favicon 源对无图标站点会返回 SVG 字母标或 HTML 错误页，存成 .png 后
+ * 浏览器按 image/png 解码失败、代理又会因"文件已存在"永远 302 坏文件，
+ * 因此必须在落盘前拒绝非位图内容。
+ */
+export function isRasterIcon(buf: Buffer): boolean {
+  if (!buf || buf.length < 8) return false
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true // PNG
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true // JPEG
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return true // GIF
+  if (buf.length >= 12 && buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP') return true
+  if (buf[0] === 0x00 && buf[1] === 0x00 && buf[2] === 0x01 && buf[3] === 0x00) return true // ICO
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return true // BMP
+  return false
+}
 
 export function isPrivateIP(hostname: string): boolean {
   let h = hostname.toLowerCase()
@@ -58,11 +78,21 @@ export function downloadFavicon(url: string, destPath: string, _redirectDepth = 
             })
             return
           }
-          if (response.statusCode !== 200) return reject(new Error('HTTP ' + response.statusCode))
-          const file = createWriteStream(destPath)
-          file.on('finish', () => { file.close(); resolve() })
-          file.on('error', reject)
-          response.pipe(file)
+          if (response.statusCode !== 200) { response.resume(); return reject(new Error('HTTP ' + response.statusCode)) }
+          // 先缓冲校验再落盘：直接 pipe 会把 SVG/HTML 占位写进 .png，之后代理见"文件已存在"永远 302 坏文件
+          const chunks: Buffer[] = []
+          let size = 0
+          response.on('data', (c: Buffer) => {
+            size += c.length
+            if (size > MAX_ICON_BYTES) { response.destroy(); reject(new Error('图标体积超限')) ; return }
+            chunks.push(c)
+          })
+          response.on('end', () => {
+            const buf = Buffer.concat(chunks)
+            if (!isRasterIcon(buf)) return reject(new Error('响应不是位图图标（SVG/HTML 占位）'))
+            writeFile(destPath, buf, (err) => (err ? reject(err) : resolve()))
+          })
+          response.on('error', reject)
         })
         req.on('error', reject)
         req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })

@@ -9,6 +9,7 @@ import { requireAuth } from '../../utils/auth'
 import { join } from 'node:path'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { getFaviconDir } from '../../utils/favicon-dir'
+import { isRasterIcon } from '../../utils/favicon-download'
 import { getConfig } from '../../utils/config'
 
 function getSourceUrl(): string {
@@ -70,7 +71,7 @@ export default defineEventHandler(async (event) => {
           const arrayBuf = await resp.arrayBuffer()
           const candidate = Buffer.from(arrayBuf)
           // 远程源返回的默认图标约 232 字节（灰色 globe），跳过
-          if (candidate.length > 300) {
+          if (candidate.length > 300 && isRasterIcon(candidate)) {
             buf = candidate
           }
         }
@@ -81,7 +82,7 @@ export default defineEventHandler(async (event) => {
         const base64Data = item.base64.replace(/^data:image\/\w+;base64,/, '')
         const candidate = Buffer.from(base64Data, 'base64')
         // 跳过 Chrome 默认图标（~601 字节的灰色 globe）
-        if (candidate.length > 300) {
+        if (candidate.length > 300 && isRasterIcon(candidate)) {
           buf = candidate
         }
       }
