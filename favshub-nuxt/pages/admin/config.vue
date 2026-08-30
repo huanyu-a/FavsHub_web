@@ -88,10 +88,12 @@
         </div>
       </div>
     </div>
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '系统配置' })
 const authStore = useAuthStore()

@@ -129,10 +129,12 @@
     </template>
 
     <div v-if="message" :class="['message', messageType]">{{ message }}</div>
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '备份管理' })
 const authStore = useAuthStore()

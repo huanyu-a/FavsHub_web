@@ -79,10 +79,12 @@
         </div>
       </div>
     </template>
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({
   middleware: 'admin',
   layout: 'admin',

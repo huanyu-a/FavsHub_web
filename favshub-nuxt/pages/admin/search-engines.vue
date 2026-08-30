@@ -74,10 +74,12 @@
         </div>
       </div>
     </div>
+    <BackToTop />
   </div>
 </template>
 
 <script setup lang="ts">
+import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '搜索引擎' })
 const authStore = useAuthStore()
