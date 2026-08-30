@@ -201,13 +201,11 @@ body {
 .copy-btn:hover {
     background: light-dark(rgba(52,199,89,0.15), rgba(52,199,89,0.1));
     color: var(--success);
-    transform: scale(1.05);
 }
 
 .edit-btn:hover {
     background: var(--primary-light);
     color: var(--primary);
-    transform: scale(1.05);
 }
 
 .prompt-card:hover .copy-btn,
@@ -290,7 +288,7 @@ body {
 
 .prompt-version {
     padding: 3px 8px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 100%);
+    background: var(--primary);
     color: white;
     border-radius: 6px;
     font-size: 11px;

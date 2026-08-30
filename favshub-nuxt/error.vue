@@ -18,7 +18,7 @@ import type { NuxtError } from '#app'
 definePageMeta({ layout: false })
 
 useHead({
-  link: [{ rel: 'stylesheet', href: '/css/error.css' }],
+  link: [{ rel: 'stylesheet', href: '/css/error.css?v=20260830b' }],
 })
 
 const error = useError()

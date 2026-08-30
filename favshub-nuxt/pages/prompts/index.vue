@@ -303,7 +303,7 @@ useHead({
   title: 'PromptPro-AI提示词管理与分享平台',
   titleTemplate: (title?: string) => title ? `${title}_FavsHub` : 'PromptPro-AI提示词管理与分享平台_FavsHub', // 覆盖布局的 titleTemplate，确保以_FavsHub结尾
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260830' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260830b' },
   ],
 })
 

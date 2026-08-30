@@ -356,7 +356,7 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
 .admin-layout .admin-sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
 .admin-layout .user-info { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 6px; border-radius: 8px; transition: background 0.2s; }
 .admin-layout .user-info:hover { background: rgba(255,255,255,0.08); }
-.admin-layout .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #fff; flex-shrink: 0; }
+.admin-layout .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #fff; flex-shrink: 0; }
 .admin-layout .user-details { display: flex; flex-direction: column; overflow: hidden; }
 .admin-layout .user-name { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .admin-layout .user-role { font-size: 11px; color: rgba(255,255,255,0.4); }
@@ -389,7 +389,7 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
 .profile-msg.error { background: light-dark(#fee2e2, rgba(254,226,226,0.15)); color: light-dark(#991b1b, #fca5a5); }
 .profile-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .profile-overlay .btn-cancel { padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); color: var(--text-secondary); font-size: 14px; cursor: pointer; }
-.profile-overlay .btn-save { padding: 8px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: var(--text-inverse); font-size: 14px; cursor: pointer; }
+.profile-overlay .btn-save { padding: 8px 16px; border: none; border-radius: 6px; background: var(--primary); color: var(--text-inverse); font-size: 14px; cursor: pointer; }
 .profile-overlay .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ========================================
