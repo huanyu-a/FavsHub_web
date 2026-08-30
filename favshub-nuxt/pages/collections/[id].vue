@@ -36,28 +36,29 @@
       </div>
     </header>
     <div class="collection-detail-page">
-    <section v-if="collection" class="detail-hero" :style="collectionCoverStyle(collection.id)">
-      <span class="hero-orb hero-orb-a" aria-hidden="true"></span>
-      <span class="hero-orb hero-orb-b" aria-hidden="true"></span>
-      <div class="detail-hero-top">
-        <span class="detail-icon-wrap">
-          <AppIcon :value="collection.icon" fallback="ri-book-2-line" class="detail-hero-icon" />
-        </span>
-        <div class="detail-hero-headings">
-          <h1 class="detail-hero-name">
-            {{ collection.name }}
-            <span v-if="collection.is_official" class="detail-official-pill"><i class="ri-verified-badge-fill"></i> 官方精选</span>
-          </h1>
-          <p v-if="collection.description" class="detail-hero-desc">{{ collection.description }}</p>
+    <header v-if="collection" class="detail-head">
+      <span class="detail-icon-wrap">
+        <AppIcon :value="collection.icon" fallback="ri-book-2-line" class="detail-hero-icon" />
+      </span>
+      <div class="detail-head-main">
+        <h1 class="detail-head-name">
+          {{ collection.name }}
+          <span v-if="collection.is_official" class="detail-official-tag"><i class="ri-verified-badge-line"></i>官方</span>
+        </h1>
+        <p v-if="collection.description" class="detail-head-desc">{{ collection.description }}</p>
+        <div class="detail-head-meta">
+          <span><i class="ri-folder-2-line"></i>{{ collection.categories?.length || 0 }} 个分类</span>
+          <span class="meta-sep"></span>
+          <span><i class="ri-bookmark-line"></i>{{ collection.bookmark_count }} 条书签</span>
+          <span class="meta-sep"></span>
+          <span><i class="ri-user-3-line"></i>{{ collection.username || '匿名' }}</span>
+          <template v-if="collection.updated_at || collection.created_at">
+            <span class="meta-sep"></span>
+            <span><i class="ri-refresh-line"></i>更新于 {{ formatHeroDate(collection.updated_at || collection.created_at) }}</span>
+          </template>
         </div>
       </div>
-      <div class="detail-hero-stats">
-        <span class="detail-stat"><i class="ri-folder-2-line"></i> {{ collection.categories?.length || 0 }} 个分类</span>
-        <span class="detail-stat"><i class="ri-bookmark-line"></i> {{ collection.bookmark_count }} 条书签</span>
-        <span class="detail-stat"><i class="ri-user-3-line"></i> {{ collection.username || '匿名' }}</span>
-        <span v-if="collection.updated_at || collection.created_at" class="detail-stat"><i class="ri-refresh-line"></i> 更新于 {{ formatHeroDate(collection.updated_at || collection.created_at) }}</span>
-      </div>
-    </section>
+    </header>
     <div v-if="loading" class="loading-state"><i class="ri-loader-4-line spin"></i><p>加载中...</p></div>
     <div v-else-if="collection && (!collection.categories || collection.categories.length === 0)" class="empty-state"><p>该精选集暂无书签</p></div>
     <div v-else class="categories-list">
@@ -484,70 +485,33 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 
 .collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
 
-/* ── 详情页 Hero ── */
-.detail-hero {
-  position: relative;
-  padding: 26px 26px 22px;
-  margin-bottom: 22px;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background:
-    linear-gradient(160deg, color-mix(in srgb, var(--cover-c1, #10b981) 14%, transparent), transparent 58%),
-    radial-gradient(ellipse 55% 120% at 92% -30%, color-mix(in srgb, var(--cover-c2, #0d9488) 20%, transparent), transparent),
-    var(--surface-raised, #fff);
-  overflow: hidden;
-}
-.detail-hero .hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(64px);
-  opacity: 0.42;
-  pointer-events: none;
-  animation: detail-orb-float 10s ease-in-out infinite alternate;
-}
-.detail-hero .hero-orb-a {
-  width: 240px; height: 240px;
-  right: -70px; top: -130px;
-  background: color-mix(in srgb, var(--cover-c1, #10b981) 46%, transparent);
-}
-.detail-hero .hero-orb-b {
-  width: 200px; height: 200px;
-  left: -60px; bottom: -120px;
-  background: color-mix(in srgb, var(--cover-c2, #0d9488) 40%, transparent);
-  animation-delay: -4s;
-}
-@keyframes detail-orb-float {
-  from { transform: translate(0, 0) scale(1); }
-  to { transform: translate(-22px, 16px) scale(1.1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .detail-hero .hero-orb { animation: none; }
-}
-.detail-hero-top {
-  position: relative;
+/* ── 详情页页头 ── */
+.detail-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
+  padding: 4px 0 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
 }
 .detail-icon-wrap {
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--cover-c1, #10b981), var(--cover-c2, #0d9488));
-  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--cover-c2, #0d9488) 60%, transparent);
+  font-size: 26px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
 }
-.detail-hero-icon { font-style: normal; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.22)); }
-.detail-hero-headings { min-width: 0; }
-.detail-hero-name {
+.detail-hero-icon { font-style: normal; }
+.detail-head-main { min-width: 0; flex: 1; }
+.detail-head-name {
   margin: 0 0 4px;
-  font-size: 21px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   display: flex;
@@ -555,46 +519,42 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   gap: 10px;
   flex-wrap: wrap;
 }
-.detail-official-pill {
+.detail-official-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 6px;
   font-size: 11.5px;
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(120deg, var(--accent-blue, #3b82f6), var(--accent-purple, #8b5cf6));
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
 }
-.detail-hero-desc {
-  margin: 0;
+.detail-official-tag i { font-size: 12px; color: var(--accent-yellow, #f59e0b); }
+.detail-head-desc {
+  margin: 0 0 8px;
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--text-secondary);
 }
-.detail-hero-stats {
-  position: relative;
+.detail-head-meta {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--border);
-}
-.detail-stat {
-  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
-  border-radius: 999px;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--surface-sunken, #f3f4f6) 78%, transparent);
-  border: 1px solid var(--border);
+  color: var(--text-tertiary);
 }
-.detail-stat i { color: var(--primary); font-size: 14px; }
+.detail-head-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.detail-head-meta i { font-size: 13px; }
+.meta-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  opacity: 0.5;
+}
 
 .detail-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .breadcrumb-link { color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
@@ -638,10 +598,10 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 }
 .category-name::before {
   content: '';
-  width: 4px;
-  height: 16px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--accent-blue, #3b82f6) 70%, var(--primary)));
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--primary);
   flex-shrink: 0;
 }
 .category-name.sub { font-size: 15px; font-weight: 500; }

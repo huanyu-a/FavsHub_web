@@ -25,18 +25,10 @@
       </div>
     </header>
     <div class="collections-page">
-      <section class="market-hero">
-        <span class="hero-orb hero-orb-a" aria-hidden="true"></span>
-        <span class="hero-orb hero-orb-b" aria-hidden="true"></span>
-        <span class="hero-orb hero-orb-c" aria-hidden="true"></span>
-        <h1 class="hero-title">发现高质量主题书签集</h1>
-        <p class="hero-sub">浏览社区精选的主题书签集，一键导入你的书库</p>
-        <div class="hero-chips">
-          <span class="hero-chip"><i class="ri-bookmark-2-line"></i> {{ pagination.total }} 个精选集</span>
-          <span class="hero-chip"><i class="ri-flashlight-line"></i> 一键导入</span>
-          <span class="hero-chip"><i class="ri-loop-left-line"></i> 持续更新</span>
-        </div>
-      </section>
+      <header class="market-head">
+        <h1 class="market-title">精选集市场</h1>
+        <p class="market-sub">浏览社区精选的主题书签集，一键导入你的书库。共 {{ pagination.total }} 个精选集。</p>
+      </header>
 
     <!-- 搜索 & 排序 -->
     <div class="toolbar">
@@ -66,7 +58,7 @@
 
     <!-- 卡片网格 -->
     <div v-else class="collections-grid">
-      <CollectionCard v-for="(c, i) in collections" :key="c.id" :collection="c" :stagger-index="i" />
+      <CollectionCard v-for="c in collections" :key="c.id" :collection="c" />
     </div>
 
     <!-- 分页 -->
@@ -261,90 +253,24 @@ onUnmounted(() => {
   background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
 }
 .collections-header-link.active svg { opacity: 1; }
-.market-hero {
-  position: relative;
-  padding: 34px 28px 30px;
-  margin-bottom: 22px;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background:
-    radial-gradient(ellipse 60% 120% at 85% -20%, color-mix(in srgb, var(--accent-purple, #8b5cf6) 14%, transparent), transparent),
-    radial-gradient(ellipse 50% 110% at 8% -10%, color-mix(in srgb, var(--accent-blue, #3b82f6) 12%, transparent), transparent),
-    var(--surface-raised, #fff);
-  overflow: hidden;
+.market-head {
+  padding: 10px 0 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  margin-bottom: 20px;
 }
-.hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.5;
-  pointer-events: none;
-  animation: orb-float 9s ease-in-out infinite alternate;
-}
-.hero-orb-a {
-  width: 220px; height: 220px;
-  left: -60px; top: -110px;
-  background: color-mix(in srgb, var(--accent-blue, #3b82f6) 34%, transparent);
-}
-.hero-orb-b {
-  width: 260px; height: 260px;
-  right: -80px; top: -130px;
-  background: color-mix(in srgb, var(--accent-purple, #8b5cf6) 30%, transparent);
-  animation-delay: -3s;
-}
-.hero-orb-c {
-  width: 170px; height: 170px;
-  left: 42%; bottom: -130px;
-  background: color-mix(in srgb, var(--primary, #10b981) 26%, transparent);
-  animation-delay: -6s;
-}
-@keyframes orb-float {
-  from { transform: translate(0, 0) scale(1); }
-  to { transform: translate(26px, 14px) scale(1.12); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-orb { animation: none; }
-}
-.hero-title {
-  position: relative;
-  margin: 0 0 8px;
-  font-size: 26px;
-  font-weight: 800;
+.market-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.25;
-  background: linear-gradient(100deg, var(--text-primary) 30%, var(--accent-blue, #3b82f6) 68%, var(--accent-purple, #8b5cf6));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
   color: var(--text-primary);
 }
-.hero-sub {
-  position: relative;
-  margin: 0 0 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
+.market-sub {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 13.5px;
   line-height: 1.6;
 }
-.hero-chips {
-  position: relative;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.hero-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--surface-raised, #fff) 62%, transparent);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-}
-.hero-chip i { color: var(--primary); font-size: 14px; }
 .collections-page {
   max-width: 1200px;
   margin: 0 auto;
@@ -457,7 +383,6 @@ onUnmounted(() => {
 .pagination button:not(:disabled):hover {
   border-color: var(--primary);
   color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 .pagination button:disabled {
   opacity: 0.5;

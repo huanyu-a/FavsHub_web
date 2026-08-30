@@ -1,30 +1,27 @@
 <template>
-  <NuxtLink :to="`/collections/${collection.id}`" class="collection-card" :style="{ ...collectionCoverStyle(collection.id), '--stagger': String(staggerIndex % 12) }">
-    <div class="collection-cover">
-      <span class="cover-orb" aria-hidden="true"></span>
-      <span class="cover-grid" aria-hidden="true"></span>
-      <span v-if="collection.is_official" class="official-badge"><i class="ri-verified-badge-fill"></i> 官方精选</span>
+  <NuxtLink :to="`/collections/${collection.id}`" class="collection-card">
+    <div class="collection-card-header">
       <span class="collection-icon-wrap">
         <AppIcon :value="collection.icon" fallback="ri-book-2-line" class="collection-icon" />
       </span>
+      <span v-if="collection.is_official" class="official-badge"><i class="ri-verified-badge-line"></i>官方</span>
     </div>
-    <div class="collection-body">
-      <h3 class="collection-name">{{ collection.name }}</h3>
-      <p class="collection-desc">{{ collection.description || '暂无描述' }}</p>
-      <div class="collection-meta">
-        <span class="meta-chip"><i class="ri-bookmark-line"></i>{{ collection.bookmark_count }} 条书签</span>
-        <span class="meta-chip"><i class="ri-user-3-line"></i>{{ collection.username || '匿名' }}</span>
-      </div>
-      <div class="collection-actions" @click.stop.prevent>
-        <button class="btn-subscribe" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">
-          <i :class="isSubscribed ? 'ri-bookmark-fill' : 'ri-bookmark-line'"></i>
-          {{ isSubscribed ? '已订阅' : '订阅' }}
-        </button>
-        <button class="btn-import" :disabled="importing" @click="quickImport">
-          <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-cloud-2-line'"></i>
-          {{ importing ? '导入中' : '一键导入' }}
-        </button>
-      </div>
+    <h3 class="collection-name">{{ collection.name }}</h3>
+    <p class="collection-desc">{{ collection.description || '暂无描述' }}</p>
+    <div class="collection-meta">
+      <span class="meta-item"><i class="ri-bookmark-line"></i>{{ collection.bookmark_count }} 条书签</span>
+      <span class="meta-sep"></span>
+      <span class="meta-item"><i class="ri-user-3-line"></i>{{ collection.username || '匿名' }}</span>
+    </div>
+    <div class="collection-actions" @click.stop.prevent>
+      <button class="btn-subscribe" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">
+        <i :class="isSubscribed ? 'ri-bookmark-fill' : 'ri-bookmark-line'"></i>
+        {{ isSubscribed ? '已订阅' : '订阅' }}
+      </button>
+      <button class="btn-import" :disabled="importing" @click="quickImport">
+        <i :class="importing ? 'ri-loader-4-line spin' : 'ri-download-cloud-2-line'"></i>
+        {{ importing ? '导入中' : '一键导入' }}
+      </button>
     </div>
     <div v-if="msg" class="card-toast" :class="'card-toast-' + msgType">{{ msg }}</div>
   </NuxtLink>
@@ -32,7 +29,6 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
-import { collectionCoverStyle } from '~/utils/collection-colors'
 
 interface ICollection {
   id: string
@@ -57,7 +53,6 @@ interface IImportResult {
 
 const props = defineProps<{
   collection: ICollection
-  staggerIndex?: number
 }>()
 
 const importing = ref(false)
@@ -130,112 +125,55 @@ async function quickImport() {
 .collection-card {
   display: flex;
   flex-direction: column;
+  padding: 16px;
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface-raised, #fff);
   text-decoration: none;
   color: inherit;
-  overflow: hidden;
   position: relative;
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, border-color 0.25s;
-  animation: card-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--stagger, 0) * 45ms);
-}
-@keyframes card-enter {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .collection-card { animation: none; }
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 }
 .collection-card:hover {
-  transform: translateY(-4px);
-  border-color: hsl(var(--cover-hue, 160) 72% 58% / 0.55);
-  box-shadow:
-    0 12px 32px -12px hsl(var(--cover-hue, 160) 72% 45% / 0.45),
-    var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
+  border-color: color-mix(in srgb, var(--primary, #10b981) 40%, var(--border, #e5e7eb));
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.06));
+  transform: translateY(-2px);
 }
-
-/* ── 渐变封面 ── */
-.collection-cover {
-  position: relative;
-  height: 72px;
-  background: linear-gradient(135deg, var(--cover-c1, #10b981), var(--cover-c2, #0d9488));
-  overflow: hidden;
+.collection-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
 }
-.cover-orb {
-  position: absolute;
-  width: 130px;
-  height: 130px;
-  right: -34px;
-  top: -58px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.34), transparent 66%);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.cover-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
-  background-size: 22px 22px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent);
-}
-.collection-card:hover .cover-orb { transform: scale(1.28) translateX(-8px); }
 .collection-icon-wrap {
-  position: absolute;
-  left: 14px;
-  bottom: -18px;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  font-size: 20px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
 }
-.collection-card:hover .collection-icon-wrap { transform: scale(1.08) rotate(-3deg); }
-.collection-icon {
-  font-style: normal;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.2));
-}
+.collection-icon { font-style: normal; }
 .official-badge {
-  position: absolute;
-  right: 10px;
-  top: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 999px;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 6px;
   font-size: 11px;
-  font-weight: 600;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  backdrop-filter: blur(6px);
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
 }
-
-/* ── 内容区 ── */
-.collection-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 24px 14px 12px;
-}
+.official-badge i { font-size: 12px; color: var(--accent-yellow, #f59e0b); }
 .collection-name {
   margin: 0 0 5px;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   overflow: hidden;
@@ -243,35 +181,38 @@ async function quickImport() {
   white-space: nowrap;
 }
 .collection-desc {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 12.5px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   flex: 1;
-  min-height: 38px;
+  min-height: 39px;
 }
 .collection-meta {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
   margin-bottom: 12px;
 }
-.meta-chip {
+.meta-item {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
 }
-.meta-chip i { font-size: 12px; }
+.meta-item i { font-size: 13px; }
+.meta-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  opacity: 0.5;
+}
 .collection-actions {
   display: flex;
   gap: 8px;
@@ -281,11 +222,11 @@ async function quickImport() {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-  background: var(--surface-sunken);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -293,37 +234,33 @@ async function quickImport() {
 .btn-subscribe:hover {
   color: var(--primary);
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .btn-subscribe.subscribed {
   color: var(--primary);
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .btn-subscribe:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-import {
   flex: 1;
   padding: 6px 12px;
   font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 72%, #000));
-  border: none;
+  font-weight: 500;
+  color: var(--text-inverse, #fff);
+  background: var(--primary, #10b981);
+  border: 1px solid var(--primary, #10b981);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.18s;
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 55%, transparent);
+  transition: background 0.18s, border-color 0.18s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
 }
 .btn-import:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px -4px color-mix(in srgb, var(--primary) 65%, transparent);
+  background: var(--primary-hover, #059669);
+  border-color: var(--primary-hover, #059669);
 }
-.btn-import:active { transform: translateY(0); }
 .btn-import:disabled { opacity: 0.6; cursor: not-allowed; }
 .card-toast {
   position: absolute;
