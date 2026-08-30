@@ -1,3 +1,4 @@
+import { translateServerError, tr } from '@/utils/server-errors';
 import { baseUrlStorage, tokenStorage } from '@/utils/storage';
 
 const REQUEST_TIMEOUT_MS = 90_000;
@@ -62,12 +63,12 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   const response = await requestRaw(path, options);
 
   if (response.status === 401) {
-    throw new Error('未登录，请先在设置页登录');
+    throw new Error(await tr('ui.err.not_logged_in'));
   }
 
   if (response.status !== 200) {
     const statusDetail = response.statusText ? ` ${response.statusText}` : '';
-    throw new Error(`请求失败 (HTTP ${response.status}${statusDetail})`);
+    throw new Error(await tr('ui.err.http_status', { status: response.status, detail: statusDetail }));
   }
 
   let result: T;
@@ -75,13 +76,15 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   try {
     result = await response.json() as T;
   } catch {
-    throw new Error('响应格式不正确');
+    throw new Error(await tr('ui.err.bad_response'));
   }
 
   // FavsHub API 直接返回数据，不需要 code/msg 包装
   // 如果有 error 字段则表示失败
   if (result && typeof result === 'object' && 'error' in result) {
-    throw new Error((result as any).error || '请求失败');
+    const rawError = String((result as any).error || '').trim();
+    // 服务端返回错误码（如 user.not.found）时，命中语言包则翻译为当前语言文案
+    throw new Error(rawError ? await translateServerError(rawError) : await tr('ui.err.request_failed'));
   }
 
   return result;

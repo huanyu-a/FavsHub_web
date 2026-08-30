@@ -13,7 +13,6 @@ const RELAY_ALLOWED_ACTIONS = new Set([
   'navigateHome',
   'openUrlInSidePanel',
   'openTab',
-  'updateFloatingBall',
   // 以下 action 供网站功能使用，安全性由 relay 的 origin 校验 + 白名单保证
   'searchHistory',     // SearchBar.vue 搜索建议（浏览历史）
   'openHistory',       // FloatingNav.vue 历史记录按钮

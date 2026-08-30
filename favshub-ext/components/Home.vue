@@ -13,7 +13,10 @@ import Search from '@/components/Search.vue';
 import FolderItem from '@/components/FolderItem.vue';
 import { request } from '@/utils/request';
 import { baseUrlStorage, tokenStorage } from '@/utils/storage';
+import { isSafeUrl } from '@/utils/safe-url';
+import { getFaviconUrl, getBookmarkInitial, handleFaviconError } from '@/utils/favicon-display';
 import { useRouter } from 'vue-router';
+import { t } from '@/i18n';
 
 interface Bookmark {
   id: number;
@@ -47,6 +50,14 @@ const folders = ref<Folder[]>([]);
 const isLoading = ref(false);
 const errorMessage = ref('');
 const searchQuery = ref('');
+const isSearching = computed(() => searchQuery.value.trim().length > 0);
+const searchResults = computed<Bookmark[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return bookmarks.value.filter(
+    (b) => (b.title || '').toLowerCase().includes(q) || (b.url || '').toLowerCase().includes(q)
+  );
+});
 const expandedFolderIds = ref<Set<number>>(new Set());
 const isLoggedIn = ref(false);
 const showBrowserBookmarks = ref(false);
@@ -70,84 +81,13 @@ const folderTree = computed<FolderTreeNode[]>(() => {
   return roots;
 });
 
-function getFaviconUrl(url: string) {
-  try {
-    // 优先用 Chrome 扩展 favicon API（本地缓存，速度快）
-    const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
-    faviconUrl.searchParams.set('pageUrl', url);
-    faviconUrl.searchParams.set('size', '32');
-    faviconUrl.searchParams.set('cache', '1');
-    return faviconUrl.toString();
-  } catch {
-    // 回退到 Google favicon 服务
-    try {
-      const hostname = new URL(url).hostname;
-      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-    } catch {
-      return '';
-    }
-  }
-}
-
-function getFallbackFaviconUrl(url: string) {
-  try {
-    const hostname = new URL(url).hostname;
-    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-  } catch {
-    return '';
-  }
-}
-
-function getBookmarkInitial(title: string) {
-  return title.charAt(0).toUpperCase();
-}
-
-function onFaviconError(e: Event, title: string) {
-  const img = e.target as HTMLImageElement;
-  // 尝试用 Google favicon 作为 fallback
-  const currentSrc = img.src;
-  if (currentSrc.includes('chrome-extension://') || currentSrc.includes('/_favicon/')) {
-    // 从 URL 中提取 pageUrl 参数
-    try {
-      const u = new URL(currentSrc);
-      const pageUrl = u.searchParams.get('pageUrl');
-      if (pageUrl) {
-        const hostname = new URL(pageUrl).hostname;
-        img.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-        return;
-      }
-    } catch {}
-  }
-  // 最终回退：显示首字母
-  img.style.display = 'none';
-  const fallback = img.nextElementSibling as HTMLElement;
-  if (fallback) fallback.style.display = 'flex';
-}
-
-function isSafeUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'http:' || u.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function openLink(url: string) {
   if (!url || !isSafeUrl(url)) return;
   chrome.tabs.create({ url });
 }
 
-function getFolderBookmarks(folderId: number) {
-  return bookmarks.value.filter(b => b.folder_id === folderId);
-}
-
 function getRootBookmarks() {
   return bookmarks.value.filter(b => !b.folder_id);
-}
-
-function isFolderExpanded(id: number) {
-  return expandedFolderIds.value.has(id);
 }
 
 function toggleFolder(id: number) {
@@ -180,7 +120,7 @@ async function loadBookmarks() {
       await loadBrowserBookmarks();
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '加载失败';
+    errorMessage.value = error instanceof Error ? error.message : t('ui.home.load_failed');
   } finally {
     isLoading.value = false;
   }
@@ -236,7 +176,7 @@ onMounted(() => {
             quaternary
             circle
             type="default"
-            title="刷新"
+            :title="t('ui.home.refresh')"
             :loading="isLoading"
             @click="loadBookmarks"
           >
@@ -255,49 +195,65 @@ onMounted(() => {
       <section>
         <div class="mb-3 flex items-center justify-between px-1">
           <div>
-            <h1 class="text-base font-semibold text-slate-900">书签分类</h1>
+            <h1 class="text-base font-semibold text-slate-900">{{ t('ui.home.bookmark_categories') }}</h1>
           </div>
         </div>
 
         <div v-if="isLoading" class="flex min-h-56 items-center justify-center">
           <n-spin size="small">
             <template #description>
-              <span class="text-xs text-slate-500">正在加载书签...</span>
+              <span class="text-xs text-slate-500">{{ t('ui.home.loading') }}</span>
             </template>
           </n-spin>
         </div>
 
         <div v-else-if="errorMessage" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">书签暂时无法展示</div>
+          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.error_title') }}</div>
           <p class="mt-1 text-xs leading-5 text-slate-500">{{ errorMessage }}</p>
           <n-button class="mt-4" secondary type="primary" @click="loadBookmarks">
             <template #icon>
               <n-icon :component="RefreshOutline" />
             </template>
-            重新加载
+            {{ t('ui.home.reload') }}
           </n-button>
         </div>
 
         <div v-else-if="!isLoggedIn" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">请先登录</div>
-          <p class="mt-1 text-xs leading-5 text-slate-500">登录 FavsHub 账号后即可查看云端书签</p>
+          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.login_required_title') }}</div>
+          <p class="mt-1 text-xs leading-5 text-slate-500">{{ t('ui.home.login_required_desc') }}</p>
           <n-button class="mt-4" type="primary" @click="goToSettings">
             <template #icon>
               <n-icon :component="LogInOutline" />
             </template>
-            前往登录
+            {{ t('ui.home.go_login') }}
           </n-button>
         </div>
 
         <div v-else-if="!folders.length && !bookmarks.length && !showBrowserBookmarks" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">还没有书签</div>
-          <p class="mt-1 text-xs leading-5 text-slate-500">同步浏览器书签到云端后，将显示在这里。</p>
+          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.empty_title') }}</div>
+          <p class="mt-1 text-xs leading-5 text-slate-500">{{ t('ui.home.empty_desc') }}</p>
           <n-button class="mt-4" type="primary" @click="goToSync">
             <template #icon>
               <n-icon :component="CloudUploadOutline" />
             </template>
-            同步书签
+            {{ t('ui.home.sync_bookmarks') }}
           </n-button>
+        </div>
+
+        <div v-else-if="isSearching" class="space-y-1">
+          <div class="mb-1 px-1 text-xs text-slate-500">
+            {{ searchResults.length ? t('ui.home.search_results_found', { n: searchResults.length }) : t('ui.home.search_results_empty', { name: searchQuery.trim() }) }}
+          </div>
+          <div
+            v-for="bookmark in searchResults"
+            :key="bookmark.id"
+            class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
+            @click="openLink(bookmark.url)"
+          >
+            <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
+            <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-sky-600">{{ bookmark.title }}</span>
+          </div>
         </div>
 
         <div v-else class="space-y-1">
@@ -321,7 +277,7 @@ onMounted(() => {
               class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
               @click="openLink(bookmark.url)"
             >
-              <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="onFaviconError($event, bookmark.title)" />
+              <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
               <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
               <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-sky-600">{{ bookmark.title }}</span>
             </div>
@@ -332,14 +288,14 @@ onMounted(() => {
         <div v-if="showBrowserBookmarks && browserBookmarks.length" class="mt-4">
           <div class="mb-3 flex items-center justify-between px-1">
             <div>
-              <h1 class="text-base font-semibold text-slate-900">浏览器书签预览</h1>
-              <p class="text-xs text-slate-500">以下为本地浏览器书签，同步后可在多设备查看</p>
+              <h1 class="text-base font-semibold text-slate-900">{{ t('ui.home.browser_preview_title') }}</h1>
+              <p class="text-xs text-slate-500">{{ t('ui.home.browser_preview_desc') }}</p>
             </div>
             <n-button size="small" type="primary" @click="goToSync">
               <template #icon>
                 <n-icon :component="CloudUploadOutline" />
               </template>
-              同步到云端
+              {{ t('ui.home.sync_to_cloud') }}
             </n-button>
           </div>
           <div class="space-y-1">
@@ -349,7 +305,7 @@ onMounted(() => {
               class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
               @click="bookmark.url && openLink(bookmark.url)"
             >
-              <img v-if="bookmark.url" :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="onFaviconError($event, bookmark.title)" />
+              <img v-if="bookmark.url" :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
               <div v-else class="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-amber-100">
                 <n-icon :component="FolderOpenOutline" size="10" class="text-amber-500" />
               </div>
@@ -358,7 +314,7 @@ onMounted(() => {
             </div>
           </div>
           <div v-if="browserBookmarks.length > 50" class="mt-2 text-center text-xs text-slate-400">
-            显示前 50 条，共 {{ browserBookmarks.length }} 条书签
+            {{ t('ui.home.browser_preview_more', { n: browserBookmarks.length }) }}
           </div>
         </div>
       </section>

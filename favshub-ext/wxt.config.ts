@@ -10,7 +10,11 @@ export default defineConfig({
   manifest: {
     name: 'FavsHub-Ext',
     permissions: ['storage', 'tabs', 'contextMenus', 'notifications', 'bookmarks', 'sidePanel', 'commands', 'favicon', 'history', 'scripting'],
-    host_permissions: ['http://*/*', 'https://*/*'],
+    // 收窄 host 权限：https 全站（书签站点均为 https）+ 本地开发 http
+    // 明文 http://*/* 无必要，且会放大 <all_urls> 注入面的审查风险
+    host_permissions: ['https://*/*', 'http://localhost/*', 'http://127.0.0.1/*'],
+    // sidePanel API 需要 Chromium 114+，旧浏览器不声明会出现功能残缺
+    minimum_chrome_version: '114',
     side_panel: {
       default_path: 'popup.html',
     },

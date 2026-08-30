@@ -1,5 +1,7 @@
 import { request } from '@/utils/request';
-import { tokenStorage, baseUrlStorage } from '@/utils/storage';
+import { tokenStorage, baseUrlStorage, languageStorage } from '@/utils/storage';
+import { isSafeUrl } from '@/utils/safe-url';
+import { currentLanguage, translateWith, tr } from '@/utils/server-errors';
 
 interface FavsHubFolder {
   id: number;
@@ -18,6 +20,7 @@ const ROOT_MENU_ID = 'favshub:add';
 const MENU_ID_PREFIX = 'favshub:folder';
 const MENU_CONTEXTS: ['page', 'link'] = ['page', 'link'];
 let rebuildLock = false;
+let rebuildQueued = false;
 
 async function showNotification(title: string, message: string) {
   await browser.notifications.create({
@@ -34,20 +37,24 @@ async function isLoggedIn(): Promise<boolean> {
 }
 
 async function fetchFolders(): Promise<FavsHubFolder[]> {
-  try {
-    const result = await request<{ folders: FavsHubFolder[] }>('/api/folders');
-    return result.folders || [];
-  } catch {
-    return [];
-  }
+  // 失败时抛出而非吞错返回空数组，避免把"网络错误"误显示为"暂无文件夹"
+  const result = await request<{ folders: FavsHubFolder[] }>('/api/folders');
+  return result.folders || [];
 }
 
 async function rebuildContextMenus() {
-  // 防止并发重复构建
-  if (rebuildLock) return;
+  // 并发重入时排队：锁释放后补跑一轮，避免 token/folders 竞态导致菜单陈旧
+  if (rebuildLock) {
+    rebuildQueued = true;
+    return;
+  }
   rebuildLock = true;
 
   try {
+    // 菜单文案取当次构建时的语言（语言切换会触发本函数重建）
+    const lang = await currentLanguage();
+    const tt = (key: string, params?: Record<string, string | number>) => translateWith(lang, key, params);
+
     // 必须 await removeAll，否则后续 create 会遇到旧 ID 冲突
     await browser.contextMenus.removeAll();
 
@@ -56,30 +63,39 @@ async function rebuildContextMenus() {
     if (!loggedIn) {
       await browser.contextMenus.create({
         id: `${ROOT_MENU_ID}:need-login`,
-        title: '添加到 FavsHub（请先登录）',
+        title: tt('ui.ctx.need_login'),
         contexts: MENU_CONTEXTS,
       });
       return;
     }
 
-    const folders = await fetchFolders();
+    let folders: FavsHubFolder[] = [];
+    let foldersFailed = false;
+    try {
+      folders = await fetchFolders();
+    } catch {
+      foldersFailed = true;
+    }
 
     if (!folders.length) {
       await browser.contextMenus.create({
         id: ROOT_MENU_ID,
-        title: '添加到 FavsHub',
+        title: tt('ui.ctx.menu_title'),
         contexts: MENU_CONTEXTS,
       });
-      await browser.contextMenus.create({
-        id: `${ROOT_MENU_ID}:no-folders`,
-        parentId: ROOT_MENU_ID,
-        title: '暂无文件夹，请先在扩展弹窗中同步书签',
-        contexts: MENU_CONTEXTS,
-      });
+      // 仅在服务端确实没有文件夹时提示；拉取失败不误导用户
+      if (!foldersFailed) {
+        await browser.contextMenus.create({
+          id: `${ROOT_MENU_ID}:no-folders`,
+          parentId: ROOT_MENU_ID,
+          title: tt('ui.ctx.no_folders'),
+          contexts: MENU_CONTEXTS,
+        });
+      }
       await browser.contextMenus.create({
         id: `${ROOT_MENU_ID}:save-root`,
         parentId: ROOT_MENU_ID,
-        title: '直接保存到书签根目录',
+          title: tt('ui.ctx.save_root_direct'),
         contexts: MENU_CONTEXTS,
       });
       return;
@@ -88,7 +104,7 @@ async function rebuildContextMenus() {
     // 有文件夹：构建完整树形菜单
     await browser.contextMenus.create({
       id: ROOT_MENU_ID,
-      title: '添加到 FavsHub',
+      title: tt('ui.ctx.menu_title'),
       contexts: MENU_CONTEXTS,
     });
 
@@ -121,7 +137,7 @@ async function rebuildContextMenus() {
           await browser.contextMenus.create({
             id: `${menuId}:add`,
             parentId: menuId,
-            title: `添加到此文件夹`,
+            title: tt('ui.ctx.add_to_folder'),
             contexts: MENU_CONTEXTS,
           });
           await createMenuItems(menuId, children, visited);
@@ -150,11 +166,15 @@ async function rebuildContextMenus() {
     await browser.contextMenus.create({
       id: `${ROOT_MENU_ID}:save-root`,
       parentId: ROOT_MENU_ID,
-      title: '保存到书签根目录',
+      title: tt('ui.ctx.save_root'),
       contexts: MENU_CONTEXTS,
     });
   } finally {
     rebuildLock = false;
+    if (rebuildQueued) {
+      rebuildQueued = false;
+      void rebuildContextMenus();
+    }
   }
 }
 
@@ -163,24 +183,15 @@ async function getActiveTabForWindow(windowId?: number) {
   return tabs[0] ?? null;
 }
 
-/** 验证 URL 仅使用 http/https 协议 */
-function isSafeUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'http:' || u.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-async function addCurrentPageToFolder(folderId: number | null, windowId?: number) {
+async function addCurrentPageToFolder(folderId: number | null, windowId?: number, linkUrl?: string) {
   const activeTab = await getActiveTabForWindow(windowId);
-  const url = activeTab?.url?.trim() ?? '';
+  // 右键目标是链接时，优先保存被右键的链接 URL，而非当前页面 URL
+  const url = linkUrl?.trim() || activeTab?.url?.trim() || '';
   const title = activeTab?.title?.trim() ?? '';
 
-  if (!url) throw new Error('读取当前页面地址失败');
+  if (!url) throw new Error(await tr('ui.err.read_page_failed'));
   // 安全检查：仅允许 http/https 协议的 URL 保存为书签
-  if (!isSafeUrl(url)) throw new Error('不支持的书签协议');
+  if (!isSafeUrl(url)) throw new Error(await tr('ui.err.unsafe_protocol'));
 
   const body: Record<string, unknown> = { title, url };
   if (folderId !== null) body.folder_id = folderId;
@@ -194,9 +205,28 @@ async function addCurrentPageToFolder(folderId: number | null, windowId?: number
   return title || url;
 }
 
+// ===== 中继敏感操作的防线参数 =====
+// relay 的 origin 校验只能保证消息来自配置的 FavsHub 站点本身，
+// 无法限制该站点内嵌的第三方脚本，故敏感动作在此再加一层防线。
+const HISTORY_MAX_RESULTS = 100;
+let historyCalls = 0;
+let historyWindowStart = 0;
+function checkHistoryRateLimit(): boolean {
+  const now = Date.now();
+  if (now - historyWindowStart > 60_000) {
+    historyWindowStart = now;
+    historyCalls = 0;
+  }
+  historyCalls++;
+  return historyCalls <= 10;
+}
+
+const PROXY_FETCH_TIMEOUT_MS = 60_000;
+const PROXY_FETCH_MAX_CHARS = 5 * 1024 * 1024;
+
 function openPopup() {
-  browser.action.openPopup().catch(() => {
-    showNotification('FavsHub', '请点击浏览器工具栏的 FavsHub 图标打开弹窗');
+  browser.action.openPopup().catch(async () => {
+    showNotification('FavsHub', await tr('ui.notify.open_popup_hint'));
   });
 }
 
@@ -229,6 +259,11 @@ export default defineBackground(() => {
     rebuildContextMenus();
   });
 
+  // 语言切换后重建右键菜单，使菜单文案跟随界面语言
+  languageStorage.watch(() => {
+    rebuildContextMenus();
+  });
+
   browser.runtime.onInstalled.addListener(() => {
     rebuildContextMenus();
     setupSidePanel();
@@ -255,18 +290,18 @@ export default defineBackground(() => {
     }
 
     if (info.menuItemId === `${ROOT_MENU_ID}:save-root`) {
-      addCurrentPageToFolder(null, tab?.windowId)
-        .then((pageTitle) => showNotification('FavsHub', `已保存：${pageTitle}`))
-        .catch((error) => showNotification('FavsHub', `保存失败：${error.message}`));
+      addCurrentPageToFolder(null, tab?.windowId, info.linkUrl)
+        .then(async (pageTitle) => showNotification('FavsHub', await tr('ui.notify.saved', { name: pageTitle })))
+        .catch(async (error) => showNotification('FavsHub', await tr('ui.notify.save_failed', { reason: error.message })));
       return;
     }
 
     const match = info.menuItemId.match(new RegExp(`^${MENU_ID_PREFIX}:(\\d+):add$`));
     if (match) {
       const folderId = parseInt(match[1]);
-      addCurrentPageToFolder(folderId, tab?.windowId)
-        .then((pageTitle) => showNotification('FavsHub', `已保存：${pageTitle}`))
-        .catch((error) => showNotification('FavsHub', `保存失败：${error.message}`));
+      addCurrentPageToFolder(folderId, tab?.windowId, info.linkUrl)
+        .then(async (pageTitle) => showNotification('FavsHub', await tr('ui.notify.saved', { name: pageTitle })))
+        .catch(async (error) => showNotification('FavsHub', await tr('ui.notify.save_failed', { reason: error.message })));
     }
   });
 
@@ -307,9 +342,19 @@ export default defineBackground(() => {
             sendResponse({ error: 'URL not allowed: target must match configured server' });
             return;
           }
-          fetch(url, options)
+          // 超时 + 响应体上限，防止消息通道悬挂或超大响应拖垮 SW
+          fetch(url, { ...options, signal: AbortSignal.timeout(PROXY_FETCH_TIMEOUT_MS) })
             .then(async (resp) => {
+              const len = Number(resp.headers.get('content-length') || '0');
+              if (len > PROXY_FETCH_MAX_CHARS) {
+                sendResponse({ error: 'Response too large' });
+                return;
+              }
               const body = await resp.text();
+              if (body.length > PROXY_FETCH_MAX_CHARS) {
+                sendResponse({ error: 'Response too large' });
+                return;
+              }
               sendResponse({ status: resp.status, body });
             })
             .catch((err) => sendResponse({ error: String(err) }));
@@ -374,25 +419,29 @@ export default defineBackground(() => {
       }
 
       case 'openUrlInSidePanel': {
-        const url = message.url;
-        if (url && browser.sidePanel.setOptions) {
-          // Validate URL protocol - only allow http/https
-          try {
-            const parsed = new URL(url);
-            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-              sendResponse({ success: false, error: 'Invalid URL protocol' });
-              return true;
-            }
-          } catch {
-            sendResponse({ success: false, error: 'Invalid URL' });
-            return true;
-          }
-          browser.sidePanel.setOptions({ path: url })
-            .then(() => sendResponse({ success: true }))
-            .catch(() => sendResponse({ success: false }));
-        } else {
-          sendResponse({ success: false });
+        // 仅允许打开与 FavsHub 服务器同源的页面：
+        // 侧边栏被用户视为扩展的可信界面，不得被指向任意站点（钓鱼风险）
+        if (!message.url || !browser.sidePanel.setOptions) {
+          sendResponse({ success: false, error: 'Invalid request' });
+          return true;
         }
+        (async () => {
+          try {
+            const parsed = new URL(message.url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+              return { success: false, error: 'Invalid URL protocol' };
+            }
+            const baseUrl = await baseUrlStorage.getValue();
+            const allowedOrigin = baseUrl?.trim() ? new URL(baseUrl.trim()).origin : '';
+            if (!allowedOrigin || parsed.origin !== allowedOrigin) {
+              return { success: false, error: 'URL not allowed: must match configured server' };
+            }
+            await browser.sidePanel.setOptions({ path: message.url });
+            return { success: true };
+          } catch {
+            return { success: false, error: 'Invalid URL' };
+          }
+        })().then(sendResponse);
         return true;
       }
 
@@ -424,32 +473,49 @@ export default defineBackground(() => {
         return true;
 
       case 'openTab': {
-        // Validate URL protocol - only allow http/https
-        const tabUrl = message.url;
-        if (tabUrl) {
+        // 仅允许打开与 FavsHub 服务器同源的 URL，防止网站借中继进行标签页轰炸/钓鱼
+        (async () => {
           try {
+            const tabUrl = message.url;
             const parsed = new URL(tabUrl);
             if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-              sendResponse({ success: false, error: 'Invalid URL protocol' });
-              return true;
+              return { success: false, error: 'Invalid URL protocol' };
             }
+            const baseUrl = await baseUrlStorage.getValue();
+            const allowedOrigin = baseUrl?.trim() ? new URL(baseUrl.trim()).origin : '';
+            if (!allowedOrigin || parsed.origin !== allowedOrigin) {
+              return { success: false, error: 'URL not allowed: must match configured server' };
+            }
+            await browser.tabs.create({ url: tabUrl });
+            return { success: true };
           } catch {
-            sendResponse({ success: false, error: 'Invalid URL' });
-            return true;
+            return { success: false, error: 'Invalid URL' };
           }
-        }
-        browser.tabs.create({ url: tabUrl })
-          .then(() => sendResponse({ success: true }))
-          .catch(() => sendResponse({ success: false }));
+        })().then(sendResponse);
         return true;
       }
 
       case 'searchHistory': {
-        // 安全性由 content.ts relay 的 origin 校验 + action 白名单保证
-        // proxyFetch / getIconUrl 等敏感操作不在 relay 白名单中，无法通过网站触发
+        // 入参强校验 + 结果上限 + 速率限制（防御该站点内嵌第三方脚本滥用）
+        if (!checkHistoryRateLimit()) {
+          sendResponse({ success: false, error: 'rate_limited' });
+          return true;
+        }
         const { text, maxResults, startTime } = message;
-        const keywords = (text || '').split(/[\s\u3000]+/).filter((k: string) => k.length > 0);
-        const limit = maxResults || 2000;
+        if (typeof text !== 'string' || text.length > 200) {
+          sendResponse({ success: false, error: 'Invalid text' });
+          return true;
+        }
+        if (maxResults !== undefined && (!Number.isFinite(maxResults) || maxResults < 1)) {
+          sendResponse({ success: false, error: 'Invalid maxResults' });
+          return true;
+        }
+        if (startTime !== undefined && !Number.isFinite(startTime)) {
+          sendResponse({ success: false, error: 'Invalid startTime' });
+          return true;
+        }
+        const keywords = text.split(/[\s\u3000]+/).filter((k: string) => k.length > 0);
+        const limit = Math.min(Math.floor(maxResults || 50), HISTORY_MAX_RESULTS);
 
         if (keywords.length <= 1) {
           // 单关键词：直接搜索

@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import { ChevronDownOutline, ChevronForwardOutline, FolderOpenOutline } from '@vicons/ionicons5';
+import { getFaviconUrl, getBookmarkInitial, handleFaviconError } from '@/utils/favicon-display';
+import { t } from '@/i18n';
 
 interface Bookmark {
   id: number;
@@ -30,46 +32,6 @@ const emit = defineEmits<{
 const isExpanded = computed(() => props.expandedIds.has(props.folder.id));
 const folderBookmarks = computed(() => props.bookmarks.filter(b => b.folder_id === props.folder.id));
 const hasContent = computed(() => props.folder.children.length > 0 || folderBookmarks.value.length > 0);
-
-function getFaviconUrl(url: string) {
-  try {
-    const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
-    faviconUrl.searchParams.set('pageUrl', url);
-    faviconUrl.searchParams.set('size', '32');
-    faviconUrl.searchParams.set('cache', '1');
-    return faviconUrl.toString();
-  } catch {
-    try {
-      const hostname = new URL(url).hostname;
-      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-    } catch {
-      return '';
-    }
-  }
-}
-
-function getBookmarkInitial(title: string) {
-  return title.charAt(0).toUpperCase();
-}
-
-function onFaviconError(e: Event, title: string) {
-  const img = e.target as HTMLImageElement;
-  const currentSrc = img.src;
-  if (currentSrc.includes('chrome-extension://') || currentSrc.includes('/_favicon/')) {
-    try {
-      const u = new URL(currentSrc);
-      const pageUrl = u.searchParams.get('pageUrl');
-      if (pageUrl) {
-        const hostname = new URL(pageUrl).hostname;
-        img.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-        return;
-      }
-    } catch {}
-  }
-  img.style.display = 'none';
-  const fallback = img.nextElementSibling as HTMLElement;
-  if (fallback) fallback.style.display = 'flex';
-}
 </script>
 
 <template>
@@ -116,13 +78,13 @@ function onFaviconError(e: Event, title: string) {
         class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-sky-50/70"
         @click="emit('open', bookmark.url)"
       >
-        <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="onFaviconError($event, bookmark.title)" />
+        <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
         <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
         <span class="min-w-0 flex-1 truncate text-sm text-slate-700 hover:text-sky-600">{{ bookmark.title }}</span>
       </div>
 
       <div v-if="!hasContent" class="px-3 py-3 text-center text-xs text-slate-400">
-        空文件夹
+        {{ t('ui.folder.empty') }}
       </div>
     </div>
   </div>

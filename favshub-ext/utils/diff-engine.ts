@@ -61,6 +61,18 @@ export interface DiffResult {
 }
 
 /**
+ * key 段转义：文件夹名中的 '/' 会与 key 分隔符歧义（"a/b" 与嵌套 "a→b" 同 key）。
+ * 仅转义 '/' 与 '%'，不含这些字符的名称 key 保持不变（存量快照兼容）。
+ */
+export function encodeKeySegment(segment: string): string {
+  return segment.replace(/%/g, '%25').replace(/\//g, '%2F');
+}
+
+export function decodeKeySegment(segment: string): string {
+  return segment.replace(/%2F/gi, '/').replace(/%25/g, '%');
+}
+
+/**
  * 计算服务端书签与浏览器书签之间的差异
  *
  * @param serverMap - 服务端书签 Map (key → DiffBookmarkEntry)
@@ -104,7 +116,7 @@ export function computeDiff(
     for (const key of serverFolderKeys) {
       if (!browserFolderMap.has(key)) {
         const parts = key.split('/');
-        const name = parts[parts.length - 1];
+        const name = decodeKeySegment(parts[parts.length - 1]);
         const parentKey = parts.length > 2 ? parts.slice(0, -1).join('/') : null;
         toAddFolders.push({ key, name, parentKey });
       }
@@ -146,7 +158,7 @@ export function computeDiff(
     for (const key of serverFolderKeys) {
       if (!snapshotFolderMap!.has(key) && !browserFolderMap.has(key)) {
         const parts = key.split('/');
-        const name = parts[parts.length - 1];
+        const name = decodeKeySegment(parts[parts.length - 1]);
         const parentKey = parts.length > 2 ? parts.slice(0, -1).join('/') : null;
         toAddFolders.push({ key, name, parentKey });
       }

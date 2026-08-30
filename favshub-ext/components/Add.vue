@@ -4,6 +4,8 @@ import PopupLayout from '@/components/PopupLayout.vue';
 import PageTitle from '@/components/title.vue';
 import { request } from '@/utils/request';
 import { tokenStorage } from '@/utils/storage';
+import { isSafeUrl } from '@/utils/safe-url';
+import { t } from '@/i18n';
 import type { FormInst, FormRules } from 'naive-ui';
 
 interface Folder {
@@ -56,17 +58,18 @@ const folderOptions = computed<SelectOption[]>(() => {
   return result;
 });
 
-const rules: FormRules = {
+// 校验消息走 t()，用 computed 保持语言切换后提示同步更新
+const rules = computed<FormRules>(() => ({
   url: [
-    { required: true, message: '请输入链接', trigger: ['input', 'blur'] },
+    { required: true, message: t('ui.add.url_required'), trigger: ['input', 'blur'] },
   ],
   title: [
-    { required: true, message: '请输入标题', trigger: ['input', 'blur'] },
+    { required: true, message: t('ui.add.title_required'), trigger: ['input', 'blur'] },
   ],
   folderId: [
-    { required: true, type: 'number', message: '请选择分类', trigger: ['change', 'blur'] },
+    { required: true, type: 'number', message: t('ui.add.folder_required'), trigger: ['change', 'blur'] },
   ],
-};
+}));
 
 async function loadCurrentTab() {
   try {
@@ -74,7 +77,7 @@ async function loadCurrentTab() {
     formValue.url = activeTab?.url ?? '';
     formValue.title = activeTab?.title ?? '';
   } catch {
-    message.error('读取当前页面信息失败');
+    message.error(t('ui.add.load_tab_failed'));
   }
 }
 
@@ -86,19 +89,25 @@ async function loadFolders() {
     const result = await request<{ folders: Folder[] }>('/api/folders');
     folders.value = result.folders ?? [];
   } catch {
-    message.error('读取分类失败');
+    message.error(t('ui.add.load_folders_failed'));
   }
 }
 
 async function handleSubmit() {
   if (!folders.value.length) {
-    message.error('分类为空，请先在书签页加载分类');
+    message.error(t('ui.add.no_folders'));
     return;
   }
 
   try {
     await formRef.value?.validate();
   } catch {
+    return;
+  }
+
+  // 客户端协议白名单：防止 javascript: 等伪协议入库
+  if (!isSafeUrl(formValue.url.trim())) {
+    message.error(t('ui.add.invalid_url_protocol'));
     return;
   }
 
@@ -116,13 +125,13 @@ async function handleSubmit() {
       }),
     });
 
-    message.success('添加书签成功');
+    message.success(t('ui.add.success'));
     formValue.url = '';
     formValue.title = '';
     formValue.description = '';
     formValue.folderId = null;
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '添加失败');
+    message.error(error instanceof Error ? error.message : t('ui.add.failed'));
   } finally {
     isSubmitting.value = false;
   }
@@ -153,44 +162,44 @@ onMounted(() => {
 
 <template>
   <PopupLayout>
-    <PageTitle title="添加书签" />
+    <PageTitle :title="t('ui.add.title')" />
 
     <main class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
       <div class="space-y-3">
         <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <n-form ref="formRef" :model="formValue" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
-            <n-form-item label="链接" path="url">
-              <n-input v-model:value="formValue.url" placeholder="https://example.com" />
+            <n-form-item :label="t('ui.add.label_url')" path="url">
+              <n-input v-model:value="formValue.url" placeholder="https://example.com" @keyup.enter="handleSubmit" />
             </n-form-item>
 
-            <n-form-item label="标题" path="title">
-              <n-input v-model:value="formValue.title" placeholder="请输入标题" />
+            <n-form-item :label="t('ui.add.label_title')" path="title">
+              <n-input v-model:value="formValue.title" :placeholder="t('ui.add.placeholder_title')" />
             </n-form-item>
 
-            <n-form-item label="分类" path="folderId">
+            <n-form-item :label="t('ui.add.label_folder')" path="folderId">
               <n-select
                 v-model:value="formValue.folderId"
                 :options="folderOptions"
-                placeholder="选择分类"
+                :placeholder="t('ui.add.placeholder_folder')"
               />
             </n-form-item>
 
-            <n-form-item label="描述" class="mb-0">
+            <n-form-item :label="t('ui.add.label_description')" class="mb-0">
               <n-input
                 v-model:value="formValue.description"
                 type="textarea"
                 :autosize="{ minRows: 3, maxRows: 3 }"
-                placeholder="选填"
+                :placeholder="t('ui.add.placeholder_description')"
               />
             </n-form-item>
           </n-form>
 
           <div class="grid grid-cols-2 gap-2">
             <n-button block :loading="isRecognizing" :disabled="!formValue.url.trim() || isSubmitting" @click="handleAutoDetect">
-              自动识别
+              {{ t('ui.add.auto_detect') }}
             </n-button>
             <n-button block type="primary" :loading="isSubmitting" :disabled="isRecognizing" @click="handleSubmit">
-              添加链接
+              {{ t('ui.add.submit') }}
             </n-button>
           </div>
         </section>

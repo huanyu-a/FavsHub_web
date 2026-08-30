@@ -1,39 +1,36 @@
-import { createI18n } from 'vue-i18n'
-import { languageStorage, type AppLanguage } from '@/utils/storage'
-
-// 同步加载语言包（默认中文）
+import { ref } from 'vue'
 import zh from './locales/zh'
 import en from './locales/en'
+import { currentLanguage } from '@/utils/server-errors'
 
-function isSupportedLanguage(value: string): value is AppLanguage {
-  return value === 'zh' || value === 'en'
+/**
+ * 轻量 i18n：不依赖 vue-i18n（避免其消息编译器撑大 bundle）。
+ * locale 为 reactive ref，切换语言后所有 t() 调用自动更新。
+ */
+const dictionaries: Record<'zh' | 'en', Record<string, string>> = {
+  zh: zh as Record<string, string>,
+  en: en as Record<string, string>,
 }
 
-function getDefaultLanguage(): AppLanguage {
-  if (typeof navigator !== 'undefined' && navigator.language?.startsWith('zh')) {
-    return 'zh'
-  }
+/** 当前语言（响应式） */
+export const locale = ref<'zh' | 'en'>('zh')
 
-  return 'en'
+void currentLanguage().then((l) => {
+  locale.value = l
+})
+
+export function setLocale(l: 'zh' | 'en') {
+  locale.value = l
 }
 
-const i18n = createI18n({
-  legacy: false,
-  locale: getDefaultLanguage(),
-  fallbackLocale: 'en',   // 备选语言
-  messages: {
-    zh,
-    en
-  },
-  missingWarn: false,
-  fallbackWarn: false
-})
-
-void languageStorage.getValue().then((savedLanguage) => {
-  if (isSupportedLanguage(savedLanguage)) {
-    i18n.global.locale.value = savedLanguage
+/** 翻译：当前语言缺失时回落英文，再回落 key 本身；支持 {name} 插值 */
+export function t(key: string, params?: Record<string, string | number>): string {
+  const dict = dictionaries[locale.value]
+  let text = dict?.[key] ?? dictionaries.en[key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replaceAll(`{${k}}`, String(v))
+    }
   }
-})
-
-export const t = i18n.global.t
-export default i18n
+  return text
+}

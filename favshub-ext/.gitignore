@@ -24,3 +24,11 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files（防凭证误提交）
+.env
+.env.*
+
+# Auto-generated type declarations（重建于 pnpm dev / build）
+auto-imports.d.ts
+components.d.ts

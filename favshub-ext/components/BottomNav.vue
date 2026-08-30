@@ -3,19 +3,20 @@ import type { Component } from 'vue';
 import { computed } from 'vue';
 import { BookmarkOutline, AddCircleOutline, SyncOutline, SettingsOutline } from '@vicons/ionicons5';
 import { useRoute, useRouter } from 'vue-router';
+import { t } from '@/i18n';
 
 type NavItem = {
   key: string;
-  label: string;
+  labelKey: string;
   icon: Component;
   to: string;
 };
 
 const items: NavItem[] = [
-  { key: 'bookmarks', label: '书签', icon: BookmarkOutline, to: '/' },
-  { key: 'add', label: '添加', icon: AddCircleOutline, to: '/add' },
-  { key: 'sync', label: '同步', icon: SyncOutline, to: '/sync' },
-  { key: 'settings', label: '设置', icon: SettingsOutline, to: '/settings' },
+  { key: 'bookmarks', labelKey: 'ui.nav.bookmarks', icon: BookmarkOutline, to: '/' },
+  { key: 'add', labelKey: 'ui.nav.add', icon: AddCircleOutline, to: '/add' },
+  { key: 'sync', labelKey: 'ui.nav.sync', icon: SyncOutline, to: '/sync' },
+  { key: 'settings', labelKey: 'ui.nav.settings', icon: SettingsOutline, to: '/settings' },
 ];
 
 const route = useRoute();
@@ -43,7 +44,7 @@ function navigate(item: NavItem) {
           @click="navigate(item)"
         >
           <n-icon :component="item.icon" size="18" />
-          <span>{{ item.label }}</span>
+          <span>{{ t(item.labelKey) }}</span>
         </button>
       </li>
     </ul>

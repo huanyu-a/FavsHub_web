@@ -2,7 +2,7 @@ import { request } from '@/utils/request';
 import { resolveContainerByType, containerTypeFromTitle } from '@/utils/container-sync';
 import { saveSnapshot, loadSnapshot } from '@/utils/sync-snapshot';
 import type { SyncSnapshot } from '@/utils/storage';
-import { computeDiff, type DiffBookmarkEntry, type DiffBrowserEntry, type DiffSnapshotEntry } from '@/utils/diff-engine';
+import { computeDiff, encodeKeySegment, type DiffBookmarkEntry, type DiffBrowserEntry, type DiffSnapshotEntry } from '@/utils/diff-engine';
 
 interface FavsHubFolder {
   id: number;
@@ -62,7 +62,7 @@ export async function syncFavsHubToBrowser(): Promise<SyncStats> {
     while (fid !== null) {
       const f = folderMap.get(fid);
       if (!f) break;
-      parts.unshift(f.name);
+      parts.unshift(encodeKeySegment(f.name));
       fid = f.parent_id;
     }
     return parts.join('/');
@@ -139,7 +139,8 @@ export async function syncFavsHubToBrowser(): Promise<SyncStats> {
         const key = `${containerType}/${parentPath}/${child.url}`;
         browserMap.set(key, { key, title: child.title, browserId: child.id });
       } else {
-        const folderPath = parentPath ? `${parentPath}/${child.title}` : child.title;
+        // 文件夹名转义后再拼入路径，防止名称中的 '/' 与 key 分隔符歧义
+        const folderPath = parentPath ? `${parentPath}/${encodeKeySegment(child.title)}` : encodeKeySegment(child.title);
         const folderKey = `${containerType}/${folderPath}`;
         browserFolderMap.set(folderKey, { browserId: child.id });
         await walkBrowserTree(child.id, containerType, folderPath);
@@ -294,7 +295,7 @@ async function buildSnapshot(
         const key = `${containerType}/${parentPath}/${child.url}`;
         bookmarks.push({ key, title: child.title });
       } else {
-        const folderPath = parentPath ? `${parentPath}/${child.title}` : child.title;
+        const folderPath = parentPath ? `${parentPath}/${encodeKeySegment(child.title)}` : encodeKeySegment(child.title);
         const folderKey = `${containerType}/${folderPath}`;
         folders.push({ key: folderKey });
         await walkForSnapshot(child.id, containerType, folderPath);

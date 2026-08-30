@@ -8,6 +8,7 @@ import { tokenStorage } from '@/utils/storage';
 import { faviconWarmingStateStorage } from '@/utils/storage-session';
 import { syncFavsHubToBrowser } from '@/utils/browser-sync';
 import { flattenBookmarks } from '@/utils/flatten-bookmarks';
+import { t } from '@/i18n';
 
 const message = useMessage();
 const isSyncing = ref(false);
@@ -25,6 +26,16 @@ const faviconWarmingStopped = ref(false);
 // 挂载时恢复状态
 onMounted(async () => {
   const s = await faviconWarmingStateStorage.getValue();
+  // 幽灵状态检测：running 但心跳超过 15 秒未更新，说明预热循环已随弹窗关闭而中断
+  const stale = s.running && Date.now() - (s.beat || 0) > 15_000;
+  if (s.running && stale) {
+    faviconWarming.value = false;
+    faviconWarmingProgress.value = '';
+    await faviconWarmingStateStorage.setValue({
+      running: false, paused: false, total: 0, current: 0, progressMsg: '', beat: Date.now(),
+    });
+    return;
+  }
   if (s.running) {
     faviconWarming.value = true;
     faviconWarmingTotal.value = s.total;
@@ -42,6 +53,7 @@ function syncState() {
     total: faviconWarmingTotal.value,
     current: faviconWarmingCurrent.value,
     progressMsg: faviconWarmingProgress.value,
+    beat: Date.now(),
   });
 }
 
@@ -94,7 +106,7 @@ async function handleWarmFavicons() {
   }
 
   if (!urls.length) {
-    message.warning('没有可预加载的书签');
+    message.warning(t('ui.sync.no_bookmarks_to_warm'));
     return;
   }
 
@@ -103,7 +115,7 @@ async function handleWarmFavicons() {
   faviconWarmingPaused.value = false;
   faviconWarmingTotal.value = urls.length;
   faviconWarmingCurrent.value = 0;
-  faviconWarmingProgress.value = `正在预加载 ${urls.length} 个站点图标...`;
+  faviconWarmingProgress.value = t('ui.sync.warming_start', { n: urls.length });
   syncState();
 
   const BATCH = 5;
@@ -114,7 +126,7 @@ async function handleWarmFavicons() {
     if (faviconWarmingStopped.value) break;
 
     const batch = urls.slice(i, i + BATCH);
-    faviconWarmingProgress.value = `正在预加载 ${Math.min(i + BATCH, urls.length)}/${urls.length}...`;
+    faviconWarmingProgress.value = t('ui.sync.warming_progress', { current: Math.min(i + BATCH, urls.length), total: urls.length });
     syncState();
 
     const tabIds: number[] = [];
@@ -135,7 +147,7 @@ async function handleWarmFavicons() {
     while (Date.now() < end) {
       if (faviconWarmingStopped.value) break outer;
       if (faviconWarmingPaused.value) {
-        faviconWarmingProgress.value = `已暂停 ${faviconWarmingCurrent.value}/${faviconWarmingTotal.value}`;
+        faviconWarmingProgress.value = t('ui.sync.warming_paused', { current: faviconWarmingCurrent.value, total: faviconWarmingTotal.value });
         syncState();
         if (await waitIfPaused()) break outer;
         faviconWarmingProgress.value = '';
@@ -153,8 +165,8 @@ async function handleWarmFavicons() {
   }
 
   const finalMsg = faviconWarmingStopped.value
-    ? `已停止，完成 ${faviconWarmingCurrent.value}/${faviconWarmingTotal.value}`
-    : `预加载完成，共 ${faviconWarmingTotal.value} 个站点`;
+    ? t('ui.sync.warming_stopped', { current: faviconWarmingCurrent.value, total: faviconWarmingTotal.value })
+    : t('ui.sync.warming_done', { n: faviconWarmingTotal.value });
   faviconWarmingProgress.value = finalMsg;
   syncState();
   setTimeout(() => {
@@ -171,7 +183,7 @@ const downloadResult = ref('');
 async function handleDownloadToBrowser() {
   const token = await tokenStorage.getValue();
   if (!token) {
-    message.error('请先在设置页登录');
+    message.error(t('ui.sync.login_required'));
     return;
   }
 
@@ -181,19 +193,19 @@ async function handleDownloadToBrowser() {
   try {
     const stats = await syncFavsHubToBrowser();
     const parts: string[] = [];
-    if (stats.added > 0) parts.push(`新增 ${stats.added}`);
-    if (stats.updated > 0) parts.push(`更新 ${stats.updated}`);
-    if (stats.removed > 0) parts.push(`删除 ${stats.removed}`);
+    if (stats.added > 0) parts.push(t('ui.sync.stats_added', { n: stats.added }));
+    if (stats.updated > 0) parts.push(t('ui.sync.stats_updated', { n: stats.updated }));
+    if (stats.removed > 0) parts.push(t('ui.sync.stats_removed', { n: stats.removed }));
     if (parts.length === 0) {
-      downloadResult.value = '书签已是最新，无需同步';
+      downloadResult.value = t('ui.sync.download_up_to_date');
     } else if (stats.isFirstSync) {
-      downloadResult.value = `首次同步完成：${parts.join('、')}（本地新增的书签已保留）`;
+      downloadResult.value = t('ui.sync.download_first_done', { stats: parts.join(t('ui.sync.separator')) });
     } else {
-      downloadResult.value = `同步完成：${parts.join('、')}`;
+      downloadResult.value = t('ui.sync.download_done', { stats: parts.join(t('ui.sync.separator')) });
     }
     message.success(downloadResult.value);
   } catch (error) {
-    downloadResult.value = '同步失败：' + (error instanceof Error ? error.message : '未知错误');
+    downloadResult.value = t('ui.sync.failed', { reason: error instanceof Error ? error.message : t('ui.sync.unknown_error') });
     message.error(downloadResult.value);
   } finally {
     isDownloading.value = false;
@@ -223,7 +235,7 @@ async function fetchExtensionFavicon(pageUrl: string): Promise<string | null> {
 async function handleSync() {
   const token = await tokenStorage.getValue();
   if (!token) {
-    message.error('请先在设置页登录');
+    message.error(t('ui.sync.login_required'));
     return;
   }
 
@@ -233,10 +245,12 @@ async function handleSync() {
 
   try {
     const bookmarkTree = await chrome.bookmarks.getTree();
-    const bookmarks = flattenBookmarks(bookmarkTree, getFaviconUrl);
+    // icon 字段不随同步上传（避免 Google URL 污染服务端书签表），
+    // 图标统一走下方的 base64 上传路径
+    const bookmarks = flattenBookmarks(bookmarkTree, () => '');
 
     if (!bookmarks.length) {
-      message.warning('未读取到可同步的浏览器书签');
+      message.warning(t('ui.sync.no_browser_bookmarks'));
       return;
     }
 
@@ -253,44 +267,58 @@ async function handleSync() {
     });
 
     const parts: string[] = [];
-    if (result.added > 0) parts.push(`新增 ${result.added}`);
-    if (result.updated > 0) parts.push(`更新 ${result.updated}`);
-    if (result.deleted > 0) parts.push(`删除 ${result.deleted}`);
+    if (result.added > 0) parts.push(t('ui.sync.stats_added', { n: result.added }));
+    if (result.updated > 0) parts.push(t('ui.sync.stats_updated', { n: result.updated }));
+    if (result.deleted > 0) parts.push(t('ui.sync.stats_removed', { n: result.deleted }));
     if (parts.length === 0) {
-      syncResult.value = `共 ${result.total} 条书签，无需变更`;
+      syncResult.value = t('ui.sync.upload_no_changes', { n: result.total });
     } else {
-      syncResult.value = `已合并 ${result.total} 条书签：${parts.join('、')}`;
+      syncResult.value = t('ui.sync.upload_done', { n: result.total, stats: parts.join(t('ui.sync.separator')) });
     }
 
-    faviconProgress.value = '正在下载书签图标...';
-    const favicons: { url: string; base64: string }[] = [];
-    const urlSet = new Set<string>();
-
-    for (let i = 0; i < bookmarks.length; i++) {
-      const bm = bookmarks[i];
-      const hostname = new URL(bm.url).hostname;
-      if (urlSet.has(hostname)) continue;
-      urlSet.add(hostname);
-
-      const b64 = await fetchExtensionFavicon(bm.url);
-      if (b64) {
-        favicons.push({ url: bm.url, base64: b64 });
-      }
-    }
-
-    if (favicons.length > 0) {
-      faviconProgress.value = `正在上传 ${favicons.length} 个图标到服务器...`;
-      await request('/api/sync/favicons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ favicons }),
+    // 图标阶段独立容错：书签已同步成功，图标失败不应覆盖成功结果
+    try {
+      const favicons: { url: string; base64: string }[] = [];
+      // 去重 + 跳过非法 URL（单个坏数据不应中断整个同步）
+      const hostSeen = new Set<string>();
+      const uniqueBookmarks = bookmarks.filter((bm) => {
+        try {
+          const hostname = new URL(bm.url).hostname;
+          if (hostSeen.has(hostname)) return false;
+          hostSeen.add(hostname);
+          return true;
+        } catch {
+          return false;
+        }
       });
-      syncResult.value += `，已上传 ${favicons.length} 个图标`;
+
+      // 并发下载图标（批 6），带进度提示
+      const CONCURRENCY = 6;
+      for (let i = 0; i < uniqueBookmarks.length; i += CONCURRENCY) {
+        const batch = uniqueBookmarks.slice(i, i + CONCURRENCY);
+        faviconProgress.value = t('ui.sync.favicon_download_progress', { current: Math.min(i + CONCURRENCY, uniqueBookmarks.length), total: uniqueBookmarks.length });
+        const results = await Promise.all(batch.map((bm) => fetchExtensionFavicon(bm.url)));
+        results.forEach((b64, idx) => {
+          if (b64) favicons.push({ url: batch[idx].url, base64: b64 });
+        });
+      }
+
+      if (favicons.length > 0) {
+        faviconProgress.value = t('ui.sync.favicon_uploading', { n: favicons.length });
+        await request('/api/sync/favicons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ favicons }),
+        });
+        syncResult.value += t('ui.sync.favicon_uploaded_suffix', { n: favicons.length });
+      }
+    } catch (iconError) {
+      syncResult.value += t('ui.sync.icon_upload_failed', { reason: iconError instanceof Error ? iconError.message : t('ui.sync.unknown_error') });
     }
 
     message.success(syncResult.value);
   } catch (error) {
-    syncResult.value = '同步失败：' + (error instanceof Error ? error.message : '未知错误');
+    syncResult.value = t('ui.sync.failed', { reason: error instanceof Error ? error.message : t('ui.sync.unknown_error') });
     message.error(syncResult.value);
   } finally {
     isSyncing.value = false;
@@ -301,20 +329,20 @@ async function handleSync() {
 
 <template>
   <PopupLayout>
-    <PageTitle title="同步数据" />
+    <PageTitle :title="t('ui.sync.title')" />
 
     <main class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
       <div class="space-y-3">
         <section class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
-          <div class="font-semibold">温馨提示</div>
-          <p class="mt-1 leading-6">同步采用增量合并策略，不会删除对方新增的数据。</p>
+          <div class="font-semibold">{{ t('ui.sync.notice_title') }}</div>
+          <p class="mt-1 leading-6">{{ t('ui.sync.notice_desc') }}</p>
         </section>
 
         <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">浏览器书签同步到 FavsHub</h2>
+            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.upload_section') }}</h2>
             <p class="mt-1 text-xs leading-5 text-slate-500">
-              增量合并浏览器书签到服务器，不会删除服务端其他来源的数据，并自动上传图标到服务器本地。
+              {{ t('ui.sync.upload_desc') }}
             </p>
           </div>
 
@@ -322,7 +350,7 @@ async function handleSync() {
             <template #icon>
               <n-icon :component="CloudUploadOutline" />
             </template>
-            开始同步（含图标上传）
+            {{ t('ui.sync.upload_button') }}
           </n-button>
 
           <div v-if="faviconProgress" class="mt-2 text-center text-xs text-blue-500">
@@ -335,9 +363,9 @@ async function handleSync() {
 
         <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">服务器书签拉取到浏览器</h2>
+            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.download_section') }}</h2>
             <p class="mt-1 text-xs leading-5 text-slate-500">
-              增量合并服务器书签到浏览器书签栏，不会删除本地新增的书签。首次同步仅添加缺失的书签。
+              {{ t('ui.sync.download_desc') }}
             </p>
           </div>
 
@@ -345,7 +373,7 @@ async function handleSync() {
             <template #icon>
               <n-icon :component="CloudDownloadOutline" />
             </template>
-            拉取到浏览器书签栏
+            {{ t('ui.sync.download_button') }}
           </n-button>
 
           <div v-if="downloadResult" class="mt-3 text-center text-xs text-slate-500">
@@ -355,9 +383,9 @@ async function handleSync() {
 
         <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">预加载书签图标</h2>
+            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.warm_section') }}</h2>
             <p class="mt-1 text-xs leading-5 text-slate-500">
-              后台打开各站点页面让 Chrome 自动获取并缓存 favicon，完成后书签栏将显示网站图标。
+              {{ t('ui.sync.warm_desc') }}
             </p>
           </div>
 
@@ -365,7 +393,7 @@ async function handleSync() {
             v-if="!faviconWarming"
             type="warning" block @click="handleWarmFavicons"
           >
-            开始预加载图标
+            {{ t('ui.sync.warm_button') }}
           </n-button>
 
           <template v-else>
@@ -380,16 +408,16 @@ async function handleSync() {
                 v-if="!faviconWarmingPaused"
                 size="tiny" secondary @click="pauseFaviconWarming"
               >
-                ⏸ 暂停
+                {{ t('ui.sync.pause') }}
               </n-button>
               <n-button
                 v-else
                 size="tiny" type="primary" secondary @click="resumeFaviconWarming"
               >
-                ▶ 继续
+                {{ t('ui.sync.resume') }}
               </n-button>
               <n-button size="tiny" type="error" secondary @click="stopFaviconWarming">
-                ⏹ 停止
+                {{ t('ui.sync.stop') }}
               </n-button>
             </div>
           </template>
