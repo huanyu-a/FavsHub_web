@@ -1250,7 +1250,7 @@ aside .settings-icon {
   height: 42px;
   padding: 8px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary-light), rgba(59, 130, 246, 0.12));
+  background: var(--primary-light);
   box-shadow: inset 0 1px 0 light-dark(rgba(255,255,255,0.55), rgba(255,255,255,0.08));
 }
 
@@ -1357,13 +1357,13 @@ aside .settings-icon {
   height: 26px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary-medium), rgba(59, 130, 246, 0.06));
+  background: var(--primary-light);
   color: var(--text-primary);
   transition: all 0.2s ease;
 }
 
 .sidebar-theme-btn:hover {
-  background: linear-gradient(135deg, var(--primary-light), rgba(59, 130, 246, 0.1));
+  background: var(--primary-medium);
   color: var(--primary);
 }
 
@@ -1454,13 +1454,13 @@ aside .settings-icon {
 }
 
 .sidebar-toolbar-icon {
-  background: linear-gradient(135deg, var(--primary-medium), rgba(59, 130, 246, 0.06));
+  background: var(--primary-light);
   color: var(--text-primary);
 }
 
 .sidebar-toolbar-icon:hover {
   color: var(--primary);
-  background: linear-gradient(135deg, var(--primary-light), rgba(59, 130, 246, 0.1));
+  background: var(--primary-medium);
 }
 
 .sidebar-toolbar-icon svg,
@@ -2268,12 +2268,12 @@ img.w-6.h-6.mr-2 {
 
 /* ����?�W���S������ */
 .search-suggestions li[data-type="prompt"] {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+  background: rgba(245, 158, 11, 0.05);
   border-left: 3px solid var(--warning);
 }
 
 .search-suggestions li[data-type="prompt"]:hover {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .search-suggestions li[data-type="prompt"] .suggestion-type {
@@ -2475,7 +2475,6 @@ svg.suggestion-icon {
 
 .settings-bg-option:hover,
 .settings-bg-option.active {
-  transform: scale(1.05);
   border: 2px solid var(--primary);
 }
 /* �???�样�?*/
@@ -2766,7 +2765,6 @@ input:checked+.slider:before {
 .onboarding-step.active {
   opacity: 1;
   background: var(--primary-light);
-  transform: scale(1.05);
 }
 
 .onboarding-step img {
@@ -6660,7 +6658,7 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 .icon-picker-option.active { border-color: var(--primary); background: var(--primary-medium); color: var(--primary); }
 
 /* ---- from: pages/login.vue (scoped) ---- */
-.login-page { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, var(--primary) 0%, var(--accent-purple) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-page { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--primary); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .login-container { background: var(--surface-raised); border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .login-logo { text-align: center; margin-bottom: 32px; }
 .login-logo img { width: 48px; height: 48px; }
@@ -6673,8 +6671,8 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 .login-page .form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
 .login-page .form-group input { width: 100%; padding: 12px 16px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; transition: border-color 0.2s; outline: none; }
 .login-page .form-group input:focus { border-color: var(--primary); }
-.login-page .submit-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--primary), var(--accent-purple)); color: var(--text-inverse); border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-top: 8px; }
-.login-page .submit-btn:hover { opacity: 0.9; }
+.login-page .submit-btn { width: 100%; padding: 14px; background: var(--primary); color: var(--text-inverse); border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-top: 8px; }
+.login-page .submit-btn:hover { background: var(--primary-hover); }
 .login-page .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .login-page .error-msg { color: var(--danger); font-size: 13px; text-align: center; margin-bottom: 12px; padding: 8px; background: light-dark(#ffeaea, rgba(255,234,234,0.1)); border-radius: 8px; }
 

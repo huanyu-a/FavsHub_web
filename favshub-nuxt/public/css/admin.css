@@ -94,8 +94,8 @@ tbody tr:hover { background: var(--surface-hover); }
   background-size: 200% 200%; background-position: center;
   border: 2px solid transparent; transition: all 0.2s;
 }
-.settings-bg-option:hover { transform: scale(1.08); border-color: var(--border); }
-.settings-bg-option.active { border: 2px solid var(--primary); transform: scale(1.05); }
+.settings-bg-option:hover { border-color: var(--border); }
+.settings-bg-option.active { border: 2px solid var(--primary); }
 .settings-bg-option.bg-none { background: var(--surface-sunken); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-tertiary); }
 
 /* 开关样式 */
@@ -311,7 +311,7 @@ tr:hover { background: var(--surface-hover); }
 .setting-option span { font-size: 14px; color: var(--text-primary); }
 .bg-options { display: flex; flex-wrap: wrap; gap: 10px; }
 .bg-option { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
-.bg-option:hover { transform: scale(1.08); border-color: var(--border); }
+.bg-option:hover { border-color: var(--border); }
 .bg-option.active { border-color: var(--primary); }
 .bg-option.bg-none { background: var(--surface-sunken); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-tertiary); }
 input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--surface-raised); }

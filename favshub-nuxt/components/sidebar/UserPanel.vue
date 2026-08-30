@@ -133,7 +133,7 @@ if (import.meta.client) {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  background: var(--primary);
   color: var(--text-inverse);
   display: flex;
   align-items: center;
@@ -174,7 +174,7 @@ if (import.meta.client) {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  background: var(--primary);
   color: var(--text-inverse);
   display: flex;
   align-items: center;

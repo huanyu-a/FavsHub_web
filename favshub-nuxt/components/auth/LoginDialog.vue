@@ -203,18 +203,18 @@ async function handleRegister() {
 .submit-btn {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+  background: var(--primary);
   color: var(--text-inverse);
   border: none;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: background 0.2s;
   margin-top: 6px;
 }
 .submit-btn:hover {
-  opacity: 0.9;
+  background: var(--primary-hover);
 }
 .submit-btn:disabled {
   opacity: 0.6;

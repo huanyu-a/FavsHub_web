@@ -184,8 +184,6 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
 }
 .collections-header-inner {
   max-width: 1200px;
