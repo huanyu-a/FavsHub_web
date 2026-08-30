@@ -485,13 +485,16 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 
 .collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
 
-/* ── 详情页页头 ── */
+/* ── 详情页页头：主色横幅 ── */
 .detail-head {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 8px 0 24px;
+  padding: 28px 30px;
   margin-bottom: 24px;
+  border-radius: 20px;
+  background: var(--primary, #10b981);
+  color: var(--text-inverse, #fff);
 }
 .detail-icon-wrap {
   flex-shrink: 0;
@@ -502,8 +505,8 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary, #10b981) 10%, transparent);
+  color: var(--text-inverse, #fff);
+  background: color-mix(in srgb, var(--text-inverse, #fff) 20%, transparent);
 }
 .detail-hero-icon { font-style: normal; }
 .detail-head-main { min-width: 0; flex: 1; }
@@ -512,7 +515,7 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   font-size: 25px;
   font-weight: 800;
   letter-spacing: -0.022em;
-  color: var(--text-primary);
+  color: var(--text-inverse, #fff);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -526,15 +529,15 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   border-radius: 999px;
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
+  color: var(--primary, #10b981);
+  background: var(--surface-raised, #fff);
 }
 .detail-official-tag i { font-size: 12px; }
 .detail-head-desc {
   margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.6;
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-inverse, #fff) 82%, transparent);
 }
 .detail-head-meta {
   display: flex;
@@ -542,7 +545,7 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12.5px;
-  color: var(--text-tertiary);
+  color: color-mix(in srgb, var(--text-inverse, #fff) 78%, transparent);
 }
 .detail-head-meta > span { display: inline-flex; align-items: center; gap: 4px; }
 .detail-head-meta i { font-size: 13px; }
@@ -550,7 +553,7 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--text-tertiary);
+  background: var(--text-inverse, #fff);
   opacity: 0.45;
 }
 
@@ -697,6 +700,14 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
     flex-wrap: wrap;
     gap: 8px;
   }
+  .detail-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 22px 20px;
+    border-radius: 16px;
+  }
+  .detail-head-name { font-size: 21px; }
 }
 @media (max-width: 480px) {
   .collection-detail-page {

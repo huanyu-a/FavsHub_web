@@ -25,23 +25,23 @@
       </div>
     </header>
     <div class="collections-page">
-      <header class="market-head">
-        <h1 class="market-title">精选集市场</h1>
-        <p class="market-sub">浏览社区精选的主题书签集，一键导入你的书库。共 {{ pagination.total }} 个精选集。</p>
-      </header>
-
-    <!-- 搜索 & 排序 -->
-    <div class="toolbar">
-      <div class="search-box">
-        <i class="ri-search-line"></i>
-        <input v-model="search" type="text" placeholder="搜索精选集..." @input="debouncedSearch">
-      </div>
-      <div class="sort-tabs">
-        <button :class="{ active: sort === 'official' }" @click="sort = 'official'">官方推荐</button>
-        <button :class="{ active: sort === 'hot' }" @click="sort = 'hot'">热门</button>
-        <button :class="{ active: sort === 'newest' }" @click="sort = 'newest'">最新</button>
-      </div>
-    </div>
+      <section class="market-hero">
+        <div class="hero-text">
+          <h1 class="hero-title">精选集市场</h1>
+          <p class="hero-sub">浏览社区精选的主题书签集，一键导入你的书库。共 {{ pagination.total }} 个精选集。</p>
+        </div>
+        <div class="hero-toolbar">
+          <div class="search-box">
+            <i class="ri-search-line"></i>
+            <input v-model="search" type="text" placeholder="搜索精选集..." @input="debouncedSearch">
+          </div>
+          <div class="sort-tabs">
+            <button :class="{ active: sort === 'official' }" @click="sort = 'official'">官方推荐</button>
+            <button :class="{ active: sort === 'hot' }" @click="sort = 'hot'">热门</button>
+            <button :class="{ active: sort === 'newest' }" @click="sort = 'newest'">最新</button>
+          </div>
+        </div>
+      </section>
 
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-state">
@@ -253,54 +253,52 @@ onUnmounted(() => {
   background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
 }
 .collections-header-link.active svg { opacity: 1; }
-.market-head {
-  padding: 14px 0 22px;
-  margin-bottom: 24px;
+/* ── 主色横幅：页面视觉锚点 ── */
+.market-hero {
+  background: var(--primary, #10b981);
+  border-radius: 20px;
+  padding: 34px 32px 30px;
+  margin-bottom: 26px;
+  color: var(--text-inverse, #fff);
 }
-.market-title {
-  margin: 0 0 7px;
-  font-size: 26px;
+.hero-title {
+  margin: 0 0 8px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.022em;
-  color: var(--text-primary);
+  color: var(--text-inverse, #fff);
 }
-.market-sub {
+.hero-sub {
   margin: 0;
-  color: var(--text-tertiary);
   font-size: 14px;
   line-height: 1.6;
+  color: color-mix(in srgb, var(--text-inverse, #fff) 80%, transparent);
 }
-.collections-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.toolbar {
+.hero-toolbar {
   display: flex;
   gap: 12px;
   align-items: center;
-  margin-bottom: 22px;
+  margin-top: 24px;
   flex-wrap: wrap;
 }
-.search-box {
+.hero-toolbar .search-box {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 16px;
-  border: 1px solid transparent;
+  padding: 10px 16px;
+  border: none;
   border-radius: 12px;
   background: var(--surface-raised, #fff);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
   flex: 1;
-  min-width: 200px;
+  min-width: 220px;
   transition: box-shadow 0.18s;
 }
-.search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
-.search-box:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent), 0 1px 2px rgba(16, 24, 40, 0.04);
+.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
+.hero-toolbar .search-box:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-inverse, #fff) 45%, transparent);
 }
-.search-box:focus-within i { color: var(--primary); }
-.search-box input {
+.hero-toolbar .search-box:focus-within i { color: var(--primary); }
+.hero-toolbar .search-box input {
   border: none;
   background: none;
   outline: none;
@@ -308,30 +306,34 @@ onUnmounted(() => {
   width: 100%;
   color: var(--text-primary);
 }
-.search-box input::placeholder { color: var(--text-tertiary); }
-.sort-tabs {
+.hero-toolbar .search-box input::placeholder { color: var(--text-tertiary); }
+.hero-toolbar .sort-tabs {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: var(--surface-raised, #fff);
+  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
 }
-.sort-tabs button {
-  padding: 6px 16px;
+.hero-toolbar .sort-tabs button {
+  padding: 7px 16px;
   font-size: 12.5px;
   border: none;
   background: none;
   border-radius: 9px;
   cursor: pointer;
-  color: var(--text-secondary, #6b7280);
+  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
   transition: all 0.18s;
 }
-.sort-tabs button:hover { color: var(--text-primary); }
-.sort-tabs button.active {
-  background: var(--primary, #10b981);
-  color: var(--text-inverse, #fff);
+.hero-toolbar .sort-tabs button:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 14%, transparent); }
+.hero-toolbar .sort-tabs button.active {
+  background: var(--surface-raised, #fff);
+  color: var(--primary, #10b981);
   font-weight: 600;
+}
+.collections-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
 }
 .collections-grid {
   display: grid;
@@ -408,22 +410,27 @@ onUnmounted(() => {
   .collections-page {
     padding: 68px 12px 96px;
   }
-  .toolbar {
+  .market-hero {
+    padding: 24px 20px 22px;
+    border-radius: 16px;
+  }
+  .hero-title { font-size: 23px; }
+  .hero-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
-  .search-box {
+  .hero-toolbar .search-box {
     min-width: 0;
     width: 100%;
   }
-  .sort-tabs {
+  .hero-toolbar .sort-tabs {
     width: 100%;
     justify-content: space-between;
   }
-  .sort-tabs button {
+  .hero-toolbar .sort-tabs button {
     flex: 1;
     text-align: center;
-    padding: 6px 8px;
+    padding: 7px 8px;
   }
   .collections-grid {
     grid-template-columns: 1fr;
