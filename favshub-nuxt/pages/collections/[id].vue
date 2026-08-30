@@ -71,13 +71,13 @@
             </button>
           </div>
           <div v-if="cat.bookmarks.length" class="bookmarks-grid" :class="{ 'has-sub': cat.children && cat.children.length }">
-            <div v-for="b in cat.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
+            <div v-for="b in cat.bookmarks" :key="b.id" class="bookmark-card" :class="{ selected: selectedIds.has(b.id), selectable: selectMode && isLoggedIn }" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
               <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                 <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
               </label>
               <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
               <div class="bookmark-info">
-                <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
+                <h3 class="bookmark-title"><a :href="b.url" target="_blank" rel="noopener" @click.stop>{{ b.title }}</a><span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
                 <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
               </div>
@@ -95,13 +95,13 @@
               </button>
             </div>
             <div v-if="child.bookmarks.length" class="bookmarks-grid">
-              <div v-for="b in child.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
+              <div v-for="b in child.bookmarks" :key="b.id" class="bookmark-card" :class="{ selected: selectedIds.has(b.id), selectable: selectMode && isLoggedIn }" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
                 <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                   <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
                 </label>
                 <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
                 <div class="bookmark-info">
-                  <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
+                  <h3 class="bookmark-title"><a :href="b.url" target="_blank" rel="noopener" @click.stop>{{ b.title }}</a><span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                   <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
                   <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
                 </div>
@@ -626,8 +626,8 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-sunken, #f3f4f6) 62%, transparent);
   transition: background 0.16s, box-shadow 0.16s, transform 0.16s;
-  cursor: pointer;
 }
+.bookmark-card.selectable { cursor: pointer; }
 .bookmark-card:hover {
   background: var(--surface-raised, #fff);
   box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.13), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
@@ -638,6 +638,8 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .bookmark-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; margin-top: 1px; }
 .bookmark-info { flex: 1; min-width: 0; }
 .bookmark-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-title a { color: inherit; text-decoration: none; transition: color 0.15s; }
+.bookmark-title a:hover { color: var(--primary, #10b981); }
 .bookmark-desc { margin: 3px 0; font-size: 12px; color: var(--text-tertiary, #9ca3af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bookmark-url { font-size: 11.5px; color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; }
 .bookmark-url:hover { color: var(--primary, #10b981); }
