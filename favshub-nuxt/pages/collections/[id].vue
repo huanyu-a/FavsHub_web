@@ -582,10 +582,10 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .btn-primary { background: var(--primary, #10b981); color: #fff; }
 .btn-primary:hover { background: color-mix(in srgb, var(--primary, #10b981) 85%, #000); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-secondary { background: var(--bg-secondary, #f3f4f6); color: var(--text-primary); border-color: var(--border, #e5e7eb); }
-.btn-secondary:hover { background: var(--bg-tertiary, #e5e7eb); }
+.btn-secondary { background: var(--surface-sunken, #f3f4f6); color: var(--text-primary); border-color: var(--border, #e5e7eb); }
+.btn-secondary:hover { background: var(--surface-active, #e5e7eb); }
 .btn-ghost { background: none; color: var(--text-secondary, #6b7280); border-color: var(--border, #e5e7eb); }
-.btn-ghost:hover { background: var(--bg-secondary, #f9fafb); }
+.btn-ghost:hover { background: var(--surface-hover, #f9fafb); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .loading-state, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-tertiary, #9ca3af); }
 .categories-list { display: flex; flex-direction: column; gap: 20px; }
@@ -647,7 +647,7 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .bookmark-url:hover { color: var(--primary, #10b981); }
 .btn-import-one { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border, #e5e7eb); border-radius: 6px; background: none; cursor: pointer; color: var(--text-secondary, #6b7280); flex-shrink: 0; }
 .btn-import-one:hover { background: var(--primary, #10b981); color: #fff; border-color: var(--primary, #10b981); }
-.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 12px 24px; background: var(--bg-primary, #fff); border-top: 1px solid var(--border, #e5e7eb); box-shadow: 0 -2px 8px rgba(0,0,0,0.06); z-index: 50; }
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 12px 24px; background: var(--surface-raised, #fff); border-top: 1px solid var(--border, #e5e7eb); box-shadow: 0 -2px 8px rgba(0,0,0,0.06); z-index: 50; }
 .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 100; }
 .toast.success { background: #10b981; color: #fff; }
 .toast.error { background: #ef4444; color: #fff; }

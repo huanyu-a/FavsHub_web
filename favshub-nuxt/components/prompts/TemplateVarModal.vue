@@ -74,7 +74,7 @@ function cancel() {
   z-index: 1000;
 }
 .tpl-var-modal {
-  background: var(--bg-primary, #fff);
+  background: var(--surface-raised, #fff);
   border-radius: 12px;
   width: 420px;
   max-width: 90vw;
@@ -129,7 +129,7 @@ function cancel() {
   border: 1px solid var(--border, #ddd);
   border-radius: 8px;
   font-size: 14px;
-  background: var(--bg-secondary, #f9f9f9);
+  background: var(--surface-sunken, #f9f9f9);
   color: var(--text-primary, #333);
   outline: none;
   box-sizing: border-box;

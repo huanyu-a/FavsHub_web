@@ -552,7 +552,7 @@ async function deleteFolder(folder: FolderNode) {
   transition: background 0.15s;
   position: relative;
 }
-.collection-item:hover { background: var(--bg-secondary, #f3f4f6); }
+.collection-item:hover { background: var(--surface-hover, #f3f4f6); }
 .collection-item-icon { font-size: 16px; flex-shrink: 0; display: inline-flex; align-items: center; }
 .collection-item-icon i { font-size: 15px; }
 .collection-item-name {
@@ -566,7 +566,7 @@ async function deleteFolder(folder: FolderNode) {
 .collection-item-count {
   font-size: 11px;
   color: var(--text-tertiary, #9ca3af);
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--surface-hover, #f3f4f6);
   padding: 1px 6px;
   border-radius: 8px;
 }
@@ -599,10 +599,10 @@ async function deleteFolder(folder: FolderNode) {
   border-radius: 8px;
   text-decoration: none;
   color: var(--text-primary, #111827);
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--surface-hover, #f3f4f6);
   transition: background 0.15s;
 }
-.collections-entry-link:hover { background: var(--bg-tertiary, #e5e7eb); }
+.collections-entry-link:hover { background: var(--surface-active, #e5e7eb); }
 .collections-entry-icon { font-size: 18px; display: inline-flex; align-items: center; }
 .collections-entry-text { flex: 1; font-size: 13px; font-weight: 500; }
 .collections-entry-link i { color: var(--text-tertiary, #9ca3af); }

@@ -433,7 +433,7 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   gap: 8px;
   overflow-x: auto;
   padding: 4px;
-  background: var(--bg-secondary, #f3f4f6);
+  background: var(--surface-sunken, #f3f4f6);
   border-radius: 12px;
   max-width: 100%;
 }
@@ -471,7 +471,7 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 }
 
 .collection-tab.active {
-  background: var(--bg-primary, #fff);
+  background: var(--surface-raised, #fff);
   color: var(--primary, #10b981);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }

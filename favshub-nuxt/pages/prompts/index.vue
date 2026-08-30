@@ -1173,19 +1173,6 @@ async function viewPromptById(promptId: string) {
   .hero-title { font-size: 22px; }
 }
 
-.sort-select {
-  padding: 6px 10px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  cursor: pointer;
-  outline: none;
-}
-.sort-select:focus {
-  border-color: var(--primary);
-}
 .usage-badge {
   display: inline-flex;
   align-items: center;
