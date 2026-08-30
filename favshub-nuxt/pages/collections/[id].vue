@@ -70,7 +70,7 @@
               <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i> 导入此分类
             </button>
           </div>
-          <div class="bookmarks-grid">
+          <div v-if="cat.bookmarks.length" class="bookmarks-grid" :class="{ 'has-sub': cat.children && cat.children.length }">
             <div v-for="b in cat.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
               <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                 <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
@@ -86,29 +86,29 @@
               </button>
             </div>
           </div>
-        </div>
-        <!-- 子分类（缩进显示） -->
-        <div v-for="child in cat.children" :key="child.name" class="category-section sub-category">
-          <div class="category-header">
-            <h3 class="category-name sub">{{ child.name }} <span class="count">({{ child.bookmark_count }})</span></h3>
-            <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-sm btn-ghost" :disabled="importing" @click="importCategory(child)">
-              <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i> 导入
-            </button>
-          </div>
-          <div class="bookmarks-grid">
-            <div v-for="b in child.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
-              <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
-                <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
-              </label>
-              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
-              <div class="bookmark-info">
-                <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
-                <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
-                <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
-              </div>
-              <button v-if="!selectMode && isLoggedIn" type="button" class="btn-import-one" title="导入此书签" :disabled="importing" @click.stop="importOne(b.id)">
-                <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i>
+          <!-- 子分类：嵌在父分类面板内 -->
+          <div v-for="child in cat.children" :key="child.name" class="sub-category">
+            <div class="category-header sub">
+              <h3 class="category-name sub">{{ child.name }} <span class="count">({{ child.bookmark_count }})</span></h3>
+              <button v-if="!selectMode && isLoggedIn" type="button" class="btn btn-sm btn-ghost" :disabled="importing" @click="importCategory(child)">
+                <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i> 导入
               </button>
+            </div>
+            <div v-if="child.bookmarks.length" class="bookmarks-grid">
+              <div v-for="b in child.bookmarks" :key="b.id" class="bookmark-card" :class="selectedIds.has(b.id) ? 'selected' : ''" @click="selectMode && isLoggedIn ? toggleSelect(b.id) : null">
+                <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
+                  <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
+                </label>
+                <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
+                <div class="bookmark-info">
+                  <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
+                  <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
+                  <a :href="b.url" target="_blank" rel="noopener" class="bookmark-url" @click.stop>{{ getUrlDomain(b.url) }}</a>
+                </div>
+                <button v-if="!selectMode && isLoggedIn" type="button" class="btn-import-one" title="导入此书签" :disabled="importing" @click.stop="importOne(b.id)">
+                  <i :class="importing ? 'ri-loader-4-line spin' : 'ri-add-line'"></i>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -585,11 +585,17 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .btn-ghost:hover { background: var(--bg-secondary, #f9fafb); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .loading-state, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 20px; color: var(--text-tertiary, #9ca3af); }
-.categories-list { display: flex; flex-direction: column; gap: 24px; }
-.category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border, #e5e7eb); }
+.categories-list { display: flex; flex-direction: column; gap: 16px; }
+.category-section {
+  padding: 16px 18px 18px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface-raised, #fff);
+}
+.category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .category-name {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
   display: flex;
@@ -604,19 +610,23 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   background: var(--primary);
   flex-shrink: 0;
 }
-.category-name.sub { font-size: 15px; font-weight: 500; }
-.sub-category { margin-left: 24px; padding-left: 16px; border-left: 2px solid var(--border, #e5e7eb); }
-.count { font-size: 14px; font-weight: 400; color: var(--text-tertiary, #9ca3af); }
-.bookmarks-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.bookmark-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; background: var(--bg-primary, #fff); transition: all 0.15s; }
-.bookmark-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.category-name.sub { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.category-name.sub::before { height: 12px; opacity: 0.55; }
+.sub-category { margin-top: 18px; }
+.sub-category .category-header { margin-bottom: 12px; }
+.bookmarks-grid.has-sub { margin-bottom: 18px; }
+.count { font-size: 13px; font-weight: 400; color: var(--text-tertiary, #9ca3af); }
+.bookmarks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.bookmark-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; background: var(--surface, #fff); transition: border-color 0.15s, box-shadow 0.15s; }
+.bookmark-card:hover { border-color: color-mix(in srgb, var(--primary, #10b981) 40%, var(--border, #e5e7eb)); box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05)); }
 .bookmark-card.selected { border-color: var(--primary, #10b981); background: color-mix(in srgb, var(--primary, #10b981) 4%, transparent); }
 .card-checkbox { flex-shrink: 0; margin-top: 2px; cursor: pointer; }
-.bookmark-icon { width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+.bookmark-icon { width: 24px; height: 24px; border-radius: 5px; flex-shrink: 0; margin-top: 1px; }
 .bookmark-info { flex: 1; min-width: 0; }
-.bookmark-title { margin: 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bookmark-desc { margin: 2px 0; font-size: 12px; color: var(--text-tertiary, #9ca3af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bookmark-url { font-size: 11px; color: var(--primary, #10b981); text-decoration: none; }
+.bookmark-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-desc { margin: 3px 0; font-size: 12px; color: var(--text-tertiary, #9ca3af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-url { font-size: 11.5px; color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; }
+.bookmark-url:hover { color: var(--primary, #10b981); }
 .btn-import-one { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border, #e5e7eb); border-radius: 6px; background: none; cursor: pointer; color: var(--text-secondary, #6b7280); flex-shrink: 0; }
 .btn-import-one:hover { background: var(--primary, #10b981); color: #fff; border-color: var(--primary, #10b981); }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 12px; padding: 12px 24px; background: var(--bg-primary, #fff); border-top: 1px solid var(--border, #e5e7eb); box-shadow: 0 -2px 8px rgba(0,0,0,0.06); z-index: 50; }
