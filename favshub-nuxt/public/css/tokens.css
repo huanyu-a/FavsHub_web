@@ -82,10 +82,13 @@
   --divider:      light-dark(rgba(31,41,55,0.06), rgba(255,255,255,0.06));
 
   /* ── 阴影 ── */
-  --shadow-sm:  light-dark(0 1px 3px rgba(0,0,0,0.05),  0 1px 3px rgba(0,0,0,0.3));
-  --shadow-md:  light-dark(0 4px 12px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.4));
-  --shadow-lg:  light-dark(0 12px 40px rgba(0,0,0,0.1), 0 12px 40px rgba(0,0,0,0.5));
-  --shadow-xl:  light-dark(0 20px 60px rgba(0,0,0,0.12), 0 20px 60px rgba(0,0,0,0.6));
+  /* light-dark() 只接受 <color> 参数，阴影本体不能整体包进去：
+     拆出阴影色变量，再由各档位组合（否则 var() 替换非法、阴影静默失效） */
+  --shadow-color: light-dark(rgba(15, 23, 42, 0.07), rgba(0, 0, 0, 0.42));
+  --shadow-sm:  0 1px 3px var(--shadow-color);
+  --shadow-md:  0 4px 12px var(--shadow-color);
+  --shadow-lg:  0 12px 40px var(--shadow-color);
+  --shadow-xl:  0 20px 60px var(--shadow-color);
 
   /* ── 覆盖层 ── */
   --overlay: light-dark(rgba(0,0,0,0.4), rgba(0,0,0,0.6));

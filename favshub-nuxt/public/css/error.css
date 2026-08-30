@@ -9,7 +9,7 @@
   --text-secondary: light-dark(#888, rgba(255,255,255,0.5));
   --border: light-dark(#ddd, rgba(255,255,255,0.12));
   --text-ghost: light-dark(#666, rgba(255,255,255,0.7));
-  --shadow-lg: light-dark(0 20px 60px rgba(0,0,0,0.2), 0 20px 60px rgba(0,0,0,0.4));
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.25);
 }
 
 html[data-theme="light"] { color-scheme: light; }

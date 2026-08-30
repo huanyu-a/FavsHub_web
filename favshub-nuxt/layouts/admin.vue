@@ -178,7 +178,7 @@ if (import.meta.client) {
 useHead({
   titleTemplate: (title) => title ? `${title} - FavsHub Admin` : 'FavsHub 管理后台',
   link: [
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260703d' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260830' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
