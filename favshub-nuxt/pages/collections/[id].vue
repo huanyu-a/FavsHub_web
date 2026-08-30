@@ -53,7 +53,7 @@
               <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                 <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
               </label>
-              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
+              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
               <div class="bookmark-info">
                 <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
@@ -78,7 +78,7 @@
               <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                 <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
               </label>
-              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError" />
+              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
               <div class="bookmark-info">
                 <h3 class="bookmark-title">{{ b.title }}<span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
@@ -328,7 +328,19 @@ async function importOne(bid: number) {
 }
 function getUrlDomain(u: string) { try { return new URL(u).hostname } catch { return u } }
 function getFavicon(b: ICollectionBookmark) { return resolveBookmarkIcon(b.icon, b.url) || '' }
-function onIconError(e: Event) { (e.target as HTMLImageElement).style.display = 'none' }
+function onIconError(e: Event, b: ICollectionBookmark) {
+  const img = e.target as HTMLImageElement
+  // 只自愈一次（按书签 id 记录，避免 DOM 复用时标记残留）：本地文件缺失时转代理补下载，再失败才隐藏
+  if (img.dataset.healed !== String(b.id) && !img.src.includes('/api/favicon')) {
+    const proxy = fallbackProxyIcon(b.icon, b.url)
+    if (proxy) {
+      img.dataset.healed = String(b.id)
+      img.src = proxy
+      return
+    }
+  }
+  img.style.display = 'none'
+}
 let msgTimer: ReturnType<typeof setTimeout>
 function showToast(t: string, type: 'success' | 'error') { msg.value = t; msgType.value = type; clearTimeout(msgTimer); msgTimer = setTimeout(() => { msg.value = '' }, 2500) }
 

@@ -32,12 +32,35 @@ export function isPrivateOrLocalHost(hostname: string): boolean {
 export function resolveBookmarkIcon(icon: string | null | undefined, url: string | null | undefined): string | null {
   if (icon && String(icon).trim()) return String(icon).trim()
   if (!url) return null
+  const hostname = hostnameFromUrl(url)
+  if (!hostname || isPrivateOrLocalHost(hostname)) return null
+  // C3: 走服务端代理 + 本地缓存，避免客户端直连 Google（国内被墙时请求阻塞）
+  return `/api/favicon?domain=${encodeURIComponent(hostname)}`
+}
+
+/** 从 URL 提取 hostname；无效返回 null */
+export function hostnameFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null
   try {
-    const hostname = new URL(url).hostname
-    if (isPrivateOrLocalHost(hostname)) return null
-    // C3: 走服务端代理 + 本地缓存，避免客户端直连 Google（国内被墙时请求阻塞）
-    return `/api/favicon?domain=${encodeURIComponent(hostname)}`
+    return new URL(url).hostname || null
   } catch {
     return null
   }
+}
+
+/** icon 为本地落盘路径（/images/favicons/<host>.png）时取出 hostname，否则 null */
+export function hostnameFromLocalIconPath(icon: string | null | undefined): string | null {
+  if (!icon) return null
+  const m = /^\/images\/favicons\/([A-Za-z0-9.-]+)\.png$/.exec(String(icon).trim())
+  return m ? m[1] : null
+}
+
+/**
+ * 图标加载失败后的自愈地址：转 /api/favicon 代理，服务端发现本地缺文件会自动补下载再 302。
+ * 仅对公共域名生效；返回 null 表示无自愈来源（内网/私有、URL 无效等），调用方直接占位。
+ */
+export function fallbackProxyIcon(icon: string | null | undefined, url: string | null | undefined): string | null {
+  const hostname = hostnameFromLocalIconPath(icon) || hostnameFromUrl(url)
+  if (!hostname || isPrivateOrLocalHost(hostname)) return null
+  return `/api/favicon?domain=${encodeURIComponent(hostname)}`
 }

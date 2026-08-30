@@ -48,9 +48,14 @@ defineEmits<{
 const cardRef = ref<HTMLElement | null>(null)
 const imgRef = ref<HTMLImageElement | null>(null)
 const iconFailed = ref(false)
+const retriedProxy = ref(false)
 
 const iconSrc = computed(() => {
   if (iconFailed.value) return null
+  if (retriedProxy.value) {
+    // 本地文件缺失：转代理让服务端补下载，成功后 302 到已落盘文件
+    return fallbackProxyIcon(props.bookmark.icon, props.bookmark.url)
+  }
   return resolveBookmarkIcon(props.bookmark.icon, props.bookmark.url)
 })
 
@@ -128,6 +133,20 @@ function onIconLoad() {
 }
 
 function onIconError() {
+  // 只自愈一次：首次失败的 src 不是代理时改走代理补下载；再失败才退回字母占位
+  const src = iconSrc.value || ''
+  if (!retriedProxy.value && !src.startsWith('/api/favicon')) {
+    retriedProxy.value = true
+    // 内网/私有域名没有自愈来源，直接占位
+    if (!fallbackProxyIcon(props.bookmark.icon, props.bookmark.url)) {
+      iconFailed.value = true
+      if (import.meta.client && cardRef.value) {
+        const defaults: ExtractedColors = { primary: [200, 200, 200], secondary: [220, 220, 220] }
+        applyColors(cardRef.value, defaults)
+      }
+    }
+    return
+  }
   iconFailed.value = true
   if (import.meta.client && cardRef.value) {
     const defaults: ExtractedColors = { primary: [200, 200, 200], secondary: [220, 220, 220] }
