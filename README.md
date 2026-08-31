@@ -5,7 +5,9 @@
 <h1 align="center">FavsHub</h1>
 
 <p align="center">
-  <strong>智能书签工作台</strong> — 导航、搜索、精选集与 AI 提示词，一站搞定
+  <img src="https://img.shields.io/badge/version-1.0.7-green" alt="版本" />
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker" alt="Docker" />
+  <img src="https://img.shields.io/badge/license-ISC-blue" alt="ISC" />
 </p>
 
 <p align="center">
@@ -90,14 +92,16 @@ docker compose up -d
 2. 按 [扩展文档](favshub-ext/README.md) 加载扩展，在扩展设置里填入网站地址与登录凭据。  
 3. 一键同步浏览器书签到网站。
 
-### 3. 不用 Docker、在本机直接跑网站（可选）
+### 方式 B：本机开发
 
 需已安装 Node.js ≥ 20 与 pnpm ≥ 9：
 
 ```bash
 cd favshub-nuxt
 pnpm install
-pnpm dev          # 浏览器打开 http://localhost:3000
+pnpm dev          # http://localhost:3000
+pnpm build        # 生产构建 → .output/
+pnpm preview      # 预览生产构建
 ```
 
 更完整的环境变量、备份与升级说明见 [网站文档](favshub-nuxt/README.md)。
@@ -131,6 +135,7 @@ pnpm dev          # 浏览器打开 http://localhost:3000
 | [本 README](README.md) | 所有使用者 | 产品是什么、最快怎么跑起来 |
 | [favshub-nuxt/README.md](favshub-nuxt/README.md) | 站长 / 日常用户 | 网站功能、Docker 部署、环境变量、备份与安全 |
 | [favshub-ext/README.md](favshub-ext/README.md) | 扩展用户 | 安装、连接站点、同步书签、权限与快捷键 |
+| [favshub-nuxt/DEPLOY.md](favshub-nuxt/DEPLOY.md) | 部署运维 | 服务器信息、SSH 密钥、一键部署脚本 |
 | [CLAUDE.md](CLAUDE.md) / 子目录 `CLAUDE.md` | **仅**开发者与 AI | 架构、命令、改代码约定 — **使用产品时不必阅读** |
 
 ---

@@ -183,7 +183,8 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 入参扁平：`{ title, url, folder_path, icon }`
 - `ensureFolderPath()` 递归建夹
 - 已存在 URL：更新标题/分类，**不覆盖**已有 icon；icon 按 hostname 去重下载
-- 增量：`PUT /api/sync/bookmarks`；全量：`POST`（以实现为准）
+- 增量：`PUT /api/sync/bookmarks`（全量 upsert）；图标走 `POST /api/sync/favicons`（base64）
+- 服务端行为（去重、不覆盖 icon、`ensureFolderPath`）见服务端代码，改协议时两边一起改
 
 ## 安全（改代码时保持）
 

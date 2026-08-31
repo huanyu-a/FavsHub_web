@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.6-blue" alt="版本" />
+  <img src="https://img.shields.io/badge/version-1.0.7-blue" alt="版本" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker" alt="Docker" />
 </p>
 
@@ -122,7 +122,9 @@
 ### 环境要求
 
 - **Docker 部署**：Docker + Docker Compose  
-- **本机开发 / 预览**：Node.js ≥ 20、pnpm ≥ 9  
+- **本机开发 / 预览**：Node.js ≥ 20 且 **< 22**、pnpm ≥ 9
+
+> ⚠️ Node.js 22+ 与 better-sqlite3 原生模块不兼容（NODE_MODULE_VERSION mismatch）。开发必须用 Node 20 或 21；Docker 镜像已锁定 `node:20-alpine`。  
 
 ### 方式 A：Docker（日常自托管推荐）
 
@@ -136,37 +138,37 @@ docker compose up -d
 
 1. 打开站点 → 注册账号（第一人 = 管理员）  
 2. 登录后在首页 / 设置中调整主题与书签  
-3. 需要同步浏览器书签时，安装 [扩展](../favshub-ext/README.md) 并填写本站地址  
+3. 需要同步浏览器书签时，安装 [扩展](../favshub-ext/README.md) 并填写本站地址
+4. 生产环境请先阅读 [DEPLOY.md](DEPLOY.md)（SSH、镜像仓库、升级流程）
 
 数据目录默认映射到 `./data`（数据库、JWT 密钥、备份等）。**请定期备份 `data/`。**
 
 ### 方式 B：本机开发
 
+在 `favshub-nuxt` 目录：
+
 ```bash
 pnpm install
 pnpm dev          # http://localhost:3000
+pnpm build        # 生产构建 → .output/
+pnpm preview      # 预览生产构建
 ```
 
 首次启动会自动创建 `data/favshub.db` 与 JWT 密钥文件。
 
-生产构建预览：
-
-```bash
-pnpm build
-pnpm preview
-```
-
----
+更完整的环境变量、备份与升级说明见 [部署文档](DEPLOY.md)。
 
 ## 部署
+
+详细部署流程见 [DEPLOY.md](DEPLOY.md)。本节仅概述核心概念。
 
 ### Docker Compose 要点
 
 编排文件为目录内 **`compose.yaml`**（`docker compose up -d` 会自动读取）。典型映射：
 
-- 主机 `3090` → 容器 `3000`  
-- 卷：`./data` → 容器内数据目录  
-- 环境变量：JWT、CORS、管理员名单等（见下表）  
+- 主机 `3090` → 容器 `3000`
+- 卷：`./data` → 容器内数据目录
+- 环境变量：JWT、CORS、管理员名单等（见下表）
 
 ```bash
 docker compose up -d
@@ -174,18 +176,10 @@ docker compose logs -f
 curl -s http://localhost:3090/api/health
 ```
 
-### 从 GHCR 使用官方镜像
+### 部署方式
 
-镜像仓库示例：`ghcr.io/huanyu-a/favshub`（标签含版本号、`latest`）。  
-推送仓库中 `VERSION` 文件变更会触发 GitHub Actions 自动构建（站长升级时可关注 Actions 与镜像标签）。
-
-### 本地打镜像（可选）
-
-```bash
-pnpm build
-bash build.sh          # 若仓库提供该脚本
-# 再按需 docker tag / push
-```
+- **镜像**：`ghcr.io/huanyu-a/favshub:<标签>`；推送 `VERSION` 文件变更触发 CI 自动构建
+- **本地打镜像（可选）**：`pnpm build && bash build.sh`，再 `docker tag/save | gzip`
 
 ### 环境变量
 
@@ -197,19 +191,11 @@ bash build.sh          # 若仓库提供该脚本
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔） | 空；首注册用户仍是管理员 |
 | `NUXT_TRUST_PROXY` | 是否信任反向代理的客户端 IP | `false`；前面有 Nginx 等再按需开启 |
 
-### 备份与健康检查
+### 备份与升级
 
-- 后台 **备份管理**：手动下载、定时备份；可选百度网盘相关能力（依赖扩展环境时以界面说明为准）  
-- 健康检查：`GET /api/health`  
-- 最稳妥的灾难恢复：整份备份 `data/` 目录  
-
-### 升级提示
-
-1. 备份 `data/`  
-2. 拉取新镜像或新代码并重启  
-3. 启动时会自动做数据库增量迁移；仍建议升级后点一次首页与登录验证  
-
-更细的服务器操作若写在本地 `DEPLOY.md`（若存在且未入库），仅供站长本机使用，**不要把含密码的文件提交到 Git**。
+- 后台 **备份管理**：手动下载、定时备份
+- 健康检查：`GET /api/health`
+- 升级流程：备份 `data/` → 拉新镜像 → `compose up` → 启动自动迁移 → 验证首页与登录
 
 ---
 
