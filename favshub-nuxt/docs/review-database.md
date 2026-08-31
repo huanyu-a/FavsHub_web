@@ -1,6 +1,8 @@
 # 数据库与迁移审查报告
 
-> reviewer: 数据库与迁移 · 2026-07-28
+> ⚠️ **历史归档**：本报告生成于 2026-07-28，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：D1 ✅（`folders`/`prompt_folders` 等 user_id 外键已加 `ON DELETE CASCADE`，存量库由 `delete-user.ts` 显式兜底）· D2 ✅（`idx_search_engines_category (status, category, sort_order)`）· D3 ✅（`idx_bookmarks_user_id` 已建）· D4 ⏳（`has_sync` 虚拟列 LIKE 模式保留，JSON 写法可控）· D5 ✅（stats 改 JOIN）· D6 ✅（删文件夹时清空书签 `folder_id`）· D7 ✅（集中清理 `server/utils/delete-user.ts`）· D8 ⏳（`bookmark_count` 冗余字段增删两侧同步维护，未见触发器/定期校验）· D9 ✅（迁移清理重复关联后建 UNIQUE 索引）· D10 ✅（`idx_bookmarks_updated_at`）
 
 ## [CRITICAL]
 

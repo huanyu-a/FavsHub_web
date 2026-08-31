@@ -54,20 +54,21 @@ pages/                 # 文件路由
     index / users / bookmarks / collections / prompts
     search-engines / backup / settings / config
 components/            # auth, bookmark, search, sidebar, prompts, collections, mobile, common
-composables/           # useAuth, useMobile, useTheme（约 15 套主题）
+composables/           # useAuth, useMobile, useTheme（11 套主题：7 浅 + 4 深）
 stores/                # auth, bookmarks（含 viewMode）, searchEngines, settings, ui
 layouts/               # default.vue（前台+移动端壳）, admin.vue
 middleware/admin.ts    # 客户端：需登录进 /admin
+error.vue              # 根级错误页（404/500 统一渲染）
 public/css/            # tokens, themes, main-bundle, admin, mobile-responsive, promptpro, error
 public/images/         # 引擎 logo、favicon 缓存、systermicon
 public/robots.txt      # SEO 爬虫规则 + sitemap 链接
 server/api/            # Nitro 文件式路由 → /api/*
 server/routes/         # 非 API 路由（sitemap.xml.ts — 动态站点地图）
 server/database/       # schema.ts, migrate.ts, index.ts
-server/middleware/     # admin-guard, cors
-server/plugins/        # db-init, theme-init, error-handler, backup-scheduler
-server/utils/          # auth, jwt, config, constants, rate-limit
-utils/                 # 前端工具：pinyin.ts（拼音搜索）、template-variables.ts（{{变量}}）、themeCookie.ts（SSR 防闪）
+server/middleware/     # admin-guard, cors, cache-control（公开页 CDN 缓存头升级）
+server/plugins/        # db-init, theme-init, error-handler, backup-scheduler, rate-limit-cleanup
+server/utils/          # auth, jwt, config, constants, rate-limit, settings-cache, favicon-download, favicon-dir, delete-user
+utils/                 # 前端工具：pinyin.ts（拼音搜索）、template-variables.ts（{{变量}}）、themeCookie.ts（SSR 防闪）、bookmark-colors.ts（配色合并缓存）
 docs/screenshots/      # 文档截图（非 public）
 ```
 
@@ -77,6 +78,7 @@ docs/screenshots/      # 文档截图（非 public）
 - 搜索：`components/search/`
 - 侧栏：`components/sidebar/`
 - 其它：`BackToTop`、`FloatingNav`、`WelcomeMessage`、`YearProgress`、`common/IconPicker`
+- **BackToTop 为逐页引用组件**（不在任何 layout）：新增长页须手动加 `<BackToTop />`。滚动监听捕获 window / body / 最后滚动容器 / `main`；admin 布局真实滚动容器是 `main.admin-main`（`overflow-y:auto; height:100vh`）。登录页（`layout:false` 单屏居中）无需添加
 - Pinia `bookmarks`：个人书签 vs 精选集 `viewMode` / `fetchCollectionData`
 
 ### 管理后台能力
@@ -148,6 +150,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/collections/*` | 精选集 CRUD、订阅、导入、书签引用 | 混合 |
 | `/api/prompts/*`、`/api/tags/*` | 提示词、版本、审核申请 | 登录 |
 | `/api/sync/*` | 扩展书签 / favicon 同步 | 登录 |
+| `/api/favicon?domain=` | favicon 服务端代理 + 本地缓存（SSRF 防护） | 无 |
 | `/api/settings/*` | 用户设置 | 登录 |
 | `/api/search-engines` | 公开引擎列表 | 无 |
 | `/api/admin/*` | 用户/书签/提示词/精选集/引擎/备份/配置 | 管理员（部分自管） |

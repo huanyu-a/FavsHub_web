@@ -1,6 +1,13 @@
 # FavsHub 深度自检汇总报告
 
 > ⚠️ **历史归档**：本报告生成于 2026-07-28，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：本报告 7 条 CRITICAL、12 条 MAJOR 绝大多数已修复。逐条代码标记（`C#`/`M#` 注释）核对：
+> - CRITICAL C1–C7 **全部 ✅**：C1 缓存头（routeRules + cache-control 中间件）· C2 首页 SSR 降载（首屏 30 条 + 客户端补齐）· C3 favicon 请求风暴（`GET /api/favicon` 服务端代理 + 本地缓存）· C4 复合索引（`idx_bookmarks_user_label_created`）· C5 gridEls 泄漏（卸载清空）· C6 setTimeout 泄漏（ID 收集 + 统一 clear）· C7 O(n²)（Map 重写）。
+> - MAJOR M1–M12 **全部 ✅**：M1 分页 · M2 folderGroups Map · M3 settings JSON 解析缓存 · M4 备份轮询改 60s · M5 rate-limit 插件作用域 · M6 CSP 去 unsafe-eval · M7 label 回填规则修正 · M8 精选集排序索引 · M9 BookmarkCard localStorage 合并 · M10 `useFetch` 加 `dedupe: 'defer'` · M11 错误状态码透传 + error.vue 按 404/5xx 分支渲染 · M12 后台请求去重。
+> - 残余待办主要是**非阻塞**项：弹窗 ARIA/键盘导航、自引用 import 改名、`bookmark_count` 冗余字段的定期校验、`NUXT_ADMIN_USERS` 审计日志等，详见各分报告顶部「修复状态复核」行。
+>
+> 结论：本清单已从「待办」转为「归档 + 增量核对」，请勿据此重跑全量修复。
 
 > 范围：favshub-nuxt（Nuxt 3 + better-sqlite3 + JWT）
 

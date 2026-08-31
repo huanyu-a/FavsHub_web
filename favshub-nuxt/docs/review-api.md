@@ -1,6 +1,8 @@
 # API 正确性审查报告
 
-> reviewer: API 正确性 · 2026-07-28
+> ⚠️ **历史归档**：本报告生成于 2026-07-28，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：A1 ✅（`?page=&limit=`，默认 500 可配）· A2 ✅（Map 重写）· A3 ✅（`server/utils/settings-cache.ts` 解析缓存 + PUT 主动失效）· A4 ✅（BookmarkGrid `folderGroups` 按 folder_id 建 Map）· A5 ✅（查询已简化为 `b.label != ''`）· A6 ✅（`UPDATE bookmarks SET folder_id = NULL`）· A7 ✅（集中清理 `server/utils/delete-user.ts`）· A8 ✅（stats 改 JOIN）· A9 ✅（`idx_bookmarks_updated_at`）· A10 ⏳（`bookmark_count` 仍为冗余字段，增删两侧已同步维护，未见触发器/定期校验）
 
 ## [CRITICAL]
 

@@ -1,6 +1,8 @@
 # 性能与架构审查报告
 
-> reviewer: 性能与架构 · 2026-07-28
+> ⚠️ **历史归档**：本报告生成于 2026-07-28，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：P1 ✅（首屏 SSR 30 条 + 挂载后补齐，API 支持 `?limit=`）· P2 ✅（`routeRules` 分级 + `server/middleware/cache-control.ts` 公开页升级 `public + s-maxage`）· P3 ✅（`GET /api/favicon?domain=` 服务端代理 + 本地缓存 + 并发去重 + 失败域名短期记忆）· P4 ✅（`idx_bookmarks_user_label_created` + 查询简化为 `b.label != ''`）· P5 ✅（分页参数，默认值取系统配置）· P6 ✅（按 folder_id 建 Map）· P7 ✅（`server/utils/settings-cache.ts` 解析缓存 + PUT 失效）· P8 ✅（轮询改 60s）· P9 ✅（CSP 区分 dev/prod，生产无 `unsafe-eval`）· P10 ✅（合并单 key `bookmark-colors:{userId}`，`utils/bookmark-colors.ts`）· P11 ✅（`server/plugins/rate-limit-cleanup.ts` 插件作用域 + SIGTERM 清理）· P12 ✅（timeout ID 收集，卸载统一 `clearTimeout`）
 
 ## [CRITICAL]
 

@@ -1,6 +1,8 @@
 # 前端与 UI 审查报告
 
 > ⚠️ **历史归档**：本报告生成于 2026-08-05，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：1 ✅（gridEls 卸载清空）· 2 ✅（配色缓存迁移到 `utils/bookmark-colors.ts`：内存 Map 单一数据源 + try/catch 降级）· 3 ✅（具名 handler + `onBeforeUnmount` 移除）· 4 ✅（FolderTreeItem `v-html` 已移除）· 5 ✅（token 改 `sessionStorage`，localStorage 仅作旧版回退读取）· 6 ✅（SearchBar 切换默认引擎前检查 `isAdmin`）· 7 ✅（注入的 `<style>` 卸载时移除）· 8 ✅（`_pendingSync` 标记 + 401 处理，不再静默吞错）· 9 ✅（客户端初始化移入 `onMounted`）· 10 ✅（二维码改本地 `qrcode` 库动态导入）· 11 ✅（prompt 跳转携带 `prompt_id`）· 12 ✅（`onUnmounted` 清除定时器；visibilitychange 暂停未做）· 13 ✅（`get()` 用 `!== undefined` 判断，合法 falsy 值可返回）· 14 ⏳（hydration 重复加载未做 `flush` 处理，watch 非 immediate 实际影响有限）· 15 ✅（Sortable 在 `onMounted` 动态导入，实例 Map 可 destroy）· 16 ⏳（自引用 import 未改名，仅可读性问题）· 17 ⏳（弹窗 ARIA/焦点管理未补）· 18 ⏳（右键菜单键盘导航未支持）
 > 审查范围：favshub-nuxt/ 前端代码（Vue 3 + Pinia + Naive UI + Nuxt 3 SSR），30+ 文件
 
 ---

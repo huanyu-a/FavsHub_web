@@ -82,7 +82,7 @@ docker compose up -d
 
 浏览器打开 **http://localhost:3090**。
 
-- 第一个注册的用户会成为**管理员**。
+- 首次部署会自动创建内置管理员 `admin_favs`（随机密码写入 `favshub-nuxt/data/.initial-password`，登录请立即改密）；此外第一个注册的用户也会成为**管理员**。
 - 数据默认落在 `favshub-nuxt/data/`，容器重启不会丢。
 - 更完整的部署、备份、环境变量见 [网站文档 · 部署](favshub-nuxt/README.md#部署)。
 
@@ -135,7 +135,7 @@ pnpm preview      # 预览生产构建
 | [本 README](README.md) | 所有使用者 | 产品是什么、最快怎么跑起来 |
 | [favshub-nuxt/README.md](favshub-nuxt/README.md) | 站长 / 日常用户 | 网站功能、Docker 部署、环境变量、备份与安全 |
 | [favshub-ext/README.md](favshub-ext/README.md) | 扩展用户 | 安装、连接站点、同步书签、权限与快捷键 |
-| [favshub-nuxt/DEPLOY.md](favshub-nuxt/DEPLOY.md) | 部署运维 | 服务器信息、SSH 密钥、一键部署脚本 |
+| 部署与运维 | — | 公开部署要点见 [网站文档 · 部署](favshub-nuxt/README.md#部署)；含密码的服务器 runbook 为本地 `favshub-nuxt/DEPLOY.md`（已 gitignore，不入库） |
 | [CLAUDE.md](CLAUDE.md) / 子目录 `CLAUDE.md` | **仅**开发者与 AI | 架构、命令、改代码约定 — **使用产品时不必阅读** |
 
 ---

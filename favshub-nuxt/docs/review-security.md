@@ -1,6 +1,8 @@
 # 安全审查报告
 
 > ⚠️ **历史归档**：本报告生成于 2026-07-28，反映当时代码状态。部分问题已在后续迭代中修复，部分结论可能已过时。请结合最新代码交叉验证，勿直接当作当前待办清单。
+>
+> **修复状态复核（2026-08-31）**：S1 ✅（FolderTreeItem 已移除全部 `v-html`）· S2 ✅（CSP 区分 dev/prod，生产无 `unsafe-eval`）· S3 ✅（JWT 密钥持久化 `data/.jwt-secret`，mode 0600；持久化失败时降级为进程级并告警）· S4 ⏳（`requireAdmin` 仍先查 `NUXT_ADMIN_USERS` 再查库，环境变量属有意运维旁路，未加审计日志）· S5 ✅（5xx 统一脱敏为「服务器内部错误」；4xx 透传为有意取舍，见 error-handler 注释）· S6 ✅（Map 重写，消除 O(n²)）· S7 ⏳（备份为全局单库快照，归属校验不适用；下载仍要求管理员）· S8 ✅（`server/plugins/rate-limit-cleanup.ts` 插件作用域 + SIGTERM 清除）
 
 ## [CRITICAL]
 
