@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     console.error('[Dev] 重新 seed 精选集失败:', error)
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to reseed collections',
+      message: 'Failed to reseed collections',
       data: { error: error.message }
     })
   }

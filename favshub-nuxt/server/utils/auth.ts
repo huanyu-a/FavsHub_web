@@ -51,7 +51,7 @@ export function requireAuth(event: H3Event): AuthUser {
   if (!user) {
     throw createError({
       statusCode: 401,
-      statusMessage: '未登录',
+      message: '未登录',
       data: { error: '未登录' },
     })
   }
@@ -87,8 +87,8 @@ export function requireAdmin(event: H3Event): AuthUser {
 
   throw createError({
     statusCode: 403,
-    statusMessage: '无管理员权限',
-    data: { error: '当前账号无管理员权限。请使用首个注册的账号登录，或设置 ADMIN_USERS 环境变量。' },
+    message: '无管理员权限',
+    data: { error: '当前账号无管理员权限。请使用管理员账号登录，或设置 ADMIN_USERS 环境变量。' },
   })
 }
 

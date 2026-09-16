@@ -11,7 +11,7 @@ import { join } from 'node:path'
 export default defineEventHandler(async (event) => {
   const authRole = getAuthRole(event)
   if (!authRole) {
-    throw createError({ statusCode: 401, statusMessage: '未登录' })
+    throw createError({ statusCode: 401, message: '未登录' })
   }
 
   const db = getRawDb()

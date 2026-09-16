@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     console.error('[Admin] 获取精选集统计失败:', error)
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch stats',
+      message: 'Failed to fetch stats',
       data: { error: error.message }
     })
   }

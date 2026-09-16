@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
 
   const collectionId = getRouterParam(event, 'id')
   if (!collectionId) {
-    throw createError({ statusCode: 400, statusMessage: 'Collection ID is required' })
+    throw createError({ statusCode: 400, message: 'Collection ID is required' })
   }
 
   const db = getRawDb()
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     `).get(collectionId)
 
     if (!collection) {
-      throw createError({ statusCode: 404, statusMessage: 'Collection not found' })
+      throw createError({ statusCode: 404, message: 'Collection not found' })
     }
 
     // 获取分类列表
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
     console.error('[Admin] 获取精选集书签失败:', error)
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to fetch collection bookmarks',
+      message: 'Failed to fetch collection bookmarks',
       data: { error: error.message }
     })
   }

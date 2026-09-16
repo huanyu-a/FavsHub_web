@@ -44,9 +44,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, data: { error: '注册失败，请更换用户名或稍后重试' } })
   }
 
-  // 第一个注册用户自动成为管理员（排除系统用户 id=0 和预置管理员 id=1）
-  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE id > 1').get() as { c: number }).c
-  const isAdmin = userCount === 0 ? 1 : 0
+  // 自助注册默认不授予管理员权限。
+  // 仅当系统内不存在任何「可登录的管理员」时（兜底：预置管理员被误删，避免站点被锁死），
+  // 才将首个注册者提升为管理员。排除 id=0 的 _system（password_hash 为空，无法登录）。
+  const adminCount = (db.prepare('SELECT COUNT(*) as c FROM users WHERE is_admin = 1 AND id > 0').get() as { c: number }).c
+  const isAdmin = adminCount === 0 ? 1 : 0
 
   // 创建用户
   const hash = bcrypt.hashSync(password, 10)
