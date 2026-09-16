@@ -1,4 +1,7 @@
 #!/bin/bash
+# title: FavsHub 部署
+# desc: docker compose 部署 FavsHub，首次运行自动生成随机项目名写入 .env。
+
 # FavsHub 部署脚本（对标 zmark 命名规范）
 set -e
 

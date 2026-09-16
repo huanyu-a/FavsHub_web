@@ -9,6 +9,17 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 import { seedDefaultCollections } from '../utils/seed-collections'
+import { seedDefaultTokenDeals } from '../utils/seed-token-deals'
+
+/**
+ * `bookmarks.has_sync` 生成列的**单点定义**，供两处共用：
+ *   1. `ALTER TABLE bookmarks ADD COLUMN ...`（补列）
+ *   2. `CREATE TABLE bookmarks_new (...)`（重建表时必须带上，否则该列被丢弃）
+ * 必须是 VIRTUAL —— SQLite 的 ALTER TABLE ADD COLUMN 不支持 STORED 生成列。
+ */
+const HAS_SYNC_COLUMN_SQL = `has_sync INTEGER GENERATED ALWAYS AS (
+  CASE WHEN source LIKE '%"sync"%' THEN 1 ELSE 0 END
+) VIRTUAL`
 
 /**
  * 初始化 Schema — 创建所有基础表（如不存在）
@@ -203,15 +214,68 @@ export function createTables(db: Database.Database) {
       FOREIGN KEY (collection_bookmark_id) REFERENCES collection_bookmarks(id) ON DELETE CASCADE,
       FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS token_deals (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      provider TEXT NOT NULL,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      call_url TEXT DEFAULT '',
+      quota TEXT DEFAULT '',
+      models TEXT DEFAULT '[]',
+      region TEXT DEFAULT 'cn',
+      quality TEXT DEFAULT '中品',
+      source_tag TEXT DEFAULT 'official',
+      expires_at INTEGER,
+      pinned INTEGER DEFAULT 0,
+      note TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      reject_reason TEXT DEFAULT '',
+      vote_up INTEGER DEFAULT 0,
+      vote_down INTEGER DEFAULT 0,
+      rating_sum INTEGER DEFAULT 0,
+      rating_count INTEGER DEFAULT 0,
+      created_at INTEGER,
+      updated_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS token_deal_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deal_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      vote TEXT NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER,
+      UNIQUE(deal_id, user_id),
+      FOREIGN KEY (deal_id) REFERENCES token_deals(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS token_deal_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deal_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      rating INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER,
+      UNIQUE(deal_id, user_id),
+      FOREIGN KEY (deal_id) REFERENCES token_deals(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `)
 }
 
 /**
  * 增量迁移工具：检测列是否存在，不存在则添加
+ * 用 table_xinfo 而非 table_info —— 后者**不返回生成列**，
+ * 若将来用本函数添加生成列，判断会恒为 false 导致每次启动重复 ALTER。
  */
 function ensureColumn(db: Database.Database, table: string, column: string, alterSQL: string) {
   try {
-    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+    const cols = db.prepare(`PRAGMA table_xinfo(${table})`).all() as { name: string }[]
     if (!cols.some(c => c.name === column)) {
       db.exec(alterSQL)
       console.log(`[DB] 迁移: ${table} 表添加 ${column} 字段`)
@@ -283,14 +347,16 @@ export function runMigrations(db: Database.Database) {
   }
 
   // 添加 has_sync 虚拟列和索引
+  // 注意 1：SQLite 的 ALTER TABLE ADD COLUMN 只支持 VIRTUAL 生成列，
+  //         写成 STORED 会报 "cannot add a STORED column" 而永久失败（VIRTUAL 列同样可建索引）。
+  // 注意 2：必须用 PRAGMA table_xinfo 判断列是否存在 —— table_info 不返回生成列，
+  //         用它判断会恒为 false，导致每次启动都重复 ALTER（错误被下方 catch 静默吞掉）。
+  // 注意 3：列定义取自 HAS_SYNC_COLUMN_SQL，重建 bookmarks 表的分支（见下方 entry_id 迁移）
+  //         必须复用同一常量，否则重建后该列丢失、索引创建再次失败。
   try {
-    const cols = db.prepare('PRAGMA table_info(bookmarks)').all() as { name: string }[]
+    const cols = db.prepare('PRAGMA table_xinfo(bookmarks)').all() as { name: string }[]
     if (!cols.some(c => c.name === 'has_sync')) {
-      db.exec(`
-        ALTER TABLE bookmarks ADD COLUMN has_sync INTEGER GENERATED ALWAYS AS (
-          CASE WHEN source LIKE '%"sync"%' THEN 1 ELSE 0 END
-        ) STORED
-      `)
+      db.exec(`ALTER TABLE bookmarks ADD COLUMN ${HAS_SYNC_COLUMN_SQL}`)
       console.log('[DB] 迁移: bookmarks 表添加 has_sync 虚拟列')
     }
   } catch (err: any) {
@@ -349,6 +415,7 @@ export function runMigrations(db: Database.Database) {
           need_proxy INTEGER DEFAULT 0,
           created_at INTEGER,
           updated_at INTEGER,
+          ${HAS_SYNC_COLUMN_SQL},
           UNIQUE(user_id, url)
         );
         INSERT INTO bookmarks_new SELECT id, user_id, title, url, folder_id, icon, '', sort_order, container, source, login_required, COALESCE(label, ''), 0, created_at, updated_at FROM bookmarks;
@@ -521,7 +588,6 @@ export function createIndexes(db: Database.Database) {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_folder_id ON bookmarks(folder_id);
-      CREATE INDEX IF NOT EXISTS idx_bookmarks_has_sync ON bookmarks(user_id, has_sync);
       /* C4: 首页书签列表 WHERE user_id+login_required+label!='' ORDER BY created_at DESC 的覆盖索引 */
       CREATE INDEX IF NOT EXISTS idx_bookmarks_user_label_created ON bookmarks(user_id, login_required, label, created_at);
       /* D10/A9: 增量同步时间范围查询 — since.get.ts 用 COALESCE(updated_at, created_at)，
@@ -554,9 +620,29 @@ export function createIndexes(db: Database.Database) {
       /* D2: 搜索引擎公开查询按 status='approved' 过滤，status 作前导列 */
       DROP INDEX IF EXISTS idx_search_engines_category;
       CREATE INDEX IF NOT EXISTS idx_search_engines_category ON search_engines(status, category, sort_order);
+      /* Token 白嫖通告：列表默认 WHERE status='approved' ORDER BY pinned DESC, created_at DESC */
+      CREATE INDEX IF NOT EXISTS idx_td_status ON token_deals(status, pinned, created_at);
+      CREATE INDEX IF NOT EXISTS idx_td_user ON token_deals(user_id);
+      CREATE INDEX IF NOT EXISTS idx_td_region ON token_deals(region, quality);
+      CREATE INDEX IF NOT EXISTS idx_tdv_deal ON token_deal_votes(deal_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tdv_unique ON token_deal_votes(deal_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_tdr_deal ON token_deal_reviews(deal_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tdr_unique ON token_deal_reviews(deal_id, user_id);
     `)
   } catch (err: any) {
     console.error('[DB] 创建性能索引失败:', err.message)
+  }
+
+  // has_sync 索引单独创建并容错。
+  // 历史背景：该列曾用 ALTER TABLE ADD COLUMN ... STORED 创建而永久失败；
+  // 而这条 CREATE INDEX 原本排在上方多语句 exec 块的第 3 条，
+  // 一失败即中断整块 → 其后 33 条语句（含 31 条 CREATE INDEX）全部未执行，
+  // 其中 15 条索引在本库实际缺失（另 16 条早已存在，属幂等无害）。
+  // 独立 try/catch 保证单点失败不再连累其余索引。
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_bookmarks_has_sync ON bookmarks(user_id, has_sync)')
+  } catch (err: any) {
+    console.warn('[DB] idx_bookmarks_has_sync 创建失败（不影响其他索引）:', err.message)
   }
 }
 
@@ -642,6 +728,12 @@ export function seedDefaults(db: Database.Database) {
   const collectionCount = (db.prepare('SELECT COUNT(*) as c FROM collections').get() as { c: number }).c
   if (collectionCount === 0) {
     seedDefaultCollections(db)
+  }
+
+  // 默认 Token 白嫖通告（如果表为空）
+  const tokenDealCount = (db.prepare('SELECT COUNT(*) as c FROM token_deals').get() as { c: number }).c
+  if (tokenDealCount === 0) {
+    seedDefaultTokenDeals(db)
   }
 }
 

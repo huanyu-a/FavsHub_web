@@ -31,7 +31,7 @@ FavsHub = **网站 + 浏览器扩展**：书签导航、精选集、搜索引擎
     │  favshub-ext（Sync.vue → PUT /api/sync/bookmarks + POST /api/sync/favicons；下载走扩展内三次 diff）
     ▼
 favshub-nuxt（Nitro API + SQLite）
-    │  SSR 页面 /admin /collections /prompts
+    │  SSR 页面 /admin /collections /prompts /tokens
     ▼
 用户浏览器（前台导航、精选集订阅/导入、提示词）
 ```

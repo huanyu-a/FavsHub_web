@@ -232,3 +232,62 @@ export const systemConfig = sqliteTable('system_config', {
   value: text('value').default(''),
   updatedAt: integer('updated_at'),
 })
+
+// ─── token_deals（Token 白嫖通告）──────────────────────────────
+// 免费额度 / 免费模型的时效性通告。与 collections 的区别：通告有时效、
+// 需审核、可用性由社区投票背书。
+export const tokenDeals = sqliteTable('token_deals', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),          // 服务商名称
+  title: text('title').notNull(),                // 通告标题
+  url: text('url').notNull(),                    // 领取 / 活动页
+  callUrl: text('call_url').default(''),         // API 调用地址
+  quota: text('quota').default(''),              // 免费额度描述
+  models: text('models').default('[]'),          // 支持模型 JSON 数组
+  region: text('region').default('cn'),          // cn | global
+  quality: text('quality').default('中品'),       // 上上品|上品|中品|下品|下下品
+  sourceTag: text('source_tag').default('official'), // official|relay|community
+  expiresAt: integer('expires_at'),              // 有效期截止（NULL = 永久）
+  pinned: integer('pinned').default(0),
+  note: text('note').default(''),                // 备注 / 使用提示
+  status: text('status').default('pending'),     // pending|approved|rejected
+  rejectReason: text('reject_reason').default(''),
+  voteUp: integer('vote_up').default(0),         // 缓存计数
+  voteDown: integer('vote_down').default(0),
+  ratingSum: integer('rating_sum').default(0),
+  ratingCount: integer('rating_count').default(0),
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  index('idx_td_status').on(table.status, table.pinned),
+  index('idx_td_user').on(table.userId),
+  index('idx_td_region').on(table.region, table.quality),
+])
+
+// ─── token_deal_votes（可用性投票，一人一票可改）────────────────
+export const tokenDealVotes = sqliteTable('token_deal_votes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  dealId: text('deal_id').notNull().references(() => tokenDeals.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  vote: text('vote').notNull(),                  // up | down
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  uniqueIndex('idx_tdv_unique').on(table.dealId, table.userId),
+  index('idx_tdv_deal').on(table.dealId),
+])
+
+// ─── token_deal_reviews（真实评测，一人一评可改）────────────────
+export const tokenDealReviews = sqliteTable('token_deal_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  dealId: text('deal_id').notNull().references(() => tokenDeals.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  rating: integer('rating').notNull(),           // 1-5
+  content: text('content').notNull(),
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  uniqueIndex('idx_tdr_unique').on(table.dealId, table.userId),
+  index('idx_tdr_deal').on(table.dealId),
+])

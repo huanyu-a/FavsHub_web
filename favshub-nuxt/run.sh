@@ -1,4 +1,7 @@
 #!/bin/bash
+# title: FavsHub 启动
+# desc: 确保 SQLite 数据库文件存在（首次自动初始化）后启动服务。
+
 set -e
 
 SCRIPT_DIR=$(pwd)

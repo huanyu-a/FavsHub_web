@@ -1,6 +1,6 @@
 /**
  * sitemap.xml - 站点地图生成
- * 包含首页、精选集市场页、所有公开精选集详情页
+ * 包含首页、精选集市场页、Token 白嫖通告页、所有公开精选集详情页
  */
 import { getRawDb } from '../database'
 
@@ -40,6 +40,13 @@ export default defineEventHandler((event) => {
     // 精选集市场
     {
       loc: `${baseUrl}/collections`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    // Token 白嫖通告（公开页面，时效性强，日更）
+    {
+      loc: `${baseUrl}/tokens`,
       lastmod: now,
       changefreq: 'daily',
       priority: 0.9,

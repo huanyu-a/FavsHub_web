@@ -2,7 +2,7 @@
  * GET /api/admin/users — 用户列表（含书签/Prompt 数量）
  */
 import { getRawDb } from '../../../database'
-import { requireAdmin } from '../../../utils/auth'
+import { requireAdmin, parseAdminUsers } from '../../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   // 获取环境变量中配置的管理员用户
   const config = useRuntimeConfig(event)
-  const adminUsers = (config.adminUsers || '').split(',').map((u: string) => u.trim()).filter(Boolean)
+  const adminUsers = parseAdminUsers(config.adminUsers)
 
   return { users, adminUsers }
 })

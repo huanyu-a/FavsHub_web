@@ -17,6 +17,15 @@
       <span class="mobile-nav-icon"><i class="ri-book-2-line"></i></span>
       <span class="mobile-nav-label">精选集</span>
     </NuxtLink>
+    <NuxtLink
+      to="/tokens"
+      class="mobile-nav-item"
+      :class="{ active: isTokensPage }"
+      @click="closeDrawer"
+    >
+      <span class="mobile-nav-icon"><i class="ri-gift-2-line"></i></span>
+      <span class="mobile-nav-label">白嫖</span>
+    </NuxtLink>
     <button class="mobile-nav-item" type="button" @click="toggleFolderPanel">
       <span class="mobile-nav-icon"><i class="ri-folder-open-line"></i></span>
       <span class="mobile-nav-label">分类</span>
@@ -108,6 +117,7 @@ const { isMobile, drawerOpen, searchSheetOpen, closeDrawer, openSearchSheet, clo
 
 const isPromptsPage = computed(() => route.path.startsWith('/prompts'))
 const isCollectionsPage = computed(() => route.path.startsWith('/collections'))
+const isTokensPage = computed(() => route.path.startsWith('/tokens'))
 
 // Mobile search: reuse same stores as desktop SearchBar
 const uiStore = useUIStore()
@@ -271,4 +281,16 @@ const themeIcon = computed(() => {
   return icons[uiStore.theme] || 'ri-sun-line'
 })
 </script>
+
+<style scoped>
+/* 底栏由 6 项增至 7 项（新增「白嫖」）：收紧间距与内边距，
+   保证 375px 视口下不溢出（7×48 + 6×2 + 24 = 372px） */
+.mobile-bottom-nav {
+  gap: 2px;
+  padding: 6px 10px;
+}
+.mobile-nav-item {
+  padding: 6px 9px;
+}
+</style>
 

@@ -1,7 +1,7 @@
 /**
  * GET /api/admin/config — 读取系统配置
  */
-import { requireAdmin } from '../../../utils/auth'
+import { requireAdmin, parseAdminUsers } from '../../../utils/auth'
 import { getRawDb } from '../../../database'
 import { join } from 'node:path'
 
@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   requireAdmin(event)
   const config = useRuntimeConfig(event)
 
-  const adminUsers = (config.adminUsers || '').split(',').map((u: string) => u.trim()).filter(Boolean)
+  const adminUsers = parseAdminUsers(config.adminUsers)
   const dbPath = config.dbPath || join(process.cwd(), 'data', 'favshub.db')
 
   // 从 system_config 表读取系统级配置

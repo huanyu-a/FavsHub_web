@@ -1,4 +1,7 @@
 #!/bin/bash
+# title: FavsHub 构建
+# desc: 构建 Nuxt 项目并准备 favshub/ 部署目录（复制构建产物、排除 node_modules）。
+
 # FavsHub Nuxt 构建脚本
 set -e
 

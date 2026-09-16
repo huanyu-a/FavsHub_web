@@ -29,6 +29,9 @@
         <NuxtLink to="/admin/collections" class="nav-item" :class="{ active: route.path === '/admin/collections' }" @click="closeSidebar">
           <i class="ri-stack-line"></i><span>精选集管理</span>
         </NuxtLink>
+        <NuxtLink to="/admin/token-deals" class="nav-item" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
+          <i class="ri-gift-2-line"></i><span>白嫖通告</span>
+        </NuxtLink>
         <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
           <i class="ri-search-line"></i><span>搜索引擎</span>
         </NuxtLink>
