@@ -33,3 +33,6 @@ data/
 DEPLOY.md
 # Local deploy config (credentials, server info) - for other tools
 .deploy.local.json
+
+# 临时产物（下载的源数据、DB 副本、API 响应 dump 等）—— 保留 .workbuddy/memory 与 .workbuddy/skills
+.workbuddy/tmp/

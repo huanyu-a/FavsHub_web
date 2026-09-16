@@ -34,7 +34,7 @@ docker compose up -d  # http://localhost:3090
 | `NUXT_JWT_SECRET` | JWT 签名 | 空 → `data/.jwt-secret` 或自动 48 字节 |
 | `NUXT_DB_PATH` | SQLite 路径 | `./data/favshub.db` |
 | `NUXT_CORS_ORIGIN` | CORS | `http://localhost:3000` |
-| `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔） | 空（首注册用户为管理员） |
+| `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔）；**AI 通道的管理员判定同样读取它** | 空 |
 | `NUXT_TRUST_PROXY` | 信任 X-Forwarded-For | `false` |
 
 另有 `runtimeConfig.public.baseUrl`（默认 `https://favshub.com`）供 sitemap / TDK 用，当前非环境变量，改需直接改 `nuxt.config.ts`。
@@ -53,7 +53,7 @@ pages/                 # 文件路由
   tokens/              # Token 白嫖通告列表（公开；详情为同页弹层，无独立路由）
   admin/               # 管理后台 SPA
     index / users / bookmarks / collections / prompts
-    search-engines / backup / settings / config / token-deals
+    search-engines / backup / settings / config / token-deals / api-tokens
 components/            # auth, bookmark, search, sidebar, prompts, collections, tokens, mobile, common
 composables/           # useAuth, useMobile, useTheme（11 套主题：7 浅 + 4 深）
 stores/                # auth, bookmarks（含 viewMode）, searchEngines, settings, ui
@@ -64,11 +64,16 @@ public/css/            # tokens, themes, main-bundle, admin, mobile-responsive, 
 public/images/         # 引擎 logo、favicon 缓存、systermicon
 public/robots.txt      # SEO 爬虫规则 + sitemap 链接
 server/api/            # Nitro 文件式路由 → /api/*
+  ai/                  # AI 数据操作 REST（**PAT 通道**，见「AI 数据操作通道」）
+  user/api-tokens/     # 令牌自管（**JWT 通道**）
+  mcp.post.ts          # MCP（JSON-RPC 2.0）端点，**PAT 通道**
 server/routes/         # 非 API 路由（sitemap.xml.ts — 动态站点地图）
 server/database/       # schema.ts, migrate.ts, index.ts
 server/middleware/     # admin-guard, cors, cache-control（公开页 CDN 缓存头升级）
 server/plugins/        # db-init, theme-init, error-handler, backup-scheduler, rate-limit-cleanup
-server/utils/          # auth, jwt, config, constants, rate-limit, settings-cache, favicon-download, favicon-dir, delete-user, token-deals, seed-token-deals
+server/utils/          # auth, jwt, config, constants, rate-limit, settings-cache, favicon-download, favicon-dir, delete-user, token-deals, seed-token-deals, ai-auth, ai-service
+skills/                # AI 技能包（favshub-data-ops/ = SKILL.md + examples.md，供外部 AI 助手调用）
+scripts/               # 运维 / 冒烟脚本（ai-api-smoke-{read,write}.mjs、token-deals-smoke-*）
 utils/                 # 前端工具：pinyin.ts（拼音搜索）、template-variables.ts（{{变量}}）、themeCookie.ts（SSR 防闪）、bookmark-colors.ts（配色合并缓存）
 docs/screenshots/      # 文档截图（非 public）
 ```
@@ -99,7 +104,7 @@ docs/screenshots/      # 文档截图（非 public）
 - 原始连接：`getRawDb()`（事务/特殊 SQL）
 - 迁移：`server/database/migrate.ts` 启动时增量执行（不要假设只用 drizzle-kit push）
 - 书签去重：`UNIQUE(user_id, url)`
-- 首个注册用户 = 管理员；启动种子约 29 个搜索引擎（SEARCH / AI / SOCIAL）
+- 管理员：预置 `admin_favs`(id=1, `is_admin=1`)；仅当库中**无任何管理员**（`is_admin=1 AND id>0`）时，首个注册用户兜底提权（防站点锁死）。启动种子约 29 个搜索引擎（SEARCH / AI / SOCIAL）
 - `login_required`：提示词 / 书签 / 文件夹可见性
 
 ### 书签与精选集（核心）
@@ -128,7 +133,8 @@ collection_imports                 # 导入到用户空间
 `users` · `folders` · `prompt_folders` / `prompts` / `tags` / `prompt_tags` / `prompt_versions`  
 `prompt_review_requests`（migrate 原始 SQL，可能不在 Drizzle schema）  
 `settings`（`user_id` PK，`id=0` 系统默认）· `search_engines` · `system_config`  
-`token_deals` / `token_deal_votes` / `token_deal_reviews`（Token 白嫖通告，见「产品域行为」）
+`token_deals` / `token_deal_votes` / `token_deal_reviews`（Token 白嫖通告，见「产品域行为」）  
+`api_tokens` / `ai_audit_logs`（AI 数据操作 PAT 与审计，见「AI 数据操作通道」）
 
 提示词与提示词文件夹 **ID 是字符串**（时间戳+随机后缀）→ 路由**不要** `parseInt`。
 
@@ -139,6 +145,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **多语句 `db.exec()` 是原子性陷阱**：块内任一语句报错即中断整块，其后语句**全部静默不执行**，且只留一行 warning。兜底 / 高风险语句（如 `CREATE INDEX`）**必须独立 `try/catch`**，勿塞进大 exec 块 —— 曾因一条索引失败连带其后 31 条 `CREATE INDEX` 全部未执行。
 - **生成列检测必须用 `PRAGMA table_xinfo`**：`table_info` **不返回生成列**，用它判断列是否存在会恒为 false → 每次启动重复 `ALTER` 并被静默吞掉。另：`ALTER TABLE ADD COLUMN` **只支持 `VIRTUAL` 生成列**，写 `STORED` 会报 `cannot add a STORED column`。
 - **重建表会丢列**：`CREATE TABLE x_new` + `INSERT` + `RENAME` 的写法只保留显式列出的字段。`bookmarks` 重建分支（原 `entry_id` 存在时触发）即会丢弃生成列 `has_sync` —— 新增生成列时须同步补进重建定义，或把 `ALTER` 排到重建之后。
+- **新增表/索引一律拆成独立 `try/catch`**：AI 通道的 `createAiSchema(db)`（2 表 + 4 索引）即按此写法，且**不得**并入 `createTables()` 的大 `exec` 块，否则一条失败会静默带走其后全部语句。
 
 ## 认证（双渠道）
 
@@ -167,6 +174,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/admin/*` | 用户/书签/提示词/精选集/引擎/备份/配置/Token 审核 | 管理员（部分自管） |
 | `/api/health`、`/api/config/registration`、`/api/tdk*` | 健康检查、注册开关、SEO | 无 |
 | `/api/user/stats` | 用户统计 | 登录 |
+| `/api/user/api-tokens/*` | API 令牌自管：列出 / 创建 / 吊销 | 登录（**JWT 通道**） |
+| `/api/ai/*` | AI 数据操作：describe / stats / 书签 / 文件夹 / 提示词 / 标签 / 通告 | **PAT**（`favs_ai_`，scope 分级） |
+| `/api/mcp` | MCP（JSON-RPC 2.0）：initialize / ping / tools/list / tools/call | **PAT**（与 `/api/ai/*` 同一套） |
 
 精选集管理端：`/api/admin/collections/*`（official、batch-import、bookmarks 等）。
 
@@ -204,6 +214,39 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）
 
+### AI 数据操作通道（PAT）
+
+让外部 AI 助手（Claude Code / Cherry Studio / MCP 客户端等）安全地读写站点数据。
+
+- **通道隔离（铁律）**：`/api/ai/*` 与 `/api/mcp` 只认 `Authorization: Bearer favs_ai_...` 形式的 PAT，
+  **绝不回退 JWT**（`authenticateAi` 只做前缀识别 + 哈希比对）；反之 PAT 也不是合法 JWT，
+  在 `/api/*` 通道必然 401。令牌自管端点（`/api/user/api-tokens/*`）刻意放在 **JWT 通道**，
+  避免 PAT 触及用户凭证流程。
+- **令牌模型**：明文 `favs_ai_` + 32 字节 CSPRNG base64url（共 51 字符），库中仅存 SHA-256 hex；
+  明文只在创建响应中出现一次。每人最多 20 个未吊销令牌。
+- **scope 分级**：`read(1) < write(2) < delete(3)`，高等级自动包含低等级。
+  `delete` **必须显式授予**，且**仅管理员**可创建含 delete 的令牌（普通用户请求创建 → 403）。
+- **越权硬隔离**：所有 SQL 强制 `user_id = token.user_id`；操作他人资源统一返回 **404**（不区分
+  「不存在」与「无权限」，避免存在性泄露）。**管理员在 AI 通道同样不能跨用户改删**（例外：标签与
+  Token 通告的删除沿用 Web 语义，管理员可删他人）。
+- **写保护**：单请求批量上限 50（超出 400）；所有写操作支持 `dry_run: true` 只返回 `changes` 不落库；
+  删除必须携带 `confirm: true`（否则 400），且不支持批量删除。
+- **可见性**：非管理员经 AI 写入的数据强制 `login_required = 1`（仅自己可见），与 Web 端点一致。
+- **限频**：IP 级 300 次/分钟（兜底防令牌暴力猜测）→ 令牌级 600 次/分钟。
+- **审计**：`ai_audit_logs` 记录 `token_id / user_id / method / path / scope / status_code / ip`，
+  在 `finally` 中 best-effort 落库，**绝不记录请求体内容**；限频在鉴权阶段拦截，故 429 不入审计。
+- **管理员判定**：`ai-service.isUserAdmin` 与 Web 端 `requireAdmin` 同序 —— `NUXT_ADMIN_USERS` → DB `is_admin`。
+  改一处必须改另一处（Service 层无 H3Event，直接读 `process.env.NUXT_ADMIN_USERS`）。
+- **代码分工**：`server/utils/ai-auth.ts`（PAT 生成/校验/scope/限频/审计 + `defineAiHandler` 统一包装）、
+  `server/utils/ai-service.ts`（**唯一**数据操作来源，不接收 H3Event，REST 与 MCP 共用）、
+  `server/api/ai/*`（薄端点）、`server/api/mcp.post.ts`（17 个 MCP 工具）、
+  `pages/admin/api-tokens.vue`（令牌管理 UI）、`skills/favshub-data-ops/`（给 AI 的技能说明）。
+- **首次接入建议**：先 `GET /api/ai/describe` 拿能力清单与字段字典，再按
+  `dry_run 预演 → 用户确认 → 正式执行` 的流程操作。
+- **冒烟**：`scripts/ai-api-smoke-{read,write}.mjs`（共约 130 项断言，含 12 类安全用例）。
+  须对**临时库副本**运行，且服务端以 `NUXT_ADMIN_USERS=smokeadmin NUXT_TRUST_PROXY=true` 启动
+  （迁移预置了 `admin_favs`，注册已不会自动提权；限频压测需靠 XFF 隔离到专用 IP）。
+
 ### 扩展同步（服务端语义）
 
 - 入参扁平：`{ title, url, folder_path, icon }`
@@ -216,6 +259,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 
 - CORS、JWT 封装、错误脱敏、参数校验、rate-limit、favicon SSRF 限制
 - 前端：避免对用户内容 `v-html`；Teleport 到 body 勿依赖父级 scoped 选择器
+- **PAT 通道**：`/api/ai/*`、`/api/mcp` 禁止回退 JWT 校验；PAT 比对用 `timingSafeEqual`（先判长度，
+  否则长度不等会抛 `RangeError`）；明文令牌**只回一次**、不入库、不入审计、不打日志；
+  `delete` scope 仅管理员可签发；越权一律 404
 
 ## 部署
 

@@ -26,6 +26,28 @@
       <span class="deal-quality" :class="qualityClass">{{ deal.quality }}</span>
     </header>
 
+    <div
+      class="deal-nexus"
+      :class="{ 'is-none': !deal.nexus, 'is-off': deal.nexus && !deal.nexus.enabled }"
+    >
+      <template v-if="deal.nexus">
+        <span class="nexus-tag">
+          <i class="ri-pulse-line"></i>{{ deal.nexus.enabled ? 'Nexus 实测' : 'Nexus 已禁用' }}
+        </span>
+        <template v-if="deal.nexus.enabled && deal.nexus.eval_total > 0">
+          <span class="nexus-stat" :title="`${deal.nexus.eval_ok}/${deal.nexus.eval_total} 次探测成功`">
+            <i class="ri-signal-tower-line"></i>{{ nexusRate }}
+          </span>
+          <span v-if="deal.nexus.eval_avg_ms > 0" class="nexus-stat" :title="`平均耗时 ${deal.nexus.eval_avg_ms} ms`">
+            <i class="ri-timer-flash-line"></i>{{ nexusSpeed }}
+          </span>
+        </template>
+      </template>
+      <span v-else class="nexus-tag">
+        <i class="ri-link-unlink-m"></i>未接入 Nexus
+      </span>
+    </div>
+
     <h4 class="deal-title">{{ deal.title }}</h4>
 
     <div v-if="deal.quota" class="deal-quota">
@@ -101,6 +123,20 @@ const qualityClass = computed(() => {
     下下品: 'q-bottom',
   }
   return map[props.deal.quality || '中品'] || 'q-mid'
+})
+
+/** Nexus 探测成功率，形如 8/10 */
+const nexusRate = computed(() => {
+  const n = props.deal.nexus
+  if (!n || !n.eval_total) return ''
+  return `${n.eval_ok}/${n.eval_total}`
+})
+
+/** Nexus 平均耗时，≥1s 用秒显示 */
+const nexusSpeed = computed(() => {
+  const ms = props.deal.nexus?.eval_avg_ms || 0
+  if (ms <= 0) return ''
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
 })
 
 const visibleModels = computed(() => (props.deal.models || []).slice(0, 3))
@@ -222,6 +258,48 @@ const expiryWarn = computed(() => {
 .q-bottom {
   background: rgba(245, 158, 11, 0.12);
   color: var(--warning);
+}
+
+/* ── Nexus 接入状态条 ── */
+.deal-nexus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.nexus-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 500;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.nexus-tag i {
+  font-size: 12px;
+}
+.deal-nexus.is-off .nexus-tag {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+}
+.deal-nexus.is-none .nexus-tag {
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+.nexus-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nexus-stat i {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .deal-title {

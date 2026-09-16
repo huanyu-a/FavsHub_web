@@ -47,6 +47,7 @@ const emit = defineEmits<{
 }>()
 
 const SORT_OPTIONS = [
+  { value: 'nexus', label: 'Nexus 实测' },
   { value: 'latest', label: '最新' },
   { value: 'hot', label: '最热' },
   { value: 'rating', label: '高分' },

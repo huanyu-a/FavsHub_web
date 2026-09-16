@@ -174,7 +174,7 @@ useHead({
 })
 
 const search = ref('')
-const sort = ref('latest')
+const sort = ref('nexus')
 const quality = ref('')
 const sourceTag = ref('')
 const page = ref(1)

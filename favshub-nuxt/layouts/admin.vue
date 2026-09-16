@@ -44,6 +44,10 @@
         <NuxtLink to="/admin/settings" class="nav-item" :class="{ active: route.path === '/admin/settings' }" @click="closeSidebar">
           <i class="ri-user-settings-line"></i><span>用户设置</span>
         </NuxtLink>
+        <!-- API 令牌：所有登录用户均可管理自己的令牌（非管理员仅能授予 read/write） -->
+        <NuxtLink to="/admin/api-tokens" class="nav-item" :class="{ active: route.path === '/admin/api-tokens' }" @click="closeSidebar">
+          <i class="ri-key-2-line"></i><span>API 令牌</span>
+        </NuxtLink>
 
         <template v-if="isAdmin">
           <div class="nav-divider"></div>

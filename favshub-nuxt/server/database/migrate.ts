@@ -647,6 +647,137 @@ export function createIndexes(db: Database.Database) {
 }
 
 /**
+ * AI 数据操作能力的系统表 — `api_tokens`（PAT 令牌）与 `ai_audit_logs`（审计日志）
+ *
+ * 设计约束（对齐项目迁移铁律）：
+ *   1. **不并入 `createTables()` 的大 exec 块** —— 该块内任一语句失败会静默中断其后全部建表。
+ *   2. 每张表独立 try/catch，每条索引独立 try/catch，单点失败不连累其余。
+ *   3. `token_hash` 只存 SHA-256 hex，明文令牌永不落库（仅创建响应返回一次）。
+ *   4. `ai_audit_logs.body_summary` 只存「method + path + 状态码」，绝不存请求体/密钥。
+ */
+export function createAiSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_tokens (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id       INTEGER NOT NULL,
+        name          TEXT NOT NULL,
+        token_hash    TEXT NOT NULL UNIQUE,
+        token_prefix  TEXT NOT NULL,
+        scopes        TEXT NOT NULL DEFAULT 'read',
+        created_at    INTEGER NOT NULL,
+        expires_at    INTEGER,
+        last_used_at  INTEGER,
+        revoked_at    INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 api_tokens 失败:', err.message)
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_audit_logs (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_id      INTEGER NOT NULL,
+        user_id       INTEGER NOT NULL,
+        method        TEXT NOT NULL,
+        path          TEXT NOT NULL,
+        scope         TEXT NOT NULL,
+        status_code   INTEGER NOT NULL,
+        ip            TEXT,
+        body_summary  TEXT,
+        created_at    INTEGER NOT NULL,
+        FOREIGN KEY (token_id) REFERENCES api_tokens(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 ai_audit_logs 失败:', err.message)
+  }
+
+  // 索引逐条独立 try/catch —— 单条失败不影响其余（血泪教训见上方 has_sync 注释）
+  const aiIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)',
+    'CREATE INDEX IF NOT EXISTS idx_ai_audit_token ON ai_audit_logs(token_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_ai_audit_user ON ai_audit_logs(user_id, created_at)',
+  ]
+  for (const sql of aiIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] AI 索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
+}
+
+/**
+ * Nexus 渠道评测数据接入
+ *
+ * 数据来源（服务器侧 cron 每日同步写入，站点本身不主动外联）：
+ *   - new-api `channels` 表        -> 渠道实例清单（channel_id / name / base_url / status）
+ *   - eval_api/eval_latest.json    -> 每日「渠道 × 模型」评测结果（ok / time_s）
+ *
+ * 两张表的分工：
+ *   1. `nexus_channels` —— 渠道快照，一行一个 Nexus 渠道，附带当日评测汇总。
+ *      status: 1 启用 / 2 禁用（沿用 new-api 语义）。
+ *   2. `nexus_deal_map` —— 匹配结果，一行一个 token_deals 条目，指向命中的 Nexus 渠道。
+ *      匹配在同步时算好（域名优先、名称兜底），查询时直接 JOIN，
+ *      避免在 SQL 里做模糊匹配导致全表扫描。
+ *
+ * 未出现在 `nexus_deal_map` 里的通告即「未接入 Nexus」，列表排序时后置。
+ */
+export function createNexusSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS nexus_channels (
+        channel_id   INTEGER PRIMARY KEY,
+        name         TEXT NOT NULL,
+        base_url     TEXT DEFAULT '',
+        domain       TEXT DEFAULT '',
+        type         INTEGER DEFAULT 0,
+        status       INTEGER DEFAULT 0,
+        eval_ok      INTEGER DEFAULT 0,
+        eval_total   INTEGER DEFAULT 0,
+        eval_avg_ms  INTEGER DEFAULT 0,
+        eval_at      INTEGER DEFAULT 0,
+        synced_at    INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 nexus_channels 失败:', err.message)
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS nexus_deal_map (
+        deal_id     TEXT PRIMARY KEY,
+        channel_id  INTEGER NOT NULL,
+        matched_by  TEXT DEFAULT '',
+        synced_at   INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 nexus_deal_map 失败:', err.message)
+  }
+
+  // 索引逐条独立 try/catch —— 单条失败不影响其余（血泪教训见上方 has_sync 注释）
+  const nexusIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_ndm_channel ON nexus_deal_map(channel_id)',
+    'CREATE INDEX IF NOT EXISTS idx_nc_status ON nexus_channels(status)',
+  ]
+  for (const sql of nexusIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] Nexus 索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
+}
+
+/**
  * 初始化系统用户和默认数据
  */
 export function seedDefaults(db: Database.Database) {
@@ -1068,5 +1199,7 @@ export function initializeDatabase(db: Database.Database) {
   createTables(db)
   runMigrations(db)
   createIndexes(db)
+  createAiSchema(db)
+  createNexusSchema(db)
   seedDefaults(db)
 }
