@@ -86,7 +86,7 @@
     <TokenDealDetail
       v-if="detailDeal"
       :deal-id="detailDeal.id"
-      @close="detailDeal = null"
+      @close="closeDetail"
       @edit="onEditFromDetail"
       @changed="refresh"
     />
@@ -223,6 +223,23 @@ function nextPage() {
 
 function openDetail(deal: ITokenDeal) {
   detailDeal.value = deal
+  syncDealQuery(deal.id)
+}
+
+function closeDetail() {
+  detailDeal.value = null
+  if (route.query.deal) syncDealQuery(null)
+}
+
+/**
+ * 详情弹窗与 ?deal= 查询参数双向同步：
+ * 分享出去的 /tokens?deal=<id> 扫码/点开即还原弹窗，关闭时清掉参数保持地址干净。
+ */
+function syncDealQuery(id: string | null) {
+  const query: Record<string, any> = { ...route.query }
+  if (id) query.deal = id
+  else delete query.deal
+  router.replace({ query })
 }
 
 /** 未登录先引导登录，登录后回到本页并带上 openEditor 标记自动打开表单 */
@@ -236,7 +253,7 @@ function openEditor(deal: ITokenDeal | null = null) {
 }
 
 function onEditFromDetail(deal: ITokenDeal) {
-  detailDeal.value = null
+  closeDetail()
   openEditor(deal)
 }
 
@@ -251,11 +268,19 @@ function onSaved(message: string) {
 // 翻页 / 筛选变化自动重新请求
 watch([page, sort, quality, sourceTag], () => refresh())
 
-// 从登录页跳回时自动展开发布表单
+// 从登录页跳回时自动展开发布表单；带 ?deal= 落地时自动打开对应详情弹窗
 onMounted(() => {
   if (route.query.action === 'publish' && authStore.isLoggedIn) {
+    const next: Record<string, any> = { ...route.query }
+    delete next.action
     openEditor()
-    router.replace({ query: {} })
+    router.replace({ query: next })
+    return
+  }
+  const sharedId = String(route.query.deal || '').trim()
+  if (sharedId) {
+    // 仅传 id，详情内容由弹窗自行拉取（未过审/不存在时由弹窗提示）
+    detailDeal.value = { id: sharedId } as ITokenDeal
   }
 })
 

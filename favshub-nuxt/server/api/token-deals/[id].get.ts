@@ -1,6 +1,7 @@
 /**
  * GET /api/token-deals/:id — 通告详情
  * 附带当前用户的投票与评测状态；未审核通过的通告仅作者与管理员可见。
+ * 附带 Nexus 接入信息（分享卡片需要展示实测可用率与耗时）；Nexus 表缺失时降级为 null，不阻断详情。
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
@@ -12,6 +13,42 @@ function parseModels(raw: unknown): string[] {
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
+  }
+}
+
+interface NexusInfo {
+  channel_id: number
+  name: string
+  status: number
+  enabled: boolean
+  eval_ok: number
+  eval_total: number
+  eval_avg_ms: number
+  eval_at: number
+}
+
+/** 读取通告的 Nexus 渠道信息；表未迁移（旧库）或查询异常时返回 null */
+function loadNexusInfo(db: any, dealId: string): NexusInfo | null {
+  try {
+    const row = db.prepare(`
+      SELECT n.channel_id, n.name, n.status, n.eval_ok, n.eval_total, n.eval_avg_ms, n.eval_at
+      FROM nexus_deal_map m
+      JOIN nexus_channels n ON n.channel_id = m.channel_id
+      WHERE m.deal_id = ?
+    `).get(dealId) as any
+    if (!row) return null
+    return {
+      channel_id: row.channel_id,
+      name: row.name,
+      status: row.status,
+      enabled: row.status === 1,
+      eval_ok: row.eval_ok || 0,
+      eval_total: row.eval_total || 0,
+      eval_avg_ms: row.eval_avg_ms || 0,
+      eval_at: row.eval_at || 0,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -65,6 +102,7 @@ export default defineEventHandler(async (event) => {
       is_owner: isOwner,
       can_edit: isOwner || isAdmin,
       can_moderate: isAdmin,
+      nexus: loadNexusInfo(db, id),
     },
     my_vote: myVote,
     my_review: myReview,

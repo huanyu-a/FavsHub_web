@@ -237,6 +237,15 @@
             <a :href="deal.url" target="_blank" rel="noopener noreferrer" class="tdd-btn ghost">
               <i class="ri-external-link-line"></i> 前往领取
             </a>
+            <button
+              v-if="deal.status === 'approved'"
+              type="button"
+              class="tdd-btn ghost"
+              title="生成 3:4 信息卡分享"
+              @click="shareOpen = true"
+            >
+              <i class="ri-share-line"></i> 分享
+            </button>
           </div>
           <div class="tdd-foot-right">
             <button v-if="deal.can_edit" type="button" class="tdd-btn ghost" @click="$emit('edit', deal)">
@@ -247,6 +256,9 @@
             </button>
           </div>
         </footer>
+
+        <!-- 分享面板 -->
+        <TokenShareSheet v-if="shareOpen && deal" :deal="deal" @close="shareOpen = false" />
 
         <!-- 轻提示 -->
         <Transition name="toast">
@@ -260,6 +272,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fallbackProxyIcon } from '~/utils/favicon'
+import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
 
 interface ITokenDeal {
   id: string
@@ -287,6 +300,12 @@ interface ITokenDeal {
   vote_down?: number
   rating_sum?: number
   rating_count?: number
+  nexus?: {
+    enabled: boolean
+    eval_ok: number
+    eval_total: number
+    eval_avg_ms: number
+  } | null
 }
 
 interface IReview {
@@ -331,6 +350,7 @@ const voting = ref(false)
 const deleting = ref(false)
 const importing = ref(false)
 const submitting = ref(false)
+const shareOpen = ref(false)
 
 const formRating = ref(5)
 const formContent = ref('')
