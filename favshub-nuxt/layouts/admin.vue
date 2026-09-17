@@ -193,7 +193,7 @@ useHead({
   link: [
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260830b' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260917' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     { rel: 'stylesheet', href: '/css/admin.css?v=20260917' },
   ],
