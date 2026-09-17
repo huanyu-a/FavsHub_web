@@ -24,6 +24,7 @@ docker compose up -d  # http://localhost:3090
 - **无**独立 lint / unit test 脚本；验证以 `pnpm build` + 手动联调为主。
 - `postinstall` → `nuxt prepare`。
 - 改 `server/` 后 dev HMR；改 `public/css/` 须在布局 `useHead` 中 bump `?v=YYYYMMDD`。
+- **样式分两层**：手写全局样式在 `public/css/*.css`（由布局 `useHead` 引入）；组件 `<style scoped>` 由 Vite 打包成 `/_nuxt/*.css`。`nuxt.config.ts` 中 `features.inlineStyles: false` 是刻意设置——不把 scoped 样式内联进 SSR HTML 的 `<style>`（每页省约 8KB，且 CSS 带 hash 可复用 `/_nuxt/**` 的 immutable 缓存）。因此 render 出的 head 里**不应再出现明文 `<style>` 块**；若回归，先查该开关是否被改回 `true`。检查方法：`curl -s https://hao.bx9y.com.cn/ | grep -c "<style"`。
 
 ## 环境变量
 
@@ -38,7 +39,6 @@ docker compose up -d  # http://localhost:3090
 | `NUXT_TRUST_PROXY` | 信任 X-Forwarded-For | `false` |
 | `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | `https://hao.bx9y.com.cn` |
 
-另有 `runtimeConfig.public.baseUrl`（默认 `https://favshub.com`）供 sitemap / TDK 用，当前非环境变量，改需直接改 `nuxt.config.ts`。
 `.env.example` 中的 `PORT=3001` 无效（Nuxt dev 端口由 `devServer.port` 固定为 `3000`）。
 
 `data/` 已 gitignore，首次启动自动建库。本地部署密文：`DEPLOY.md`（gitignore，**勿提交**）。

@@ -11,6 +11,17 @@ export default defineNuxtConfig({
     viewTransition: true,
   },
 
+  features: {
+    // 组件 scoped 样式默认被 Nuxt 内联进 SSR HTML 的 <style>（首屏零请求）。
+    // 关闭后改为由打包产物 /_nuxt/*.css 以 <link> 引入，收益：
+    //   1. HTML 体积减少 ~8KB（首屏 style 块），爬虫/CDN 回源更轻；
+    //   2. CSS 带 hash + /_nuxt/** 为 immutable 长缓存，跨页面/二次访问零重复传输；
+    //   3. head 无明文样式，便于后续把 CSP 收紧到 style-src 'self'（当前仍需 unsafe-inline
+    //      供 Vue :style 绑定的 style 属性使用）。
+    // 代价：首屏多 1 个同源 CSS 请求（同样的 render-blocking，不会 FOUC）。
+    inlineStyles: false,
+  },
+
   modules: [
     '@pinia/nuxt',
   ],
