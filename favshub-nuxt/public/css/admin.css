@@ -353,6 +353,9 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
 .admin-layout .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 24px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 14px; transition: all 0.2s; }
 .admin-layout .nav-item:hover, .admin-layout .nav-item.active { color: #fff; background: rgba(255,255,255,0.1); }
 .admin-layout .nav-item i { font-size: 18px; width: 20px; text-align: center; }
+/* 侧栏「前台首页」入口：桌面端由底栏「返回前台」承担，此处仅在移动端显示（底栏被隐藏） */
+.admin-layout .nav-item-external { display: none; }
+.admin-layout .nav-item-external i { color: rgba(255,255,255,0.55); }
 .admin-layout .admin-sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
 .admin-layout .user-info { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; padding: 6px; border-radius: 8px; transition: background 0.2s; }
 .admin-layout .user-info:hover { background: rgba(255,255,255,0.08); }
@@ -421,6 +424,7 @@ input[type=range] { width: 140px; cursor: pointer; padding: 6px 10px; border: 1p
   .admin-layout .admin-sidebar-nav { display: none; padding: 8px 0; }
   .admin-layout .admin-sidebar.open .admin-sidebar-nav { display: block; }
   .admin-layout .nav-item { padding: 12px 16px; }
+  .admin-layout .nav-item-external { display: flex; }
   .admin-layout .admin-sidebar-footer { display: none; }
   .admin-layout .admin-main { height: auto; overflow-y: visible; }
 }

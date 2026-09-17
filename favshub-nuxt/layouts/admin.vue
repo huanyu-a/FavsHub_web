@@ -59,6 +59,12 @@
             <i class="ri-settings-3-line"></i><span>系统配置</span>
           </NuxtLink>
         </template>
+
+        <div class="nav-divider"></div>
+        <!-- 移动端侧边栏底部区（含「返回前台」）被隐藏，此处补一个同功能入口，新标签打开前端首页 -->
+        <a href="/" target="_blank" rel="noopener noreferrer" class="nav-item nav-item-external" @click="closeSidebar">
+          <i class="ri-external-link-line"></i><span>前台首页</span>
+        </a>
       </nav>
       <div class="admin-sidebar-footer">
         <div class="user-info" @click="showProfile = true" title="点击修改个人信息">
@@ -68,9 +74,9 @@
             <span class="user-role">{{ isAdmin ? '管理员' : '普通用户' }}</span>
           </div>
         </div>
-        <NuxtLink to="/" class="nav-item">
-          <i class="ri-arrow-left-line"></i><span>返回前台</span>
-        </NuxtLink>
+        <a href="/" target="_blank" rel="noopener noreferrer" class="nav-item" title="在新标签页打开前端首页">
+          <i class="ri-external-link-line"></i><span>返回前台</span>
+        </a>
       </div>
     </aside>
     <main class="admin-main">
@@ -189,7 +195,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260830b' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260714' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260917' },
   ],
 })
 </script>
