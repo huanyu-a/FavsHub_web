@@ -135,16 +135,17 @@ GET/POST/PUT/DELETE  /api/ai/tags
 
 ---
 
-## 6. Skill 交付物（本仓库 `skills/favshub-data-ops/`）
+## 6. Skill 交付物（本仓库根 `favshub-data-ops/`）
 
 ```
-skills/favshub-data-ops/
+favshub-data-ops/
 ├── SKILL.md          # AI 操作手册：能力清单、API 文档、数据字典、
 │                     #   安全红线（先查后写、删除必先征得用户确认）、错误处理
-└── examples.md       # 常见任务的操作序列示例（盘点、批量导入、清理）
+├── examples.md       # 常见任务的操作序列示例（盘点、批量导入、清理）
+└── README.md         # 给人看的安装说明：怎么装到 WorkBuddy / Claude Code
 ```
 
-使用方式：`SKILL.md` 装进 WorkBuddy（或任何 AI 客户端的 skill/知识库），配置项只有两个：`FAVSHUB_BASE_URL` 和 `FAVSHUB_AI_TOKEN`。
+使用方式：把整个目录复制进 WorkBuddy / Claude Code 的 skills 目录即可，详见其中的 `README.md`。配置项只有两个：`FAVSHUB_BASE_URL` 和 `FAVSHUB_AI_TOKEN`。
 
 ---
 

@@ -240,7 +240,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **代码分工**：`server/utils/ai-auth.ts`（PAT 生成/校验/scope/限频/审计 + `defineAiHandler` 统一包装）、
   `server/utils/ai-service.ts`（**唯一**数据操作来源，不接收 H3Event，REST 与 MCP 共用）、
   `server/api/ai/*`（薄端点）、`server/api/mcp.post.ts`（17 个 MCP 工具）、
-  `pages/admin/api-tokens.vue`（令牌管理 UI）、`skills/favshub-data-ops/`（给 AI 的技能说明）。
+  `pages/admin/api-tokens.vue`（令牌管理 UI）、仓库根 `favshub-data-ops/`（对外分发的 AI 技能包）。
 - **首次接入建议**：先 `GET /api/ai/describe` 拿能力清单与字段字典，再按
   `dry_run 预演 → 用户确认 → 正式执行` 的流程操作。
 - **冒烟**：`scripts/ai-api-smoke-{read,write}.mjs`（共约 130 项断言，含 12 类安全用例）。

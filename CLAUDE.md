@@ -14,12 +14,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目是什么
 
-FavsHub = **网站 + 浏览器扩展**：书签导航、精选集、搜索引擎聚合、AI 提示词（PromptPro）。
+FavsHub = **网站 + 浏览器扩展**：书签导航、精选集、搜索引擎聚合、AI 提示词（PromptPro）。另有一个独立分发的 **AI 技能包**，供用户装到自己的 AI 助手上。
 
 | 目录 | 职责 | 技术栈 | 详细指南 |
 |------|------|--------|----------|
 | [`favshub-nuxt/`](favshub-nuxt/) | 全栈网站 + API + SQLite | Nuxt 3 · Vue 3 · Pinia · Naive UI · Drizzle · better-sqlite3 | [favshub-nuxt/CLAUDE.md](favshub-nuxt/CLAUDE.md) |
 | [`favshub-ext/`](favshub-ext/) | 浏览器书签同步扩展 | Vue 3 · WXT · Naive UI · TypeScript | [favshub-ext/CLAUDE.md](favshub-ext/CLAUDE.md) |
+| [`favshub-data-ops/`](favshub-data-ops/) | **对外分发**的 AI 技能包（SKILL.md），走站点 `/api/ai/*` 与 `/api/mcp` | 纯文档，无构建 | [favshub-data-ops/README.md](favshub-data-ops/README.md) |
 | `.github/workflows/` | 镜像 CI | 仅 `favshub-nuxt/VERSION` 变更时推 GHCR | — |
 
 包管理器统一 **pnpm**。网站版本号：`favshub-nuxt/VERSION`。

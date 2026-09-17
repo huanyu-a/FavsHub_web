@@ -57,16 +57,18 @@ FavsHub 由 **网站** 与可选的 **浏览器扩展** 组成，面向日常「
 
 ```
 FavsHub_web/
-├── favshub-nuxt/     # 网站 → 用法与部署：favshub-nuxt/README.md
-├── favshub-ext/      # 扩展 → 安装与同步：favshub-ext/README.md
-├── README.md         # 本文件（使用者总览）
-└── CLAUDE.md         # 仅开发者 / AI 需要（可忽略）
+├── favshub-nuxt/        # 网站 → 用法与部署：favshub-nuxt/README.md
+├── favshub-ext/         # 扩展 → 安装与同步：favshub-ext/README.md
+├── favshub-data-ops/    # AI 技能包 → 装给 AI 助手：favshub-data-ops/README.md
+├── README.md            # 本文件（使用者总览）
+└── CLAUDE.md            # 仅开发者 / AI 需要（可忽略）
 ```
 
-你只需要关心两份用户文档：
+你只需要关心三份用户文档：
 
 1. **网站** → [favshub-nuxt/README.md](favshub-nuxt/README.md)  
-2. **扩展** → [favshub-ext/README.md](favshub-ext/README.md)
+2. **扩展** → [favshub-ext/README.md](favshub-ext/README.md)  
+3. **AI 技能包**（可选，让 AI 助手直接操作你的数据）→ [favshub-data-ops/README.md](favshub-data-ops/README.md)
 
 ---
 
@@ -135,6 +137,7 @@ pnpm preview      # 预览生产构建
 | [本 README](README.md) | 所有使用者 | 产品是什么、最快怎么跑起来 |
 | [favshub-nuxt/README.md](favshub-nuxt/README.md) | 站长 / 日常用户 | 网站功能、Docker 部署、环境变量、备份与安全 |
 | [favshub-ext/README.md](favshub-ext/README.md) | 扩展用户 | 安装、连接站点、同步书签、权限与快捷键 |
+| [favshub-data-ops/README.md](favshub-data-ops/README.md) | 想让 AI 助手代管数据的用户 | 技能包安装、令牌配置、能力范围与安全边界 |
 | 部署与运维 | — | 公开部署要点见 [网站文档 · 部署](favshub-nuxt/README.md#部署)；含密码的服务器 runbook 为本地 `favshub-nuxt/DEPLOY.md`（已 gitignore，不入库） |
 | [CLAUDE.md](CLAUDE.md) / 子目录 `CLAUDE.md` | **仅**开发者与 AI | 架构、命令、改代码约定 — **使用产品时不必阅读** |
 
@@ -146,5 +149,6 @@ pnpm preview      # 预览生产构建
 |------|--------|
 | 网站 `favshub-nuxt/` | ISC |
 | 扩展 `favshub-ext/` | AGPL-3.0 |
+| AI 技能包 `favshub-data-ops/` | ISC（同网站） |
 
 感谢 [TabMark-Bookmark-New-Tab](https://github.com/Alanrk/TabMark-Bookmark-New-Tab)、[TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown)，以及 Nuxt、Vue、Naive UI、WXT、better-sqlite3 等开源项目。
