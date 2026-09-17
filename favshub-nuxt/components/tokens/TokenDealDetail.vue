@@ -603,7 +603,10 @@ onUnmounted(() => {
 .tdd-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* 必须高于移动端底部导航（.mobile-bottom-nav = 9998）：
+     移动端本弹窗是贴底 sheet，层级低于底栏时底部按钮会被底栏压住，
+     且底栏会浮在遮罩之上仍可点击。同层另见 ShareSheet 10070 / Editor 10060。 */
+  z-index: 10050;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1071,7 +1074,7 @@ onUnmounted(() => {
   }
   .tdd-health { grid-template-columns: 1fr 1fr; }
   .health-rating { grid-column: 1 / -1; }
-  .tdd-foot { flex-direction: column; align-items: stretch; }
+  .tdd-foot { flex-direction: column; align-items: stretch; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .tdd-foot-left, .tdd-foot-right { width: 100%; }
   .tdd-foot-left .tdd-btn, .tdd-foot-right .tdd-btn { flex: 1; justify-content: center; }
 }

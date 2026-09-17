@@ -376,7 +376,8 @@ onUnmounted(() => {
 .tde-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1300;
+  /* 高于移动端底部导航（9998）：移动端是贴底 sheet，避免底部按钮被底栏压住 */
+  z-index: 10060;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -631,5 +632,6 @@ onUnmounted(() => {
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
   .tde-foot .tde-btn { flex: 1; justify-content: center; }
+  .tde-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 }
 </style>

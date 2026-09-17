@@ -897,7 +897,7 @@ function migrateEmojiIcons(db: Database.Database) {
     '🔗': 'ri-link-m', '💡': 'ri-lightbulb-line', '🎵': 'ri-music-line', '📷': 'ri-camera-line',
     '🛒': 'ri-shopping-cart-line', '💰': 'ri-money-cny-circle-line', '📈': 'ri-line-chart-line',
     '🧪': 'ri-test-tube-line', '🔒': 'ri-lock-line', '🔑': 'ri-key-2-line', '🚀': 'ri-rocket-line',
-    '🌱': 'ri-plant-line', '🍃': 'ri-leaf-line', '☁': 'ri-cloud-line',
+    '🌱': 'ri-plant-line', '🍃': 'ri-leaf-line',
   }
 
   const targets = [
