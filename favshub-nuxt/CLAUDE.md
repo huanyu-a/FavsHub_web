@@ -62,7 +62,7 @@ layouts/               # default.vue（前台+移动端壳）, admin.vue
 middleware/admin.ts    # 客户端：需登录进 /admin
 error.vue              # 根级错误页（404/500 统一渲染）
 public/css/            # tokens, themes, main-bundle, admin, mobile-responsive, promptpro, error
-public/images/         # 引擎 logo、favicon 缓存、systermicon
+public/images/         # 引擎 logo、systermicon（favicons/ 为运行时数据，不入库，见 .gitignore）
 public/robots.txt      # SEO 爬虫规则 + sitemap 链接
 server/api/            # Nitro 文件式路由 → /api/*
   ai/                  # AI 数据操作 REST（**PAT 通道**，见「AI 数据操作通道」）

@@ -39,8 +39,8 @@ FavsHub 由 **网站**、可选的 **浏览器扩展**，以及可选的 **AI �
   <table>
     <tr>
       <td align="center" width="33%">
-        <img src="favshub-nuxt/docs/screenshots/homepage.png" alt="书签导航" width="100%" />
-        <br /><em>书签卡片主页</em>
+        <img src="favshub-nuxt/docs/screenshots/search-engines.png" alt="搜索引擎" width="100%" />
+        <br /><em>搜索引擎清单</em>
       </td>
       <td align="center" width="33%">
         <img src="favshub-nuxt/docs/screenshots/search-engine-panel.png" alt="搜索引擎" width="100%" />

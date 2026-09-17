@@ -36,6 +36,10 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# 本地化书签图标：运行时数据，由后台「批量下载图标」生成（文件名即书签域名清单，不入库）。
+# 生产环境通过 compose 挂载 ./data/favicons 提供，开发环境缺图标时跑一次后台任务即可重建。
+public/images/favicons/
 # Local deployment docs (not committed)
 DEPLOY.md
 # Local deploy config (credentials, server info) - for other tools

@@ -22,8 +22,8 @@
 </p>
 
 <div align="center">
-  <img src="docs/screenshots/homepage.png" alt="首页访客" width="49%" />
-  <img src="docs/screenshots/homepage-logged-in.png" alt="登录后首页" width="49%" />
+  <img src="docs/screenshots/search-engine-panel.png" alt="搜索引擎面板" width="49%" />
+  <img src="docs/screenshots/prompts.png" alt="AI 提示词管理" width="49%" />
 </div>
 
 ---
@@ -111,27 +111,21 @@
 
 | | |
 |:--:|:--:|
-| ![首页访客](docs/screenshots/homepage.png) | ![登录后](docs/screenshots/homepage-logged-in.png) |
-| *访客首页* | *登录后首页* |
-| ![搜索引擎](docs/screenshots/search-engine-panel.png) | ![登录页](docs/screenshots/login.png) |
-| *搜索引擎面板* | *登录页* |
+| ![搜索引擎面板](docs/screenshots/search-engine-panel.png) | ![搜索引擎清单](docs/screenshots/search-engines.png) |
+| *搜索引擎面板* | *搜索引擎清单* |
 | ![提示词](docs/screenshots/prompts.png) | |
-| *提示词管理* | |
+| *AI 提示词管理* | |
 
 ### 后台（登录后 `/admin`）
 
 | | |
 |:--:|:--:|
-| ![仪表盘](docs/screenshots/admin-dashboard.png) | ![用户](docs/screenshots/admin-users.png) |
-| *仪表盘* | *用户管理（管理员）* |
-| ![书签](docs/screenshots/admin-bookmarks.png) | ![提示词后台](docs/screenshots/admin-prompts.png) |
-| *书签管理* | *提示词管理* |
-| ![审核](docs/screenshots/admin-review-requests.png) | ![编辑提示词](docs/screenshots/admin-prompt-edit.png) |
-| *审核请求* | *提示词编辑* |
-| ![备份](docs/screenshots/admin-backup.png) | ![设置](docs/screenshots/admin-settings.png) |
-| *备份* | *用户设置* |
-| ![系统配置](docs/screenshots/admin-config.png) | ![搜索引擎](docs/screenshots/search-engines.png) |
-| *系统配置* | *搜索引擎管理* |
+| ![提示词后台](docs/screenshots/admin-prompts.png) | ![编辑提示词](docs/screenshots/admin-prompt-edit.png) |
+| *提示词管理* | *提示词编辑* |
+| ![审核](docs/screenshots/admin-review-requests.png) | ![备份](docs/screenshots/admin-backup.png) |
+| *审核请求* | *备份* |
+| ![设置](docs/screenshots/admin-settings.png) | ![系统配置](docs/screenshots/admin-config.png) |
+| *用户设置* | *系统配置* |
 
 ---
 
@@ -157,9 +151,10 @@ docker compose up -d
 1. 打开站点 → 注册账号（第一人 = 管理员；Docker 首次部署还会预置 `admin_favs`，随机密码见 `data/.initial-password`）  
 2. 登录后在首页 / 设置中调整主题与书签  
 3. 需要同步浏览器书签时，安装 [扩展](../favshub-ext/README.md) 并填写本站地址
-4. 生产环境请先阅读 [DEPLOY.md](DEPLOY.md)（SSH、镜像仓库、升级流程）
+4. 站点图标默认从各站点抓取并本地化（存 `data/favicons/`，属运行时数据、不入库）；首次部署后可在 **后台 → 书签管理 → 批量下载图标** 批量补齐
+5. 生产环境请先阅读 [DEPLOY.md](DEPLOY.md)（SSH、镜像仓库、升级流程）
 
-数据目录默认映射到 `./data`（数据库、JWT 密钥、备份等）。**请定期备份 `data/`。**
+数据目录默认映射到 `./data`（数据库、JWT 密钥、备份、本地化图标 `data/favicons` 等）。**请定期备份 `data/`。**
 
 ### 方式 B：本机开发
 
