@@ -24,6 +24,13 @@ logs
 .env.*
 !.env.example
 
+# nexus-sync 本地配置（写的是你自己的真实路径，勿入库；模板 nexus-sync.env.example 保留）
+nexus-sync.env
+
+# Python 字节码
+__pycache__/
+*.py[cod]
+
 # Database
 data/
 *.db

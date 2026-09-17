@@ -213,6 +213,47 @@ curl -s http://localhost:3090/api/health
 - 健康检查：`GET /api/health`
 - 升级流程：备份 `data/` → 拉新镜像 → `compose up` → 启动自动迁移 → 验证首页与登录
 
+### Nexus 评测排序同步（可选）
+
+Token 通告默认按热度 / 评分排序。若想让 **`/tokens` 支持「已接入 Nexus 优先」排序**（置顶 → 已接入启用 → 已接入禁用 → 未接入，同档按可用率降序、耗时升序），需要一个定时脚本把上游 new-api 的渠道清单与每日评测结果同步进本站库的两张表 `nexus_channels` / `nexus_deal_map`。
+
+脚本 `scripts/nexus-sync/sync-nexus.py` **在服务器宿主上运行**，不是容器内：容器里没有 `sqlite3`，上游库与评测目录也不在容器挂载范围内。
+
+**配置方式**：所有路径都写进同目录的 `nexus-sync.env`，**不用改脚本**。仓库只提供模板 `nexus-sync.env.example`，真实配置不入库：
+
+```bash
+cd scripts/nexus-sync
+python3 sync-nexus.py --init-config     # 从模板生成 nexus-sync.env（已存在则跳过）
+# 编辑 nexus-sync.env，把各项改成你自己的路径
+python3 sync-nexus.py --print-config    # 确认最终生效值与来源
+python3 sync-nexus.py --dry-run         # 只打印匹配结果，不写库
+python3 sync-nexus.py                   # 正式写入
+```
+
+配置项（`nexus-sync.env` 键名 = 环境变量名 = 命令行参数名）：
+
+| 键 | 含义 | 模板默认（占位，务必改） |
+|----|------|--------------------------|
+| `NEWAPI_DB` | 上游 new-api 的 SQLite 库（只读其 `channels` 表） | `/opt/app/new-api/data/one-api.db` |
+| `EVAL_DIR` | 评测结果目录（内含 `eval_latest.json` 等） | `/opt/app/eval_api` |
+| `FAVSHUB_DB` | 本站 FavsHub 的 SQLite 库（写入 `nexus_*` 两张表） | `/opt/app/data/favshub.db` |
+| `OWN_DOMAINS` | 你自己的域名，逗号分隔；命中的 deal 不参与匹配，避免自家域互相误匹配 | `bx9y.com.cn` |
+| `EVAL_FILES` | 参与聚合的评测文件名，逗号分隔 | `eval_latest.json,channel_eval_latest.json` |
+
+**优先级**：命令行参数 > 环境变量 > `nexus-sync.env` > 内置默认。因此也能临时覆盖，不必改文件：
+
+```bash
+python3 sync-nexus.py --newapi-db /your/one-api.db --eval-dir /your/eval_api --dry-run
+```
+
+**定时**：建议在评测跑完之后（如每日 08:30）由 cron 触发，日志落盘便于排查：
+
+```cron
+30 8 * * * /usr/bin/python3 /path/to/scripts/nexus-sync/sync-nexus.py >> /var/log/nexus-sync.log 2>&1
+```
+
+> 提示：默认值只是 `/opt/app/...` 占位符，**首次部署务必先 `--init-config` 改成自己的真实路径**，否则脚本会因找不到库而报错退出（报错信息会指明该改哪个键）。若 `nexus_deal_map` 表不存在，`/tokens` 会自动降级为普通排序，不影响使用。
+
 ---
 
 ## 日常怎么用（简表）
