@@ -89,6 +89,7 @@
 - 所有操作严格限定在令牌所属账号内，**AI 无法访问他人数据**  
 - 写操作支持「预演」（`dry_run`）：先看将要发生的变更，确认后再真正执行；删除必须显式确认，单次批量上限 50 条  
 - 除 REST 接口外还提供 **MCP 端点**（`/api/mcp`），可被支持 MCP 的客户端直接接入  
+- 想省掉手搓请求？仓库带了一个可直接装进 AI 助手的 **技能包** —— 助手读完就懂全部接口与规则：见 [favshub-data-ops/README.md](../favshub-data-ops/README.md)
 
 ### 外观与多端
 
@@ -297,5 +298,5 @@ python3 sync-nexus.py --newapi-db /your/one-api.db --eval-dir /your/eval_api --d
 
 ## 许可证
 
-**ISC License**（本网站目录）。  
-配套扩展为 **AGPL-3.0**，见扩展仓库目录说明。
+**MIT License**（本网站目录，全文见 [LICENSE](LICENSE)）。  
+AI 技能包同为 **MIT**；配套扩展为 **AGPL-3.0**（继承自上游 [zmark-ext](../favshub-ext/README.md#项目来源与致谢)）。

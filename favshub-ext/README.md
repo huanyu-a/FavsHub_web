@@ -10,7 +10,8 @@
   <a href="../README.md">← 仓库总览</a> ·
   <a href="../favshub-nuxt/README.md">网站使用与部署</a> ·
   <a href="#安装">安装</a> ·
-  <a href="#使用指南">使用</a>
+  <a href="#使用指南">使用</a> ·
+  <a href="#项目来源与致谢">来源与致谢</a>
 </p>
 
 把 **Chrome / Edge / Firefox 里的书签** 同步到你自己的 FavsHub 网站，并在浏览网页时快速收藏、搜索已同步书签。
@@ -166,10 +167,20 @@ pnpm zip:firefox
 
 ---
 
+## 项目来源与致谢
+
+本扩展在 **[zmark-ext](https://github.com/helloxz/zmark-ext)**（ZMark 浏览器扩展，作者 [helloxz](https://github.com/helloxz)）的基础上衍生而来 —— 书签树的读取与同步模型、WXT 扩展工程结构等核心实现源自该项目，特此致谢。
+
+**许可证随之继承**：上游 zmark-ext 以 **AGPL-3.0** 发布，因此本扩展同样采用 AGPL-3.0（全文见 [LICENSE](LICENSE)）。这意味着若你修改并分发本扩展（包括以网络服务形式提供），需按 AGPL 义务向使用者提供对应源码。
+
+> 仅扩展部分是 AGPL-3.0；网站与 AI 技能包为 MIT，互不影响。
+
+---
+
 ## 许可证
 
-**AGPL-3.0** — 若你修改并分发本扩展，需按 AGPL 义务提供对应源码。  
-网站本体许可证见 [favshub-nuxt/README.md](../favshub-nuxt/README.md)。
+**AGPL-3.0** — 继承自上游 [zmark-ext](https://github.com/helloxz/zmark-ext)，见上文[项目来源与致谢](#项目来源与致谢)。若你修改并分发本扩展，需按 AGPL 义务提供对应源码。  
+网站本体为 **MIT**，见 [favshub-nuxt/README.md](../favshub-nuxt/README.md)。
 
 ## 已知问题
 

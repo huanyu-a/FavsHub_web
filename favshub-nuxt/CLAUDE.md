@@ -72,7 +72,6 @@ server/database/       # schema.ts, migrate.ts, index.ts
 server/middleware/     # admin-guard, cors, cache-control（公开页 CDN 缓存头升级）
 server/plugins/        # db-init, theme-init, error-handler, backup-scheduler, rate-limit-cleanup
 server/utils/          # auth, jwt, config, constants, rate-limit, settings-cache, favicon-download, favicon-dir, delete-user, token-deals, seed-token-deals, ai-auth, ai-service
-skills/                # AI 技能包（favshub-data-ops/ = SKILL.md + examples.md，供外部 AI 助手调用）
 scripts/               # 运维 / 冒烟脚本（ai-api-smoke-{read,write}.mjs、token-deals-smoke-*）
 utils/                 # 前端工具：pinyin.ts（拼音搜索）、template-variables.ts（{{变量}}）、themeCookie.ts（SSR 防闪）、bookmark-colors.ts（配色合并缓存）
 docs/screenshots/      # 文档截图（非 public）
@@ -289,3 +288,4 @@ curl -s http://<SERVER>:3090/api/health
 - **CSS 缓存**：`layouts/default.vue` / `admin.vue` 的 `useHead` 上 `?v=`
 - **CI**：功能提交不必 bump `VERSION`
 - **密钥**：勿提交 `DEPLOY.md`、密码、JWT secret
+- **部署 skill 仅本机**：`.workbuddy/skills/favshub-nuxt-deploy/` 内含服务器 IP、部署路径、SSH 私钥路径等本机专属信息，**只能留在本机**，不得移出 `.workbuddy/` 或提交（`.workbuddy/` 已 gitignore）。对外分发的技能包是仓库根的 `favshub-data-ops/`，两者不是一回事

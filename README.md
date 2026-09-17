@@ -7,21 +7,23 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.7-green" alt="版本" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker" alt="Docker" />
-  <img src="https://img.shields.io/badge/license-ISC-blue" alt="ISC" />
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
+  <img src="https://img.shields.io/badge/ext-AGPL--3.0-red" alt="扩展 AGPL-3.0" />
 </p>
 
 <p align="center">
   <a href="#它能做什么">功能</a> ·
   <a href="#快速上手">快速上手</a> ·
   <a href="favshub-nuxt/README.md">网站使用与部署</a> ·
-  <a href="favshub-ext/README.md">浏览器扩展</a>
+  <a href="favshub-ext/README.md">浏览器扩展</a> ·
+  <a href="favshub-data-ops/README.md">AI 技能包</a>
 </p>
 
 ---
 
 ## 它能做什么
 
-FavsHub 由 **网站** 与可选的 **浏览器扩展** 组成，面向日常「收藏 / 检索 / 提示词」场景：
+FavsHub 由 **网站**、可选的 **浏览器扩展**，以及可选的 **AI 技能包** 组成，面向日常「收藏 / 检索 / 提示词」场景：
 
 | 你想… | 用什么 |
 |--------|--------|
@@ -30,6 +32,7 @@ FavsHub 由 **网站** 与可选的 **浏览器扩展** 组成，面向日常「
 | 浏览官方/公开导航合集，订阅或导入到自己的书签 | **精选集** |
 | 管理 AI 提示词、版本与协作修改 | **PromptPro** |
 | 把浏览器里的书签同步到网站 | **FavsHub 扩展** |
+| 让 AI 助手直接帮你批量整理数据 | **AI 技能包**（`favshub-data-ops/`） |
 | 自己改主题、壁纸、布局；管理自己的数据 | 设置与 `/admin` 后台 |
 
 <div align="center">
@@ -50,6 +53,18 @@ FavsHub 由 **网站** 与可选的 **浏览器扩展** 组成，面向日常「
     </tr>
   </table>
 </div>
+
+### 特色：让 AI 直接管你的数据
+
+除了在网页上手动操作，FavsHub 还提供一个可分发的 **AI 技能包**，装进你的 AI 助手（WorkBuddy / Claude Code 等）后，用说话就能做完批量活：
+
+- 「把这 30 个链接存进书签，按主题分好文件夹」
+- 「找一下我之前存的那个写周报的提示词」
+- 「看看最近有哪些渠道在送免费额度」
+
+助手通过站点开放的 AI 接口（`/api/ai/*` 与 `/api/mcp`）操作，**只碰你自己的数据**：用站点签发的个人令牌（PAT）鉴权，读写强制限定在令牌所属用户；写操作可先 `dry_run` 预演给你过目，删除必须你明确同意。
+
+安装方法与能力清单见 [favshub-data-ops/README.md](favshub-data-ops/README.md)。
 
 ---
 
@@ -145,10 +160,11 @@ pnpm preview      # 预览生产构建
 
 ## 许可证与致谢
 
-| 部分 | 许可证 |
-|------|--------|
-| 网站 `favshub-nuxt/` | ISC |
-| 扩展 `favshub-ext/` | AGPL-3.0 |
-| AI 技能包 `favshub-data-ops/` | ISC（同网站） |
+| 部分 | 许可证 | 说明 |
+|------|--------|------|
+| 网站 `favshub-nuxt/` | MIT | — |
+| 扩展 `favshub-ext/` | AGPL-3.0 | 继承自上游 [zmark-ext](https://github.com/helloxz/zmark-ext)，见[来源与致谢](favshub-ext/README.md#项目来源与致谢) |
+| AI 技能包 `favshub-data-ops/` | MIT | 同网站 |
 
+感谢 [zmark-ext](https://github.com/helloxz/zmark-ext)（ZMark 浏览器扩展，AGPL-3.0）—— 本仓库的浏览器扩展在它基础上衍生，许可证随之继承；  
 感谢 [TabMark-Bookmark-New-Tab](https://github.com/Alanrk/TabMark-Bookmark-New-Tab)、[TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown)，以及 Nuxt、Vue、Naive UI、WXT、better-sqlite3 等开源项目。

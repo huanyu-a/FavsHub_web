@@ -127,4 +127,4 @@ cp -r favshub-data-ops 你的项目/.claude/skills/
 
 ## 许可证
 
-与网站同为 ISC。
+**MIT**，与网站一致 —— 全文见 [LICENSE](LICENSE)。
