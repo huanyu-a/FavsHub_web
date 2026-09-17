@@ -166,5 +166,8 @@ pnpm preview      # 预览生产构建
 | 扩展 `favshub-ext/` | AGPL-3.0 | 继承自上游 [zmark-ext](https://github.com/helloxz/zmark-ext)，见[来源与致谢](favshub-ext/README.md#项目来源与致谢) |
 | AI 技能包 `favshub-data-ops/` | MIT | 同网站 |
 
+> 仓库根目录的 `LICENSE` 是**默认许可证（MIT）**，适用于网站与 AI 技能包；GitHub 侧栏显示的也是它。
+> `favshub-ext/` 目录下另有一份 `AGPL-3.0` 全文，**该目录及其衍生分发以 AGPL-3.0 为准**，不受根许可证覆盖。
+
 感谢 [zmark-ext](https://github.com/helloxz/zmark-ext)（ZMark 浏览器扩展，AGPL-3.0）—— 本仓库的浏览器扩展在它基础上衍生，许可证随之继承；  
 感谢 [TabMark-Bookmark-New-Tab](https://github.com/Alanrk/TabMark-Bookmark-New-Tab)、[TMD_Type-Markdown](https://github.com/KoniKee/TMD_Type-Markdown)，以及 Nuxt、Vue、Naive UI、WXT、better-sqlite3 等开源项目。
