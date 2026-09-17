@@ -271,7 +271,7 @@ const collection = computed(() => {
 
 // SEO meta tags for collection detail page
 const config = useRuntimeConfig()
-const baseUrl = config.public.baseUrl || 'https://favshub.com'
+const baseUrl = config.public.baseUrl || 'https://hao.bx9y.com.cn'
 
 watch(collection, (val) => {
   if (val?.name) {

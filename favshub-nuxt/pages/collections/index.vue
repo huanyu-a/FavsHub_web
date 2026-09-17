@@ -80,7 +80,7 @@ import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ layout: 'default' })
 
 // SEO meta tags for collections market page
-const _collectionsBase = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const _collectionsBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const collectionsBaseUrl = computed(() => `${_collectionsBase}/collections`)
 
 const { data: collTdk } = await useFetch('/api/tdk/collections', {

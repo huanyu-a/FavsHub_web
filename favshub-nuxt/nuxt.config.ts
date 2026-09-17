@@ -30,7 +30,10 @@ export default defineNuxtConfig({
     adminUsers: '',
     trustProxy: 'false',
     public: {
-      baseUrl: 'https://favshub.com',
+      // 站点对外地址：用于 canonical / og:url / og:image / sitemap.xml。
+      // 线上部署经环境变量 NUXT_PUBLIC_BASE_URL 覆盖；默认值必须与实际线上域名一致，
+      // 否则社交平台抓到的分享图/规范地址会 404
+      baseUrl: 'https://hao.bx9y.com.cn',
     },
   },
 
@@ -106,6 +109,16 @@ export default defineNuxtConfig({
       headers: {
         'Cache-Control': 'no-store',
       },
+    },
+    // 站点根图标（含社交抓取用）：长缓存，且覆盖 /** 的 Vary:Cookie（与登录态无关）
+    '/favicon.ico': {
+      headers: { 'Cache-Control': 'public, max-age=604800', 'Vary': 'Accept-Encoding' },
+    },
+    '/favicon.png': {
+      headers: { 'Cache-Control': 'public, max-age=604800', 'Vary': 'Accept-Encoding' },
+    },
+    '/apple-touch-icon.png': {
+      headers: { 'Cache-Control': 'public, max-age=604800', 'Vary': 'Accept-Encoding' },
     },
     // 静态图片（引擎 logo、本地化 favicon）：长缓存 + 覆盖 /** 的 Vary:Cookie
     '/images/**': {

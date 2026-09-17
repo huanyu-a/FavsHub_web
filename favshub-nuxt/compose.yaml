@@ -10,6 +10,7 @@ services:
       - NUXT_DB_PATH=/opt/favshub/data/favshub.db
       - NUXT_CORS_ORIGIN=${NUXT_CORS_ORIGIN:-}
       - NUXT_ADMIN_USERS=${NUXT_ADMIN_USERS:-}
+      - NUXT_PUBLIC_BASE_URL=${NUXT_PUBLIC_BASE_URL:-https://hao.bx9y.com.cn}
     dns:
       - 119.29.29.29
       - 223.5.5.5

@@ -146,7 +146,7 @@ const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const _tokensBase = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const _tokensBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const tokensBaseUrl = computed(() => `${_tokensBase}/tokens`)
 
 const tokensTitle = 'Token 白嫖通告 — 免费 AI 额度时效情报'

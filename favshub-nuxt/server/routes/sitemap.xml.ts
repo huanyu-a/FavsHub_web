@@ -6,7 +6,7 @@ import { getRawDb } from '../database'
 
 export default defineEventHandler((event) => {
   const config = useRuntimeConfig()
-  const baseUrl = config.public.baseUrl || 'https://favshub.com'
+  const baseUrl = config.public.baseUrl || 'https://hao.bx9y.com.cn'
 
   let collections: Array<{ id: string; updated_at: number; is_official: number }> = []
 

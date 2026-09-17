@@ -316,7 +316,7 @@ useHead({
 // PM8: Load TDK from API and apply to page head
 const { data: pageTdk } = await useFetch('/api/tdk/promptpro', { server: true, lazy: false })
 
-const _promptsBase = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const _promptsBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const promptProBaseUrl = computed(() => `${_promptsBase}/prompts`)
 
 useHead({

@@ -36,6 +36,7 @@ docker compose up -d  # http://localhost:3090
 | `NUXT_CORS_ORIGIN` | CORS | `http://localhost:3000` |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔）；**AI 通道的管理员判定同样读取它** | 空 |
 | `NUXT_TRUST_PROXY` | 信任 X-Forwarded-For | `false` |
+| `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | `https://hao.bx9y.com.cn` |
 
 另有 `runtimeConfig.public.baseUrl`（默认 `https://favshub.com`）供 sitemap / TDK 用，当前非环境变量，改需直接改 `nuxt.config.ts`。
 `.env.example` 中的 `PORT=3001` 无效（Nuxt dev 端口由 `devServer.port` 固定为 `3000`）。

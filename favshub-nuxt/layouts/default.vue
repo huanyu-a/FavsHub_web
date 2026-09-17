@@ -60,15 +60,19 @@ const { data: tdk } = await useFetch('/api/tdk', {
   },
 })
 
-const siteBaseUrl = (useRuntimeConfig().public.baseUrl as string) || 'https://favshub.com'
+const siteBaseUrl = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const canonicalUrl = computed(() => `${siteBaseUrl}${route.path}`)
 const siteTitle = computed(() => tdk.value?.siteTitle || 'FavsHub-网址导航与智能书签管理工作台')
 const siteDescription = computed(() => tdk.value?.siteDescription || '')
 const siteKeywords = computed(() => tdk.value?.siteKeywords || '')
+// 社交平台必须拿到绝对地址的分享图（1200x630，public/images/og-cover.png）
+const ogImageUrl = `${siteBaseUrl}/images/og-cover.png`
 
 useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
     { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260917' },
@@ -90,10 +94,18 @@ useHead({
     { property: 'og:description', content: siteDescription },
     { property: 'og:locale', content: 'zh_CN' },
     { property: 'og:url', content: canonicalUrl },
-    // Twitter Card（全局默认）
-    { name: 'twitter:card', content: 'summary' },
+    { property: 'og:image', content: ogImageUrl },
+    { property: 'og:image:secure_url', content: ogImageUrl },
+    { property: 'og:image:type', content: 'image/png' },
+    { property: 'og:image:width', content: '1200' },
+    { property: 'og:image:height', content: '630' },
+    { property: 'og:image:alt', content: siteTitle },
+    // Twitter Card（全局默认）：大图卡片需要 twitter:image
+    { name: 'twitter:card', content: 'summary_large_image' },
     { name: 'twitter:title', content: siteTitle },
     { name: 'twitter:description', content: siteDescription },
+    { name: 'twitter:image', content: ogImageUrl },
+    { name: 'twitter:image:alt', content: siteTitle },
   ],
 })
 
