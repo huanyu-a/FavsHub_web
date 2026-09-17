@@ -54,8 +54,9 @@ export default defineNuxtConfig({
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'X-XSS-Protection': '1; mode=block',
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        // hm.baidu.com：百度统计；img/connect 已允许 https 外链图标与接口
-        'Content-Security-Policy': `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`,
+        // hm.baidu.com：百度统计；img/connect 已允许 https 外链图标与接口；
+        // blob: 允许分享卡片预览 <img> 加载 canvas.toBlob 生成的对象 URL
+        'Content-Security-Policy': `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`,
         // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
         'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
         // HTML 浏览器缓存 60s（按用户），共享层不存储
