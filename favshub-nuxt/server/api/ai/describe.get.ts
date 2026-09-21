@@ -9,6 +9,7 @@
 import { getRawDb } from '../../database'
 import { defineAiHandler, parseScopes, AI_BATCH_LIMIT } from '../../utils/ai-auth'
 import { isUserAdmin } from '../../utils/ai-service'
+import { SKILL_MANIFEST_META } from '../../utils/skill-manifest'
 
 export default defineAiHandler('read', async (_event, token) => {
   const db = getRawDb()
@@ -63,6 +64,8 @@ export default defineAiHandler('read', async (_event, token) => {
       prompts_ownership: 'AI 只能操作自己创建的提示词，不开放编辑管理员发布的公共提示词。',
       tags_delete: '删除标签仅管理员可执行（与站点既有规则一致）。',
       token_deals_status: '管理员发布的通告直接上线（approved）；普通用户发布进入待审核（pending）。',
+      patch_semantics: '更新端点（PUT）一律为**部分更新**：只传需要修改的字段，未传字段保持原值。无需先 GET 再回填全部字段。',
+      card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。三种风格：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
     },
 
     resources: {
@@ -148,10 +151,23 @@ export default defineAiHandler('read', async (_event, token) => {
 
       { method: 'GET', path: '/api/ai/token-deals', scope: 'read', params: ['q', 'region', 'quality', 'mine', 'limit', 'page'] },
       { method: 'POST', path: '/api/ai/token-deals', scope: 'write', body: '{ provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }' },
+      { method: 'PUT', path: '/api/ai/token-deals/:id', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }', note: '**部分更新**：只传要改的字段，未传保持原值；作者或管理员' },
       { method: 'DELETE', path: '/api/ai/token-deals/:id', scope: 'delete', body: '{ confirm: true, dry_run? }', note: '作者或管理员' },
+      { method: 'GET', path: '/api/ai/token-deals/:id/card.png', scope: 'read', params: ['style=magazine|neon|clay', 'refresh=0|1'], returns: 'image/png 二进制（900×1200）', note: '生成通告分享卡片，与网页分享面板同一份绘制逻辑；响应头 x-card-style / x-card-cached 便于核对' },
 
       { method: 'POST', path: '/api/mcp', scope: '按工具', desc: 'MCP（JSON-RPC 2.0）通道：initialize / tools/list / tools/call，与 REST 端点等价' },
     ],
+
+    skill: {
+      name: SKILL_MANIFEST_META.name,
+      version: SKILL_MANIFEST_META.version,
+      site_version: SKILL_MANIFEST_META.site_version,
+      manifest_url: SKILL_MANIFEST_META.manifest_path,
+      source: SKILL_MANIFEST_META.source,
+      latest_changes: SKILL_MANIFEST_META.latest_changes,
+      update_hint: `把本技能包 frontmatter 的 version 与上方的 version 比较：低于则说明有新版本，请求 ${SKILL_MANIFEST_META.manifest_path} 可一次拿到全部文件的最新内容（清单内 files[].content）。更新前请先向用户说明变更并获得同意。`,
+      note: '该清单为公开静态资源，不含令牌或任何用户数据。',
+    },
 
     errors: {
       400: '参数非法（缺字段、超长、危险 URL、批量超限、缺 confirm）',

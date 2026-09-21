@@ -686,6 +686,131 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
   }
 }
 
+/** 通告可被更新的字段（不含 status / pinned / user_id —— 由权限与站点规则决定） */
+const DEAL_UPDATABLE = [
+  'provider', 'title', 'url', 'call_url', 'quota', 'models',
+  'region', 'quality', 'source_tag', 'expires_at', 'note',
+] as const
+
+/** 从请求体读取某字段，兼容 snake_case 与 camelCase 两种写法 */
+function readDealField(body: any, key: string): { present: boolean; value: any } {
+  if (body?.[key] !== undefined) return { present: true, value: body[key] }
+  const camel: Record<string, string> = {
+    call_url: 'callUrl', source_tag: 'sourceTag', expires_at: 'expiresAt',
+  }
+  const alias = camel[key]
+  if (alias && body?.[alias] !== undefined) return { present: true, value: body[alias] }
+  return { present: false, value: undefined }
+}
+
+/** 安全解析库中的 models 字段（存的是 JSON 字符串） */
+function parseDealModels(raw: unknown): string[] {
+  try {
+    const parsed = JSON.parse(String(raw ?? '[]'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 更新 Token 白嫖通告 —— **部分更新（patch）语义**：只传要改的字段，未传的保持原值。
+ *
+ * 这是与 Web 端 `PUT /api/token-deals/:id`（全量替换）的关键差异：
+ * AI 通道按字段级 patch 处理，避免「只想改标题却必须回填全部字段」导致的误伤。
+ *
+ * 权限：通告作者或管理员；他人资源一律 **404**（不区分「不存在」与「无权限」，与全局隔离策略一致）。
+ * 状态：管理员编辑保持原状态；作者编辑已审核通过的通告会回到 pending 重新审核。
+ */
+export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: any) {
+  const id = String(rawId ?? '').trim()
+  if (!id) fail(400, '通告 ID 不能为空')
+
+  const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
+  if (!deal) fail(404, '通告不存在')
+
+  const isAdmin = isUserAdmin(db, userId)
+  if (deal.user_id !== userId && !isAdmin) fail(404, '通告不存在')
+
+  const fields = new Map<string, any>()
+  for (const key of DEAL_UPDATABLE) {
+    const { present, value } = readDealField(body, key)
+    if (present) fields.set(key, value)
+  }
+  if (fields.size === 0) fail(400, '没有提供任何可更新字段')
+
+  // 与新建共用同一套校验：以原值为底、用请求体覆盖后整体校验，
+  // 避免「更新路径」与「创建路径」的字段规则各自漂移。
+  const currentModels = parseDealModels(deal.models)
+  const merged: any = {
+    provider: deal.provider,
+    title: deal.title,
+    url: deal.url,
+    call_url: deal.call_url,
+    quota: deal.quota,
+    models: currentModels,
+    region: deal.region,
+    quality: deal.quality,
+    source_tag: deal.source_tag,
+    expires_at: deal.expires_at,
+    note: deal.note,
+  }
+  for (const [k, v] of fields) merged[k] = v
+
+  const result = validateDealPayload(merged)
+  if (!result.ok) fail(400, result.error)
+  const d = result.data
+
+  const status = isAdmin ? deal.status : (deal.status === 'approved' ? 'pending' : deal.status)
+
+  const compare: Array<[string, any, any]> = [
+    ['provider', d.provider, deal.provider],
+    ['title', d.title, deal.title],
+    ['url', d.url, deal.url],
+    ['call_url', d.callUrl, deal.call_url],
+    ['quota', d.quota, deal.quota],
+    ['models', d.models, currentModels],
+    ['region', d.region, deal.region],
+    ['quality', d.quality, deal.quality],
+    ['source_tag', d.sourceTag, deal.source_tag],
+    ['expires_at', d.expiresAt, deal.expires_at],
+    ['note', d.note, deal.note],
+  ]
+  const changes: Record<string, any> = {}
+  for (const [k, next, prev] of compare) {
+    if (JSON.stringify(next) !== JSON.stringify(prev)) changes[k] = { from: prev, to: next }
+  }
+  if (status !== deal.status) changes.status = { from: deal.status, to: status }
+
+  if (body?.dry_run === true) {
+    return { dry_run: true, target_id: id, changes }
+  }
+
+  db.prepare(`
+    UPDATE token_deals SET
+      provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
+      region = ?, quality = ?, source_tag = ?, expires_at = ?, note = ?,
+      status = ?, reject_reason = '', updated_at = ?
+    WHERE id = ?
+  `).run(
+    d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
+    d.region, d.quality, d.sourceTag, d.expiresAt, d.note,
+    status, Date.now(), id,
+  )
+
+  const updated = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
+  if (updated) updated.models = parseDealModels(updated.models)
+
+  return {
+    token_deal: updated,
+    status,
+    changes,
+    message: status === 'pending' && deal.status === 'approved'
+      ? '已保存，内容变更需管理员重新审核'
+      : '已保存',
+  }
+}
+
 export function deleteTokenDeal(db: DB, userId: number, rawId: unknown, body: any) {
   if (body?.confirm !== true) fail(400, '删除操作必须携带 confirm:true')
   const id = String(rawId)

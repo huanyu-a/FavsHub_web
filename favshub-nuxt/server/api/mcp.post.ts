@@ -14,8 +14,9 @@ import {
   listFolders, createFolder, updateFolder, deleteFolder,
   listPrompts, getPromptDetail, createPrompt, updatePrompt, deletePrompt,
   listTags, createTag, deleteTag,
-  listTokenDeals, createTokenDeal, deleteTokenDeal,
+  listTokenDeals, createTokenDeal, updateTokenDeal, deleteTokenDeal,
 } from '../utils/ai-service'
+import { safeErrorMessage } from '../utils/sanitize'
 
 const SERVER_NAME = 'favshub-ai-data-ops'
 const SERVER_VERSION = '1.0.0'
@@ -231,6 +232,13 @@ const TOOLS: ToolDef[] = [
     run: (db, token, args) => createTokenDeal(db, token.user_id, args || {}),
   },
   {
+    name: 'update_token_deal',
+    scope: 'write',
+    description: '更新 Token 白嫖通告（作者或管理员）。**部分更新**：只传需要修改的字段，未传字段保持原值 —— 无需回填全部字段。',
+    inputSchema: obj({ id: str('通告 ID（必填）'), provider: str('服务商名称（≤60）'), title: str('通告标题（≤120）'), url: str('领取地址（http/https）'), call_url: str('API 调用地址'), quota: str('免费额度描述'), models: strArr('支持的模型列表（整体替换）'), region: str('cn | global'), quality: str('品质分级'), source_tag: str('official | relay | community'), expires_at: num('有效期毫秒时间戳，null 为永久'), note: str('备注'), dry_run: DRY_RUN }, ['id']),
+    run: (db, token, args) => updateTokenDeal(db, token.user_id, args?.id, args || {}),
+  },
+  {
     name: 'delete_token_deal',
     scope: 'delete',
     description: '删除 Token 白嫖通告（作者或管理员）。必须携带 confirm:true。',
@@ -309,7 +317,7 @@ export default defineEventHandler(async (event) => {
     const status = Number(err?.statusCode) || 500
     auditAi(event, status)
 
-    const message = err?.data?.error || err?.message || '执行失败'
+    const message = safeErrorMessage(err, '执行失败')
     // JSON-RPC 错误码：参数类 → -32602；权限/业务类 → -32000；服务器错误 → -32603
     const code = status === 400 ? -32602 : (status >= 500 ? -32603 : -32000)
     return rpcError(code, message, { http_status: status })

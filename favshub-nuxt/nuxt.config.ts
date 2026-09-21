@@ -51,8 +51,11 @@ export default defineNuxtConfig({
   // Server-side config
   nitro: {
     externals: {
-      // better-sqlite3 is a native module, don't bundle it
-      external: ['better-sqlite3'],
+      // 原生模块（.node 二进制）必须外置：打包器无法内联，
+      // 外置后由 .output/server/node_modules 携带运行时依赖。
+      //   - better-sqlite3：数据库
+      //   - @napi-rs/canvas：服务端分享卡片渲染（server/utils/deal-card.ts）
+      external: ['better-sqlite3', '@napi-rs/canvas'],
     },
   },
 

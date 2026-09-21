@@ -22,6 +22,11 @@ RUN pnpm build
 # ─── 生产阶段 ────────────────────────────────────────────────
 FROM node:20-alpine
 
+# 中文字体：服务端分享卡片渲染（server/utils/deal-card.ts）需要 CJK 字形，
+# 否则中文会渲染成豆腐块。font-noto-cjk 含 Regular/Bold 的 Sans + Serif。
+RUN apk add --no-cache font-noto-cjk \
+    && fc-cache -f >/dev/null 2>&1 || true
+
 WORKDIR /opt/favshub
 RUN mkdir -p /opt/favshub/data
 

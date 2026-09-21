@@ -401,6 +401,50 @@ let dealA = null
   })
   check('非法 region → 400', badRegion.status === 400, 'status=' + badRegion.status)
 
+  // ── 更新（部分更新语义）─────────────────────────────────────
+  const updDry = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', {
+    title: '冒烟通告 A（改标题）', dry_run: true,
+  })
+  check('A 更新自己的通告 dry_run → 200', updDry.status === 200 && updDry.json?.dry_run === true, 'status=' + updDry.status + ' ' + JSON.stringify(updDry.json).slice(0, 160))
+  check('dry_run 返回 changes.title', updDry.json?.changes?.title?.to === '冒烟通告 A（改标题）', JSON.stringify(updDry.json?.changes))
+
+  const afterDry = await api('/api/ai/token-deals?mine=1&limit=100', tokA)
+  const stillOld = afterDry.json?.token_deals?.find(d => d.id === dealA)
+  check('dry_run 未落库（标题仍是原值）', stillOld?.title === '冒烟通告 A', 'title=' + stillOld?.title)
+
+  const upd = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', { title: '冒烟通告 A（改标题）' })
+  check('A 更新自己的通告 → 200', upd.status === 200, 'status=' + upd.status + ' ' + JSON.stringify(upd.json).slice(0, 160))
+  check('标题已变更', upd.json?.token_deal?.title === '冒烟通告 A（改标题）', 'title=' + upd.json?.token_deal?.title)
+  check('未传字段保持原值（provider）', upd.json?.token_deal?.provider === '冒烟服务商', 'provider=' + upd.json?.token_deal?.provider)
+  check('未传字段保持原值（region）', upd.json?.token_deal?.region === 'cn', 'region=' + upd.json?.token_deal?.region)
+  check('未传字段保持原值（quality）', upd.json?.token_deal?.quality === '中品', 'quality=' + upd.json?.token_deal?.quality)
+
+  const camel = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', {
+    call_url: 'https://api.smoke.example.com/v1', source_tag: 'relay',
+  })
+  check('camelCase/snake_case 别名均可写入', camel.status === 200 && camel.json?.token_deal?.call_url === 'https://api.smoke.example.com/v1' && camel.json?.token_deal?.source_tag === 'relay', JSON.stringify(camel.json?.token_deal).slice(0, 200))
+
+  const emptyUpd = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', {})
+  check('不带任何字段 → 400', emptyUpd.status === 400, 'status=' + emptyUpd.status)
+
+  const badUpd = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', { region: 'mars' })
+  check('更新为非法 region → 400', badUpd.status === 400, 'status=' + badUpd.status)
+
+  const emptyTitle = await jsonApi('/api/ai/token-deals/' + dealA, tokA, 'PUT', { title: '   ' })
+  check('更新为空标题 → 400', emptyTitle.status === 400, 'status=' + emptyTitle.status)
+
+  const crossUpd = await jsonApi('/api/ai/token-deals/' + dealA, tokB, 'PUT', { title: '越权改名' })
+  check('B 更新 A 的通告 → 404（不区分无权限与不存在）', crossUpd.status === 404, 'status=' + crossUpd.status)
+
+  const ghostUpd = await jsonApi('/api/ai/token-deals/deal_not_exist_' + RUN, adminTok, 'PUT', { title: 'x' })
+  check('更新不存在的通告 → 404', ghostUpd.status === 404, 'status=' + ghostUpd.status)
+
+  // 管理员更新待审核通告：保持原状态（不因管理员编辑而改变）
+  const adminUpd = await jsonApi('/api/ai/token-deals/' + dealA, adminTok, 'PUT', { quota: '每日 2000 次' })
+  check('管理员更新他人通告 → 200', adminUpd.status === 200, 'status=' + adminUpd.status)
+  check('管理员编辑保持原状态（pending）', adminUpd.json?.status === 'pending', 'status=' + adminUpd.json?.status)
+  check('quota 已更新', adminUpd.json?.token_deal?.quota === '每日 2000 次', 'quota=' + adminUpd.json?.token_deal?.quota)
+
   const noConfirm = await jsonApi('/api/ai/token-deals/' + dealA, adminTok, 'DELETE', {})
   check('删除通告缺 confirm → 400', noConfirm.status === 400, 'status=' + noConfirm.status)
 

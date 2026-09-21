@@ -182,6 +182,95 @@ curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
 
 ---
 
+## 7.5 更新通告（部分更新，不必删除重建）
+
+修改通告的某个字段时**不要删除重建** —— 删除不可逆，且会丢失投票与评测记录。
+`PUT` 是**部分更新**：只传要改的字段，其余字段自动保持原值。
+
+### 场景：把标题里的「邀请 3 人 45 天」删掉
+
+```bash
+# 1) 先找到通告 ID
+curl -s -H "$AUTH" "$BASE/api/ai/token-deals?q=StepFun"
+
+# 2) 预演：只传 title，看变更差异
+curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "title": "【新老均享】登录 15 天 ＋ 首次调用 15 天", "dry_run": true }' \
+  "$BASE/api/ai/token-deals/<deal_id>"
+# → { "dry_run": true, "changes": { "title": { "from": "...含邀请 45 天", "to": "..." } } }
+
+# 3) 确认后正式执行（去掉 dry_run）
+curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "title": "【新老均享】登录 15 天 ＋ 首次调用 15 天" }' \
+  "$BASE/api/ai/token-deals/<deal_id>"
+```
+
+响应里的 `changes` 会列出实际改动的字段，`token_deal` 为更新后的完整对象 ——
+用 `provider` / `url` / `region` 等字段确认其余内容未被误改。
+
+### 其它常用更新
+
+```bash
+# 改免费额度描述
+curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "quota": "登录 15 天 + 首调 15 天" }' "$BASE/api/ai/token-deals/<deal_id>"
+
+# 更新模型列表（整体替换，不是追加）
+curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "models": ["step-2", "step-1v"] }' "$BASE/api/ai/token-deals/<deal_id>"
+```
+
+### 注意事项
+
+- **只传要改的字段**。传了 `title` 就只改 `title`，不会碰其它字段。
+- `models` 是**整体替换**：要保留原有模型需一并列出。
+- 普通用户修改已通过审核的通告，状态会回到 `pending`（需管理员重新审核）；
+  管理员修改保持原状态。
+- 触发条件是「字段实际有变化」；传了与原值相同的值不会导致状态回退。
+- 权限：通告作者或管理员。他人通告返回 404（不区分「不存在」与「无权限」）。
+
+---
+
+## 7.6 生成通告分享卡片
+
+把通告渲染成 **900×1200 的竖版图片**，适合发到群聊/朋友圈。
+卡片内容与网页端「分享通告」按钮产出的**完全一致**（服务端复用同一份绘制逻辑）。
+
+```bash
+# 三种风格：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）
+curl -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
+     "$BASE/api/ai/token-deals/deal_1789870204833_tvvzzp/card.png?style=clay" \
+     -o stepfun-card.png
+```
+
+**注意：这是二进制 PNG，不是 JSON** —— 必须用 `curl -o` 落盘，
+不要接 `jq`，也不要试图解析响应体文本。
+
+核对生效风格与缓存状态：
+
+```bash
+curl -sI -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
+     "$BASE/api/ai/token-deals/<id>/card.png?style=neon" \
+  | grep -iE "content-type|content-length|x-card"
+# content-type: image/png
+# content-length: 168542
+# x-card-style: neon
+# x-card-cached: miss      ← 首次渲染；再请求一次会变 hit
+```
+
+要点：
+
+- 卡片上会自动带上**详情页二维码**，扫码直达对应通告；
+- 需要 `read` scope 即可，无需 write/delete；
+- 未审核通过的通告，仅作者与管理员能取到（他人 `403`）；
+- 渲染结果有缓存（按通告 `updated_at` 自动失效）；调试时可加 `refresh=1` 强制重绘；
+- 首次请求某风格约 100~300ms，命中缓存后 <10ms。
+
+> 想让卡片显示渠道图标？先确保该域名 favicon 已缓存（站点后台「批量下载图标」），
+> 否则卡片回退为服务商首字母占位（不影响出图）。
+
+---
+
 ## 8. MCP 通道调用
 
 ```bash
@@ -207,7 +296,54 @@ curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
 
 ---
 
-## 9. 错误排查对照
+## 9.5 检查并更新技能自身
+
+技能包带版本号。站点提供公开清单（**无需令牌**），含全部文件正文。
+
+```bash
+# 查看站点分发的技能版本与最近变更
+curl -s "$BASE/skills/favshub-data-ops.json" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s);
+      console.log("站点分发版本:", m.version, "| 站点版本:", m.site_version);
+      console.log("最近变更:"); (m.changelog[0]?.changes||[]).forEach(c=>console.log("  -", c));
+      console.log("文件:", m.files.map(f=>f.path).join(", "));});'
+
+# 或直接从 describe 拿（需令牌）
+curl -s -H "$AUTH" "$BASE/api/ai/describe" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.stringify(JSON.parse(s).skill,null,2)));'
+```
+
+### 判断是否需要更新
+
+把清单的 `version` 与本技能 `SKILL.md` frontmatter 的 `version` 比较：
+
+- 相同 → 已最新，无需动作
+- 清单更高 → 有新版本，**先展示 `changelog` 给用户，获得同意后再更新**
+
+### 执行更新（一次请求写全部文件）
+
+```bash
+curl -s "$BASE/skills/favshub-data-ops.json" -o /tmp/favshub-skill.json
+node -e '
+const fs = require("fs"), path = require("path");
+const m = JSON.parse(fs.readFileSync("/tmp/favshub-skill.json", "utf8"));
+const dir = process.argv[1];
+let n = 0;
+for (const f of m.files) {
+  if (f.path.includes("..")) throw new Error("路径非法: " + f.path);
+  fs.writeFileSync(path.join(dir, f.path), f.content);
+  n++;
+}
+console.log("已更新到 v" + m.version + "（" + n + " 个文件）");
+' "<本技能所在目录>"
+```
+
+**更新纪律**：只覆盖清单列出的文件（不删本地新增文件）→ 写入前校验路径无 `..`
+→ 更新后告知用户新版本号与主要变更。
+
+---
+
+## 10. 错误排查对照
 
 | 现象 | 原因 | 处理 |
 |---|---|---|

@@ -287,6 +287,86 @@ console.log('=== 3. 只读端点（read scope） ===')
   check('describe.errors 含 401/403/404/429', ['401', '403', '404', '429'].every(k => d.json?.errors?.[k]), JSON.stringify(Object.keys(d.json?.errors || {})))
   check('describe.recommended_workflow 非空', Array.isArray(d.json?.recommended_workflow) && d.json.recommended_workflow.length > 0)
 
+  // ── 技能版本元信息与公开清单 ──────────────────────────────
+  check('describe.skill 存在', !!d.json?.skill, JSON.stringify(d.json?.skill).slice(0, 120))
+  check('describe.skill.name = favshub-data-ops', d.json?.skill?.name === 'favshub-data-ops', d.json?.skill?.name)
+  check('describe.skill.version 为语义化版本', /^\d+\.\d+\.\d+$/.test(d.json?.skill?.version || ''), d.json?.skill?.version)
+  check('describe.skill.manifest_url 指向公开清单', d.json?.skill?.manifest_url === '/skills/favshub-data-ops.json', d.json?.skill?.manifest_url)
+  check('describe.skill.latest_changes 为数组', Array.isArray(d.json?.skill?.latest_changes), typeof d.json?.skill?.latest_changes)
+  check('describe.skill.update_hint 含版本比较说明', /version/.test(d.json?.skill?.update_hint || ''), (d.json?.skill?.update_hint || '').slice(0, 80))
+
+  // 公开清单：无需令牌即可访问（技能自更新的前提）
+  const mf = await anon.req('/skills/favshub-data-ops.json')
+  check('技能清单可匿名访问 → 200', mf.status === 200, 'status=' + mf.status)
+  check('清单 version 与 describe 一致', mf.json?.version === d.json?.skill?.version, `manifest=${mf.json?.version} describe=${d.json?.skill?.version}`)
+  check('清单含全部文件正文', Array.isArray(mf.json?.files) && mf.json.files.every(f => typeof f.content === 'string' && f.content.length > 0), 'files=' + (mf.json?.files || []).map(f => f.path).join(','))
+  check('清单 files 含 SKILL.md', (mf.json?.files || []).some(f => f.path === 'SKILL.md'), JSON.stringify((mf.json?.files || []).map(f => f.path)))
+  check('清单含 CHANGELOG 条目', Array.isArray(mf.json?.changelog) && mf.json.changelog.length > 0, 'len=' + mf.json?.changelog?.length)
+  check('清单 changelog 首项含 changes', Array.isArray(mf.json?.changelog?.[0]?.changes) && mf.json.changelog[0].changes.length > 0)
+  check('清单每个文件带 sha256', (mf.json?.files || []).every(f => /^[0-9a-f]{64}$/.test(f.sha256 || '')), JSON.stringify((mf.json?.files || []).map(f => f.sha256?.slice(0, 8))))
+  // 清单公开可分发的底线：绝不泄漏部署信息或真实令牌
+  // 注意排除文档中的占位符示例（如 `favs_ai_xxxxxxxx...`），它们本就该出现在说明里
+  const mfText = JSON.stringify(mf.json)
+  const tokHits = (mfText.match(/favs_ai_[A-Za-z0-9_-]{20,}/g) || [])
+    .filter(t => !/^(.)\1+$/.test(t.slice('favs_ai_'.length)))   // 剔除全同字符的占位符
+    .filter(t => !/x{10,}/i.test(t))
+  check('清单不含真实令牌明文', tokHits.length === 0, '命中: ' + tokHits.slice(0, 2).join(', '))
+  check('清单不含部署绝对路径', !/\/(?:www|opt|root|home|usr|var)\/[a-z]/i.test(mfText), '命中: ' + (/\/(?:www|opt|root|home|usr|var)\/[a-z][^\s"']{0,40}/i.exec(mfText) || [])[0])
+
+  // ── 分享卡片端点（二进制 PNG） ────────────────────────────
+  {
+    // 取一条公开通告；无则跳过（依赖数据，不作为失败）
+    const list = await bearer('/api/ai/token-deals?limit=1', readTok)
+    const firstId = list.json?.token_deals?.[0]?.id
+    if (firstId) {
+      const cardRes = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=clay`, {
+        headers: { authorization: 'Bearer ' + readTok },
+      })
+      check('card.png → 200', cardRes.status === 200, 'status=' + cardRes.status)
+      check('card.png content-type = image/png',
+        (cardRes.headers.get('content-type') || '').includes('image/png'),
+        cardRes.headers.get('content-type'))
+      check('card.png x-card-style = clay', cardRes.headers.get('x-card-style') === 'clay',
+        cardRes.headers.get('x-card-style'))
+      const cardBuf = Buffer.from(await cardRes.arrayBuffer())
+      check('card.png 体积 > 20KB', cardBuf.length > 20000, 'bytes=' + cardBuf.length)
+      // PNG magic number：89 50 4E 47
+      check('card.png 是合法 PNG 头',
+        cardBuf[0] === 0x89 && cardBuf[1] === 0x50 && cardBuf[2] === 0x4e && cardBuf[3] === 0x47,
+        [...cardBuf.slice(0, 4)].map(b => b.toString(16)).join(' '))
+
+      // 二次请求应命中缓存
+      const again = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=clay`, {
+        headers: { authorization: 'Bearer ' + readTok },
+      })
+      check('card.png 二次请求命中缓存', again.headers.get('x-card-cached') === 'hit',
+        again.headers.get('x-card-cached'))
+      await again.arrayBuffer()
+
+      // 非法 style 回退 magazine（不报错）
+      const badStyle = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=nope`, {
+        headers: { authorization: 'Bearer ' + readTok },
+      })
+      check('card.png 非法 style 回退 magazine', badStyle.headers.get('x-card-style') === 'magazine',
+        badStyle.headers.get('x-card-style'))
+      await badStyle.arrayBuffer()
+
+      // 匿名 → 401（卡片需鉴权，防刷）
+      const anonCard = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png`)
+      check('card.png 匿名 → 401', anonCard.status === 401, 'status=' + anonCard.status)
+      await anonCard.arrayBuffer()
+
+      // 不存在的通告 → 404
+      const missing = await fetch(BASE + '/api/ai/token-deals/__no_such_deal__/card.png', {
+        headers: { authorization: 'Bearer ' + readTok },
+      })
+      check('card.png 不存在的通告 → 404', missing.status === 404, 'status=' + missing.status)
+      await missing.arrayBuffer()
+    } else {
+      console.log('SKIP  card.png（库中无通告，跳过卡片断言）')
+    }
+  }
+
   const s = await bearer('/api/ai/stats', readTok)
   check('stats → 200', s.status === 200, 'status=' + s.status)
   check('stats.counts 含 5 个计数键', ['bookmarks', 'folders', 'prompts', 'tags', 'token_deals'].every(k => typeof s.json?.counts?.[k] === 'number'), JSON.stringify(s.json?.counts))
