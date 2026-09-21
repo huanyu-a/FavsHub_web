@@ -4,7 +4,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { existsSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -31,7 +31,8 @@ export default defineEventHandler(async (event) => {
   }
 
   return {
-    dbPath,
+    // 不回显数据库物理路径：仅给出文件名，避免泄露部署根目录结构
+    dbFile: basename(dbPath),
     dbSize,
     dbSizeFormatted: dbSize > 1024 * 1024
       ? (dbSize / 1024 / 1024).toFixed(2) + ' MB'

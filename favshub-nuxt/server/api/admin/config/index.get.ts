@@ -3,7 +3,7 @@
  */
 import { requireAdmin, parseAdminUsers } from '../../../utils/auth'
 import { getRawDb } from '../../../database'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     adminUsers,
     jwtSecret: config.jwtSecret ? '已设置（环境变量）' : '使用自动生成',
     port: config.port || 3000,
-    dbPath: dbPath.replace(/[^/\\]+$/, '***'), // 仅显示目录，隐藏文件名
+    dbPath: basename(dbPath), // 仅显示文件名，不暴露部署目录结构
     corsOrigin: config.corsOrigin || '同源',
     uptime: formatUptime(process.uptime()),
     systemData,

@@ -1,7 +1,22 @@
 /**
  * Nitro 服务端插件 — 全局 API 错误格式化
  * 确保所有 API 错误响应格式为 { error: "消息" }，与旧系统兼容
+ *
+ * ## 安全：出站脱敏（不可移除）
+ *
+ * 本插件是**所有 API 错误响应的唯一出口**。Node / SQLite / better-sqlite3
+ * 抛出的消息天然携带绝对路径（如 `ENOENT ... open '/www/.../favshub.db'`），
+ * 若原样回显，部署根路径即外泄给客户端（含 AI 通道）。
+ *
+ * 因此 **4xx 与 5xx 一律经过 `redactPaths()`**：
+ *   - 4xx 保留业务语义（前端需要它提示用户），仅抹去路径；
+ *   - 5xx 仍整体替换为通用文案，细节只进服务端日志。
+ *
+ * 注：技能文档（SKILL.md）是分发给使用者的、可被任意改写，不足以作为安全边界；
+ * 真正的约束必须在服务端代码里，即此处。
  */
+import { redactPaths } from '../utils/sanitize'
+
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('error', (error, { event }) => {
     // 仅处理 API 路由的错误
@@ -14,14 +29,14 @@ export default defineNitroPlugin((nitro) => {
     const data = (error as any).data
     let errorMsg = data?.error || error.message || '服务器内部错误'
 
-    // 生产环境安全：5xx 错误不暴露内部细节，仅记录服务端日志
-    // 设计选择：4xx 错误直接返回原始 errorMsg（可能包含 SQL 错误文本等细节），
-    // 因为 4xx 是客户端错误，前端通常需要这些信息来提示用户修正操作。
-    // 这是有意的取舍——便利性优先于信息脱敏。如需收紧，可在此处对 4xx 也做白名单过滤。
     if (statusCode >= 500) {
+      // 5xx：完整细节只进服务端日志，客户端仅得通用文案
       console.error(`[API Error] ${event.path} ${statusCode}:`, error.message)
       errorMsg = '服务器内部错误'
     }
+
+    // 出站脱敏：抹去消息中的文件系统绝对路径（4xx / 5xx 一律执行）
+    errorMsg = redactPaths(errorMsg)
 
     setResponseStatus(event, statusCode)
 
