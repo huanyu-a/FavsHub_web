@@ -258,7 +258,9 @@ export default{
     'ui.sync.upload_done': 'Merged {n} bookmarks: {stats}',
     'ui.sync.favicon_download_progress': 'Downloading bookmark icons {current}/{total}...',
     'ui.sync.favicon_uploading': 'Uploading {n} icons to the server...',
+    'ui.sync.favicon_uploading_progress': 'Uploading icons {current}/{total}...',
     'ui.sync.favicon_uploaded_suffix': ', uploaded {n} icons',
+    'ui.sync.icon_upload_partial_failed': ' ({chunks} icon batches failed: {reason})',
     'ui.sync.separator': ', ',
 
     // Settings

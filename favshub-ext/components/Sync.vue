@@ -304,13 +304,50 @@ async function handleSync() {
       }
 
       if (favicons.length > 0) {
+        // 分片上传：服务端要为每个域名远程下载一次图标，整批上传会顶到 request.ts 的 90s 超时；
+        // 分片既避开超时，单片失败也只损失该片而非全部图标。
+        // 取 15 是因为服务端单次远程下载最长 5s（AbortSignal.timeout），
+        // 即使服务端仍是旧的串行实现，15×5s=75s 也在 90s 之内。
+        const UPLOAD_CHUNK = 15;
+        let uploaded = 0;
+        let failedChunks = 0;
+        let firstError = '';
+
         faviconProgress.value = t('ui.sync.favicon_uploading', { n: favicons.length });
-        await request('/api/sync/favicons', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ favicons }),
-        });
-        syncResult.value += t('ui.sync.favicon_uploaded_suffix', { n: favicons.length });
+
+        for (let i = 0; i < favicons.length; i += UPLOAD_CHUNK) {
+          const chunk = favicons.slice(i, i + UPLOAD_CHUNK);
+          if (i > 0) {
+            faviconProgress.value = t('ui.sync.favicon_uploading_progress', {
+              current: Math.min(i, favicons.length),
+              total: favicons.length,
+            });
+          }
+          try {
+            const res = await request<{ count?: number }>('/api/sync/favicons', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ favicons: chunk }),
+            });
+            // 服务端按域名去重并跳过无效图标，以其返回的实际落盘数为准
+            uploaded += res?.count ?? chunk.length;
+          } catch (chunkError) {
+            failedChunks++;
+            if (!firstError) {
+              firstError = chunkError instanceof Error ? chunkError.message : t('ui.sync.unknown_error');
+            }
+          }
+        }
+
+        if (uploaded > 0) {
+          syncResult.value += t('ui.sync.favicon_uploaded_suffix', { n: uploaded });
+        }
+        if (failedChunks > 0) {
+          syncResult.value += t('ui.sync.icon_upload_partial_failed', {
+            chunks: failedChunks,
+            reason: firstError,
+          });
+        }
       }
     } catch (iconError) {
       syncResult.value += t('ui.sync.icon_upload_failed', { reason: iconError instanceof Error ? iconError.message : t('ui.sync.unknown_error') });

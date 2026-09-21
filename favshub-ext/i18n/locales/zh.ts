@@ -262,7 +262,9 @@ export default {
     "ui.sync.upload_done": "已合并 {n} 条书签：{stats}",
     "ui.sync.favicon_download_progress": "正在下载书签图标 {current}/{total}...",
     "ui.sync.favicon_uploading": "正在上传 {n} 个图标到服务器...",
+    "ui.sync.favicon_uploading_progress": "正在上传图标 {current}/{total}...",
     "ui.sync.favicon_uploaded_suffix": "，已上传 {n} 个图标",
+    "ui.sync.icon_upload_partial_failed": "（{chunks} 批图标上传失败：{reason}）",
     "ui.sync.separator": "、",
 
     // 设置
