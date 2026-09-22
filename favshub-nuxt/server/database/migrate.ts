@@ -270,6 +270,45 @@ export function createTables(db: Database.Database) {
   createTokenDealEditTable(db)
   createGuestReviewTable(db)
   createReviewMarkTable(db)
+  createGuestVoteTable(db)
+}
+
+/**
+ * 游客投票表 `token_deal_guest_votes` —— 「还能用 / 已失效」的未登录版本。
+ *
+ * 背景：同一「社区健康度」区块里，游客评测与打标都已开放给未登录访客，
+ * 唯独投票仍 `requireAuth` → 同一区块三套规则，用户必然困惑。
+ * 本表补齐一致性：**任何人可投票，无需登录**。
+ *
+ * 设计要点：
+ *   1. **独立建表、只增不改** —— 不动既有 `token_deal_votes`（`user_id NOT NULL`
+ *      + FK→users，结构上无法容纳游客，且已有真实数据）。登录用户仍写原表，
+ *      游客写本表，`syncDealCounters` 聚合两表。
+ *   2. **无外键** —— 与打标表同规：游客身份没有 users 行。代价是删通告时
+ *      必须显式清理（`deleteGuestVotesForDeal`，两条删除路径都要加）。
+ *   3. **身份维度 `fingerprint`** —— 与游客评测/打标同一套身份体系
+ *      （`digest(fp:v<visitor>|<ua>)`），「一人一票」语义不变。
+ *   4. **`ip_hash` 防刷** —— 投票结果是**直接展示在卡片上的显眼数字**，
+ *      比打标计数更值得刷；只靠 cookie 判重会被「清 cookie 重刷」绕过。
+ *      故限制同一 IP 对同一通告最多计入 3 票（容忍同一出口网络几个人）。
+ */
+function createGuestVoteTable(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_guest_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        ip_hash TEXT NOT NULL DEFAULT '',
+        vote TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        UNIQUE(deal_id, fingerprint)
+      );
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_guest_votes 表失败:', err.message)
+  }
 }
 
 /**
@@ -761,6 +800,7 @@ export function createIndexes(db: Database.Database) {
   createTokenDealEditIndexes(db)
   createGuestReviewIndexes(db)
   createReviewMarkIndexes(db)
+  createGuestVoteIndexes(db)
 
   // has_sync 索引单独创建并容错。
   // 历史背景：该列曾用 ALTER TABLE ADD COLUMN ... STORED 创建而永久失败；
@@ -842,6 +882,30 @@ function createReviewMarkIndexes(db: Database.Database) {
       db.exec(sql)
     } catch (err: any) {
       console.warn('[DB] token_deal_review_marks 索引创建失败:', err.message)
+    }
+  }
+}
+
+/**
+ * `token_deal_guest_votes` 的索引 —— 每条独立容错。
+ *
+ * 索引按实际查询形态设计：
+ *   - `idx_tdgv_deal` 计数聚合与删通告整体清理（`WHERE deal_id = ?`）—— 主查询路径
+ *   - `idx_tdgv_fp`   详情弹窗取「我投过没」（`WHERE deal_id = ? AND fingerprint = ?`；
+ *                     该组合已被 UNIQUE 的 autoindex 覆盖，此索引供按身份清理类扩展）
+ *   - `idx_tdgv_ip`   同 IP 上限判定（`WHERE deal_id = ? AND ip_hash = ?`）
+ */
+function createGuestVoteIndexes(db: Database.Database) {
+  const indexes = [
+    "CREATE INDEX IF NOT EXISTS idx_tdgv_deal ON token_deal_guest_votes(deal_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tdgv_fp ON token_deal_guest_votes(fingerprint)",
+    "CREATE INDEX IF NOT EXISTS idx_tdgv_ip ON token_deal_guest_votes(deal_id, ip_hash)",
+  ]
+  for (const sql of indexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] token_deal_guest_votes 索引创建失败:', err.message)
     }
   }
 }

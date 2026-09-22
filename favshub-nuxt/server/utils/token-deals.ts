@@ -165,6 +165,17 @@ export function syncDealCounters(db: Database.Database, dealId: string): void {
     FROM token_deal_votes WHERE deal_id = ?
   `).get(dealId) as { up: number | null; down: number | null }
 
+  // 游客投票：与登录投票合并计数（游客表缺失即未迁移时按 0 处理，不阻断主流程）
+  let guestVotes = { up: 0, down: 0 }
+  try {
+    guestVotes = db.prepare(`
+      SELECT
+        SUM(CASE WHEN vote = 'up' THEN 1 ELSE 0 END) AS up,
+        SUM(CASE WHEN vote = 'down' THEN 1 ELSE 0 END) AS down
+      FROM token_deal_guest_votes WHERE deal_id = ?
+    `).get(dealId) as { up: number | null; down: number | null }
+  } catch { /* 表未迁移时忽略 */ }
+
   const reviews = db.prepare(`
     SELECT COUNT(*) AS count, COALESCE(SUM(rating), 0) AS sum
     FROM token_deal_reviews WHERE deal_id = ?
@@ -185,8 +196,8 @@ export function syncDealCounters(db: Database.Database, dealId: string): void {
     SET vote_up = ?, vote_down = ?, rating_sum = ?, rating_count = ?
     WHERE id = ?
   `).run(
-    votes.up || 0,
-    votes.down || 0,
+    (votes.up || 0) + (guestVotes.up || 0),
+    (votes.down || 0) + (guestVotes.down || 0),
     (reviews.sum || 0) + (guest.sum || 0),
     (reviews.count || 0) + (guest.count || 0),
     dealId,
