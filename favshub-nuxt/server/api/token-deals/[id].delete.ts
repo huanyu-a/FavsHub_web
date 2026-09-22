@@ -1,6 +1,7 @@
 /**
  * DELETE /api/token-deals/:id — 删除通告
- * 作者或管理员可删除。级联清理该通告的投票与评测。
+ * 作者或管理员可删除。显式清理该通告的投票、评测与修改建议
+ * （不依赖 FK 级联：CLI 与部分连接默认 foreign_keys=OFF，级联会静默失效）。
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     db.transaction(() => {
       db.prepare('DELETE FROM token_deal_votes WHERE deal_id = ?').run(id)
       db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(id)
+      db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(id)
       db.prepare('DELETE FROM token_deals WHERE id = ?').run(id)
     })()
   } catch (err: any) {

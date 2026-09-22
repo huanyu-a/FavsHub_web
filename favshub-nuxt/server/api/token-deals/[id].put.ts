@@ -1,7 +1,15 @@
 /**
  * PUT /api/token-deals/:id — 编辑通告
- * 作者或管理员可编辑。作者修改已通过审核的通告后需重新审核（状态回到 pending），
- * 管理员编辑保持原状态。
+ *
+ * 权限：通告作者或管理员。
+ *
+ * 状态流转（站点规则：通告内容允许所有人修改，但需经作者或管理员审核）：
+ *   - 作者是本人通告的审核人之一 → 直接编辑**即刻生效**，不再退回待审；
+ *   - 例外：通告处于 `rejected` 时，作者修正后回到 `pending` 交管理员过目 ——
+ *     否则「驳回」这一动作对作者没有任何约束力；
+ *   - 管理员编辑保持原状态。
+ *
+ * 他人对通告的修改走**提案**通道（`POST /api/token-deals/:id/edits`），不经过本端点。
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
@@ -23,7 +31,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (deal.user_id !== user.id && !isAdmin) {
-    throw createError({ statusCode: 403, data: { error: '无权编辑此通告' } })
+    throw createError({
+      statusCode: 403,
+      data: { error: '只能编辑自己的通告；修改他人通告请提交修改建议' },
+    })
   }
 
   const result = validateDealPayload(body)
@@ -34,7 +45,7 @@ export default defineEventHandler(async (event) => {
 
   const status = isAdmin
     ? deal.status
-    : (deal.status === 'approved' ? 'pending' : deal.status)
+    : (deal.status === 'rejected' ? 'pending' : deal.status)
 
   try {
     db.prepare(`
@@ -56,8 +67,8 @@ export default defineEventHandler(async (event) => {
   return {
     success: true,
     status,
-    message: status === 'pending' && deal.status === 'approved'
-      ? '已保存，内容变更需管理员重新审核'
+    message: status === 'pending' && deal.status === 'rejected'
+      ? '已保存，等待管理员重新审核'
       : '已保存',
   }
 })
