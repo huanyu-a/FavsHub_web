@@ -8,6 +8,8 @@
  *   4. 头像代理：/avatar/<令牌>.jpg 能取到图，且令牌不可伪造
  *   5. 待审不外泄：pending 评测不出现在公开列表
  *   6. 审核通过后计入评分
+ *   7. 评测打标（社区健康度第三维）：游客可打、切换取消、计数累加、
+ *      列表回传 mark_count/my_marked、未过审不可打标、边界 404/400
  */
 const BASE = process.env.SMOKE_BASE || 'http://127.0.0.1:3000'
 
@@ -193,6 +195,12 @@ async function main() {
   const mergedContents = JSON.stringify(merged.data)
   ok(!mergedContents.includes('__smoke 覆盖后的评测内容'), '★ 合并列表不含待审游客评测')
 
+  // ★ 未过审的评测不可打标 —— 否则计数侧信道可探测「某人提交过评测」
+  const markPending = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: `g_${reviewId}` }, jar: jarGuest, expect: 404,
+  })
+  ok(markPending.status === 404, '★ 未过审的游客评测不可打标（404）')
+
   // ── 6. 头像代理 ──
   console.log('\n══ 6. 头像代理 ══')
   const avatarPath = sub.data.review.avatar
@@ -270,6 +278,69 @@ async function main() {
     // 撤回：已通过不可撤回
     const wd = await req('DELETE', `/api/token-deals/${dealId}/guest-reviews/${reviewId}`, { headers: auth, expect: 409 })
     ok(wd.status === 409, '已通过的评测不可撤回（409）')
+
+    // ── 7.5 评测打标（社区健康度第三维）──
+    console.log('\n══ 7.5 评测打标 ══')
+    const reviewKey = `g_${reviewId}`
+
+    // 未登录访客也能打标
+    const jarMarkA = makeJar()
+    const mk1 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+    })
+    ok(mk1.data?.success === true, '★ 游客可打标（无需登录）')
+    eq(mk1.data?.marked, true, '首次打标 → marked=true')
+    eq(mk1.data?.mark_count, 1, '计数为 1')
+
+    // 同一访客再点 → 取消
+    const mk2 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+    })
+    eq(mk2.data?.marked, false, '★ 再点一次 → 取消')
+    eq(mk2.data?.mark_count, 0, '取消后计数归零')
+
+    // 重新标上，供后续列表断言
+    await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+    })
+
+    // 第二个访客（不同 jar）累加
+    const jarMarkB = makeJar()
+    const mk3 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: { review_id: reviewKey }, jar: jarMarkB, expect: 200,
+    })
+    eq(mk3.data?.mark_count, 2, '★ 第二个访客累加为 2')
+
+    // 列表附带计数与「我标过没」
+    const listA = await req('GET', `/api/token-deals/${dealId}/reviews?limit=50`, { jar: jarMarkA, expect: 200 })
+    const itemA = (listA.data?.reviews || []).find(r => String(r.id) === reviewKey)
+    ok(!!itemA, '评测在列表中')
+    eq(itemA?.mark_count, 2, '★ 列表返回 mark_count=2')
+    eq(itemA?.my_marked, true, '★ 列表返回 my_marked=true（jarA 标过）')
+
+    const listB = await req('GET', `/api/token-deals/${dealId}/reviews?limit=50`, { jar: makeJar(), expect: 200 })
+    const itemB = (listB.data?.reviews || []).find(r => String(r.id) === reviewKey)
+    eq(itemB?.my_marked, false, '★ 未标过的访客 → my_marked=false')
+    eq(itemB?.mark_count, 2, '未标过的访客也看到总数 2')
+
+    // 边界：不存在的评测 / 错误通告 / 缺参数
+    const badReview = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: { review_id: 'g__no_such_review__' }, jar: makeJar(), expect: 404,
+    })
+    ok(badReview.status === 404, '打标不存在的评测 → 404')
+
+    const badDeal = await req('POST', '/api/token-deals/__no_such_deal__/review-marks', {
+      body: { review_id: reviewKey }, jar: makeJar(), expect: 404,
+    })
+    ok(badDeal.status === 404, '通告不存在 → 404')
+
+    const noParam = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+      body: {}, jar: makeJar(), expect: 400,
+    })
+    ok(noParam.status === 400, '缺少 review_id → 400')
+
+    // 打标响应不得泄露 QQ 号
+    ok(!JSON.stringify(mk1.data).includes(QQ_TEST2), '★ 打标响应不含明文 QQ 号')
   }
 
   // ── 8. 页面 HTML 隐私检查 ──
