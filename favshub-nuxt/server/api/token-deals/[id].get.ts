@@ -3,10 +3,12 @@
  * 附带当前用户的投票与评测状态；未审核通过的通告仅作者与管理员可见。
  * 附带 Nexus 接入信息（分享卡片需要展示实测可用率与耗时）；Nexus 表缺失时降级为 null，不阻断详情。
  * 附带修改建议摘要（`edits`）：自己那条待审提案、待审总数、自己是否可审核。
+ * 附带游客评测摘要（`guest_review`）：当前访客自己那条待审评测（按 IP+UA 指纹识别）。
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import { dealEditSummary } from '../../utils/deal-edits'
+import { guestReviewSummary } from '../../utils/guest-reviews'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -104,6 +106,14 @@ export default defineEventHandler(async (event) => {
     console.warn('[token-deals] 读取修改建议摘要失败:', err?.message)
   }
 
+  // 游客评测摘要：当前访客自己那条待审评测（按 IP+UA 指纹识别，未登录也能回显）
+  let guestReview: ReturnType<typeof guestReviewSummary> | null = null
+  try {
+    guestReview = guestReviewSummary(db, event, id)
+  } catch (err: any) {
+    console.warn('[token-deals] 读取游客评测摘要失败:', err?.message)
+  }
+
   return {
     deal: {
       ...row,
@@ -115,6 +125,7 @@ export default defineEventHandler(async (event) => {
       nexus: loadNexusInfo(db, id),
     },
     edits,
+    guest_review: guestReview,
     my_vote: myVote,
     my_review: myReview,
   }

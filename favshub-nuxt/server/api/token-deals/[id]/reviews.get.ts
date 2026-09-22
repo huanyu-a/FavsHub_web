@@ -1,9 +1,23 @@
 /**
- * GET /api/token-deals/:id/reviews — 评测列表
+ * GET /api/token-deals/:id/reviews — 评测列表（登录用户评测 + 已通过游客评测）
+ *
  * Query: page, limit
  * 公开可读，附带 1-5 星分布便于前端渲染评分条。
+ *
+ * ## 两条数据源的合并
+ *
+ * 登录用户的评测在 `token_deal_reviews`（一人一评，直接生效）；
+ * 游客评测在 `token_deal_guest_reviews`（默认待审，**仅 approved 展示**）。
+ * 两者在读取层合并为统一结构（`source` 字段区分），前端无需关心来源差异。
+ *
+ * ## 头像
+ *
+ * 两类评测都只返回 `avatar` URL（形如 `/avatar/<加密令牌>.jpg`），
+ * **绝不返回 QQ 号本身** —— QQ 号在服务端加密存储，代理端点解密后回源取图。
+ * 未填 QQ 号时 `avatar` 为 null，前端回退为昵称首字母色块。
  */
 import { getRawDb } from '../../../database'
+import { avatarUrl } from '../../../utils/avatar'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -19,26 +33,59 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 
-  const total = (db.prepare('SELECT COUNT(*) AS total FROM token_deal_reviews WHERE deal_id = ?')
-    .get(id) as { total: number }).total
-
-  const reviews = db.prepare(`
+  // ── 登录用户评测 ──
+  const userReviews = db.prepare(`
     SELECT r.id, r.rating, r.content, r.created_at, r.updated_at,
-           COALESCE(NULLIF(u.nickname, ''), u.username, '匿名') AS author
+           COALESCE(NULLIF(u.nickname, ''), u.username, '匿名') AS author,
+           u.qq_cipher
     FROM token_deal_reviews r
     LEFT JOIN users u ON r.user_id = u.id
     WHERE r.deal_id = ?
     ORDER BY r.updated_at DESC, r.id DESC
-    LIMIT ? OFFSET ?
-  `).all(id, limit, offset)
+  `).all(id) as any[]
 
-  const rows = db.prepare(
-    'SELECT rating, COUNT(*) AS count FROM token_deal_reviews WHERE deal_id = ? GROUP BY rating'
-  ).all(id) as { rating: number; count: number }[]
+  // ── 游客评测（仅已通过）──
+  let guestRows: any[] = []
+  try {
+    guestRows = db.prepare(`
+      SELECT id, nickname, qq_cipher, rating, content, created_at, updated_at
+      FROM token_deal_guest_reviews
+      WHERE deal_id = ? AND status = 'approved'
+      ORDER BY updated_at DESC, id DESC
+    `).all(id) as any[]
+  } catch { /* 表未迁移时按空处理，不影响登录用户评测展示 */ }
 
+  // 合并 + 按更新时间倒序（统一为同一结构，前端不必分支）
+  const merged = [
+    ...userReviews.map(r => ({
+      id: `u_${r.id}`,
+      rating: r.rating,
+      content: r.content,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      author: r.author,
+      avatar: avatarUrl(r.qq_cipher),
+      source: 'user' as const,
+    })),
+    ...guestRows.map(r => ({
+      id: `g_${r.id}`,
+      rating: r.rating,
+      content: r.content,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      author: r.nickname || '匿名',
+      avatar: avatarUrl(r.qq_cipher),
+      source: 'guest' as const,
+    })),
+  ].sort((a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0))
+
+  const total = merged.length
+  const reviews = merged.slice(offset, offset + limit)
+
+  // ── 星级分布（两类合并）──
   const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-  for (const row of rows) {
-    if (row.rating >= 1 && row.rating <= 5) distribution[row.rating] = row.count
+  for (const r of merged) {
+    if (r.rating >= 1 && r.rating <= 5) distribution[r.rating]++
   }
 
   return {

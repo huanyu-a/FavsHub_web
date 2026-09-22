@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
       db.prepare('DELETE FROM token_deal_votes WHERE deal_id = ?').run(id)
       db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(id)
       db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(id)
+      db.prepare('DELETE FROM token_deal_guest_reviews WHERE deal_id = ?').run(id)
       db.prepare('DELETE FROM token_deals WHERE id = ?').run(id)
     })()
   } catch (err: any) {
