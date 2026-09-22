@@ -5,6 +5,7 @@
  * 但 bookmarks/prompts/folders 等表在存量库中可能无 CASCADE，故仍显式删除。
  */
 import type Database from 'better-sqlite3'
+import { deleteMarksForUser } from './review-marks'
 
 export function deleteUserData(db: Database.Database, userId: number) {
   const tx = db.transaction(() => {
@@ -33,6 +34,11 @@ export function deleteUserData(db: Database.Database, userId: number) {
 
     // 设置
     db.prepare('DELETE FROM settings WHERE user_id = ?').run(userId)
+
+    // 评测打标 —— 必须在删 users 之前：其 review_id 跨两张表故无外键，
+    // 而 `token_deal_reviews` 会随 `token_deals`（FK→users CASCADE）被级联删除，
+    // 一旦级联先发生就查不到该用户的评测 id，打标行会永久残留。
+    deleteMarksForUser(db, userId)
 
     // 用户本体
     db.prepare('DELETE FROM users WHERE id = ?').run(userId)

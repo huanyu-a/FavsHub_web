@@ -269,6 +269,47 @@ export function createTables(db: Database.Database) {
 
   createTokenDealEditTable(db)
   createGuestReviewTable(db)
+  createReviewMarkTable(db)
+}
+
+/**
+ * 评测打标表 `token_deal_review_marks` —— 「这条评测有用」。
+ *
+ * 归属「社区健康度」板块的**第三维**：投票（还能用/已失效）与评分（1-5 星）衡量的是
+ * 「通告本身怎么样」，打标衡量的是「别人的评测值不值得看」，三者互补。
+ *
+ * 设计要点：
+ *   1. **独立建表** —— 与 `token_deal_edits` / `token_deal_guest_reviews` 同规，
+ *      不并入 `createTables()` 的多语句 exec 块（块内任一语句失败会静默中断其后全部建表）。
+ *   2. `review_id` **跨两张表**（登录评测 `u_<n>` / 游客评测 `g_<id>`），
+ *      故**不设外键** —— 一张表无法 FK 到两个父表。代价是级联清理必须显式做：
+ *      删通告、删用户、撤回/驳回/删除评测时都要同步清打标行（见各调用点）。
+ *   3. **身份维度用 `fingerprint` 而非 user_id** —— 与游客评测同一套身份体系
+ *      （登录用户 = `digest(fp:u<id>)`，游客 = `digest(fp:v<visitor>|<ua>)`），
+ *      这样「游客也能打标」不需要新增身份概念；`user_id` 仅作追溯留痕，可为空。
+ *   4. **即时生效、不审核** —— 打标只是点选动作（无自由文本），无内容风险；
+ *      若走 pending 会让计数长期偏低，社区共识感消失。
+ *   5. `ip_hash` 单独存一份（摘要，非明文）—— 打标无审核兜底，若只靠 cookie 判重，
+ *      清掉 cookie 即可重复计数，「有用」数会失去可信度。故额外限制
+ *      **同一 IP 对同一条评测最多计入 3 个**（容忍同一网络下的几个人）。
+ */
+function createReviewMarkTable(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_review_marks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id TEXT NOT NULL,
+        review_id TEXT NOT NULL,
+        user_id INTEGER,
+        fingerprint TEXT NOT NULL,
+        ip_hash TEXT NOT NULL DEFAULT '',
+        created_at INTEGER,
+        UNIQUE(review_id, fingerprint)
+      );
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_review_marks 表失败:', err.message)
+  }
 }
 
 /**
@@ -719,6 +760,7 @@ export function createIndexes(db: Database.Database) {
 
   createTokenDealEditIndexes(db)
   createGuestReviewIndexes(db)
+  createReviewMarkIndexes(db)
 
   // has_sync 索引单独创建并容错。
   // 历史背景：该列曾用 ALTER TABLE ADD COLUMN ... STORED 创建而永久失败；
@@ -775,6 +817,31 @@ function createGuestReviewIndexes(db: Database.Database) {
       db.exec(sql)
     } catch (err: any) {
       console.warn('[DB] token_deal_guest_reviews 索引创建失败:', err.message)
+    }
+  }
+}
+
+/**
+ * `token_deal_review_marks` 的索引 —— 每条独立容错。
+ *
+ * 索引按实际查询形态设计：
+ *   - `idx_tdrm_review` 评测列表一次性取本页所有评测的计数与「我标过没」
+ *                       （`WHERE review_id IN (...) GROUP BY review_id`）—— 主查询路径
+ *   - `idx_tdrm_deal`   删通告、按通告整体清理打标行
+ *   - `idx_tdrm_fp`     按身份清理（保留给「同人限频」类扩展；当前仅占用极小成本）
+ */
+function createReviewMarkIndexes(db: Database.Database) {
+  const indexes = [
+    "CREATE INDEX IF NOT EXISTS idx_tdrm_review ON token_deal_review_marks(review_id, fingerprint)",
+    "CREATE INDEX IF NOT EXISTS idx_tdrm_deal ON token_deal_review_marks(deal_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tdrm_fp ON token_deal_review_marks(fingerprint)",
+    "CREATE INDEX IF NOT EXISTS idx_tdrm_ip ON token_deal_review_marks(review_id, ip_hash)",
+  ]
+  for (const sql of indexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] token_deal_review_marks 索引创建失败:', err.message)
     }
   }
 }

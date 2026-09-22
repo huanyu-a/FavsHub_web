@@ -227,7 +227,7 @@ function loadDeal(db: DB, dealId: string) {
  *
  * 登录用户直接以 `user_id` 作为身份（更稳定，且可跨设备）。
  */
-function guestIdentity(event: any, viewerId: number | null): { ipHash: string; fingerprint: string } {
+export function guestIdentity(event: any, viewerId: number | null): { ipHash: string; fingerprint: string } {
   const ip = getClientIP(event)
   const ua = String(getHeader(event, 'user-agent') || '').slice(0, 300)
 
@@ -561,6 +561,14 @@ export function reviewGuestReview(
       WHERE id = ?
     `).run(action === 'approve' ? 'approved' : 'rejected', viewer.id, action === 'reject' ? reason : '', now, reviewId)
 
+    // 驳回后该评测不再公开 → 其上的打标必须一并清掉。
+    // 否则「先通过攒标、再驳回」会让计数残留在不可见的评测上；
+    // 更实际的风险是同一 id 若被复用（撤回后重提会生成新 id，但驳回后旧行仍在），
+    // 残留计数会被误读为有效社区反馈。
+    if (action === 'reject') {
+      db.prepare('DELETE FROM token_deal_review_marks WHERE review_id = ?').run(`g_${reviewId}`)
+    }
+
     // 计数随状态变化重算（仅 approved 计入）
     syncDealCounters(db, row.deal_id)
   })()
@@ -597,7 +605,11 @@ export function withdrawGuestReview(
     return { ok: false, status: 404, error: '评测不存在' }
   }
 
-  db.prepare('DELETE FROM token_deal_guest_reviews WHERE id = ?').run(reviewId)
+  db.transaction(() => {
+    // 撤回的评测已不可见 → 其上的打标同步清理，避免计数停留在不存在的评测上
+    db.prepare('DELETE FROM token_deal_review_marks WHERE review_id = ?').run(`g_${reviewId}`)
+    db.prepare('DELETE FROM token_deal_guest_reviews WHERE id = ?').run(reviewId)
+  })()
   return { ok: true, data: { id: reviewId } }
 }
 
@@ -615,7 +627,7 @@ export function guestReviewSummary(db: DB, event: any, dealId: string) {
 // ─── 局部依赖 ───────────────────────────────────────────────────
 
 /** 容错的 optionalAuth —— 事件对象异常时视为未登录，不阻断游客流程 */
-function optionalAuthLoose(event: any): { id: number } | null {
+export function optionalAuthLoose(event: any): { id: number } | null {
   try {
     const u = optionalAuth(event)
     return u ? { id: u.id } : null
