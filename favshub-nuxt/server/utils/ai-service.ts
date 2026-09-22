@@ -826,6 +826,8 @@ export function deleteTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(id)
     db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(id)
     db.prepare('DELETE FROM token_deal_guest_reviews WHERE deal_id = ?').run(id)
+    // 评测打标：review_id 跨两张表故无 FK，必须显式清理，否则留下孤儿打标行
+    db.prepare('DELETE FROM token_deal_review_marks WHERE deal_id = ?').run(id)
     db.prepare('DELETE FROM token_deals WHERE id = ?').run(id)
   })()
 

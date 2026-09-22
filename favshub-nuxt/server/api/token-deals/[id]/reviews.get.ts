@@ -15,9 +15,15 @@
  * 两类评测都只返回 `avatar` URL（形如 `/avatar/<加密令牌>.jpg`），
  * **绝不返回 QQ 号本身** —— QQ 号在服务端加密存储，代理端点解密后回源取图。
  * 未填 QQ 号时 `avatar` 为 null，前端回退为昵称首字母色块。
+ *
+ * ## 打标（社区健康度第三维）
+ *
+ * 每条评测附带 `mark_count`（被多少人标「有用」）与 `my_marked`（当前访客标过没）。
+ * 计数**按页批量取**（一条 `IN (...)` 查询）而非逐条查，避免 N+1。
  */
 import { getRawDb } from '../../../database'
 import { avatarUrl } from '../../../utils/avatar'
+import { currentFingerprint, reviewMarkStats } from '../../../utils/review-marks'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -81,6 +87,18 @@ export default defineEventHandler(async (event) => {
 
   const total = merged.length
   const reviews = merged.slice(offset, offset + limit)
+
+  // ── 打标计数（本页批量取，避免 N+1）──
+  // 身份摘要一次解析，既用于计数也用于「我标过没」；表未迁移时降级为空统计
+  const { counts, mine } = reviewMarkStats(
+    db,
+    reviews.map(r => r.id),
+    currentFingerprint(event),
+  )
+  for (const r of reviews) {
+    r.mark_count = counts[r.id] || 0
+    r.my_marked = mine.has(r.id)
+  }
 
   // ── 星级分布（两类合并）──
   const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
