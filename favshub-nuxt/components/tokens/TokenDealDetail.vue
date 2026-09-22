@@ -459,6 +459,21 @@
                   <span class="review-time">{{ formatTime(r.updated_at || r.created_at) }}</span>
                 </div>
                 <p class="review-content">{{ r.content }}</p>
+                <div class="review-foot">
+                  <button
+                    type="button"
+                    class="mark-btn"
+                    :class="{ active: r.my_marked }"
+                    :disabled="markingIds.has(String(r.id))"
+                    :title="r.my_marked ? '取消「有用」标记' : '标记这条评测有用'"
+                    @click="toggleMark(r)"
+                  >
+                    <i :class="r.my_marked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'"></i>
+                    <span class="mark-text">有用</span>
+                    <span v-if="r.mark_count" class="mark-count">{{ r.mark_count }}</span>
+                  </button>
+                  <span v-if="!r.mark_count" class="mark-hint">还没人标过</span>
+                </div>
               </li>
             </ul>
             <button
@@ -647,6 +662,10 @@ interface IReview {
   avatar?: string | null
   /** user = 登录用户评测；guest = 游客评测（已通过审核） */
   source?: 'user' | 'guest'
+  /** 被多少人标了「有用」（社区健康度第三维） */
+  mark_count?: number
+  /** 当前访客是否已标过 —— 决定按钮高亮态 */
+  my_marked?: boolean
 }
 
 /** 当前访客自己的待审游客评测（按 IP+UA 指纹识别，未登录也能回显） */
@@ -733,6 +752,8 @@ function initialOf(name: string) {
 }
 
 const reviews = ref<IReview[]>([])
+/** 正在提交打标的评测 id 集合 —— 防连点重复请求，并给按钮禁用态 */
+const markingIds = ref<Set<string>>(new Set())
 const distribution = ref<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 })
 const reviewPage = ref(1)
 const reviewsLoading = ref(false)
@@ -1067,6 +1088,48 @@ async function loadReviews(reset = false) {
 function loadMoreReviews() {
   reviewPage.value += 1
   loadReviews(false)
+}
+
+/**
+ * 给评测打「有用」标 —— 无需登录，点一次标上、再点一次取消。
+ *
+ * 服务端返回权威计数后就地更新该条，**不重拉整个列表**（避免分页位置丢失）。
+ * 失败时回滚乐观更新，保持界面与服务端一致。
+ */
+async function toggleMark(review: IReview) {
+  const key = String(review.id)
+  if (markingIds.value.has(key)) return
+  markingIds.value.add(key)
+
+  const prevMarked = !!review.my_marked
+  const prevCount = review.mark_count || 0
+
+  // 乐观更新：先给出即时反馈，失败再回滚
+  review.my_marked = !prevMarked
+  review.mark_count = Math.max(0, prevCount + (prevMarked ? -1 : 1))
+
+  try {
+    const data = await $fetch<{ marked: boolean; mark_count: number }>(
+      `/api/token-deals/${props.dealId}/review-marks`,
+      {
+        method: 'POST',
+        body: { review_id: key },
+        credentials: 'include',
+      },
+    )
+    // 以服务端结果为准（同 IP 超限时服务端会返回 marked:false 且计数不变）
+    review.my_marked = data.marked
+    review.mark_count = data.mark_count
+    if (!data.marked && !prevMarked && data.mark_count === prevCount) {
+      toast('该网络下标记数已达上限', 'err')
+    }
+  } catch (err: any) {
+    review.my_marked = prevMarked
+    review.mark_count = prevCount
+    toast(err?.data?.error || err?.message || '操作失败，请稍后再试', 'err')
+  } finally {
+    markingIds.value.delete(key)
+  }
 }
 
 async function vote(direction: 'up' | 'down') {
@@ -1751,6 +1814,42 @@ onUnmounted(() => {
   color: var(--text-secondary);
   white-space: pre-wrap;
 }
+
+/* ── 评测打标（社区健康度第三维）── */
+.review-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.mark-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 0.5px solid var(--border);
+  background: transparent;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.mark-btn i { font-size: 12.5px; }
+.mark-btn:hover:not(:disabled) {
+  border-color: var(--text-tertiary);
+  color: var(--text-secondary);
+}
+/* 已标：高亮为成功色，与「还能用」投票同一语义色系 */
+.mark-btn.active {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.08);
+}
+.mark-btn.active .mark-text { font-weight: 600; }
+.mark-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.mark-count { font-weight: 600; }
+.mark-hint { font-size: 11px; color: var(--text-tertiary); opacity: 0.75; }
 .tdd-empty {
   margin: 0;
   padding: 16px;
