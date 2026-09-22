@@ -266,6 +266,43 @@ export function createTables(db: Database.Database) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `)
+
+  createTokenDealEditTable(db)
+}
+
+/**
+ * 通告修改提案表 `token_deal_edits`。
+ *
+ * 任何登录用户都可对任意通告提交**字段级**修改建议（`payload` 只存被改字段），
+ * 由「通告作者」或「管理员」审核；管理员可审核所有用户的提案。
+ *
+ * 独立于上方集中 exec 块创建 —— 多语句 `db.exec()` 一旦某句失败，其后语句静默不执行，
+ * 新增表属高风险语句，必须单独 try/catch，避免被无关语句的失败连带拖没。
+ *
+ * 不设 `UNIQUE(deal_id, user_id)`：同一人的历史提案（已通过/已驳回）需要留痕，
+ * 「同一人对同一通告只保留一条 pending」由应用层提交时 UPDATE 覆盖来保证。
+ */
+function createTokenDealEditTable(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_edits (
+        id TEXT PRIMARY KEY,
+        deal_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        payload TEXT NOT NULL DEFAULT '{}',
+        comment TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        reviewer_id INTEGER,
+        reject_reason TEXT DEFAULT '',
+        created_at INTEGER,
+        updated_at INTEGER,
+        FOREIGN KEY (deal_id) REFERENCES token_deals(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_edits 表失败:', err.message)
+  }
 }
 
 /**
@@ -633,6 +670,8 @@ export function createIndexes(db: Database.Database) {
     console.error('[DB] 创建性能索引失败:', err.message)
   }
 
+  createTokenDealEditIndexes(db)
+
   // has_sync 索引单独创建并容错。
   // 历史背景：该列曾用 ALTER TABLE ADD COLUMN ... STORED 创建而永久失败；
   // 而这条 CREATE INDEX 原本排在上方多语句 exec 块的第 3 条，
@@ -643,6 +682,29 @@ export function createIndexes(db: Database.Database) {
     db.exec('CREATE INDEX IF NOT EXISTS idx_bookmarks_has_sync ON bookmarks(user_id, has_sync)')
   } catch (err: any) {
     console.warn('[DB] idx_bookmarks_has_sync 创建失败（不影响其他索引）:', err.message)
+  }
+}
+
+/**
+ * `token_deal_edits` 的索引 —— 同样独立于上方多语句 exec 块，每条独立容错。
+ *
+ * 索引按实际查询形态设计：
+ *   - `idx_tde_deal`   详情弹窗/审核面板按通告取提案（`WHERE deal_id = ? ORDER BY created_at DESC`）
+ *   - `idx_tde_review` 「待我审核」列表按 status + 时间取（作者与管理员共用，归属过滤在 JOIN 层）
+ *   - `idx_tde_user`   提案人查自己的历史提案
+ */
+function createTokenDealEditIndexes(db: Database.Database) {
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_tde_deal ON token_deal_edits(deal_id, status, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_tde_review ON token_deal_edits(status, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_tde_user ON token_deal_edits(user_id, status)',
+  ]
+  for (const sql of indexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] token_deal_edits 索引创建失败:', err.message)
+    }
   }
 }
 

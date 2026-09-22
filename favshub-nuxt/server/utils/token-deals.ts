@@ -188,3 +188,157 @@ export function isExpired(deal: { expires_at?: number | null }): boolean {
 export function newDealId(): string {
   return `deal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
+
+/** 生成修改提案 ID */
+export function newEditId(): string {
+  return `edit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** 安全解析库中的 models 字段（存的是 JSON 字符串） */
+export function parseDealModels(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(String(raw ?? '[]'))
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 修改提案 — 字段级 patch
+//
+// 语义：任何登录用户都可对任意通告提交**字段级**修改建议（只带被改字段），
+// 由「通告作者」或「管理员」审核；管理员可审核所有用户的提案。
+// 提案通过时才把 patch 合并进主表 —— 提案期间主表内容不受影响。
+// ════════════════════════════════════════════════════════════════
+
+/** 提案可修改的字段白名单（不含 status / pinned / user_id / 计数列 —— 由权限与站点规则决定） */
+export const DEAL_PATCHABLE = [
+  'provider', 'title', 'url', 'call_url', 'quota', 'models',
+  'region', 'quality', 'source_tag', 'expires_at', 'note',
+] as const
+
+/** 字段中文名，供 diff 展示 */
+export const DEAL_FIELD_LABELS: Record<string, string> = {
+  provider: '服务商',
+  title: '通告标题',
+  url: '领取地址',
+  call_url: 'API 调用地址',
+  quota: '免费额度',
+  models: '支持模型',
+  region: '访问区域',
+  quality: '品质分级',
+  source_tag: '来源标签',
+  expires_at: '有效期',
+  note: '备注',
+}
+
+/** snake_case → camelCase 别名（请求体两种写法都接受） */
+const DEAL_FIELD_ALIASES: Record<string, string> = {
+  call_url: 'callUrl',
+  source_tag: 'sourceTag',
+  expires_at: 'expiresAt',
+}
+
+/** 从请求体读取某字段，兼容 snake_case 与 camelCase；`present` 表示「显式出现」 */
+export function readDealField(body: any, key: string): { present: boolean; value: any } {
+  if (body?.[key] !== undefined) return { present: true, value: body[key] }
+  const alias = DEAL_FIELD_ALIASES[key]
+  if (alias && body?.[alias] !== undefined) return { present: true, value: body[alias] }
+  return { present: false, value: undefined }
+}
+
+/**
+ * 提取字段级 patch —— 只保留白名单内**显式出现**的字段。
+ *
+ * `present` 而非「值非空」是判据：`{ expires_at: null }` 是有意义的（清除有效期），
+ * 必须与「未传」区分开。
+ */
+export function extractDealPatch(body: any): Record<string, any> {
+  const patch: Record<string, any> = {}
+  for (const key of DEAL_PATCHABLE) {
+    const { present, value } = readDealField(body, key)
+    if (present) patch[key] = value
+  }
+  return patch
+}
+
+/** 把库中一行通告摊平成与 patch 同形的对象（models 解成数组、expires_at 归一为 null） */
+export function dealToPatchShape(deal: any): Record<string, any> {
+  return {
+    provider: deal?.provider,
+    title: deal?.title,
+    url: deal?.url,
+    call_url: deal?.call_url,
+    quota: deal?.quota,
+    models: parseDealModels(deal?.models),
+    region: deal?.region,
+    quality: deal?.quality,
+    source_tag: deal?.source_tag,
+    expires_at: deal?.expires_at ?? null,
+    note: deal?.note,
+  }
+}
+
+/**
+ * 以库中记录为底、用 patch 覆盖后**复用同一套校验**。
+ *
+ * 提案与直接编辑共用 `validateDealPayload`，避免「提案路径」与「编辑路径」的字段规则各自漂移。
+ */
+export function validateDealPatch(deal: any, patch: Record<string, any>): ValidateResult {
+  const merged = { ...dealToPatchShape(deal), ...patch }
+  return validateDealPayload(merged)
+}
+
+/** 把校验后的 DealPayload 收敛回 snake_case patch（只保留 keys 指定的字段） */
+export function payloadToPatch(d: DealPayload, keys: Iterable<string>): Record<string, any> {
+  const full: Record<string, any> = {
+    provider: d.provider,
+    title: d.title,
+    url: d.url,
+    call_url: d.callUrl,
+    quota: d.quota,
+    models: d.models,
+    region: d.region,
+    quality: d.quality,
+    source_tag: d.sourceTag,
+    expires_at: d.expiresAt,
+    note: d.note,
+  }
+  const out: Record<string, any> = {}
+  for (const k of keys) out[k] = full[k]
+  return out
+}
+
+export interface DealFieldDiff {
+  field: string
+  label: string
+  from: any
+  to: any
+}
+
+/** 逐字段求差异（值语义比较，models 按数组比较）；无差异的字段不出现在结果里 */
+export function diffDealPatch(deal: any, patch: Record<string, any>): DealFieldDiff[] {
+  const current = dealToPatchShape(deal)
+  const out: DealFieldDiff[] = []
+  for (const key of DEAL_PATCHABLE) {
+    if (!(key in patch)) continue
+    const prev = current[key] ?? null
+    const next = patch[key] ?? null
+    if (JSON.stringify(prev) !== JSON.stringify(next)) {
+      out.push({ field: key, label: DEAL_FIELD_LABELS[key] || key, from: prev, to: next })
+    }
+  }
+  return out
+}
+
+/** 提案操作统一返回形状 —— 让 Web 端点（createError）与 AI 通道（fail）各自映射错误 */
+export type EditOpResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; error: string }
+
+/** 审核权限：通告作者或管理员（管理员可审核所有用户的提案） */
+export function canReviewDeal(deal: { user_id: number }, viewer: { id: number; isAdmin: boolean }): boolean {
+  return viewer.isAdmin || deal.user_id === viewer.id
+}
