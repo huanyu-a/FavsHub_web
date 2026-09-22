@@ -1,65 +1,28 @@
 /**
- * POST /api/token-deals/:id/vote — 可用性投票
+ * POST /api/token-deals/:id/vote — 可用性投票（还能用 / 已失效）
  * Body: { vote: 'up' | 'down' }
  *
+ * **无需登录** —— 与同区块的游客评测、打标保持一致（此前仅登录用户可投，
+ * 导致按钮下方提示「无需登录也能评测」与投票按钮弹「请先登录」自相矛盾）。
+ *
  * 一人一票：重复投同一方向视为取消，投相反方向视为改票。
- * 投票后在同一事务内重算主表缓存计数。
+ *   - 登录用户 → 写 `token_deal_votes`（沿用原表，历史数据无缝）
+ *   - 游客     → 写 `token_deal_guest_votes`（身份靠第一方 cookie + UA 指纹）
+ * 投票后在同一事务内重算主表缓存计数（两表聚合）。
+ *
+ * 游客另有「同 IP 同通告最多计入 3 票」的上限，超限静默不落库（不报错）。
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
-import { syncDealCounters } from '../../../utils/token-deals'
+import { toggleDealVote } from '../../../utils/deal-votes'
 
 export default defineEventHandler(async (event) => {
-  const user = requireAuth(event)
   const { id } = getRouterParams(event)
   const body = await readBody(event)
 
-  const vote = String(body?.vote ?? '')
-  if (vote !== 'up' && vote !== 'down') {
-    throw createError({ statusCode: 400, data: { error: '投票取值必须是 up 或 down' } })
+  const result = toggleDealVote(getRawDb(), event, id, body?.vote)
+  if (!result.ok) {
+    throw createError({ statusCode: result.status, data: { error: result.error } })
   }
 
-  const db = getRawDb()
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(id)
-  if (!deal) {
-    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
-  }
-
-  const existing = db.prepare(
-    'SELECT id, vote FROM token_deal_votes WHERE deal_id = ? AND user_id = ?'
-  ).get(id, user.id) as { id: number; vote: string } | undefined
-
-  const now = Date.now()
-  let myVote: string | null = vote
-
-  try {
-    db.transaction(() => {
-      if (!existing) {
-        db.prepare(
-          'INSERT INTO token_deal_votes (deal_id, user_id, vote, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-        ).run(id, user.id, vote, now, now)
-      } else if (existing.vote === vote) {
-        // 再次点击同一方向 = 取消投票
-        db.prepare('DELETE FROM token_deal_votes WHERE id = ?').run(existing.id)
-        myVote = null
-      } else {
-        db.prepare('UPDATE token_deal_votes SET vote = ?, updated_at = ? WHERE id = ?')
-          .run(vote, now, existing.id)
-      }
-      syncDealCounters(db, id)
-    })()
-  } catch (err: any) {
-    console.error('投票失败:', err)
-    throw createError({ statusCode: 500, data: { error: err.message || '投票失败' } })
-  }
-
-  const counters = db.prepare('SELECT vote_up, vote_down FROM token_deals WHERE id = ?')
-    .get(id) as { vote_up: number; vote_down: number }
-
-  return {
-    success: true,
-    my_vote: myVote,
-    vote_up: counters.vote_up,
-    vote_down: counters.vote_down,
-  }
+  return { success: true, ...result.data }
 })

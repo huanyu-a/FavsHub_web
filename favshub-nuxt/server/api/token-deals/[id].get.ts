@@ -9,6 +9,7 @@ import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
+import { myVoteFor } from '../../utils/deal-votes'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -83,15 +84,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
   }
 
-  let myVote: string | null = null
+  // 我的投票：登录用户查原表，游客查游客表（投票已开放给游客，故不能只在 role 分支里取）
+  const myVote = myVoteFor(db, event, id, role?.user.id ?? null)
+
   let myReview: { rating: number; content: string; updated_at: number | null } | null = null
 
   if (role) {
-    const vote = db.prepare(
-      'SELECT vote FROM token_deal_votes WHERE deal_id = ? AND user_id = ?'
-    ).get(id, role.user.id) as { vote: string } | undefined
-    myVote = vote?.vote ?? null
-
     const review = db.prepare(
       'SELECT rating, content, updated_at FROM token_deal_reviews WHERE deal_id = ? AND user_id = ?'
     ).get(id, role.user.id) as any
