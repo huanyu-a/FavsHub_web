@@ -4,11 +4,20 @@
  * 首次部署（token_deals 表为空）时灌入一批社区常见免费额度通告，
  * 避免板块空转。所有条目均为「示例通告」，额度与规则以各官方页面为准。
  *
- * vote_up / vote_down / rating_sum / rating_count 为演示用缓存计数：
- * 该四列在真实投票或评测发生时由 syncDealCounters() 从明细表重算并覆盖。
+ * ## 计数从哪来
+ *
+ * 本文件**不再硬编码** `vote_up` / `vote_down` / `rating_sum` / `rating_count`。
+ * 早年这几个字段是写死的「演示数字」，却没有对应明细行，导致两个问题：
+ * ① 页面显示「64 人评测」点进去却空无一条，自相矛盾；
+ * ② 任何一次真实投票触发 `syncDealCounters` 重算 → 演示数字塌成真实值。
+ *
+ * 现在改为：插入通告后立刻调用 `seedSampleDetails()` 灌入示例评测与示例投票，
+ * 再用 `syncDealCounters()` 从**明细聚合**出这四个计数 —— **明细是唯一真源**。
+ * 依赖评测条目的 UI（如评测打标按钮）因此有宿主可挂载。
  */
 import type Database from 'better-sqlite3'
-import { newDealId } from './token-deals'
+import { newDealId, syncDealCounters } from './token-deals'
+import { seedSampleDetails } from './seed-sample-details'
 
 interface SeedDeal {
   provider: string
@@ -24,10 +33,6 @@ interface SeedDeal {
   expiresInDays: number | null
   pinned: number
   note: string
-  voteUp: number
-  voteDown: number
-  ratingSum: number
-  ratingCount: number
 }
 
 export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
@@ -44,10 +49,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 1,
     note: '国内直连无需代理，注册需实名。glm-4-flash 长期免费，适合做日常批处理。额度规则以官方页面为准，可能随时调整。',
-    voteUp: 128,
-    voteDown: 9,
-    ratingSum: 246,
-    ratingCount: 52,
   },
   {
     provider: 'ModelScope 魔搭',
@@ -62,10 +63,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 1,
     note: 'OpenAI 兼容接口，改 base_url 即可直连。每日 0 点重置，单次上下文有上限。适合做高频小请求。',
-    voteUp: 156,
-    voteDown: 11,
-    ratingSum: 302,
-    ratingCount: 64,
   },
   {
     provider: 'OpenRouter',
@@ -80,10 +77,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 0,
     note: '海外聚合站，国内需代理。免费池模型会随时上下架，建议程序里做模型回退。免费额度仅限 :free 后缀模型。',
-    voteUp: 94,
-    voteDown: 27,
-    ratingSum: 178,
-    ratingCount: 41,
   },
   {
     provider: 'Google AI Studio',
@@ -98,10 +91,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 0,
     note: '需 Google 账号 + 海外网络环境。免费层数据会被用于改进产品，勿传敏感内容。接口与 OpenAI 不兼容，需单独适配。',
-    voteUp: 143,
-    voteDown: 14,
-    ratingSum: 268,
-    ratingCount: 55,
   },
   {
     provider: '硅基流动 SiliconFlow',
@@ -116,10 +105,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 0,
     note: '国内直连。赠送余额有有效期，优先用永久免费的小模型。并发限制较严，批量任务需自行限流。',
-    voteUp: 87,
-    voteDown: 12,
-    ratingSum: 164,
-    ratingCount: 36,
   },
   {
     provider: 'Groq',
@@ -134,10 +119,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 0,
     note: '推理速度极快，适合做实时补全。海外节点，国内需代理。免费层每日 token 总量有硬上限，跑满会 429。',
-    voteUp: 76,
-    voteDown: 15,
-    ratingSum: 142,
-    ratingCount: 31,
   },
   {
     provider: 'Cloudflare Workers AI',
@@ -152,10 +133,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: null,
     pinned: 0,
     note: 'Neurons 按模型大小计费，大模型消耗很快。适合轻量任务。需要在 Workers 里绑定，纯 HTTP 调用稍麻烦。',
-    voteUp: 58,
-    voteDown: 9,
-    ratingSum: 104,
-    ratingCount: 24,
   },
   {
     provider: '阿里云百炼',
@@ -170,10 +147,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: 180,
     pinned: 0,
     note: '国内直连，OpenAI 兼容模式。按模型分别赠送，可叠加使用。需实名认证，额度有 180 天有效期，注意别放过期。',
-    voteUp: 69,
-    voteDown: 8,
-    ratingSum: 128,
-    ratingCount: 27,
   },
   {
     provider: '火山方舟（豆包）',
@@ -188,10 +161,6 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: 90,
     pinned: 0,
     note: '国内直连，OpenAI 兼容。开通推理接入点后即可调用，需先创建 endpoint。额度按模型独立计算。',
-    voteUp: 61,
-    voteDown: 10,
-    ratingSum: 112,
-    ratingCount: 25,
   },
   {
     provider: '某中转站',
@@ -206,31 +175,32 @@ export const DEFAULT_TOKEN_DEALS: SeedDeal[] = [
     expiresInDays: 30,
     pinned: 0,
     note: '⚠️ 中转站稳定性与数据安全无法保证，切勿传入隐私或商业敏感内容。此类通告仅作线索参考，建议优先使用官方直营渠道。',
-    voteUp: 12,
-    voteDown: 46,
-    ratingSum: 38,
-    ratingCount: 21,
   },
 ]
 
 /**
  * 灌入默认 Token 白嫖通告（仅在表为空时调用）
+ *
+ * 每条通告插入后立即灌示例明细（评测 + 投票），并从明细聚合出缓存计数，
+ * 保证「显示的数字」与「点进去看到的明细」始终一致。
  */
 export function seedDefaultTokenDeals(db: Database.Database): void {
   const now = Date.now()
 
+  // 计数列先写 0，稍后由 syncDealCounters() 从明细聚合覆盖
   const insert = db.prepare(`
     INSERT OR IGNORE INTO token_deals (
       id, user_id, provider, title, url, call_url, quota, models, region, quality,
       source_tag, expires_at, pinned, note, status, reject_reason,
       vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', '', ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', '', 0, 0, 0, 0, ?, ?)
   `)
 
   const insertAll = db.transaction(() => {
     for (const d of DEFAULT_TOKEN_DEALS) {
+      const id = newDealId()
       insert.run(
-        newDealId(),
+        id,
         1, // 归属 1 号管理员，作为官方示例内容
         d.provider,
         d.title,
@@ -244,16 +214,15 @@ export function seedDefaultTokenDeals(db: Database.Database): void {
         d.expiresInDays === null ? null : now + d.expiresInDays * 86400000,
         d.pinned,
         d.note,
-        d.voteUp,
-        d.voteDown,
-        d.ratingSum,
-        d.ratingCount,
         now,
         now,
       )
+      // 明细是唯一真源：先灌明细，再聚合出缓存计数
+      seedSampleDetails(db, id)
+      syncDealCounters(db, id)
     }
   })
 
   insertAll()
-  console.log(`[DB] 已插入 ${DEFAULT_TOKEN_DEALS.length} 条默认 Token 白嫖通告`)
+  console.log(`[DB] 已插入 ${DEFAULT_TOKEN_DEALS.length} 条默认 Token 白嫖通告（含示例评测与投票）`)
 }
