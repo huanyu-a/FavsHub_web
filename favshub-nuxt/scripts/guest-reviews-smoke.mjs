@@ -10,6 +10,8 @@
  *   6. 审核通过后计入评分
  *   7. 评测打标（社区健康度第三维）：游客可打、切换取消、计数累加、
  *      列表回传 mark_count/my_marked、未过审不可打标、边界 404/400
+ *   8. 可用性投票：**游客可投（无需登录）**、切换/改票/取消、计数聚合入主表缓存、
+ *      详情端点对游客回传 my_vote、边界 404/400
  */
 const BASE = process.env.SMOKE_BASE || 'http://127.0.0.1:3000'
 
@@ -341,6 +343,71 @@ async function main() {
 
     // 打标响应不得泄露 QQ 号
     ok(!JSON.stringify(mk1.data).includes(QQ_TEST2), '★ 打标响应不含明文 QQ 号')
+  }
+
+  // ── 7.6 可用性投票（游客可投，无需登录）──
+  console.log('\n══ 7.6 可用性投票 ══')
+  {
+    const jarVoteA = makeJar()
+    const jarVoteB = makeJar()
+
+    // ★ 核心：未登录访客也能投票（此前仅登录用户可投，与同区块提示自相矛盾）
+    const vt1 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteA, expect: 200,
+    })
+    ok(vt1.data?.success === true, '★ 游客可投票（无需登录，不再弹「请先登录」）')
+    eq(vt1.data?.my_vote, 'up', '首次投票 → my_vote=up')
+    eq(vt1.data?.vote_up, 1, 'vote_up=1')
+
+    // 再点同方向 → 取消
+    const vt2 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteA, expect: 200,
+    })
+    eq(vt2.data?.my_vote, null, '★ 再点同方向 → 取消')
+    eq(vt2.data?.vote_up, 0, '取消后 vote_up 归零')
+
+    // 改票 up → down
+    await req('POST', `/api/token-deals/${dealId}/vote`, { body: { vote: 'up' }, jar: jarVoteA, expect: 200 })
+    const vt3 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'down' }, jar: jarVoteA, expect: 200,
+    })
+    eq(vt3.data?.my_vote, 'down', '★ 投反方向 → 改票')
+    eq(vt3.data?.vote_up, 0, '改票后 vote_up 归零')
+    eq(vt3.data?.vote_down, 1, 'vote_down=1')
+
+    // 第二访客累加
+    const vt4 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteB, expect: 200,
+    })
+    eq(vt4.data?.vote_up, 1, '★ 第二访客累加 → vote_up=1')
+    eq(vt4.data?.vote_down, 1, 'vote_down 仍为 1')
+
+    // 详情端点回传 my_vote（游客也应拿到，按钮高亮才对）
+    const detailA = await req('GET', `/api/token-deals/${dealId}`, { jar: jarVoteA, expect: 200 })
+    eq(detailA.data?.my_vote, 'down', '★ 详情端点对游客回传 my_vote=down')
+    const detailC = await req('GET', `/api/token-deals/${dealId}`, { jar: makeJar(), expect: 200 })
+    eq(detailC.data?.my_vote, null, '未投票访客 → 详情 my_vote=null')
+
+    // 计数已写入主表缓存（列表页读的就是它）
+    const listV = await req('GET', '/api/token-deals?limit=100', { expect: 200 })
+    const rowV = (listV.data?.deals || []).find(d => d.id === dealId)
+    ok(!!rowV, '临时通告在列表中')
+    eq(rowV?.vote_up, 1, '★ 列表缓存 vote_up=1（聚合了游客票）')
+    eq(rowV?.vote_down, 1, '★ 列表缓存 vote_down=1')
+
+    // 边界
+    const badDir = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'sideways' }, jar: makeJar(), expect: 400,
+    })
+    ok(badDir.status === 400, '非法方向 → 400')
+    const noDeal = await req('POST', '/api/token-deals/__no_such_deal__/vote', {
+      body: { vote: 'up' }, jar: makeJar(), expect: 404,
+    })
+    ok(noDeal.status === 404, '通告不存在 → 404')
+    const noBody = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: {}, jar: makeJar(), expect: 400,
+    })
+    ok(noBody.status === 400, '缺少 vote → 400')
   }
 
   // ── 8. 页面 HTML 隐私检查 ──

@@ -7,7 +7,8 @@
  *                                  最后删除该通告（端点显式删子表），做到零残留
  *
  * 覆盖：人机校验 → 提交 → 覆盖 → 待审不外泄 → 头像代理 → 审核 →
- *       评测打标（社区健康度第三维）→ 页面 HTML 隐私 → 页面可达性 → 自清理
+ *       评测打标（社区健康度第三维）→ 可用性投票（游客可投）→
+ *       页面 HTML 隐私 → 页面可达性 → 自清理
  *
  * 用法（在服务器上跑，BASE 指第 2 层 nginx 权威源）：
  *   BASE=http://127.0.0.1:3090 SMOKE_JWT_ADMIN=<管理员 JWT> node guest-reviews-smoke-prod.mjs
@@ -311,6 +312,58 @@ async function main() {
     body: {}, jar: jar(nextIp()), expect: 400,
   })
   ok(true, '缺少 review_id → 400')
+
+  // ── 7.6 可用性投票（游客可投，无需登录）──
+  console.log('\n══ 7.6 可用性投票 ══')
+  {
+    const jarVoteA = jar(nextIp())
+    const jarVoteB = jar(nextIp())
+
+    const vt1 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteA, expect: 200,
+    })
+    ok(vt1.data?.success === true, '★ 游客可投票（无需登录）')
+    eq(vt1.data?.my_vote, 'up', '首次投票 → my_vote=up')
+    eq(vt1.data?.vote_up, 1, 'vote_up=1')
+
+    const vt2 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteA, expect: 200,
+    })
+    eq(vt2.data?.my_vote, null, '★ 再点同方向 → 取消')
+    eq(vt2.data?.vote_up, 0, '取消后 vote_up 归零')
+
+    await req('POST', `/api/token-deals/${dealId}/vote`, { body: { vote: 'up' }, jar: jarVoteA, expect: 200 })
+    const vt3 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'down' }, jar: jarVoteA, expect: 200,
+    })
+    eq(vt3.data?.my_vote, 'down', '★ 投反方向 → 改票')
+    eq(vt3.data?.vote_up, 0, '改票后 vote_up 归零')
+    eq(vt3.data?.vote_down, 1, 'vote_down=1')
+
+    const vt4 = await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'up' }, jar: jarVoteB, expect: 200,
+    })
+    eq(vt4.data?.vote_up, 1, '★ 第二访客累加 → vote_up=1')
+    eq(vt4.data?.vote_down, 1, 'vote_down 仍为 1')
+
+    const detailA = await req('GET', `/api/token-deals/${dealId}`, { jar: jarVoteA, expect: 200 })
+    eq(detailA.data?.my_vote, 'down', '★ 详情端点对游客回传 my_vote')
+    const detailC = await req('GET', `/api/token-deals/${dealId}`, { jar: jar(nextIp()), expect: 200 })
+    eq(detailC.data?.my_vote, null, '未投票访客 → my_vote=null')
+
+    await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: { vote: 'sideways' }, jar: jar(nextIp()), expect: 400,
+    })
+    ok(true, '非法方向 → 400')
+    await req('POST', '/api/token-deals/__no_such_deal__/vote', {
+      body: { vote: 'up' }, jar: jar(nextIp()), expect: 404,
+    })
+    ok(true, '通告不存在 → 404')
+    await req('POST', `/api/token-deals/${dealId}/vote`, {
+      body: {}, jar: jar(nextIp()), expect: 400,
+    })
+    ok(true, '缺少 vote → 400')
+  }
 
   // ── 8. 页面 HTML 隐私 ──
   console.log('\n══ 8. 页面 HTML 隐私 ══')
