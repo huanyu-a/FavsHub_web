@@ -103,6 +103,81 @@
             <p class="tdd-note">{{ deal.note }}</p>
           </section>
 
+          <!-- 我的修改建议状态 -->
+          <section v-if="myEdit" class="tdd-section tdd-edit-mine">
+            <h4 class="section-title"><i class="ri-lightbulb-line"></i> 我的修改建议</h4>
+            <p class="edit-mine-hint">
+              已于 {{ formatTime(myEdit.created_at) }} 提交 {{ myEdit.diff.length }} 项修改，等待审核。
+            </p>
+            <ul class="edit-diff-list">
+              <li v-for="c in myEdit.diff" :key="c.field" class="edit-diff-item">
+                <span class="diff-label">{{ c.label }}</span>
+                <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
+                <i class="ri-arrow-right-line diff-arrow"></i>
+                <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
+              </li>
+            </ul>
+            <p v-if="myEdit.comment" class="edit-mine-comment">
+              <i class="ri-chat-quote-line"></i> {{ myEdit.comment }}
+            </p>
+            <div class="edit-mine-actions">
+              <button type="button" class="tdd-btn ghost tiny" :disabled="editBusy" @click="openProposal">
+                <i class="ri-edit-line"></i> 继续修改
+              </button>
+              <button type="button" class="tdd-btn danger tiny" :disabled="editBusy" @click="withdrawMyEdit">
+                <i class="ri-close-line"></i> 撤回建议
+              </button>
+            </div>
+          </section>
+
+          <!-- 待我审核的修改建议 -->
+          <section v-if="deal.can_review && pendingEdits.length" class="tdd-section tdd-edit-review">
+            <h4 class="section-title">
+              <i class="ri-inbox-unarchive-line"></i> 待审核的修改建议
+              <span class="review-count">{{ pendingEdits.length }}</span>
+            </h4>
+            <ul class="review-list-edit">
+              <li v-for="e in pendingEdits" :key="e.id" class="review-edit-item">
+                <div class="review-edit-head">
+                  <span class="review-edit-author">
+                    <i class="ri-user-line"></i> {{ e.proposer }}
+                  </span>
+                  <span class="review-edit-time">{{ formatTime(e.created_at) }}</span>
+                </div>
+                <p v-if="e.comment" class="review-edit-comment">{{ e.comment }}</p>
+                <p v-if="e.is_noop" class="review-edit-noop">
+                  该建议与当前内容已无差异，可直接驳回。
+                </p>
+                <ul v-else class="edit-diff-list">
+                  <li v-for="c in e.diff" :key="c.field" class="edit-diff-item">
+                    <span class="diff-label">{{ c.label }}</span>
+                    <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
+                    <i class="ri-arrow-right-line diff-arrow"></i>
+                    <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
+                  </li>
+                </ul>
+                <div class="review-edit-actions">
+                  <button
+                    type="button"
+                    class="tdd-btn primary tiny"
+                    :disabled="editBusy || e.is_noop"
+                    @click="reviewEdit(e, 'approve')"
+                  >
+                    <i class="ri-check-line"></i> 通过
+                  </button>
+                  <button
+                    type="button"
+                    class="tdd-btn danger tiny"
+                    :disabled="editBusy"
+                    @click="rejectTarget = e"
+                  >
+                    <i class="ri-close-line"></i> 驳回
+                  </button>
+                </div>
+              </li>
+            </ul>
+          </section>
+
           <!-- 社区健康度 -->
           <section class="tdd-section">
             <h4 class="section-title"><i class="ri-pulse-line"></i> 社区健康度</h4>
@@ -248,6 +323,16 @@
             </button>
           </div>
           <div class="tdd-foot-right">
+            <!-- 非作者也能改：走建议通道，由作者或管理员审核 -->
+            <button
+              v-if="deal.status === 'approved' && !deal.can_edit && !myEdit"
+              type="button"
+              class="tdd-btn ghost"
+              title="发现信息有误？提交修改建议"
+              @click="openProposal"
+            >
+              <i class="ri-lightbulb-line"></i> 建议修改
+            </button>
             <button v-if="deal.can_edit" type="button" class="tdd-btn ghost" @click="$emit('edit', deal)">
               <i class="ri-edit-line"></i> 编辑
             </button>
@@ -256,6 +341,45 @@
             </button>
           </div>
         </footer>
+
+        <!-- 建议修改面板 -->
+        <TokenDealEditor
+          v-if="proposalOpen && deal"
+          :deal="deal"
+          proposal
+          @close="proposalOpen = false"
+          @saved="onProposalSaved"
+        />
+
+        <!-- 驳回修改建议弹窗 -->
+        <Teleport to="body">
+          <div v-if="rejectTarget" class="tdd-reject-backdrop" @click.self="rejectTarget = null">
+            <div class="tdd-reject-modal">
+              <h3 class="reject-title">驳回修改建议</h3>
+              <p class="reject-sub">
+                来自「{{ rejectTarget.proposer }}」的 {{ rejectTarget.diff.length }} 项修改将不予采纳。
+              </p>
+              <textarea
+                v-model="rejectReason"
+                rows="3"
+                maxlength="200"
+                placeholder="说明驳回理由，便于对方改进（选填）"
+              ></textarea>
+              <span class="reject-hint">{{ rejectReason.length }} / 200</span>
+              <div class="reject-actions">
+                <button type="button" class="tdd-btn ghost" @click="rejectTarget = null">取消</button>
+                <button
+                  type="button"
+                  class="tdd-btn danger"
+                  :disabled="editBusy"
+                  @click="confirmReject"
+                >
+                  <i class="ri-close-line"></i> 确认驳回
+                </button>
+              </div>
+            </div>
+          </div>
+        </Teleport>
 
         <!-- 分享面板 -->
         <TokenShareSheet v-if="shareOpen && deal" :deal="deal" @close="shareOpen = false" />
@@ -273,6 +397,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
+import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 
 interface ITokenDeal {
   id: string
@@ -308,6 +433,38 @@ interface ITokenDeal {
   } | null
 }
 
+/** 单条字段差异 */
+interface IFieldDiff {
+  field: string
+  label: string
+  from: any
+  to: any
+}
+
+/** 修改建议 */
+interface IDealEdit {
+  id: string
+  deal_id: string
+  user_id: number
+  proposer: string
+  comment: string
+  status: string
+  reject_reason?: string
+  payload: Record<string, any>
+  diff: IFieldDiff[]
+  is_noop: boolean
+  created_at: number
+  updated_at: number
+}
+
+/** 详情端点附带的建议摘要 */
+interface IEditsSummary {
+  can_review: boolean
+  pending_edit_count: number
+  my_edit: IDealEdit | null
+  is_author: boolean
+}
+
 interface IReview {
   id: number
   rating: number
@@ -323,7 +480,6 @@ const emit = defineEmits<{
   edit: [deal: ITokenDeal]
   changed: []
 }>()
-
 const authStore = useAuthStore()
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
@@ -351,6 +507,14 @@ const deleting = ref(false)
 const importing = ref(false)
 const submitting = ref(false)
 const shareOpen = ref(false)
+
+// ── 修改建议 ──
+const myEdit = ref<IDealEdit | null>(null)
+const pendingEdits = ref<IDealEdit[]>([])
+const proposalOpen = ref(false)
+const editBusy = ref(false)
+const rejectTarget = ref<IDealEdit | null>(null)
+const rejectReason = ref('')
 
 const formRating = ref(5)
 const formContent = ref('')
@@ -414,6 +578,20 @@ function formatTime(ts: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** diff 展示用：把枚举值与时间戳渲染成人话 */
+function displayFieldValue(field: string, value: any): string {
+  if (value === null || value === undefined || value === '') return '（空）'
+  if (field === 'models') return Array.isArray(value) && value.length ? value.join('、') : '（空）'
+  if (field === 'region') return REGION_LABELS[value] || String(value)
+  if (field === 'source_tag') return SOURCE_LABELS[value] || String(value)
+  if (field === 'expires_at') {
+    const ts = Number(value)
+    if (!Number.isFinite(ts)) return String(value)
+    return new Date(ts).toLocaleDateString('zh-CN')
+  }
+  return String(value)
+}
+
 function toast(text: string, type: 'ok' | 'err' = 'ok') {
   message.value = text
   messageType.value = type
@@ -433,22 +611,111 @@ async function loadDeal() {
   loading.value = true
   loadError.value = ''
   try {
-    const data = await $fetch<{ deal: ITokenDeal; my_vote: string | null; my_review: any }>(
+    const data = await $fetch<{
+      deal: ITokenDeal
+      edits: IEditsSummary | null
+      my_vote: string | null
+      my_review: any
+    }>(
       `/api/token-deals/${props.dealId}`,
       { credentials: 'include' },
     )
     deal.value = data.deal
     myVote.value = data.my_vote
     myReview.value = data.my_review
+    myEdit.value = data.edits?.my_edit ?? null
     if (data.my_review) {
       formRating.value = data.my_review.rating
       formContent.value = data.my_review.content
+    }
+    // 审核人需要提案明细 → 单独拉一次列表（详情端点只给摘要）
+    if (data.edits?.can_review && data.edits.pending_edit_count > 0) {
+      await loadPendingEdits()
+    } else {
+      pendingEdits.value = []
     }
   } catch (err: any) {
     loadError.value = err?.data?.error || '加载失败，请稍后重试'
   } finally {
     loading.value = false
   }
+}
+
+/** 拉取本通告的待审提案（仅作者/管理员有权限，其他人拿到的是空/自己的） */
+async function loadPendingEdits() {
+  try {
+    const res = await $fetch<{ edits: IDealEdit[]; can_review: boolean }>(
+      `/api/token-deals/${props.dealId}/edits`,
+      { query: { status: 'pending' }, credentials: 'include' },
+    )
+    pendingEdits.value = res.can_review ? res.edits : []
+  } catch {
+    pendingEdits.value = []
+  }
+}
+
+/** 打开建议修改面板：未登录先提示 */
+function openProposal() {
+  if (!authStore.isLoggedIn) {
+    toast('请先登录后再提交修改建议', 'err')
+    return
+  }
+  proposalOpen.value = true
+}
+
+function onProposalSaved(text: string) {
+  proposalOpen.value = false
+  toast(text || '修改建议已提交，等待审核')
+  loadDeal()
+  emit('changed')
+}
+
+/** 撤回自己提交的建议 */
+async function withdrawMyEdit() {
+  if (!myEdit.value || editBusy.value) return
+  editBusy.value = true
+  try {
+    await $fetch(`/api/token-deal-edits/${myEdit.value.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    myEdit.value = null
+    toast('已撤回修改建议')
+    emit('changed')
+  } catch (err: any) {
+    toast(err?.data?.error || '撤回失败', 'err')
+  } finally {
+    editBusy.value = false
+  }
+}
+
+/** 审核提案：通过 */
+async function reviewEdit(target: IDealEdit, action: 'approve' | 'reject', reason = '') {
+  if (editBusy.value) return
+  editBusy.value = true
+  try {
+    const res = await $fetch<{ message?: string; deal_status?: string }>(
+      `/api/token-deal-edits/${target.id}/review`,
+      { method: 'POST', body: { action, reason }, credentials: 'include' },
+    )
+    toast(res?.message || (action === 'approve' ? '已通过' : '已驳回'))
+    await loadDeal()
+    await loadReviews(true)
+    emit('changed')
+  } catch (err: any) {
+    toast(err?.data?.error || '操作失败', 'err')
+  } finally {
+    editBusy.value = false
+  }
+}
+
+async function confirmReject() {
+  if (!rejectTarget.value) return
+  const target = rejectTarget.value
+  const reason = rejectReason.value.trim()
+  rejectTarget.value = null
+  rejectReason.value = ''
+  await reviewEdit(target, 'reject', reason)
 }
 
 async function loadReviews(reset = false) {
@@ -1043,6 +1310,191 @@ onUnmounted(() => {
 .tdd-btn.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
 .tdd-btn.danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.08); color: var(--danger); }
 .tdd-btn.tiny { padding: 3px 8px; font-size: 11.5px; }
+
+/* ── 修改建议 ── */
+.tdd-edit-mine {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  border: 0.5px solid var(--border);
+}
+.edit-mine-hint {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.edit-mine-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.edit-mine-comment i { color: var(--primary); flex-shrink: 0; margin-top: 1px; }
+.edit-mine-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edit-diff-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.edit-diff-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.diff-label {
+  flex-shrink: 0;
+  min-width: 62px;
+  color: var(--text-tertiary);
+}
+.diff-from {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+  word-break: break-all;
+}
+.diff-arrow { color: var(--text-tertiary); font-size: 13px; flex-shrink: 0; }
+.diff-to {
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.tdd-edit-review .section-title { display: flex; align-items: center; gap: 6px; }
+.review-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-inverse);
+  background: var(--danger);
+}
+.review-list-edit {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.review-edit-item {
+  padding: 10px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.review-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.review-edit-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.review-edit-author i { color: var(--primary); font-size: 13px; }
+.review-edit-time { font-size: 11.5px; color: var(--text-tertiary); }
+.review-edit-comment {
+  margin: 0 0 7px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.review-edit-noop {
+  margin: 0 0 7px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+.review-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+/* ── 驳回修改建议弹窗（须高于详情弹窗 10050）── */
+.tdd-reject-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--overlay);
+  backdrop-filter: var(--backdrop-blur);
+}
+.tdd-reject-modal {
+  width: 100%;
+  max-width: 420px;
+  padding: 18px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  box-shadow: var(--shadow-xl);
+}
+.reject-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.reject-sub {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.tdd-reject-modal textarea {
+  width: 100%;
+  padding: 8px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  resize: vertical;
+}
+.tdd-reject-modal textarea:focus { border-color: var(--border-focus); }
+.tdd-reject-modal textarea::placeholder { color: var(--text-tertiary); }
+.reject-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.reject-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
 
 /* ── 轻提示 ── */
 .tdd-toast {

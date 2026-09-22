@@ -47,6 +47,17 @@
             <i class="ri-search-line"></i>
             <input v-model="search" type="text" placeholder="搜索服务商、额度或模型..." @input="debouncedSearch">
           </div>
+          <!-- 待我审核：作者审自己通告上的提案，管理员审全部 -->
+          <button
+            v-if="authStore.isLoggedIn"
+            type="button"
+            class="hero-review"
+            title="查看待我审核的修改建议"
+            @click="openReviewPanel"
+          >
+            <i class="ri-inbox-unarchive-line"></i> 待我审核
+            <span v-if="reviewCount > 0" class="review-badge">{{ reviewCount }}</span>
+          </button>
           <button type="button" class="hero-publish" @click="openEditor()">
             <i class="ri-add-line"></i> 发布通告
           </button>
@@ -104,6 +115,14 @@
       @saved="onSaved"
     />
 
+    <!-- 待我审核的修改建议面板 -->
+    <TokenEditReviewPanel
+      v-if="reviewPanelOpen"
+      @close="reviewPanelOpen = false"
+      @reviewed="loadReviewCount"
+      @open-deal="onOpenDealFromPanel"
+    />
+
     <!-- 轻提示 -->
     <Transition name="tokens-toast">
       <div v-if="toastMessage" class="tokens-toast">{{ toastMessage }}</div>
@@ -117,6 +136,7 @@ import TokenDealCard from '~/components/tokens/TokenDealCard.vue'
 import TokenFilterBar from '~/components/tokens/TokenFilterBar.vue'
 import TokenDealDetail from '~/components/tokens/TokenDealDetail.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
+import TokenEditReviewPanel from '~/components/tokens/TokenEditReviewPanel.vue'
 import BackToTop from '~/components/BackToTop.vue'
 
 definePageMeta({ layout: 'default' })
@@ -188,6 +208,38 @@ const limit = 24
 const detailDeal = ref<ITokenDeal | null>(null)
 const editorOpen = ref(false)
 const editorDeal = ref<ITokenDeal | null>(null)
+
+// ── 待我审核的修改建议 ──
+const reviewPanelOpen = ref(false)
+const reviewCount = ref(0)
+
+/** 拉取待审建议数量（用于入口角标）；未登录或接口不可用时静默归零 */
+async function loadReviewCount() {
+  if (!authStore.isLoggedIn) {
+    reviewCount.value = 0
+    return
+  }
+  try {
+    const res = await $fetch<{ total: number }>('/api/token-deal-edits', {
+      query: { limit: 1 },
+      credentials: 'include',
+    })
+    reviewCount.value = res?.total || 0
+  } catch {
+    reviewCount.value = 0
+  }
+}
+
+function openReviewPanel() {
+  reviewPanelOpen.value = true
+}
+
+/** 面板里点了某条通告 → 关面板并打开该通告详情 */
+function onOpenDealFromPanel(dealId: string) {
+  reviewPanelOpen.value = false
+  detailDeal.value = { id: dealId } as ITokenDeal
+  syncDealQuery(dealId)
+}
 
 const toastMessage = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -275,6 +327,9 @@ watch([page, sort, quality, sourceTag], () => refresh())
 
 // 从登录页跳回时自动展开发布表单；带 ?deal= 落地时自动打开对应详情弹窗
 onMounted(() => {
+  // 待审建议角标：不阻塞首屏，后台拉取
+  loadReviewCount()
+
   if (route.query.action === 'publish' && authStore.isLoggedIn) {
     const next: Record<string, any> = { ...route.query }
     delete next.action
@@ -456,6 +511,41 @@ onUnmounted(() => {
 }
 .hero-publish i { font-size: 15px; }
 
+/* 待我审核入口：与「发布通告」同排，视觉弱一档以保持主次 */
+.hero-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--surface-raised, #fff);
+  transition: background 0.18s, transform 0.18s;
+}
+.hero-review:hover {
+  background: rgba(255, 255, 255, 0.26);
+  transform: translateY(-1px);
+}
+.hero-review i { font-size: 15px; }
+.review-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #ef4444;
+}
+
 .tokens-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -572,6 +662,9 @@ onUnmounted(() => {
     width: 100%;
   }
   .hero-publish {
+    justify-content: center;
+  }
+  .hero-review {
     justify-content: center;
   }
   .tokens-grid {

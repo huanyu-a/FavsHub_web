@@ -29,15 +29,85 @@
 
     <!-- Tab 切换 -->
     <div class="tab-nav">
-      <button :class="{ active: status === 'pending' }" @click="switchStatus('pending')">
+      <button :class="{ active: tab === 'deals' && status === 'pending' }" @click="switchStatus('pending')">
         待审核<span v-if="counts.pending" class="tab-badge">{{ counts.pending }}</span>
       </button>
-      <button :class="{ active: status === 'approved' }" @click="switchStatus('approved')">已通过</button>
-      <button :class="{ active: status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
-      <button :class="{ active: status === 'all' }" @click="switchStatus('all')">全部</button>
+      <button :class="{ active: tab === 'deals' && status === 'approved' }" @click="switchStatus('approved')">已通过</button>
+      <button :class="{ active: tab === 'deals' && status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
+      <button :class="{ active: tab === 'deals' && status === 'all' }" @click="switchStatus('all')">全部</button>
+      <button :class="{ active: tab === 'edits' }" @click="switchTab('edits')">
+        修改建议<span v-if="editTotal" class="tab-badge">{{ editTotal }}</span>
+      </button>
     </div>
 
-    <div class="card">
+    <!-- ── 修改建议 Tab：管理员可审所有用户的提案 ── -->
+    <div v-if="tab === 'edits'" class="card">
+      <div class="card-header">
+        <h3>待审核的修改建议</h3>
+        <button class="btn btn-ghost btn-sm" :disabled="editsLoading" @click="loadEdits">刷新</button>
+      </div>
+
+      <div v-if="editsLoading" class="empty-state">加载中...</div>
+      <div v-else-if="edits.length === 0" class="empty-state">暂无待审核的修改建议</div>
+
+      <div v-else class="edit-list">
+        <div v-for="e in edits" :key="e.id" class="edit-row">
+          <div class="edit-row-head">
+            <div class="edit-deal">
+              <span class="edit-provider">{{ e.deal.provider }}</span>
+              <span class="edit-deal-title">{{ e.deal.title }}</span>
+              <span v-if="e.deal.status !== 'approved'" class="badge" :class="statusBadgeClass(e.deal.status)">
+                {{ STATUS_LABELS[e.deal.status] || e.deal.status }}
+              </span>
+            </div>
+            <span class="edit-time">{{ formatTime(e.created_at) }}</span>
+          </div>
+
+          <div class="edit-meta">
+            <span class="edit-author"><i class="ri-user-line"></i> {{ e.proposer }}</span>
+            <span v-if="e.comment" class="edit-comment">「{{ e.comment }}」</span>
+          </div>
+
+          <ul v-if="e.diff && e.diff.length" class="edit-diff">
+            <li v-for="c in e.diff" :key="c.field" class="edit-diff-item">
+              <span class="diff-label">{{ c.label }}</span>
+              <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
+              <i class="ri-arrow-right-line diff-arrow"></i>
+              <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
+            </li>
+          </ul>
+          <p v-else class="edit-noop">该建议与当前内容已无差异，可直接驳回。</p>
+
+          <div class="edit-actions">
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="editsBusy || !e.diff || !e.diff.length"
+              @click="reviewEdit(e, 'approve')"
+            >
+              通过
+            </button>
+            <button class="btn btn-danger btn-sm" :disabled="editsBusy" @click="openEditReject(e)">驳回</button>
+          </div>
+
+          <div v-if="editRejectTarget?.id === e.id" class="edit-reject-box">
+            <textarea
+              v-model="editRejectReason"
+              rows="2"
+              maxlength="200"
+              placeholder="说明驳回理由，便于对方改进（选填）"
+            ></textarea>
+            <div class="edit-reject-actions">
+              <button class="btn btn-ghost btn-sm" @click="editRejectTarget = null">取消</button>
+              <button class="btn btn-danger btn-sm" :disabled="editsBusy" @click="confirmEditReject">
+                确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="card">
       <div class="card-header">
         <h3>{{ tabTitle }}</h3>
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -213,6 +283,15 @@ const pageSize = 20
 const total = ref(0)
 const searchQuery = ref('')
 
+// ── 修改建议 Tab ──
+const tab = ref<'deals' | 'edits'>('deals')
+const edits = ref<any[]>([])
+const editTotal = ref(0)
+const editsLoading = ref(false)
+const editsBusy = ref(false)
+const editRejectTarget = ref<any>(null)
+const editRejectReason = ref('')
+
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pageList = computed(() => {
   const out: number[] = []
@@ -279,9 +358,91 @@ function debouncedSearch() {
 }
 
 function switchStatus(next: typeof status.value) {
+  tab.value = 'deals'
   status.value = next
   page.value = 1
   loadDeals()
+}
+
+function switchTab(next: 'deals' | 'edits') {
+  tab.value = next
+  if (next === 'edits') loadEdits()
+  else loadDeals()
+}
+
+// ── 修改建议 ──────────────────────────────────────────────
+/** 管理员视角：列出全部用户的待审修改建议 */
+async function loadEdits() {
+  editsLoading.value = true
+  try {
+    const r = await $fetch<any>('/api/token-deal-edits?limit=100', getAuthOpts())
+    edits.value = r.edits || []
+    editTotal.value = r.total || 0
+  } catch (e: any) {
+    showMessage('加载修改建议失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+    edits.value = []
+    editTotal.value = 0
+  } finally {
+    editsLoading.value = false
+  }
+}
+
+/** 待审建议数量 —— 用于 Tab 角标（进页面时静默拉一次） */
+async function loadEditCount() {
+  try {
+    const r = await $fetch<any>('/api/token-deal-edits?limit=1', getAuthOpts())
+    editTotal.value = r.total || 0
+  } catch {
+    editTotal.value = 0
+  }
+}
+
+function displayFieldValue(field: string, value: any): string {
+  if (value === null || value === undefined || value === '') return '（空）'
+  if (field === 'models') return Array.isArray(value) && value.length ? value.join('、') : '（空）'
+  if (field === 'region') return REGION_LABELS[value] || String(value)
+  if (field === 'source_tag') return SOURCE_LABELS[value] || String(value)
+  if (field === 'expires_at') {
+    const ts = Number(value)
+    if (!Number.isFinite(ts)) return String(value)
+    return new Date(ts).toLocaleDateString('zh-CN')
+  }
+  return String(value)
+}
+
+function openEditReject(target: any) {
+  editRejectTarget.value = target
+  editRejectReason.value = ''
+}
+
+async function reviewEdit(target: any, action: 'approve' | 'reject', reason = '') {
+  if (editsBusy.value) return
+  editsBusy.value = true
+  try {
+    const res = await $fetch<any>(`/api/token-deal-edits/${target.id}/review`, {
+      method: 'POST',
+      body: { action, reason },
+      ...getAuthOpts(),
+    })
+    showMessage(res?.message || (action === 'approve' ? '已通过并写入通告' : '已驳回'))
+    edits.value = edits.value.filter((e: any) => e.id !== target.id)
+    editTotal.value = Math.max(0, editTotal.value - 1)
+    // 通告内容可能已变，回到列表 Tab 时数据要刷新
+    loadDeals()
+  } catch (e: any) {
+    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    editsBusy.value = false
+  }
+}
+
+async function confirmEditReject() {
+  if (!editRejectTarget.value) return
+  const target = editRejectTarget.value
+  const reason = editRejectReason.value.trim()
+  editRejectTarget.value = null
+  editRejectReason.value = ''
+  await reviewEdit(target, 'reject', reason)
 }
 
 // ── 展示辅助 ──────────────────────────────────────────────
@@ -414,6 +575,7 @@ async function removeDeal(d: any) {
 
 onMounted(() => {
   loadDeals()
+  loadEditCount()
 })
 
 onBeforeUnmount(() => {
@@ -509,4 +671,123 @@ onBeforeUnmount(() => {
 .quality-tag.q-mid { background: var(--surface-sunken); color: var(--text-secondary); }
 .quality-tag.q-low,
 .quality-tag.q-bottom { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+
+/* ── 修改建议 Tab ── */
+.edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+.edit-row {
+  padding: 12px 14px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+}
+.edit-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.edit-deal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+.edit-provider {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.edit-deal-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.edit-time {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.edit-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.edit-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.edit-author i { color: var(--primary); font-size: 12px; }
+.edit-comment {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+.edit-diff {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.edit-diff-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.diff-label { flex-shrink: 0; min-width: 62px; color: var(--text-tertiary); }
+.diff-from { color: var(--text-tertiary); text-decoration: line-through; word-break: break-all; }
+.diff-arrow { color: var(--text-tertiary); font-size: 13px; flex-shrink: 0; }
+.diff-to { color: var(--text-primary); font-weight: 500; word-break: break-all; }
+.edit-noop {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.edit-reject-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 0.5px dashed var(--border);
+}
+.edit-reject-box textarea {
+  width: 100%;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+}
+.edit-reject-box textarea:focus { border-color: var(--border-focus); }
+.edit-reject-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
 </style>
