@@ -268,6 +268,51 @@ export function createTables(db: Database.Database) {
   `)
 
   createTokenDealEditTable(db)
+  createGuestReviewTable(db)
+}
+
+/**
+ * 游客评测表 `token_deal_guest_reviews`。
+ *
+ * 站点主体无社交登录资质（微信/QQ 快捷登录要求企业主体），改用「游客匿名评测」：
+ * 游客填昵称 + 可选 QQ 号（仅用于取头像）即可提交，**默认 pending**，
+ * 由通告作者或管理员审核通过后才公开并计入评分。
+ *
+ * 设计要点：
+ *   1. **独立建表** —— 不并入上方 `createTables()` 的多语句 exec 块（铁律：块内任一语句
+ *      失败会静默中断其后全部建表）。
+ *   2. `user_id` **可为空** —— 登录用户也可走本表（例如想用不同昵称/头像），
+ *      故不设 FK 到 users，避免删用户时连带删评测。
+ *   3. `ip_hash` / `fingerprint` 均为 **HMAC 摘要**，不存明文 IP 与 UA ——
+ *      用于「同一人同一通告只留一条」的去重，不可逆、不构成个人信息存储。
+ *   4. `qq_cipher` 存 AES-256-GCM 密文（非明文 QQ 号），且**只在服务端解密用于取头像**；
+ *      对外一律以 `avatarKey()` 派生的不可逆 key 暴露，QQ 号永不出现在响应/HTML 中。
+ *   5. `status` 三态：pending | approved | rejected。仅 approved 计入评分。
+ */
+function createGuestReviewTable(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_guest_reviews (
+        id TEXT PRIMARY KEY,
+        deal_id TEXT NOT NULL,
+        user_id INTEGER,
+        nickname TEXT NOT NULL DEFAULT '',
+        qq_cipher TEXT DEFAULT '',
+        rating INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        reject_reason TEXT DEFAULT '',
+        reviewer_id INTEGER,
+        ip_hash TEXT DEFAULT '',
+        fingerprint TEXT DEFAULT '',
+        created_at INTEGER,
+        updated_at INTEGER,
+        FOREIGN KEY (deal_id) REFERENCES token_deals(id) ON DELETE CASCADE
+      );
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_guest_reviews 表失败:', err.message)
+  }
 }
 
 /**
@@ -339,6 +384,8 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'bookmarks', 'source', "ALTER TABLE bookmarks ADD COLUMN source TEXT DEFAULT '[]'")
   ensureColumn(db, 'folders', 'updated_at', 'ALTER TABLE folders ADD COLUMN updated_at INTEGER')
   ensureColumn(db, 'users', 'nickname', "ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''")
+  // 用户 QQ 号（AES-256-GCM 密文），仅用于取 QQ 头像；不存明文，且不出现在任何响应中
+  ensureColumn(db, 'users', 'qq_cipher', "ALTER TABLE users ADD COLUMN qq_cipher TEXT DEFAULT ''")
   ensureColumn(db, 'bookmarks', 'login_required', 'ALTER TABLE bookmarks ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'prompts', 'login_required', 'ALTER TABLE prompts ADD COLUMN login_required INTEGER DEFAULT 0')
   ensureColumn(db, 'search_engines', 'user_id', "ALTER TABLE search_engines ADD COLUMN user_id INTEGER DEFAULT 0")
@@ -704,6 +751,29 @@ function createTokenDealEditIndexes(db: Database.Database) {
       db.exec(sql)
     } catch (err: any) {
       console.warn('[DB] token_deal_edits 索引创建失败:', err.message)
+    }
+  }
+}
+
+/**
+ * `token_deal_guest_reviews` 的索引 —— 同样独立于上方多语句 exec 块，每条独立容错。
+ *
+ * 索引按实际查询形态设计：
+ *   - `idx_tdgr_deal`   详情弹窗按通告取「已通过」评测（`WHERE deal_id = ? AND status = 'approved'`）
+ *   - `idx_tdgr_status` 管理与「待我审核」按状态 + 时间取
+ *   - `idx_tdgr_dedup`  提交时按通告 + 指纹判重（「同一人同一通告只留一条」）
+ */
+function createGuestReviewIndexes(db: Database.Database) {
+  const indexes = [
+    "CREATE INDEX IF NOT EXISTS idx_tdgr_deal ON token_deal_guest_reviews(deal_id, status, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tdgr_status ON token_deal_guest_reviews(status, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tdgr_dedup ON token_deal_guest_reviews(deal_id, fingerprint)",
+  ]
+  for (const sql of indexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] token_deal_guest_reviews 索引创建失败:', err.message)
     }
   }
 }

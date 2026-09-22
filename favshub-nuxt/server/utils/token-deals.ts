@@ -170,11 +170,27 @@ export function syncDealCounters(db: Database.Database, dealId: string): void {
     FROM token_deal_reviews WHERE deal_id = ?
   `).get(dealId) as { count: number; sum: number }
 
+  // 游客评测：**仅已通过审核的**计入评分（pending/rejected 不计），
+  // 与「审核通过才公开」的语义一致。表缺失（未迁移）时按 0 处理，不阻断主流程。
+  let guest = { count: 0, sum: 0 }
+  try {
+    guest = db.prepare(`
+      SELECT COUNT(*) AS count, COALESCE(SUM(rating), 0) AS sum
+      FROM token_deal_guest_reviews WHERE deal_id = ? AND status = 'approved'
+    `).get(dealId) as { count: number; sum: number }
+  } catch { /* 表未迁移时忽略 */ }
+
   db.prepare(`
     UPDATE token_deals
     SET vote_up = ?, vote_down = ?, rating_sum = ?, rating_count = ?
     WHERE id = ?
-  `).run(votes.up || 0, votes.down || 0, reviews.sum || 0, reviews.count || 0, dealId)
+  `).run(
+    votes.up || 0,
+    votes.down || 0,
+    (reviews.sum || 0) + (guest.sum || 0),
+    (reviews.count || 0) + (guest.count || 0),
+    dealId,
+  )
 }
 
 /** 判断通告是否已过有效期（expires_at 为空表示永久有效） */
