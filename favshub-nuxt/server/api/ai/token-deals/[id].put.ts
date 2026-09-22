@@ -7,7 +7,9 @@
  * 「把标题里的某段删掉」这类指令不应要求调用方回填全部字段。
  *
  * 权限：通告作者或管理员。他人资源一律返回 404（不区分「不存在」与「无权限」）。
- * 状态：管理员编辑保持原状态；作者编辑已审核通过的通告会回到 pending 重新审核。
+ *       **修改他人通告请走建议通道**：`POST /api/ai/token-deals/:id/edits`。
+ * 状态：管理员编辑保持原状态；作者是本人通告的审核人 → 编辑即刻生效，
+ *       仅当通告处于 `rejected` 时修正后回到 pending 交管理员过目。
  */
 import { getRouterParams, readBody } from 'h3'
 import { getRawDb } from '../../../database'

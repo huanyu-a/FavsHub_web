@@ -15,6 +15,8 @@ import {
   listPrompts, getPromptDetail, createPrompt, updatePrompt, deletePrompt,
   listTags, createTag, deleteTag,
   listTokenDeals, createTokenDeal, updateTokenDeal, deleteTokenDeal,
+  submitTokenDealEdit, listTokenDealEditList,
+  listReviewableTokenDealEdits, reviewTokenDealEdit, withdrawTokenDealEdit,
 } from '../utils/ai-service'
 import { safeErrorMessage } from '../utils/sanitize'
 
@@ -244,6 +246,73 @@ const TOOLS: ToolDef[] = [
     description: '删除 Token 白嫖通告（作者或管理员）。必须携带 confirm:true。',
     inputSchema: obj({ id: str('通告 ID（必填）'), confirm: CONFIRM, dry_run: DRY_RUN }, ['id', 'confirm']),
     run: (db, token, args) => deleteTokenDeal(db, token.user_id, args?.id, args || {}),
+  },
+
+  // ── 通告修改建议（提案）──────────────────────────────────────
+  // 站点规则：通告内容允许所有人修改，但需经「通告作者」或「管理员」审核；
+  // 管理员可处理所有用户的提案。他人通告只能走提案通道，不能直接 update。
+  {
+    name: 'submit_token_deal_edit',
+    scope: 'write',
+    description: '对任意 Token 白嫖通告提交**修改建议**（任何登录用户都可提交，含他人通告）。'
+      + '只传需要修改的字段；同一人对同一通告只保留一条待审建议，再次提交即覆盖。'
+      + '建议通过前通告内容不受影响，需经通告作者或管理员审核才生效。建议先用 dry_run:true 预演差异。',
+    inputSchema: obj({
+      deal_id: str('通告 ID（必填）'),
+      provider: str('服务商名称（≤60）'),
+      title: str('通告标题（≤120）'),
+      url: str('领取地址（http/https）'),
+      call_url: str('API 调用地址'),
+      quota: str('免费额度描述'),
+      models: strArr('支持的模型列表（整体替换）'),
+      region: str('cn | global'),
+      quality: str('品质分级'),
+      source_tag: str('official | relay | community'),
+      expires_at: num('有效期毫秒时间戳，null 为永久'),
+      note: str('备注'),
+      comment: str('提交说明：为什么这么改（≤200），供审核人参考'),
+      dry_run: DRY_RUN,
+    }, ['deal_id']),
+    run: (db, token, args) => submitTokenDealEdit(db, token.user_id, args?.deal_id, args || {}),
+  },
+  {
+    name: 'list_token_deal_edits',
+    scope: 'read',
+    description: '查询某条通告的修改建议。通告作者与管理员可见全部（含已结案，用于审核与追溯）；'
+      + '其他用户仅可见自己提交的建议。',
+    inputSchema: obj({
+      deal_id: str('通告 ID（必填）'),
+      status: str('pending | approved | rejected | all（默认全部）'),
+    }, ['deal_id']),
+    run: (db, token, args) => listTokenDealEditList(db, token.user_id, args?.deal_id, args || {}),
+  },
+  {
+    name: 'list_reviewable_token_deal_edits',
+    scope: 'read',
+    description: '查询「待我审核」的通告修改建议：管理员返回全部用户的待审建议，'
+      + '普通用户返回自己发布的通告上由他人提交的待审建议。仅返回 pending 状态。',
+    inputSchema: obj({ limit: num('每页条数，默认 50'), page: num('页码') }),
+    run: (db, token, args) => listReviewableTokenDealEdits(db, token.user_id, args || {}),
+  },
+  {
+    name: 'review_token_deal_edit',
+    scope: 'write',
+    description: '审核通告修改建议。权限为**通告作者或管理员**（管理员可审核所有用户的建议）。'
+      + 'approve 会把建议内容写入通告；reject 需携带 reason 说明理由。',
+    inputSchema: obj({
+      edit_id: str('建议 ID（必填）'),
+      action: str('approve（通过并写入通告）| reject（驳回）'),
+      reason: str('驳回理由（reject 时建议填写，≤200）'),
+      dry_run: DRY_RUN,
+    }, ['edit_id', 'action']),
+    run: (db, token, args) => reviewTokenDealEdit(db, token.user_id, args?.edit_id, args || {}),
+  },
+  {
+    name: 'withdraw_token_deal_edit',
+    scope: 'write',
+    description: '撤回自己提交的通告修改建议（仅待审状态可撤回）。',
+    inputSchema: obj({ edit_id: str('建议 ID（必填）') }, ['edit_id']),
+    run: (db, token, args) => withdrawTokenDealEdit(db, token.user_id, args?.edit_id),
   },
 ]
 

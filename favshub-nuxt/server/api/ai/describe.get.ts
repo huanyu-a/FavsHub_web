@@ -65,6 +65,7 @@ export default defineAiHandler('read', async (_event, token) => {
       tags_delete: '删除标签仅管理员可执行（与站点既有规则一致）。',
       token_deals_status: '管理员发布的通告直接上线（approved）；普通用户发布进入待审核（pending）。',
       patch_semantics: '更新端点（PUT）一律为**部分更新**：只传需要修改的字段，未传字段保持原值。无需先 GET 再回填全部字段。',
+      deal_edits: '**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核。** 修改他人通告必须走建议通道（POST /api/ai/token-deals/:id/edits 或工具 submit_token_deal_edit），不能直接 UPDATE；作者是本人通告的审核人，可直接改自己的（PUT），编辑即刻生效。审核权限 = 通告作者或管理员，管理员可审核所有用户的建议。建议通过前通告内容不受影响。',
       card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。三种风格：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
     },
 
@@ -123,6 +124,21 @@ export default defineAiHandler('read', async (_event, token) => {
         },
         note: '列表默认返回公开的 approved 通告 + 自己发布的全部（含 pending）。',
       },
+      token_deal_edits: {
+        table: 'token_deal_edits',
+        fields: {
+          id: '字符串，建议 ID',
+          deal_id: '字符串，关联的通告 ID',
+          user_id: '整数，提交建议的用户',
+          payload: '对象，**只含被修改的字段**（字段级 patch），非整条通告快照',
+          comment: '字符串，可空，≤200，提交说明',
+          status: 'pending | approved | rejected',
+          reviewer_id: '整数或 null，审核人',
+          reject_reason: '字符串，可空，≤200',
+          created_at: '毫秒时间戳', updated_at: '毫秒时间戳',
+        },
+        note: '审核时以「通告当前内容」为底合并 payload，因此建议提交后主表其他字段的改动不会被建议覆盖回旧值；diff 相对当前内容实时计算，已无差异时 is_noop=true。',
+      },
     },
 
     endpoints: [
@@ -151,9 +167,15 @@ export default defineAiHandler('read', async (_event, token) => {
 
       { method: 'GET', path: '/api/ai/token-deals', scope: 'read', params: ['q', 'region', 'quality', 'mine', 'limit', 'page'] },
       { method: 'POST', path: '/api/ai/token-deals', scope: 'write', body: '{ provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }' },
-      { method: 'PUT', path: '/api/ai/token-deals/:id', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }', note: '**部分更新**：只传要改的字段，未传保持原值；作者或管理员' },
+      { method: 'PUT', path: '/api/ai/token-deals/:id', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }', note: '**部分更新**：只传要改的字段，未传保持原值；作者或管理员。修改他人通告请改用建议通道' },
       { method: 'DELETE', path: '/api/ai/token-deals/:id', scope: 'delete', body: '{ confirm: true, dry_run? }', note: '作者或管理员' },
       { method: 'GET', path: '/api/ai/token-deals/:id/card.png', scope: 'read', params: ['style=magazine|neon|clay', 'refresh=0|1'], returns: 'image/png 二进制（900×1200）', note: '生成通告分享卡片，与网页分享面板同一份绘制逻辑；响应头 x-card-style / x-card-cached 便于核对' },
+
+      { method: 'POST', path: '/api/ai/token-deals/:id/edits', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, comment?, dry_run? }', note: '**提交修改建议**（任何登录用户可对任意已公开通告提交）。只传要改字段；同一人对同一通告只保留一条待审建议，再次提交即覆盖。需经作者或管理员审核才生效' },
+      { method: 'GET', path: '/api/ai/token-deals/:id/edits', scope: 'read', params: ['status=pending|approved|rejected|all'], note: '作者与管理员见全部；其他用户仅见自己提交的建议' },
+      { method: 'GET', path: '/api/ai/token-deal-edits', scope: 'read', params: ['limit', 'page'], note: '**待我审核**的建议：管理员见全部用户，普通用户见自己通告上他人提交的；仅 pending' },
+      { method: 'POST', path: '/api/ai/token-deal-edits/:id/review', scope: 'write', body: '{ action: "approve" | "reject", reason?, dry_run? }', note: '审核建议；权限为通告作者或管理员（管理员可审所有用户的）' },
+      { method: 'DELETE', path: '/api/ai/token-deal-edits/:id', scope: 'write', note: '撤回自己提交的建议（仅待审状态）' },
 
       { method: 'POST', path: '/api/mcp', scope: '按工具', desc: 'MCP（JSON-RPC 2.0）通道：initialize / tools/list / tools/call，与 REST 端点等价' },
     ],

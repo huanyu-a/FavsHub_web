@@ -14,7 +14,24 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { createError } from 'h3'
 import { normalizeUrl } from './bookmark-labels'
-import { validateDealPayload, newDealId, escapeLike } from './token-deals'
+import {
+  validateDealPayload,
+  newDealId,
+  escapeLike,
+  DEAL_PATCHABLE,
+  parseDealModels,
+  readDealField,
+  extractDealPatch,
+  validateDealPatch,
+  diffDealPatch,
+} from './token-deals'
+import {
+  submitDealEdit,
+  listDealEdits,
+  listReviewableEdits,
+  reviewDealEdit,
+  withdrawDealEdit,
+} from './deal-edits'
 import { AI_BATCH_LIMIT } from './ai-auth'
 import { parseAdminUsers } from './auth'
 
@@ -686,32 +703,14 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
   }
 }
 
-/** 通告可被更新的字段（不含 status / pinned / user_id —— 由权限与站点规则决定） */
-const DEAL_UPDATABLE = [
-  'provider', 'title', 'url', 'call_url', 'quota', 'models',
-  'region', 'quality', 'source_tag', 'expires_at', 'note',
-] as const
-
-/** 从请求体读取某字段，兼容 snake_case 与 camelCase 两种写法 */
-function readDealField(body: any, key: string): { present: boolean; value: any } {
-  if (body?.[key] !== undefined) return { present: true, value: body[key] }
-  const camel: Record<string, string> = {
-    call_url: 'callUrl', source_tag: 'sourceTag', expires_at: 'expiresAt',
-  }
-  const alias = camel[key]
-  if (alias && body?.[alias] !== undefined) return { present: true, value: body[alias] }
-  return { present: false, value: undefined }
-}
-
-/** 安全解析库中的 models 字段（存的是 JSON 字符串） */
-function parseDealModels(raw: unknown): string[] {
-  try {
-    const parsed = JSON.parse(String(raw ?? '[]'))
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
+/**
+ * 通告可被更新的字段 —— **单一真源**在 `./token-deals` 的 `DEAL_PATCHABLE`。
+ *
+ * 此前本文件与 Web 端点各存一份白名单 + 各写一个 `readDealField`，
+ * 属于「同一规则两处实现」的漂移温床：任一侧新增字段，另一侧会静默丢弃。
+ * 现统一从共享模块导入。
+ */
+const DEAL_UPDATABLE = DEAL_PATCHABLE
 
 /**
  * 更新 Token 白嫖通告 —— **部分更新（patch）语义**：只传要改的字段，未传的保持原值。
@@ -720,7 +719,9 @@ function parseDealModels(raw: unknown): string[] {
  * AI 通道按字段级 patch 处理，避免「只想改标题却必须回填全部字段」导致的误伤。
  *
  * 权限：通告作者或管理员；他人资源一律 **404**（不区分「不存在」与「无权限」，与全局隔离策略一致）。
- * 状态：管理员编辑保持原状态；作者编辑已审核通过的通告会回到 pending 重新审核。
+ *       **修改他人通告请走提案通道**（`submitTokenDealEdit`），不经过本函数。
+ * 状态：管理员编辑保持原状态；作者是本人通告的审核人 → 编辑即刻生效，
+ *       仅当通告处于 `rejected` 时修正后回到 `pending` 交管理员过目。
  */
 export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: any) {
   const id = String(rawId ?? '').trim()
@@ -761,7 +762,7 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
   if (!result.ok) fail(400, result.error)
   const d = result.data
 
-  const status = isAdmin ? deal.status : (deal.status === 'approved' ? 'pending' : deal.status)
+  const status = isAdmin ? deal.status : (deal.status === 'rejected' ? 'pending' : deal.status)
 
   const compare: Array<[string, any, any]> = [
     ['provider', d.provider, deal.provider],
@@ -805,8 +806,8 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     token_deal: updated,
     status,
     changes,
-    message: status === 'pending' && deal.status === 'approved'
-      ? '已保存，内容变更需管理员重新审核'
+    message: status === 'pending' && deal.status === 'rejected'
+      ? '已保存，等待管理员重新审核'
       : '已保存',
   }
 }
@@ -823,8 +824,138 @@ export function deleteTokenDeal(db: DB, userId: number, rawId: unknown, body: an
   db.transaction(() => {
     db.prepare('DELETE FROM token_deal_votes WHERE deal_id = ?').run(id)
     db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(id)
+    db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(id)
     db.prepare('DELETE FROM token_deals WHERE id = ?').run(id)
   })()
 
   return { success: true, deleted: { id, title: deal.title } }
+}
+
+// ─── 修改建议（提案）────────────────────────────────────────────
+//
+// 站点规则：**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核。**
+// 管理员可处理所有用户的提案。以下函数是 Web 端点的同一实现，只做错误映射。
+
+/** 把服务层 `EditOpResult` 映射为 AI 通道的 `fail()` */
+function unwrapEditOp<T>(result: { ok: true; data: T } | { ok: false; status: number; error: string }): T {
+  if (!result.ok) fail(result.status, result.error)
+  return result.data
+}
+
+/**
+ * 对任意通告提交**字段级**修改建议（只传要改的字段）。
+ *
+ * 任何登录用户都可提交；同一人对同一通告只保留一条待审提案，再次提交即覆盖。
+ * 通过前主表内容不受影响。**dry_run 只预演校验与字段差异，不落库。**
+ */
+export function submitTokenDealEdit(db: DB, userId: number, rawDealId: unknown, body: any) {
+  const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
+
+  if (body?.dry_run === true) {
+    // 预演必须是**纯只读** —— 不调用 submitDealEdit（它会写库），
+    // 改为就地复算一遍校验与 diff，保证 dry_run 不产生任何副作用。
+    const dealId = String(rawDealId ?? '').trim()
+    if (!dealId) fail(400, '通告 ID 不能为空')
+
+    const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
+    if (!deal) fail(404, '通告不存在')
+
+    const isReviewer = viewer.isAdmin || deal.user_id === userId
+    if (deal.status !== 'approved' && !isReviewer) fail(404, '通告不存在')
+
+    const patch = extractDealPatch(body)
+    if (Object.keys(patch).length === 0) fail(400, '没有提供任何可修改字段')
+
+    const validated = validateDealPatch(deal, patch)
+    if (!validated.ok) fail(400, validated.error)
+
+    const diff = diffDealPatch(deal, patch)
+    if (diff.length === 0) fail(400, '修改内容与当前一致，无需提交')
+
+    return {
+      dry_run: true,
+      target_id: dealId,
+      changes: diff,
+      note: '预演仅返回将提交的字段差异，未写入任何内容；正式提交后需经通告作者或管理员审核才会生效。',
+    }
+  }
+
+  return unwrapEditOp(submitDealEdit(db, viewer, rawDealId, body))
+}
+
+/** 列出某通告的修改建议：作者/管理员见全部，其他人仅见自己提交的 */
+export function listTokenDealEditList(db: DB, userId: number, rawDealId: unknown, query: any) {
+  const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
+  return unwrapEditOp(listDealEdits(db, viewer, rawDealId, query))
+}
+
+/**
+ * 「待我审核」的修改建议。
+ *
+ * 管理员 → 全部用户的待审提案；普通用户 → 自己发布的通告上、他人提交的待审提案。
+ */
+export function listReviewableTokenDealEdits(db: DB, userId: number, query: any) {
+  const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
+  return unwrapEditOp(listReviewableEdits(db, viewer, query))
+}
+
+/**
+ * 审核修改建议 —— 权限为**通告作者或管理员**，他人一律 404。
+ *
+ * `action: 'approve'` 会把提案 patch 合并进通告（以当前库中内容为底）；
+ * `action: 'reject'` 需带 `reason`。
+ * **dry_run 只复述将要发生的事，不改动提案与通告。**
+ */
+export function reviewTokenDealEdit(db: DB, userId: number, rawEditId: unknown, body: any) {
+  const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
+  const editId = String(rawEditId ?? '').trim()
+  if (!editId) fail(400, '建议 ID 不能为空')
+
+  if (body?.dry_run === true) {
+    // 纯只读预演：校验权限与可审状态，返回将执行的动作，不写库
+    const registry = db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'token_deal_edits'"
+    ).get()
+    if (!registry) fail(500, '服务器尚未完成数据库迁移，请稍后重试')
+
+    const edit = db.prepare(
+      'SELECT e.*, d.user_id AS deal_user_id FROM token_deal_edits e JOIN token_deals d ON d.id = e.deal_id WHERE e.id = ?'
+    ).get(editId) as any
+    if (!edit) fail(404, '建议不存在')
+    if (edit.deal_user_id !== userId && !viewer.isAdmin) fail(404, '建议不存在')
+    if (edit.status !== 'pending') fail(409, `该建议已${edit.status === 'approved' ? '通过' : '驳回'}，无需重复审核`)
+
+    const action = String(body?.action ?? '')
+    if (action !== 'approve' && action !== 'reject') fail(400, '审核动作必须是 approve 或 reject')
+
+    const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(edit.deal_id) as any
+    return {
+      dry_run: true,
+      edit_id: editId,
+      deal_id: edit.deal_id,
+      action,
+      changes: action === 'approve' ? diffDealPatch(deal, parseEditPayload(edit.payload)) : [],
+      note: action === 'approve'
+        ? '预演：通过后上述差异将写入通告，未写入任何内容。'
+        : '预演：驳回后该建议将标记为已驳回，未写入任何内容。',
+    }
+  }
+
+  return unwrapEditOp(reviewDealEdit(db, viewer, rawEditId, body))
+}
+
+/** 安全解析提案 payload（ai-service 内部用） */
+function parseEditPayload(raw: unknown): Record<string, any> {
+  try {
+    const parsed = JSON.parse(String(raw ?? '{}'))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/** 撤回自己提交的修改建议（仅待审状态可撤回） */
+export function withdrawTokenDealEdit(db: DB, userId: number, rawEditId: unknown) {
+  const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
+  return unwrapEditOp(withdrawDealEdit(db, viewer, rawEditId))
 }
