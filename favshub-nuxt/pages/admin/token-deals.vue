@@ -38,6 +38,76 @@
       <button :class="{ active: tab === 'edits' }" @click="switchTab('edits')">
         修改建议<span v-if="editTotal" class="tab-badge">{{ editTotal }}</span>
       </button>
+      <button :class="{ active: tab === 'guests' }" @click="switchTab('guests')">
+        游客评测<span v-if="guestTotal" class="tab-badge">{{ guestTotal }}</span>
+      </button>
+    </div>
+
+    <!-- ── 游客评测 Tab：管理员可审所有通告上的游客评测 ── -->
+    <div v-if="tab === 'guests'" class="card">
+      <div class="card-header">
+        <h3>待审核的游客评测</h3>
+        <button class="btn btn-ghost btn-sm" :disabled="guestsLoading" @click="loadGuests">刷新</button>
+      </div>
+
+      <div v-if="guestsLoading" class="empty-state">加载中...</div>
+      <div v-else-if="guests.length === 0" class="empty-state">暂无待审核的游客评测</div>
+
+      <div v-else class="edit-list">
+        <div v-for="g in guests" :key="g.id" class="edit-row">
+          <div class="edit-row-head">
+            <div class="edit-deal">
+              <span class="edit-provider">{{ g.deal.provider }}</span>
+              <span class="edit-deal-title">{{ g.deal.title }}</span>
+            </div>
+            <span class="edit-time">{{ formatTime(g.created_at) }}</span>
+          </div>
+
+          <div class="edit-meta">
+            <span class="guest-avatar" :class="{ 'has-img': g.avatar && !brokenGuestAvatars.has(g.id) }">
+              <img
+                v-if="g.avatar && !brokenGuestAvatars.has(g.id)"
+                :src="g.avatar"
+                :alt="g.nickname"
+                @error="brokenGuestAvatars.add(g.id)"
+              >
+              <template v-else>{{ (g.nickname || '?')[0].toUpperCase() }}</template>
+            </span>
+            <span class="edit-author">{{ g.nickname }}</span>
+            <span class="guest-rating">
+              <i
+                v-for="n in 5"
+                :key="n"
+                :class="n <= g.rating ? 'ri-star-fill' : 'ri-star-line'"
+              ></i>
+            </span>
+          </div>
+
+          <p class="guest-content">{{ g.content }}</p>
+
+          <div class="edit-actions">
+            <button class="btn btn-primary btn-sm" :disabled="guestsBusy" @click="reviewGuest(g, 'approve')">
+              通过
+            </button>
+            <button class="btn btn-danger btn-sm" :disabled="guestsBusy" @click="openGuestReject(g)">驳回</button>
+          </div>
+
+          <div v-if="guestRejectTarget?.id === g.id" class="edit-reject-box">
+            <textarea
+              v-model="guestRejectReason"
+              rows="2"
+              maxlength="200"
+              placeholder="说明驳回理由（选填）"
+            ></textarea>
+            <div class="edit-reject-actions">
+              <button class="btn btn-ghost btn-sm" @click="guestRejectTarget = null">取消</button>
+              <button class="btn btn-danger btn-sm" :disabled="guestsBusy" @click="confirmGuestReject">
+                确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── 修改建议 Tab：管理员可审所有用户的提案 ── -->
@@ -284,13 +354,23 @@ const total = ref(0)
 const searchQuery = ref('')
 
 // ── 修改建议 Tab ──
-const tab = ref<'deals' | 'edits'>('deals')
+const tab = ref<'deals' | 'edits' | 'guests'>('deals')
 const edits = ref<any[]>([])
 const editTotal = ref(0)
 const editsLoading = ref(false)
 const editsBusy = ref(false)
 const editRejectTarget = ref<any>(null)
 const editRejectReason = ref('')
+
+// ── 游客评测审核 ──
+const guests = ref<any[]>([])
+const guestTotal = ref(0)
+const guestsLoading = ref(false)
+const guestsBusy = ref(false)
+const guestRejectTarget = ref<any>(null)
+const guestRejectReason = ref('')
+/** 头像加载失败的评测 id → 回退首字母色块 */
+const brokenGuestAvatars = ref<Set<string>>(new Set())
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pageList = computed(() => {
@@ -364,9 +444,10 @@ function switchStatus(next: typeof status.value) {
   loadDeals()
 }
 
-function switchTab(next: 'deals' | 'edits') {
+function switchTab(next: 'deals' | 'edits' | 'guests') {
   tab.value = next
   if (next === 'edits') loadEdits()
+  else if (next === 'guests') loadGuests()
   else loadDeals()
 }
 
@@ -443,6 +524,66 @@ async function confirmEditReject() {
   editRejectTarget.value = null
   editRejectReason.value = ''
   await reviewEdit(target, 'reject', reason)
+}
+
+// ── 游客评测审核 ──────────────────────────────────────────
+/** 管理员视角：列出全部通告上的待审游客评测 */
+async function loadGuests() {
+  guestsLoading.value = true
+  try {
+    const r = await $fetch<any>('/api/guest-reviews?limit=100', getAuthOpts())
+    guests.value = r.reviews || []
+    guestTotal.value = r.pending_total ?? r.total ?? 0
+  } catch (e: any) {
+    showMessage('加载游客评测失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+    guests.value = []
+    guestTotal.value = 0
+  } finally {
+    guestsLoading.value = false
+  }
+}
+
+/** 角标：进页面时静默拉一次 */
+async function loadGuestCount() {
+  try {
+    const r = await $fetch<any>('/api/guest-reviews?limit=1', getAuthOpts())
+    guestTotal.value = r.pending_total ?? r.total ?? 0
+  } catch { /* 静默失败，不影响主流程 */ }
+}
+
+function openGuestReject(target: any) {
+  guestRejectTarget.value = target
+  guestRejectReason.value = ''
+}
+
+async function reviewGuest(target: any, action: 'approve' | 'reject', reason = '') {
+  if (guestsBusy.value) return
+  guestsBusy.value = true
+  try {
+    const res = await $fetch<any>(`/api/guest-reviews/${target.id}/review`, {
+      method: 'POST',
+      body: { action, reason },
+      ...getAuthOpts(),
+    })
+    showMessage(res?.message || (action === 'approve' ? '已通过' : '已驳回'))
+    guests.value = guests.value.filter((g: any) => g.id !== target.id)
+    guestTotal.value = Math.max(0, guestTotal.value - 1)
+    // 评分计数已变，通告列表需要刷新
+    loadDeals()
+  } catch (e: any) {
+    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    guestsBusy.value = false
+  }
+}
+
+async function confirmGuestReject() {
+  if (!guestRejectTarget.value) return
+  const target = guestRejectTarget.value
+  const reason = guestRejectReason.value.trim()
+  guestRejectTarget.value = null
+  guestRejectReason.value = ''
+  await reviewGuest(target, 'reject', reason)
 }
 
 // ── 展示辅助 ──────────────────────────────────────────────
@@ -576,6 +717,7 @@ async function removeDeal(d: any) {
 onMounted(() => {
   loadDeals()
   loadEditCount()
+  loadGuestCount()
 })
 
 onBeforeUnmount(() => {
@@ -789,5 +931,41 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* ── 游客评测 Tab ── */
+.guest-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: var(--text-inverse);
+  font-size: 10px;
+  font-weight: 600;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.guest-avatar.has-img { background: transparent; }
+.guest-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.guest-rating {
+  display: inline-flex;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--warning);
+  vertical-align: middle;
+}
+.guest-content {
+  margin: 8px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
 }
 </style>

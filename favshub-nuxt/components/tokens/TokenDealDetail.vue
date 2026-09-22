@@ -227,8 +227,168 @@
               </div>
             </div>
             <p v-if="!authStore.isLoggedIn" class="tdd-hint">
-              登录后可投票与评测，你的反馈会实时更新这条通告的可信度。
+              无需登录也能评测 —— 填个昵称即可参与（评测经审核后公开并计入评分）。
             </p>
+          </section>
+
+          <!-- 游客评测：无需登录 -->
+          <section v-if="!authStore.isLoggedIn" class="tdd-section">
+            <h4 class="section-title">
+              <i class="ri-chat-smile-2-line"></i> 游客评测（无需登录）
+            </h4>
+
+            <!-- 已有待审评测 → 回显状态 -->
+            <div v-if="myGuestReview" class="guest-status">
+              <div class="guest-status-head">
+                <span class="guest-badge" :class="myGuestReview.status">
+                  {{ myGuestReview.status === 'pending' ? '审核中' : '已驳回' }}
+                </span>
+                <span class="guest-status-nick">{{ myGuestReview.nickname }}</span>
+                <span class="guest-stars">
+                  <i
+                    v-for="n in 5"
+                    :key="n"
+                    :class="n <= myGuestReview.rating ? 'ri-star-fill' : 'ri-star-line'"
+                  ></i>
+                </span>
+              </div>
+              <p class="guest-status-content">{{ myGuestReview.content }}</p>
+              <p v-if="myGuestReview.status === 'pending'" class="guest-status-tip">
+                评测已提交，等待作者或管理员审核。通过后会公开显示并计入评分。
+              </p>
+              <p v-else class="guest-status-tip err">
+                未通过审核<template v-if="myGuestReview.reject_reason">：{{ myGuestReview.reject_reason }}</template>。
+                你可以修改后重新提交。
+              </p>
+              <div class="guest-status-actions">
+                <button
+                  v-if="myGuestReview.status === 'pending'"
+                  type="button"
+                  class="tdd-btn ghost"
+                  :disabled="guestSubmitting"
+                  @click="withdrawGuestReview"
+                >
+                  撤回评测
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="tdd-btn ghost"
+                  @click="guestFormOpen = true"
+                >
+                  重新提交
+                </button>
+              </div>
+            </div>
+
+            <!-- 未提交 / 被驳回后重填 -->
+            <template v-else>
+              <button
+                v-if="!guestFormOpen"
+                type="button"
+                class="tdd-btn primary guest-open-btn"
+                @click="openGuestForm"
+              >
+                <i class="ri-chat-smile-2-line"></i> 写一条游客评测
+              </button>
+
+              <div v-else class="review-form guest-form">
+                <div class="guest-row">
+                  <label class="guest-field">
+                    <span class="guest-label">昵称 <em>*</em></span>
+                    <input
+                      v-model="guestNickname"
+                      type="text"
+                      class="guest-input"
+                      :maxlength="24"
+                      placeholder="展示用的名字"
+                    >
+                  </label>
+                  <label class="guest-field">
+                    <span class="guest-label">QQ 号（可选，用于头像）</span>
+                    <input
+                      v-model="guestQQ"
+                      type="text"
+                      class="guest-input"
+                      inputmode="numeric"
+                      :maxlength="11"
+                      placeholder="填了才显示 QQ 头像"
+                    >
+                  </label>
+                </div>
+                <p class="guest-privacy-tip">
+                  <i class="ri-shield-check-line"></i>
+                  QQ 号仅用于服务端获取头像，加密存储、不会公开展示，页面源码中也看不到。
+                </p>
+                <div v-if="guestAvatarPreview" class="guest-avatar-preview">
+                  <img :src="guestAvatarPreview" alt="头像预览" @error="guestAvatarBroken = true">
+                  <span>头像预览</span>
+                </div>
+
+                <div class="star-input">
+                  <button
+                    v-for="n in 5"
+                    :key="n"
+                    type="button"
+                    class="star-btn"
+                    :class="{ active: n <= guestRating }"
+                    :title="`${n} 星`"
+                    @click="guestRating = n"
+                  >
+                    <i :class="n <= guestRating ? 'ri-star-fill' : 'ri-star-line'"></i>
+                  </button>
+                  <span class="star-text">{{ RATING_TEXTS[guestRating] || '' }}</span>
+                </div>
+
+                <textarea
+                  v-model="guestContent"
+                  class="review-input"
+                  rows="3"
+                  :maxlength="1000"
+                  placeholder="说说实际体验：延迟、稳定性、额度是否到账、有没有隐藏门槛..."
+                ></textarea>
+
+                <!-- 人机校验 -->
+                <div class="guest-challenge">
+                  <span class="guest-label">人机校验 <em>*</em></span>
+                  <template v-if="challenge.question">
+                    <span class="challenge-q">{{ challenge.question }}</span>
+                    <input
+                      v-model="challengeAnswer"
+                      type="text"
+                      class="guest-input challenge-input"
+                      inputmode="numeric"
+                      placeholder="答案"
+                    >
+                    <button type="button" class="challenge-refresh" title="换一题" @click="loadChallenge">
+                      <i class="ri-refresh-line"></i>
+                    </button>
+                  </template>
+                  <button v-else type="button" class="tdd-btn ghost" @click="loadChallenge">
+                    加载校验题
+                  </button>
+                </div>
+
+                <div class="review-actions">
+                  <span class="char-count">{{ guestContent.length }} / 1000</span>
+                  <button
+                    type="button"
+                    class="tdd-btn ghost"
+                    @click="guestFormOpen = false"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    class="tdd-btn primary"
+                    :disabled="guestSubmitting"
+                    @click="submitGuestReview"
+                  >
+                    {{ guestSubmitting ? '提交中...' : '提交评测' }}
+                  </button>
+                </div>
+              </div>
+            </template>
           </section>
 
           <!-- 我的评测 -->
@@ -277,7 +437,18 @@
             <ul v-else class="review-list">
               <li v-for="r in reviews" :key="r.id" class="review-item">
                 <div class="review-head">
+                  <span class="review-avatar" :class="{ 'has-img': r.avatar }">
+                    <img
+                      v-if="r.avatar && !brokenAvatars.has(String(r.id))"
+                      :src="r.avatar"
+                      :alt="r.author"
+                      loading="lazy"
+                      @error="markAvatarBroken(r.id)"
+                    >
+                    <template v-else>{{ initialOf(r.author) }}</template>
+                  </span>
                   <span class="review-author">{{ r.author }}</span>
+                  <span v-if="r.source === 'guest'" class="review-tag" title="游客评测">游客</span>
                   <span class="review-stars">
                     <i
                       v-for="n in 5"
@@ -466,12 +637,27 @@ interface IEditsSummary {
 }
 
 interface IReview {
-  id: number
+  id: string | number
   rating: number
   content: string
   created_at: number
   updated_at: number | null
   author: string
+  /** 头像 URL（/avatar/<加密令牌>.jpg）；未填 QQ 号时为 null → 回退首字母色块 */
+  avatar?: string | null
+  /** user = 登录用户评测；guest = 游客评测（已通过审核） */
+  source?: 'user' | 'guest'
+}
+
+/** 当前访客自己的待审游客评测（按 IP+UA 指纹识别，未登录也能回显） */
+interface IGuestReview {
+  id: string
+  nickname: string
+  rating: number
+  content: string
+  status: string
+  reject_reason?: string
+  avatar?: string | null
 }
 
 const props = defineProps<{ dealId: string }>()
@@ -518,6 +704,33 @@ const rejectReason = ref('')
 
 const formRating = ref(5)
 const formContent = ref('')
+
+// ── 游客评测（无需登录）──
+const myGuestReview = ref<IGuestReview | null>(null)
+const guestFormOpen = ref(false)
+const guestNickname = ref('')
+const guestQQ = ref('')
+const guestRating = ref(5)
+const guestContent = ref('')
+const guestSubmitting = ref(false)
+const challenge = ref<{ question: string; token: string }>({ question: '', token: '' })
+const challengeAnswer = ref('')
+/** 头像预览：本地拼 QQ 头像直链仅用于即时预览，提交后走服务端代理（QQ 号不外露） */
+const guestAvatarBroken = ref(false)
+const guestAvatarPreview = computed(() => {
+  const qq = guestQQ.value.trim()
+  if (!/^[1-9]\d{4,10}$/.test(qq) || guestAvatarBroken.value) return null
+  return `https://q2.qlogo.cn/headimg_dl?dst_uin=${qq}&spec=100`
+})
+
+/** 头像加载失败的评测 id 集合 → 回退首字母色块（QQ 头像接口对无效号会返回默认图，但网络失败仍需兜底） */
+const brokenAvatars = ref<Set<string>>(new Set())
+function markAvatarBroken(id: string | number) {
+  brokenAvatars.value.add(String(id))
+}
+function initialOf(name: string) {
+  return (name || '?')[0].toUpperCase()
+}
 
 const reviews = ref<IReview[]>([])
 const distribution = ref<Record<number, number>>({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 })
@@ -614,6 +827,7 @@ async function loadDeal() {
     const data = await $fetch<{
       deal: ITokenDeal
       edits: IEditsSummary | null
+      guest_review: IGuestReview | null
       my_vote: string | null
       my_review: any
     }>(
@@ -624,6 +838,13 @@ async function loadDeal() {
     myVote.value = data.my_vote
     myReview.value = data.my_review
     myEdit.value = data.edits?.my_edit ?? null
+    myGuestReview.value = data.guest_review ?? null
+    // 回填游客表单：被驳回后重填时预填上次内容，减少重复输入
+    if (data.guest_review && data.guest_review.status === 'rejected') {
+      guestNickname.value = data.guest_review.nickname || ''
+      guestRating.value = data.guest_review.rating || 5
+      guestContent.value = data.guest_review.content || ''
+    }
     if (data.my_review) {
       formRating.value = data.my_review.rating
       formContent.value = data.my_review.content
@@ -651,6 +872,106 @@ async function loadPendingEdits() {
     pendingEdits.value = res.can_review ? res.edits : []
   } catch {
     pendingEdits.value = []
+  }
+}
+
+// ── 游客评测 ──────────────────────────────────────────────────
+
+/** 打开游客评测表单：顺带拉一道人机校验题 */
+function openGuestForm() {
+  guestFormOpen.value = true
+  guestAvatarBroken.value = false
+  if (!challenge.value.question) loadChallenge()
+}
+
+/** 获取人机校验题（答案在服务端签名令牌里，前端只拿到题目） */
+async function loadChallenge() {
+  challengeAnswer.value = ''
+  try {
+    const res = await $fetch<{ question: string; token: string }>(
+      `/api/token-deals/${props.dealId}/guest-review-challenge`,
+      { credentials: 'include' },
+    )
+    challenge.value = { question: res.question, token: res.token }
+  } catch (err: any) {
+    challenge.value = { question: '', token: '' }
+    toast(err?.data?.error || '校验题加载失败', 'err')
+  }
+}
+
+async function submitGuestReview() {
+  if (guestSubmitting.value) return
+  const nickname = guestNickname.value.trim()
+  if (!nickname) {
+    toast('请填写昵称', 'err')
+    return
+  }
+  if (!guestContent.value.trim()) {
+    toast('请填写评测内容', 'err')
+    return
+  }
+  if (!challenge.value.token) {
+    toast('请先加载并完成人机校验', 'err')
+    return
+  }
+  if (!challengeAnswer.value.trim()) {
+    toast('请填写人机校验答案', 'err')
+    return
+  }
+  const qq = guestQQ.value.trim()
+  if (qq && !/^[1-9]\d{4,10}$/.test(qq)) {
+    toast('QQ 号格式不正确（5-11 位数字）', 'err')
+    return
+  }
+
+  guestSubmitting.value = true
+  try {
+    const res = await $fetch<{ review: IGuestReview; message?: string }>(
+      `/api/token-deals/${props.dealId}/guest-reviews`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        body: {
+          nickname,
+          qq,
+          rating: guestRating.value,
+          content: guestContent.value.trim(),
+          challenge_token: challenge.value.token,
+          challenge_answer: Number(challengeAnswer.value.trim()),
+        },
+      },
+    )
+    myGuestReview.value = res.review
+    guestFormOpen.value = false
+    guestContent.value = ''
+    challenge.value = { question: '', token: '' }
+    challengeAnswer.value = ''
+    toast(res.message || '评测已提交，等待审核')
+    // 若该访客此前已有通过的评测，本次是覆盖提交 → 列表内容会变
+    await loadReviews(true)
+  } catch (err: any) {
+    toast(err?.data?.error || '提交失败', 'err')
+    // 校验题是一次性的（答题即消耗），失败后换一题避免重复提交同一答案
+    if (String(err?.data?.error || '').includes('校验')) loadChallenge()
+  } finally {
+    guestSubmitting.value = false
+  }
+}
+
+async function withdrawGuestReview() {
+  if (!myGuestReview.value || guestSubmitting.value) return
+  guestSubmitting.value = true
+  try {
+    await $fetch(`/api/token-deals/${props.dealId}/guest-reviews/${myGuestReview.value.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    myGuestReview.value = null
+    toast('已撤回评测')
+  } catch (err: any) {
+    toast(err?.data?.error || '撤回失败', 'err')
+  } finally {
+    guestSubmitting.value = false
   }
 }
 
@@ -1251,9 +1572,178 @@ onUnmounted(() => {
   gap: 8px;
   margin-bottom: 5px;
 }
+/* 头像：有图走 <img>，无图/加载失败回退昵称首字母色块 */
+.review-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: var(--text-inverse);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.review-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .review-author { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
+/* 游客标识：与登录用户评测区分 */
+.review-tag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+}
 .review-stars { display: flex; gap: 1px; font-size: 11px; color: var(--warning); }
 .review-time { margin-left: auto; font-size: 11px; color: var(--text-tertiary); }
+
+/* ── 游客评测 ── */
+.guest-open-btn { width: 100%; justify-content: center; }
+.guest-form { gap: 10px; }
+.guest-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.guest-field {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.guest-label {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.guest-label em {
+  font-style: normal;
+  color: var(--danger);
+}
+.guest-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.guest-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+.guest-privacy-tip {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.guest-privacy-tip i { margin-top: 1px; }
+.guest-avatar-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.guest-avatar-preview img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+.guest-challenge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+.challenge-q {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+.challenge-input {
+  width: 72px;
+  flex: 0 0 auto;
+  text-align: center;
+}
+.challenge-refresh {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 6px;
+}
+.challenge-refresh:hover { color: var(--primary); background: var(--surface-hover); }
+
+/* 已有待审评测的状态回显 */
+.guest-status {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guest-status-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guest-badge {
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--warning-bg, var(--surface-raised));
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.guest-badge.rejected {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.guest-status-nick { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
+.guest-stars { display: flex; gap: 1px; font-size: 11px; color: var(--warning); }
+.guest-status-content {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+.guest-status-tip {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+.guest-status-tip.err { color: var(--danger); }
+.guest-status-actions { display: flex; gap: 8px; }
+
 .review-content {
   margin: 0;
   font-size: 12.5px;

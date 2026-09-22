@@ -12,6 +12,8 @@ export interface AuthUser {
   nickname?: string | null
   is_admin?: boolean | number
   created_at?: number
+  /** 头像 URL（/avatar/<加密令牌>.jpg）；未设置 QQ 号时为 null */
+  avatar?: string | null
 }
 
 interface AuthState {
