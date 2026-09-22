@@ -227,7 +227,8 @@
               </div>
             </div>
             <p v-if="!authStore.isLoggedIn" class="tdd-hint">
-              无需登录也能评测 —— 填个昵称即可参与（评测经审核后公开并计入评分）。
+              无需登录即可参与 —— 投票、写评测、给评测打「有用」标都直接生效
+              （评测经审核后公开并计入评分）。
             </p>
           </section>
 
@@ -1133,10 +1134,6 @@ async function toggleMark(review: IReview) {
 }
 
 async function vote(direction: 'up' | 'down') {
-  if (!authStore.isLoggedIn) {
-    toast('请先登录后再投票', 'err')
-    return
-  }
   if (!deal.value || voting.value) return
   voting.value = true
   try {
