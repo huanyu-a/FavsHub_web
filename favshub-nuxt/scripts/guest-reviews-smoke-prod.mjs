@@ -6,6 +6,9 @@
  *   - 本脚本                        跑在**生产**上，所有写入隔离在一条临时通告内，
  *                                  最后删除该通告（端点显式删子表），做到零残留
  *
+ * 覆盖：人机校验 → 提交 → 覆盖 → 待审不外泄 → 头像代理 → 审核 →
+ *       评测打标（社区健康度第三维）→ 页面 HTML 隐私 → 页面可达性 → 自清理
+ *
  * 用法（在服务器上跑，BASE 指第 2 层 nginx 权威源）：
  *   BASE=http://127.0.0.1:3090 SMOKE_JWT_ADMIN=<管理员 JWT> node guest-reviews-smoke-prod.mjs
  *
@@ -258,6 +261,56 @@ async function main() {
     `rating_count=${dealAfter.data?.deal?.rating_count}`)
   console.log(`  评分: ${dealAfter.data?.deal?.rating_sum}/${dealAfter.data?.deal?.rating_count}`)
   await req('DELETE', `/api/token-deals/${dealId}/guest-reviews/${reviewId}`, { headers: auth, expect: 409 })
+
+  // ── 7.5 评测打标（社区健康度第三维，自清理）──
+  console.log('\n══ 7.5 评测打标 ══')
+  const reviewKey = `g_${reviewId}`
+  const jarMarkA = jar(nextIp())
+  const jarMarkB = jar(nextIp())
+
+  const mk1 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+  })
+  ok(mk1.data?.success === true, '★ 游客可打标（无需登录）')
+  eq(mk1.data?.marked, true, '首次打标 → marked=true')
+  eq(mk1.data?.mark_count, 1, '计数为 1')
+
+  const mk2 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+  })
+  eq(mk2.data?.marked, false, '★ 再点一次 → 取消')
+  eq(mk2.data?.mark_count, 0, '取消后计数归零')
+
+  await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: reviewKey }, jar: jarMarkA, expect: 200,
+  })
+  const mk3 = await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: reviewKey }, jar: jarMarkB, expect: 200,
+  })
+  eq(mk3.data?.mark_count, 2, '★ 第二个访客累加为 2')
+
+  const listA = await req('GET', `/api/token-deals/${dealId}/reviews?limit=50`, { jar: jarMarkA, expect: 200 })
+  const itemA = (listA.data?.reviews || []).find(r => String(r.id) === reviewKey)
+  ok(!!itemA, '评测在列表中')
+  eq(itemA?.mark_count, 2, '★ 列表返回 mark_count=2')
+  eq(itemA?.my_marked, true, '★ 列表返回 my_marked=true（jarA 标过）')
+  const listB = await req('GET', `/api/token-deals/${dealId}/reviews?limit=50`, { jar: jar(nextIp()), expect: 200 })
+  const itemB = (listB.data?.reviews || []).find(r => String(r.id) === reviewKey)
+  eq(itemB?.my_marked, false, '★ 未标过的访客 → my_marked=false')
+  eq(itemB?.mark_count, 2, '未标过的访客也看到总数 2')
+
+  await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: { review_id: 'g__no_such_review__' }, jar: jar(nextIp()), expect: 404,
+  })
+  ok(true, '打标不存在的评测 → 404')
+  await req('POST', '/api/token-deals/__no_such_deal__/review-marks', {
+    body: { review_id: reviewKey }, jar: jar(nextIp()), expect: 404,
+  })
+  ok(true, '通告不存在 → 404')
+  await req('POST', `/api/token-deals/${dealId}/review-marks`, {
+    body: {}, jar: jar(nextIp()), expect: 400,
+  })
+  ok(true, '缺少 review_id → 400')
 
   // ── 8. 页面 HTML 隐私 ──
   console.log('\n══ 8. 页面 HTML 隐私 ══')
