@@ -1,7 +1,9 @@
-// Token 白嫖通告 — 写入/审核流程端到端测试（51 项断言）
+// Token 白嫖通告 — 写入/审核/修改建议流程端到端测试
 //
 // 覆盖: 注册/登录 → 发布进待审核 → 待审核可见性 → 管理员审核 →
-//       一人一票(取消/改票) → 一人一评(更新/越界) → 置顶 → 驳回 → 删除鉴权
+//       一人一票(取消/改票) → 一人一评(更新/越界) → 置顶 → 驳回 → 删除鉴权 →
+//       **修改建议**：任何人可对任意已公开通告提交字段级建议、同人覆盖、
+//       可见性收窄、待我审核聚合、作者/管理员审核通过落库、驳回、撤回、越权 404
 //
 // 用法:
 //   1) 启动被测服务（务必用库副本，勿指向生产库）:
@@ -73,7 +75,9 @@ console.log('=== 1. 注册/登录三个账号 ===')
   const a = await ensureAuth(admin, ADMIN_USER, '审核管理员')
   check('管理员账号可用', a.status === 200, 'status=' + a.status)
   check('管理员拿到 cookie', !!admin.cookie, 'cookie=' + admin.cookie.slice(0, 30))
-  check('管理员 is_admin=true', a.isAdmin === true, 'is_admin=' + a.isAdmin)
+  // 注意：不能断言注册响应的 is_admin —— 注册只在「库中无管理员」时自动提权，
+  // 而 NUXT_ADMIN_USERS 是在**请求时**生效的（见 getAuthRole）。
+  // 因此改由后续「管理员审核/后台访问」等真实能力用例来证明管理员身份。
 
   const b = await ensureAuth(user, NORMAL_USER, '普通用户')
   check('普通账号可用', b.status === 200, 'status=' + b.status)
@@ -84,6 +88,12 @@ console.log('=== 1. 注册/登录三个账号 ===')
   const c = await ensureAuth(other, 'smokeother', '无关用户')
   check('第三账号可用', c.status === 200, 'status=' + c.status)
   check('第三账号非管理员', c.isAdmin === false, 'is_admin=' + c.isAdmin)
+
+  // 用「访问管理端」直接证明管理员身份真实生效
+  const adm = await admin.req('/api/admin/token-deals?status=pending')
+  check('管理员可访问后台（身份生效）', adm.status === 200, 'status=' + adm.status)
+  const den = await other.req('/api/admin/token-deals?status=pending')
+  check('普通用户访问后台 → 403', den.status === 403, 'status=' + den.status)
 }
 
 console.log('=== 2. 普通用户发布 → 进入待审核 ===')
@@ -267,6 +277,256 @@ console.log('=== 9. 删除 ===')
   check('删除后详情 404', gone.status === 404, 'status=' + gone.status)
 
   await admin.req('/api/token-deals/' + rejectedId, { method: 'DELETE' })
+}
+
+// ══════════════════════════════════════════════════════════════
+// 修改建议（提案）：通告内容允许所有人修改，但需作者或管理员审核
+// ══════════════════════════════════════════════════════════════
+
+console.log('=== 10. 提交修改建议 ===')
+let dealId = null
+let editId = null
+{
+  // 管理员建一条已通过的通告作为被改对象
+  const c = await admin.req('/api/token-deals', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      provider: '提案测试站', title: '原始标题', url: 'https://proposal.example.com',
+      call_url: 'https://api.proposal.example.com/v1', quota: '100万 tokens',
+      models: ['glm-4-flash'], region: 'cn', quality: '上品', source_tag: 'official',
+      note: '原始备注',
+    }),
+  })
+  dealId = c.json?.deal_id
+  check('建立已通过的通告（管理员直接上线）', c.status === 200 && c.json?.status === 'approved', JSON.stringify(c.json))
+
+  // 未登录不能提交
+  const anonSub = await anon.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '匿名想改' }),
+  })
+  check('未登录提交建议 → 401', anonSub.status === 401, 'status=' + anonSub.status)
+
+  // 无关用户可提交（这正是本功能的要点）
+  const sub = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '更正后的标题', quota: '500万 tokens', comment: '官网额度已更新' }),
+  })
+  check('无关用户可对他人通告提交建议', sub.status === 200, 'status=' + sub.status + ' ' + JSON.stringify(sub.json))
+  editId = sub.json?.edit?.id
+  check('返回提案 id', typeof editId === 'string' && editId.startsWith('edit_'), 'id=' + editId)
+  check('首次提交 created=true', sub.json?.created === true)
+  check('提案状态 pending', sub.json?.edit?.status === 'pending')
+  check('提案人展示名正确', sub.json?.edit?.proposer === '无关用户', 'proposer=' + sub.json?.edit?.proposer)
+  check('带 diff（2 项）', sub.json?.edit?.diff?.length === 2, JSON.stringify(sub.json?.edit?.diff))
+  check('diff 带中文字段名', sub.json?.edit?.diff?.some(d => d.label === '通告标题'))
+
+  // 主表未被改动
+  const d1 = await anon.req('/api/token-deals/' + dealId)
+  check('提案期间主表内容未变', d1.json?.deal?.title === '原始标题', 'title=' + d1.json?.deal?.title)
+  check('提案期间额度未变', d1.json?.deal?.quota === '100万 tokens')
+
+  // 无字段 / 无改动
+  const empty = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ comment: '只说句话' }),
+  })
+  check('无可改字段 → 400', empty.status === 400, 'status=' + empty.status)
+
+  const noop = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '原始标题' }),
+  })
+  check('与当前一致 → 400', noop.status === 400, 'status=' + noop.status)
+
+  // 非法值
+  const bad = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ url: 'not-a-url' }),
+  })
+  check('非法 URL → 400', bad.status === 400, 'status=' + bad.status)
+
+  // 不存在 / 越权字段
+  const nf = await other.req('/api/token-deals/no_such_deal/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'x' }),
+  })
+  check('通告不存在 → 404', nf.status === 404, 'status=' + nf.status)
+
+  // 白名单外的字段必须被剔除：status/pinned 不能通过建议通道夹带（应静默忽略，只留合法字段）
+  const esc = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '夹带尝试', status: 'rejected', pinned: 1, user_id: 1 }),
+  })
+  check('白名单外字段被剔除（只留 title）', esc.status === 200
+    && Object.keys(esc.json?.edit?.payload || {}).join(',') === 'title',
+    'payload=' + JSON.stringify(esc.json?.edit?.payload))
+
+  // 完全不含合法字段时应拒绝
+  const noField = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'rejected', pinned: 1 }),
+  })
+  check('仅含权限字段 → 400（无有效字段）', noField.status === 400, 'status=' + noField.status)
+}
+
+console.log('=== 11. 再次提交覆盖 + 可见性 ===')
+{
+  const again = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '第二次更正', note: '补充备注' }),
+  })
+  check('同人再次提交成功', again.status === 200, 'status=' + again.status)
+  check('覆盖而非新建 created=false', again.json?.created === false)
+  check('复用同一提案 id', again.json?.edit?.id === editId, 'id=' + again.json?.edit?.id)
+
+  // 另一个用户也提一条 → 两条并存
+  const sub2 = await user.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ quality: '中品' }),
+  })
+  check('另一用户可同时提交', sub2.status === 200, 'status=' + sub2.status)
+
+  // 可见性：无关用户只看自己的
+  const asOther = await other.req('/api/token-deals/' + dealId + '/edits')
+  check('提交人只看到自己的建议', asOther.json?.edits?.length === 1, 'len=' + asOther.json?.edits?.length)
+  check('提交人 can_review=false', asOther.json?.can_review === false)
+
+  // 详情摘要
+  const detail = await other.req('/api/token-deals/' + dealId)
+  check('详情含 edits 摘要', !!detail.json?.edits, JSON.stringify(detail.json?.edits)?.slice(0, 80))
+  check('摘要含 my_edit', detail.json?.edits?.my_edit?.id === editId)
+  check('摘要 pending_edit_count=2', detail.json?.edits?.pending_edit_count === 2, 'n=' + detail.json?.edits?.pending_edit_count)
+  check('摘要 is_author=false（非作者）', detail.json?.edits?.is_author === false)
+
+  const asAdmin = await admin.req('/api/token-deals/' + dealId)
+  check('管理员 can_review=true', asAdmin.json?.edits?.can_review === true)
+  check('管理员 is_author=true（本人发布）', asAdmin.json?.edits?.is_author === true)
+}
+
+console.log('=== 12. 待我审核 ===')
+{
+  const anonRv = await anon.req('/api/token-deal-edits')
+  check('未登录待审列表 → 401', anonRv.status === 401, 'status=' + anonRv.status)
+
+  const asOther = await other.req('/api/token-deal-edits')
+  check('无关用户无待审项', (asOther.json?.total ?? 0) === 0, 'total=' + asOther.json?.total)
+
+  const asAdmin = await admin.req('/api/token-deal-edits')
+  check('管理员看到待审建议', (asAdmin.json?.total ?? 0) >= 2, 'total=' + asAdmin.json?.total)
+  check('管理员 scope=all', asAdmin.json?.scope === 'all')
+  check('列表项带 diff', Array.isArray(asAdmin.json?.edits?.[0]?.diff))
+  check('列表项带所属通告摘要', !!asAdmin.json?.edits?.[0]?.deal?.id)
+}
+
+console.log('=== 13. 审核（通过 / 驳回 / 越权） ===')
+{
+  // 越权：提交人自己不能审
+  const selfRev = await other.req('/api/token-deal-edits/' + editId + '/review', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'approve' }),
+  })
+  check('提交人自己审核 → 404', selfRev.status === 404, 'status=' + selfRev.status)
+
+  // 非法动作
+  const badAct = await admin.req('/api/token-deal-edits/' + editId + '/review', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'maybe' }),
+  })
+  check('非法审核动作 → 400', badAct.status === 400, 'status=' + badAct.status)
+
+  // 管理员通过（管理员可审所有用户的建议）
+  const ok = await admin.req('/api/token-deal-edits/' + editId + '/review', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'approve' }),
+  })
+  check('管理员通过建议', ok.status === 200, 'status=' + ok.status + ' ' + JSON.stringify(ok.json))
+  check('返回提案已 approved', ok.json?.edit?.status === 'approved', JSON.stringify(ok.json?.edit?.status))
+
+  const d = await anon.req('/api/token-deals/' + dealId)
+  check('标题已落库', d.json?.deal?.title === '第二次更正', 'title=' + d.json?.deal?.title)
+  check('备注已落库', d.json?.deal?.note === '补充备注', 'note=' + d.json?.deal?.note)
+  check('未改字段保留 provider', d.json?.deal?.provider === '提案测试站', 'provider=' + d.json?.deal?.provider)
+  check('未改字段保留 call_url', d.json?.deal?.call_url === 'https://api.proposal.example.com/v1')
+  check('未改字段保留 region', d.json?.deal?.region === 'cn')
+
+  // 重复审核
+  const again = await admin.req('/api/token-deal-edits/' + editId + '/review', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'approve' }),
+  })
+  check('重复审核 → 409', again.status === 409, 'status=' + again.status)
+
+  // 驳回另一条（user 提的那条 quality=中品）
+  const list = await admin.req('/api/token-deal-edits?limit=50')
+  const target = list.json?.edits?.find(e => e.deal_id === dealId)
+  check('待审列表还有另一条', !!target, JSON.stringify(list.json?.edits?.map(e => e.id)))
+  if (target) {
+    const rej = await admin.req('/api/token-deal-edits/' + target.id + '/review', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'reject', reason: '品质分级调整需附实测依据' }),
+    })
+    check('驳回成功', rej.status === 200 && rej.json?.edit?.status === 'rejected', JSON.stringify(rej.json))
+    check('驳回理由已记录', (rej.json?.edit?.reject_reason || '').includes('实测依据'), 'reason=' + rej.json?.edit?.reject_reason)
+
+    const d2 = await anon.req('/api/token-deals/' + dealId)
+    check('驳回后主表 quality 未变', d2.json?.deal?.quality === '上品', 'quality=' + d2.json?.deal?.quality)
+  }
+
+  // 作者身份审核：无关用户给另一条提，由作者(admin) 审 —— 已覆盖。
+  // 再验一条：普通用户作为作者审自己通告上的建议
+  const c = await user.req('/api/token-deals', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      provider: '作者审核站', title: '作者的通告', url: 'https://owner.example.com',
+      models: [], region: 'cn', quality: '中品', source_tag: 'official',
+    }),
+  })
+  const ownDealId = c.json?.deal_id
+  check('普通用户发布进入待审', c.json?.status === 'pending', JSON.stringify(c.json))
+
+  // 待审通告他人不可见 → 提交建议应 404
+  const onPending = await other.req('/api/token-deals/' + ownDealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '想改待审通告' }),
+  })
+  check('未过审通告他人提交建议 → 404', onPending.status === 404, 'status=' + onPending.status)
+
+  await user.req('/api/token-deals/' + ownDealId, { method: 'DELETE' })
+}
+
+console.log('=== 14. 撤回建议 ===')
+{
+  const sub = await other.req('/api/token-deals/' + dealId + '/edits', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note: '这条会被撤回' }),
+  })
+  const wid = sub.json?.edit?.id
+  check('提交待撤回的建议', typeof wid === 'string', 'id=' + wid)
+
+  const anonWd = await anon.req('/api/token-deal-edits/' + wid, { method: 'DELETE' })
+  check('未登录撤回 → 401', anonWd.status === 401, 'status=' + anonWd.status)
+
+  const foreign = await user.req('/api/token-deal-edits/' + wid, { method: 'DELETE' })
+  check('他人撤回 → 404', foreign.status === 404, 'status=' + foreign.status)
+
+  const own = await other.req('/api/token-deal-edits/' + wid, { method: 'DELETE' })
+  check('本人撤回成功', own.status === 200, 'status=' + own.status)
+
+  const gone = await other.req('/api/token-deals/' + dealId + '/edits')
+  check('撤回后不在列表', !gone.json?.edits?.some(e => e.id === wid))
+
+  // 已通过/已驳回的不可撤回
+  const st = await admin.req('/api/token-deal-edits/' + editId, { method: 'DELETE' })
+  check('已通过的建议不可撤回 → 409', st.status === 409, 'status=' + st.status)
+}
+
+console.log('=== 15. 清理 ===')
+{
+  const del = await admin.req('/api/token-deals/' + dealId, { method: 'DELETE' })
+  check('删除测试通告', del.status === 200, 'status=' + del.status)
+  const gone = await anon.req('/api/token-deals/' + dealId)
+  check('删除后详情 404', gone.status === 404, 'status=' + gone.status)
 }
 
 console.log('')

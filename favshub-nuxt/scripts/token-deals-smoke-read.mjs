@@ -1,6 +1,7 @@
-// Token 白嫖通告 — 只读端到端测试（28 项断言）
+// Token 白嫖通告 — 只读端到端测试
 //
 // 覆盖: 列表/筛选/排序/详情/404/评测分布/鉴权/分页收敛/页面 TDK/sitemap
+//       + 修改建议的匿名可见性（未登录 401、详情摘要降级）
 //
 // 用法:
 //   1) 启动被测服务（建议用库副本，勿指向生产库）:
@@ -109,6 +110,27 @@ console.log('=== 5. 鉴权（未登录应拒绝） ===')
 
   const r3 = await req('/api/admin/token-deals?status=pending')
   check('未登录访问管理端 → 401', r3.status === 401, 'status=' + r3.status)
+
+  // 修改建议：未登录一律拒绝
+  const r4 = await req('/api/token-deals/' + dealId + '/edits', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: '匿名想改' }) })
+  check('未登录提交修改建议 → 401', r4.status === 401, 'status=' + r4.status)
+
+  const r5 = await req('/api/token-deal-edits')
+  check('未登录看待审建议列表 → 401', r5.status === 401, 'status=' + r5.status)
+}
+
+console.log('=== 5b. 修改建议的匿名可见性 ===')
+{
+  // 匿名者读已公开通告的建议列表：可读，但只能看到自己的（匿名即无 → 401）
+  const r = await req('/api/token-deals/' + dealId + '/edits')
+  check('匿名读建议列表 → 401（无身份无法收窄可见性）', r.status === 401, 'status=' + r.status)
+
+  // 详情端点对匿名者应返回 edits 摘要（can_review=false、my_edit=null）
+  const d = await req('/api/token-deals/' + dealId)
+  check('匿名详情 200', d.status === 200, 'status=' + d.status)
+  check('匿名详情 can_review=false', d.json?.edits?.can_review === false, JSON.stringify(d.json?.edits)?.slice(0, 60))
+  check('匿名详情 my_edit=null', d.json?.edits?.my_edit === null)
+  check('匿名详情 is_author=false', d.json?.edits?.is_author === false)
 }
 
 console.log('=== 6. 校验逻辑（非法输入） ===')

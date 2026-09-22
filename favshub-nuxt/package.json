@@ -9,7 +9,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "skill:manifest": "node scripts/build-skill-manifest.mjs",
-    "skill:check": "node scripts/build-skill-manifest.mjs --check"
+    "skill:check": "node scripts/build-skill-manifest.mjs --check",
+    "ts:check": "node scripts/ts-check/index.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",
