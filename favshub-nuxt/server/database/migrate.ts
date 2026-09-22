@@ -718,6 +718,7 @@ export function createIndexes(db: Database.Database) {
   }
 
   createTokenDealEditIndexes(db)
+  createGuestReviewIndexes(db)
 
   // has_sync 索引单独创建并容错。
   // 历史背景：该列曾用 ALTER TABLE ADD COLUMN ... STORED 创建而永久失败；
