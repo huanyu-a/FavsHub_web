@@ -6,7 +6,7 @@
  *
  * 服务端（AI 技能卡片端点）走 `server/utils/deal-card.ts`，共用同一份绘制核心。
  *
- * 风格切换见 `ShareCardStyle`：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）。
+ * 风格切换见 `ShareCardStyle`：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）/ blast（喜报爆款）/ voucher（卡券票根）。
  */
 
 import {
@@ -41,7 +41,7 @@ export interface BuildShareOptions {
   iconUrl?: string | null
   /** 卡片底部展示的站点域名（如 hao.bx9y.com.cn） */
   siteHost?: string
-  /** 卡片风格：magazine 编辑杂志（默认）/ neon 深色终端 / clay 暖阳陶土 */
+  /** 卡片风格：magazine 编辑杂志（默认）/ neon 深色终端 / clay 暖阳陶土 / blast 喜报爆款 / voucher 卡券票根 */
   style?: ShareCardStyle
 }
 

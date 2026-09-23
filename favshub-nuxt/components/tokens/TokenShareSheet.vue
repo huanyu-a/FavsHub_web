@@ -85,6 +85,8 @@ const CARD_STYLES: ReadonlyArray<{ value: ShareCardStyle; label: string }> = [
   { value: 'magazine', label: '杂志' },
   { value: 'neon', label: '终端' },
   { value: 'clay', label: '暖阳' },
+  { value: 'blast', label: '喜报' },
+  { value: 'voucher', label: '卡券' },
 ]
 
 const props = defineProps<{ deal: ShareDeal }>()
@@ -355,12 +357,13 @@ onUnmounted(() => {
 }
 .tss-styles {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
   margin-bottom: 12px;
 }
 .tss-style {
-  padding: 4px 16px;
+  padding: 4px 13px;
   border-radius: 999px;
   border: 0.5px solid var(--border);
   background: transparent;
