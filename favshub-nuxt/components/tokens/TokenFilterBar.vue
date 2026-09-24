@@ -76,30 +76,40 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 8px 0;
-  border-top: 0.5px solid var(--divider);
+  padding: 10px 0;
   border-bottom: 0.5px solid var(--divider);
   margin-bottom: 16px;
 }
 .filter-tabs {
   display: flex;
-  gap: 14px;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-sunken);
+  border-radius: 11px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: 100%;
 }
+.filter-tabs::-webkit-scrollbar { display: none; }
 .filter-tab {
   border: none;
   background: none;
-  padding: 2px 0;
-  font-size: 13px;
+  padding: 6px 13px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.15s;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .filter-tab:hover {
   color: var(--text-primary);
 }
 .filter-tab.active {
-  color: var(--text-primary);
-  font-weight: 500;
+  color: var(--primary);
+  font-weight: 600;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
 }
 .filter-selects {
   display: flex;
@@ -108,16 +118,22 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
 }
 .filter-select select {
   font-size: 12px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  border: 0.5px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text-secondary);
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.filter-select select:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
 }
 .filter-select select:focus {
   outline: none;
   border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 .sr-only {
   position: absolute;
@@ -129,5 +145,20 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+@media (max-width: 640px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filter-selects {
+    width: 100%;
+  }
+  .filter-select {
+    flex: 1;
+  }
+  .filter-select select {
+    width: 100%;
+  }
 }
 </style>

@@ -175,14 +175,17 @@ const expiryWarn = computed(() => {
   border: 0.5px solid var(--border);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  transition: border-color 0.18s, background 0.18s, transform 0.18s, box-shadow 0.18s;
 }
 .deal-card:hover {
   border-color: var(--border-focus);
   background: var(--surface-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -10px var(--shadow-color);
 }
 .deal-card.is-pinned {
-  border-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 6%, var(--surface-raised)), var(--surface-raised) 55%);
 }
 .deal-card.is-expired {
   opacity: 0.6;
@@ -207,6 +210,7 @@ const expiryWarn = computed(() => {
   object-fit: contain;
   flex-shrink: 0;
   background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 .deal-icon-fallback {
   display: flex;
@@ -241,14 +245,20 @@ const expiryWarn = computed(() => {
 .deal-quality {
   flex-shrink: 0;
   font-size: 12px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 6px;
   font-weight: 500;
 }
-.q-top,
+.q-top {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 72%, var(--primary-dark)));
+  color: var(--text-inverse);
+  font-weight: 600;
+  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary) 45%, transparent);
+}
 .q-high {
   background: var(--primary-light);
   color: var(--primary);
+  font-weight: 600;
 }
 .q-mid {
   background: var(--surface-sunken);
@@ -314,9 +324,10 @@ const expiryWarn = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  background: var(--surface-sunken);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface-sunken));
+  border-left: 3px solid color-mix(in srgb, var(--primary) 75%, transparent);
 }
 .quota-label {
   font-size: 12px;
@@ -324,6 +335,7 @@ const expiryWarn = computed(() => {
 }
 .quota-value {
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 

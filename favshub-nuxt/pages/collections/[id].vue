@@ -75,7 +75,8 @@
               <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                 <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
               </label>
-              <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
+              <span v-if="!getFavicon(b) || failedIcons.has(b.id)" class="bookmark-icon bookmark-icon-fallback" :style="fallbackIconStyle(b)">{{ bookmarkInitial(b.title) }}</span>
+              <img v-else :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
               <div class="bookmark-info">
                 <h3 class="bookmark-title"><a :href="b.url" target="_blank" rel="noopener" @click.stop>{{ b.title }}</a><span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                 <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
@@ -99,7 +100,8 @@
                 <label v-if="selectMode && isLoggedIn" class="card-checkbox" @click.stop>
                   <input type="checkbox" :checked="selectedIds.has(b.id)" @change="toggleSelect(b.id)" />
                 </label>
-                <img :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
+                <span v-if="!getFavicon(b) || failedIcons.has(b.id)" class="bookmark-icon bookmark-icon-fallback" :style="fallbackIconStyle(b)">{{ bookmarkInitial(b.title) }}</span>
+                <img v-else :src="getFavicon(b)" class="bookmark-icon" loading="lazy" @error="onIconError($event, b)" />
                 <div class="bookmark-info">
                   <h3 class="bookmark-title"><a :href="b.url" target="_blank" rel="noopener" @click.stop>{{ b.title }}</a><span v-if="b.need_proxy" class="proxy-badge" title="需要代理访问"><i class="ri-router-line"></i></span></h3>
                   <p v-if="b.description" class="bookmark-desc">{{ b.description }}</p>
@@ -357,18 +359,29 @@ function formatHeroDate(ts: number) {
   } catch { return '' }
 }
 function getFavicon(b: ICollectionBookmark) { return resolveBookmarkIcon(b.icon, b.url) || '' }
+
+// ── 书签图标：加载失败先走代理自愈一次，仍失败 → 首字母色块（按 id 确定性取色，SSR/客户端一致） ──
+const failedIcons = ref(new Set<number>())
 function onIconError(e: Event, b: ICollectionBookmark) {
   const img = e.target as HTMLImageElement
-  // 只自愈一次（按书签 id 记录，避免 DOM 复用时标记残留）：本地文件缺失时转代理补下载，再失败才隐藏
-  if (img.dataset.healed !== String(b.id) && !img.src.includes('/api/favicon')) {
+  if (!img.src.includes('/api/favicon')) {
     const proxy = fallbackProxyIcon(b.icon, b.url)
     if (proxy) {
-      img.dataset.healed = String(b.id)
       img.src = proxy
       return
     }
   }
-  img.style.display = 'none'
+  failedIcons.value.add(b.id)
+}
+function bookmarkInitial(title: string) {
+  const t = (title || '').trim()
+  return t ? t.charAt(0).toUpperCase() : '?'
+}
+function fallbackIconStyle(b: ICollectionBookmark) {
+  const hue = (b.id || 0) * 47 % 360
+  return {
+    background: `linear-gradient(135deg, hsl(${hue}, 62%, 62%), hsl(${(hue + 42) % 360}, 58%, 46%))`,
+  }
 }
 let msgTimer: ReturnType<typeof setTimeout>
 function showToast(t: string, type: 'success' | 'error') { msg.value = t; msgType.value = type; clearTimeout(msgTimer); msgTimer = setTimeout(() => { msg.value = '' }, 2500) }
@@ -487,17 +500,35 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 
 .collection-detail-page { max-width: 1100px; margin: 0 auto; padding: 24px; }
 
-/* ── 详情页页头：主色横幅 ── */
+/* ── 详情页页头：渐变横幅 + 高光 + 点阵纹理 ── */
 .detail-head {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 18px;
   padding: 28px 30px;
   margin-bottom: 24px;
   border-radius: 20px;
-  background: var(--primary, #10b981);
+  background:
+    radial-gradient(130% 150% at 88% -30%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 52%),
+    radial-gradient(120% 130% at -10% 130%, rgba(0, 0, 0, 0.14) 0%, transparent 55%),
+    linear-gradient(135deg, var(--primary, #10b981) 0%, color-mix(in srgb, var(--primary, #10b981) 72%, var(--primary-dark, #059669)) 100%);
   color: var(--text-inverse, #fff);
 }
+.detail-head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(color-mix(in srgb, #fff 55%, transparent) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  opacity: 0.14;
+  mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+.detail-head > * { position: relative; z-index: 1; }
 .detail-icon-wrap {
   flex-shrink: 0;
   width: 60px;
@@ -545,19 +576,21 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   font-size: 12.5px;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 78%, transparent);
 }
-.detail-head-meta > span { display: inline-flex; align-items: center; gap: 4px; }
-.detail-head-meta i { font-size: 13px; }
-.meta-sep {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--text-inverse, #fff);
-  opacity: 0.45;
+.detail-head-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(4px);
+  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
 }
+.detail-head-meta i { font-size: 13px; opacity: 0.85; }
+.detail-head-meta > span.meta-sep { display: none; }
 
 .detail-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .breadcrumb-link { color: var(--text-tertiary, #9ca3af); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
@@ -632,12 +665,22 @@ onUnmounted(() => { clearTimeout(msgTimer); mobileActionsSlot.value = null })
 .bookmark-card.selectable { cursor: pointer; }
 .bookmark-card:hover {
   background: var(--surface-raised, #fff);
-  box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.13), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+  box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.13), 0 2px 4px -2px rgba(16, 24, 40, 0.05), inset 0 0 0 1px color-mix(in srgb, var(--primary, #10b981) 16%, transparent);
   transform: translateY(-1px);
 }
 .bookmark-card.selected { background: color-mix(in srgb, var(--primary, #10b981) 10%, transparent); }
 .card-checkbox { flex-shrink: 0; margin-top: 2px; cursor: pointer; }
-.bookmark-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; margin-top: 1px; }
+.bookmark-icon { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; margin-top: 1px; object-fit: contain; background: var(--surface-sunken, #f3f4f6); }
+.bookmark-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  user-select: none;
+}
 .bookmark-info { flex: 1; min-width: 0; }
 .bookmark-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bookmark-title a { color: inherit; text-decoration: none; transition: color 0.15s; }

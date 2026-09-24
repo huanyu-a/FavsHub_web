@@ -52,10 +52,21 @@
         </div>
       </section>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-state">
-      <i class="ri-loader-4-line spin"></i>
-      <p>加载中...</p>
+    <!-- 加载状态：骨架屏 -->
+    <div v-if="loading" class="skeleton-grid" aria-hidden="true">
+      <div v-for="i in 6" :key="i" class="skeleton-card">
+        <div class="sk-row">
+          <div class="sk sk-icon"></div>
+          <div class="sk sk-badge"></div>
+        </div>
+        <div class="sk sk-line w-60"></div>
+        <div class="sk sk-line w-90"></div>
+        <div class="sk sk-line w-40"></div>
+        <div class="sk-row sk-actions">
+          <div class="sk sk-btn"></div>
+          <div class="sk sk-btn sk-btn-wide"></div>
+        </div>
+      </div>
     </div>
 
     <!-- 空状态 -->
@@ -262,14 +273,32 @@ onUnmounted(() => {
   background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
 }
 .collections-header-link.active svg { opacity: 1; }
-/* ── 主色横幅：页面视觉锚点 ── */
+/* ── 主色横幅：渐变 + 高光 + 点阵纹理 ── */
 .market-hero {
-  background: var(--primary, #10b981);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 150% at 88% -30%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 52%),
+    radial-gradient(120% 130% at -10% 130%, rgba(0, 0, 0, 0.14) 0%, transparent 55%),
+    linear-gradient(135deg, var(--primary, #10b981) 0%, color-mix(in srgb, var(--primary, #10b981) 72%, var(--primary-dark, #059669)) 100%);
   border-radius: 20px;
   padding: 34px 32px 30px;
   margin-bottom: 26px;
   color: var(--text-inverse, #fff);
 }
+.market-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(color-mix(in srgb, #fff 55%, transparent) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  opacity: 0.14;
+  mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+.market-hero > * { position: relative; z-index: 1; }
 .hero-title {
   margin: 0 0 8px;
   font-size: 28px;
@@ -320,7 +349,8 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
+  background: rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(6px);
   border-radius: 12px;
 }
 .hero-toolbar .sort-tabs button {
@@ -353,13 +383,54 @@ onUnmounted(() => {
 @media (max-width: 640px) {
   .collections-grid { grid-template-columns: 1fr; }
 }
-.loading-state, .empty-state {
+/* ── 骨架屏 ── */
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 28px;
+}
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface-raised, #fff);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+}
+.sk {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-sunken, #f1f0ec) 25%, var(--surface-hover, #f5f5f0) 50%, var(--surface-sunken, #f1f0ec) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.sk-row { display: flex; align-items: center; justify-content: space-between; }
+.sk-icon { width: 46px; height: 46px; border-radius: 13px; }
+.sk-badge { width: 52px; height: 22px; border-radius: 999px; }
+.sk-line { height: 13px; }
+.sk-line.w-60 { width: 60%; }
+.sk-line.w-90 { width: 90%; }
+.sk-line.w-40 { width: 40%; }
+.sk-actions { margin-top: 4px; }
+.sk-btn { width: 72px; height: 33px; border-radius: 10px; }
+.sk-btn-wide { flex: 1; }
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+/* ── 空状态 ── */
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 64px 20px;
   color: var(--text-tertiary, #9ca3af);
+  background: var(--surface-raised, #fff);
+  border: 1px dashed var(--border, rgba(0,0,0,0.08));
+  border-radius: 16px;
+  margin-bottom: 28px;
 }
 .empty-state i {
   font-size: 36px;
@@ -442,6 +513,9 @@ onUnmounted(() => {
     padding: 7px 8px;
   }
   .collections-grid {
+    grid-template-columns: 1fr;
+  }
+  .skeleton-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -70,10 +70,22 @@
         v-model:source-tag="sourceTag"
       />
 
-      <!-- 加载状态 -->
-      <div v-if="loading" class="loading-state">
-        <i class="ri-loader-4-line spin"></i>
-        <p>加载中...</p>
+      <!-- 加载状态：骨架屏 -->
+      <div v-if="loading" class="skeleton-grid" aria-hidden="true">
+        <div v-for="i in 6" :key="i" class="skeleton-card">
+          <div class="sk-row">
+            <div class="sk sk-avatar"></div>
+            <div class="sk sk-quality"></div>
+          </div>
+          <div class="sk sk-line w-55"></div>
+          <div class="sk sk-quota"></div>
+          <div class="sk-row">
+            <div class="sk sk-chip"></div>
+            <div class="sk sk-chip"></div>
+            <div class="sk sk-chip"></div>
+          </div>
+          <div class="sk sk-line w-40 sk-foot"></div>
+        </div>
       </div>
 
       <!-- 空状态 -->
@@ -434,14 +446,32 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-/* ── 主色横幅：页面视觉锚点 ── */
+/* ── 主色横幅：渐变 + 高光 + 点阵纹理 ── */
 .tokens-hero {
-  background: var(--primary, #10b981);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 150% at 88% -30%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 52%),
+    radial-gradient(120% 130% at -10% 130%, rgba(0, 0, 0, 0.14) 0%, transparent 55%),
+    linear-gradient(135deg, var(--primary, #10b981) 0%, color-mix(in srgb, var(--primary, #10b981) 72%, var(--primary-dark, #059669)) 100%);
   border-radius: 20px;
   padding: 34px 32px 30px;
   margin-bottom: 20px;
   color: var(--text-inverse, #fff);
 }
+.tokens-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(color-mix(in srgb, #fff 55%, transparent) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  opacity: 0.14;
+  mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+.tokens-hero > * { position: relative; z-index: 1; }
 .hero-title {
   margin: 0 0 8px;
   font-size: 28px;
@@ -553,14 +583,54 @@ onUnmounted(() => {
   margin-bottom: 28px;
 }
 
-.loading-state,
+/* ── 骨架屏 ── */
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.sk {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-hover) 50%, var(--surface-sunken) 75%);
+  background-size: 200% 100%;
+  animation: tokens-sk-shimmer 1.4s ease-in-out infinite;
+}
+.sk-row { display: flex; align-items: center; gap: 8px; }
+.sk-avatar { width: 26px; height: 26px; border-radius: 7px; }
+.sk-quality { width: 52px; height: 21px; border-radius: 6px; margin-left: auto; }
+.sk-line { height: 13px; }
+.sk-line.w-55 { width: 55%; }
+.sk-line.w-40 { width: 40%; }
+.sk-quota { height: 52px; border-radius: var(--radius-md); }
+.sk-chip { width: 76px; height: 22px; border-radius: 6px; }
+.sk-foot { margin-top: 2px; }
+@keyframes tokens-sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── 空状态 ── */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 64px 20px;
   color: var(--text-tertiary, #9ca3af);
+  background: var(--surface-raised, #fff);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 28px;
 }
 .empty-state i {
   font-size: 36px;
@@ -574,13 +644,6 @@ onUnmounted(() => {
 .empty-state span {
   font-size: 12px;
   margin-top: 4px;
-}
-.spin {
-  font-size: 22px;
-  animation: tokens-spin 1s linear infinite;
-}
-@keyframes tokens-spin {
-  to { transform: rotate(360deg); }
 }
 
 .pagination {
@@ -668,6 +731,9 @@ onUnmounted(() => {
     justify-content: center;
   }
   .tokens-grid {
+    grid-template-columns: 1fr;
+  }
+  .skeleton-grid {
     grid-template-columns: 1fr;
   }
 }

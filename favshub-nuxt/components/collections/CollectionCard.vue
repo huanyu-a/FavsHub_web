@@ -138,6 +138,10 @@ async function quickImport() {
   transform: translateY(-3px);
   box-shadow: 0 12px 24px -8px rgba(16, 24, 40, 0.14), 0 4px 8px -4px rgba(16, 24, 40, 0.06);
 }
+.collection-card:focus-visible {
+  outline: 2px solid var(--primary, #10b981);
+  outline-offset: 2px;
+}
 .collection-card-header {
   display: flex;
   align-items: flex-start;
@@ -153,19 +157,23 @@ async function quickImport() {
   justify-content: center;
   font-size: 22px;
   color: var(--primary);
-  background: color-mix(in srgb, var(--primary, #10b981) 10%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary, #10b981) 18%, transparent), color-mix(in srgb, var(--primary, #10b981) 7%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.collection-card:hover .collection-icon-wrap { transform: scale(1.07) rotate(-3deg); }
 .collection-icon { font-style: normal; }
 .official-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary, #10b981) 9%, transparent);
+  color: var(--text-inverse, #fff);
+  background: linear-gradient(135deg, var(--primary, #10b981), color-mix(in srgb, var(--primary, #10b981) 70%, var(--primary-dark, #059669)));
+  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary, #10b981) 45%, transparent);
 }
 .official-badge i { font-size: 12px; }
 .collection-name {
@@ -245,19 +253,19 @@ async function quickImport() {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-inverse, #fff);
-  background: var(--primary, #10b981);
+  background: linear-gradient(135deg, var(--primary, #10b981), color-mix(in srgb, var(--primary, #10b981) 78%, var(--primary-dark, #059669)));
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
+  transition: filter 0.18s, box-shadow 0.18s, transform 0.18s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
 }
 .btn-import:hover {
-  background: var(--primary-hover, #059669);
-  box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--primary, #10b981) 50%, transparent);
+  filter: brightness(1.06);
+  box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--primary, #10b981) 55%, transparent);
   transform: translateY(-1px);
 }
 .btn-import:disabled { opacity: 0.6; cursor: not-allowed; }
