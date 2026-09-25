@@ -131,7 +131,7 @@ function normalizeBg(bg: string): string {
 }
 
 const form = reactive<Record<string, any>>({
-  selectedBackground: normalizeBg(settingsStore.get('selectedBackground', 'theme-bg-7')),
+  selectedBackground: normalizeBg(settingsStore.get('selectedBackground', 'theme-bg-4')),
   backgroundType: settingsStore.get('backgroundType', 'none'),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),

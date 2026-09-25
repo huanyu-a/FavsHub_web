@@ -47,7 +47,8 @@ function normalizeBg(bg: string | undefined): string | null {
   return null
 }
 
-const DEFAULT_BG = 'theme-bg-7'
+/** 站点默认主题：薄荷绿（所有未显式选择背景的用户/游客统一生效） */
+const DEFAULT_BG = 'theme-bg-4'
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('render:html', (html, { event }) => {

@@ -48,7 +48,7 @@ export function resolveEffectiveTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-/** 取当前背景值（cookie > localStorage > 默认） */
+/** 取当前背景值（cookie > localStorage > 默认薄荷绿） */
 export function resolveBackground(): string {
-  return getBackgroundCookie() || localStorage.getItem('favshub_bg') || 'theme-bg-7'
+  return getBackgroundCookie() || localStorage.getItem('favshub_bg') || 'theme-bg-4'
 }
