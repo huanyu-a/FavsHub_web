@@ -236,6 +236,7 @@ onUnmounted(() => {
   margin-top: 0;
   flex-wrap: wrap;
   flex: 0 1 auto;
+  min-width: 0;
 }
 .hero-toolbar .search-box {
   display: flex;

@@ -151,13 +151,8 @@
   main.flex-1, .main-content { padding-top: 60px !important; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   /* 回到顶部按钮避让底栏：见文件末尾第 7 节——必须放在 @layer 外才能
      覆盖 main-bundle.css 顶层（未分层）的 bottom:0; z-index:999999 */
-  /* 搜索引擎下拉突破弹窗裁剪 */
-  .mobile-search-sheet-body .search-engine-dropdown {
-    position: fixed; left: 16px; right: 16px; width: auto;
-    bottom: 0; top: auto; max-height: 50vh; overflow-y: auto;
-    z-index: 100004; margin-top: 0; border-radius: 14px 14px 0 0;
-  }
-  .engine-dialog-overlay { z-index: 100005; }
+  /* 搜索引擎下拉底部面板：见文件末尾第 8 节——同样必须在 @layer 外，
+     否则会被 main-bundle.css 未分层的 .search-engine-dropdown 基规则打败 */
 
   /* --- 侧边栏变抽屉（平板 + 手机统一） --- */
   aside.custom-width, aside.sidebar {
@@ -378,4 +373,19 @@
     z-index: 10004;
     bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* ════════════════════════════════════════════
+   8. 移动端搜索引擎下拉：底部面板（顶层规则，不入 @layer）
+   main-bundle.css 的 .search-engine-dropdown 是未分层基规则
+   （position:absolute; top:100%），未分层规则优先级高于任何 @layer
+   内规则 → 覆盖必须同样写在 @layer 外，否则下拉退化成内联面板被压扁
+   ════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .mobile-search-sheet-body .search-engine-dropdown {
+    position: fixed; left: 16px; right: 16px; width: auto;
+    bottom: 0; top: auto; max-height: 50vh; overflow-y: auto;
+    z-index: 100004; margin-top: 0; border-radius: 14px 14px 0 0;
+  }
+  .engine-dialog-overlay { z-index: 100005; }
 }

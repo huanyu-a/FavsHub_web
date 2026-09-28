@@ -1184,6 +1184,7 @@ async function viewPromptById(promptId: string) {
   margin-top: 0;
   flex-wrap: wrap;
   flex: 0 1 auto;
+  min-width: 0;
 }
 .hero-toolbar .search-box {
   display: flex;
@@ -1206,6 +1207,8 @@ async function viewPromptById(promptId: string) {
   }
   /* 列方向下 flex-basis 的语义由宽度变为高度，必须重置，否则 hero 被撑满一屏 */
   .hero-text { flex: 0 0 auto; }
+  /* 搜索框无确定宽度时，wrap 行的内在尺寸会把工具栏撑出容器，必须给定宽 */
+  .prompts-hero .hero-toolbar { width: 100%; }
   .hero-toolbar .search-box {
     max-width: none;
     flex: 0 0 auto;

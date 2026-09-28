@@ -514,6 +514,7 @@ onUnmounted(() => {
   margin-top: 0;
   flex-wrap: wrap;
   flex: 0 1 auto;
+  min-width: 0;
 }
 .hero-toolbar .search-box {
   display: flex;
@@ -537,7 +538,7 @@ onUnmounted(() => {
   .hero-text { flex: 0 0 auto; }
   .hero-toolbar .search-box {
     max-width: none;
-    flex: 0 0 auto;
+    flex: 1 1 100%;
     min-width: 0;
   }
 }
@@ -770,18 +771,17 @@ onUnmounted(() => {
     border-radius: 14px;
   }
   .hero-title { font-size: 24px; }
-  .hero-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  /* 工具栏保持基础 row+wrap：搜索框独占一行，「待我审核」「发布通告」平分一行 */
   .hero-toolbar .search-box {
     min-width: 0;
     width: 100%;
   }
   .hero-publish {
+    flex: 1 1 0;
     justify-content: center;
   }
   .hero-review {
+    flex: 1 1 0;
     justify-content: center;
   }
   .tokens-grid {
