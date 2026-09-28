@@ -1204,7 +1204,13 @@ async function viewPromptById(promptId: string) {
     flex-direction: column;
     align-items: stretch;
   }
-  .hero-toolbar .search-box { max-width: none; }
+  /* 列方向下 flex-basis 的语义由宽度变为高度，必须重置，否则 hero 被撑满一屏 */
+  .hero-text { flex: 0 0 auto; }
+  .hero-toolbar .search-box {
+    max-width: none;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
 }
 .hero-toolbar .search-box i {
   color: var(--text-tertiary);

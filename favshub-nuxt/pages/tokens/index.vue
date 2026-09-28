@@ -533,8 +533,12 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
   }
+  /* 列方向下 flex-basis 的语义由宽度变为高度，必须重置，否则 hero 被撑满一屏 */
+  .hero-text { flex: 0 0 auto; }
   .hero-toolbar .search-box {
     max-width: none;
+    flex: 0 0 auto;
+    min-width: 0;
   }
 }
 .hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1); }

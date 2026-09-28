@@ -300,7 +300,13 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
   }
-  .hero-toolbar .search-box { max-width: none; }
+  /* 列方向下 flex-basis 的语义由宽度变为高度，必须重置，否则 hero 被撑满一屏 */
+  .hero-text { flex: 0 0 auto; }
+  .hero-toolbar .search-box {
+    max-width: none;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
 }
 .collections-page {
   max-width: 1200px;
