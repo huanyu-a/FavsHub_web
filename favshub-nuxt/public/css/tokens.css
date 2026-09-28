@@ -54,12 +54,12 @@
 :root {
   color-scheme: light dark;
 
-  /* ── 强调色（由 themes.css 覆盖） ── */
-  --primary:        light-dark(#4F46E5, #60A5FA);
-  --primary-hover:  light-dark(#4338CA, #3B82F6);
-  --primary-light:  light-dark(rgba(79,70,229,0.08), rgba(96,165,250,0.12));
-  --primary-medium: light-dark(rgba(79,70,229,0.15), rgba(96,165,250,0.2));
-  --primary-dark:   light-dark(#3730A3, #2563EB);
+  /* ── 强调色（由 themes.css 覆盖；默认翠绿 Emerald，与 theme-bg-4 一致） ── */
+  --primary:        light-dark(#059669, #34D399);
+  --primary-hover:  light-dark(#047857, #10B981);
+  --primary-light:  light-dark(rgba(5,150,105,0.08), rgba(52,211,153,0.12));
+  --primary-medium: light-dark(rgba(5,150,105,0.15), rgba(52,211,153,0.2));
+  --primary-dark:   light-dark(#065F46, #059669);
 
   /* ── 面色 ── */
   --surface:          light-dark(#F8F7F4, #0F172A);
@@ -67,7 +67,7 @@
   --surface-sunken:   light-dark(#F1F0EC, #0B1120);
   --surface-hover:    light-dark(#F5F5F0, rgba(51,65,85,0.6));
   --surface-active:   light-dark(#E5E5E0, rgba(71,85,105,0.8));
-  --surface-selected: light-dark(rgba(79,70,229,0.10), rgba(96,165,250,0.15));
+  --surface-selected: light-dark(rgba(5,150,105,0.10), rgba(52,211,153,0.15));
   --sidebar-bg:       light-dark(rgba(252,251,249,0.95), rgba(15,23,42,0.95));
 
   /* ── 文字色 ── */
@@ -104,6 +104,16 @@
   --success:       light-dark(#10B981, #3FB950);
   --danger:        light-dark(#EF4444, #F85149);
   --warning:       light-dark(#F59E0B, #D29922);
+
+  /* ── 状态色浅底（由状态色派生，随主题自动适配） ── */
+  --danger-soft:   color-mix(in srgb, var(--danger) 10%, var(--surface-raised));
+  --warning-soft:  color-mix(in srgb, var(--warning) 15%, transparent);
+  --success-soft:  color-mix(in srgb, var(--success) 12%, transparent);
+  --info-soft:     color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  --neutral-soft:  color-mix(in srgb, var(--text-tertiary) 12%, transparent);
+
+  /* ── 第四级文字色（面包屑分隔符等弱化文本，介于 tertiary 与 divider 之间） ── */
+  --text-quaternary: light-dark(#D1D5DB, #475569);
 
   /* ── 圆角 ── */
   --radius-sm: 8px;

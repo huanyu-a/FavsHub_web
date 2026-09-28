@@ -38,37 +38,46 @@
           <ul v-if="activeCollectionId && visibleCollectionCategories.length" id="categories-list">
             <li
               class="folder-item"
-              :class="{ 'bg-emerald-500': activeCategoryId === null }"
-              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;"
+              :class="{ selected: activeCategoryId === null }"
+              role="button"
+              tabindex="0"
               @click="$emit('select-collection-category', null)"
+              @keydown.enter="$emit('select-collection-category', null)"
+              @keydown.space.prevent="$emit('select-collection-category', null)"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">全部分类</span>
-              <span class="item-count" style="margin-left:auto;">{{ visibleCollectionTotal }}</span>
+              <i class="ri-apps-line folder-icon"></i>
+              <span class="folder-name">全部分类</span>
+              <span class="item-count">{{ visibleCollectionTotal }}</span>
             </li>
             <!-- 按层级渲染：父分类紧接着其子分类（隐藏空分类） -->
             <template v-for="cat in visibleCollectionRoots" :key="cat.id">
               <li
                 class="folder-item"
-                :class="{ 'bg-emerald-500': activeCategoryId === cat.id }"
-                style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;"
+                :class="{ selected: activeCategoryId === cat.id }"
+                role="button"
+                tabindex="0"
                 @click="$emit('select-collection-category', cat.id)"
+                @keydown.enter="$emit('select-collection-category', cat.id)"
+                @keydown.space.prevent="$emit('select-collection-category', cat.id)"
               >
-                <i class="ri-folder-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ cat.name }}</span>
-                <span class="item-count" style="margin-left:auto;">{{ cat.bookmark_count || 0 }}</span>
+                <i class="ri-folder-line folder-icon"></i>
+                <span class="folder-name">{{ cat.name }}</span>
+                <span class="item-count">{{ cat.bookmark_count || 0 }}</span>
               </li>
               <li
                 v-for="child in visibleCollectionChildren(cat.id)"
                 :key="child.id"
-                class="folder-item"
-                :class="{ 'bg-emerald-500': activeCategoryId === child.id }"
-                style="cursor:pointer;padding:8px 8px 8px 28px;border-radius:8px;display:flex;align-items:center;"
+                class="folder-item folder-item--child"
+                :class="{ selected: activeCategoryId === child.id }"
+                role="button"
+                tabindex="0"
                 @click="$emit('select-collection-category', child.id)"
+                @keydown.enter="$emit('select-collection-category', child.id)"
+                @keydown.space.prevent="$emit('select-collection-category', child.id)"
               >
-                <i class="ri-corner-down-right-line" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0;width:20px;text-align:center;"></i>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ child.name }}</span>
-                <span class="item-count" style="margin-left:auto;">{{ child.bookmark_count || 0 }}</span>
+                <i class="ri-corner-down-right-line folder-icon folder-icon--sub"></i>
+                <span class="folder-name">{{ child.name }}</span>
+                <span class="item-count">{{ child.bookmark_count || 0 }}</span>
               </li>
             </template>
           </ul>
@@ -77,18 +86,25 @@
           <ul v-else id="categories-list">
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
-              class="folder-item"
-              :class="{ 'bg-emerald-500': currentFolderId === null }"
-              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
-              @click="$emit('select-folder', null)"
+              class="folder-item folder-item--all"
+              :class="{ selected: currentFolderId === null }"
+              role="button"
+              tabindex="0"
+              @click="onAllClick"
+              @keydown.enter="onAllClick"
+              @keydown.space.prevent="onAllClick"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
-              <span class="item-count" style="position:absolute;right:8px;">{{ totalBookmarkCount }}</span>
+              <i class="ri-apps-line folder-icon"></i>
+              <span class="folder-name">全部</span>
+              <span class="item-count item-count--pinned">{{ totalBookmarkCount }}</span>
               <span
-                style="cursor:pointer;display:inline-flex;align-items:center;position:absolute;right:30px;"
+                class="folder-toggle folder-toggle--all"
+                role="button"
+                tabindex="0"
                 @click.stop="toggleAllFolders"
+                @keydown.enter.stop="toggleAllFolders"
+                @keydown.space.prevent.stop="toggleAllFolders"
               >
                 <svg v-if="allExpanded" xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M480-541.85 317.08-378.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.7-8.69-21.08 0-12.38 8.69-21.08l179.77-179.77q10.85-10.84 25.31-10.84 14.46 0 25.31 10.84l179.77 179.77q8.3 8.31 8.5 20.89.19 12.57-8.5 21.27-8.7 8.69-21.08 8.69-12.38 0-21.08-8.69L480-541.85Z"/></svg>
                 <svg v-else xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M517.85-480 354.92-642.92q-8.3-8.31-8.5-20.89-.19-12.57 8.5-21.27 8.7-8.69 21.08-8.69 12.38 0 21.08 8.69l179.77 179.77q5.61 5.62 7.92 11.85 2.31 6.23 2.31 13.46t-2.31 13.46q-2.31 6.23-7.92 11.85L397.08-274.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.69-8.69-21.08 0-12.38 8.69-21.08L517.85-480Z"/></svg>
@@ -116,19 +132,45 @@
             >
               <!-- 全部右键菜单 -->
               <template v-if="folderMenu.isAll">
-                <div class="folder-context-item" @click="createRootFolder">
+                <div
+                  class="folder-context-item"
+                  role="menuitem"
+                  tabindex="0"
+                  @click="createRootFolder"
+                  @keydown.enter="createRootFolder"
+                >
                   <i class="ri-folder-add-line"></i> 新建文件夹
                 </div>
               </template>
               <!-- 文件夹右键菜单 -->
               <template v-else>
-                <div v-if="authStore.isAdmin" class="folder-context-item" @click="renameFolder(folderMenu.folder!)">
+                <div
+                  v-if="authStore.isAdmin"
+                  class="folder-context-item"
+                  role="menuitem"
+                  tabindex="0"
+                  @click="renameFolder(folderMenu.folder!)"
+                  @keydown.enter="renameFolder(folderMenu.folder!)"
+                >
                   <i class="ri-edit-line"></i> 重命名
                 </div>
-                <div class="folder-context-item" @click="createSubFolder(folderMenu.folder!)">
+                <div
+                  class="folder-context-item"
+                  role="menuitem"
+                  tabindex="0"
+                  @click="createSubFolder(folderMenu.folder!)"
+                  @keydown.enter="createSubFolder(folderMenu.folder!)"
+                >
                   <i class="ri-folder-add-line"></i> 新建子文件夹
                 </div>
-                <div v-if="authStore.isAdmin" class="folder-context-item danger" @click="deleteFolder(folderMenu.folder!)">
+                <div
+                  v-if="authStore.isAdmin"
+                  class="folder-context-item danger"
+                  role="menuitem"
+                  tabindex="0"
+                  @click="deleteFolder(folderMenu.folder!)"
+                  @keydown.enter="deleteFolder(folderMenu.folder!)"
+                >
                   <i class="ri-delete-bin-line"></i> 删除
                 </div>
               </template>
@@ -152,7 +194,11 @@
                   v-for="c in collections"
                   :key="c.id"
                   class="collection-item"
+                  role="button"
+                  tabindex="0"
                   @click="$emit('select-collection', c.id)"
+                  @keydown.enter="$emit('select-collection', c.id)"
+                  @keydown.space.prevent="$emit('select-collection', c.id)"
                 >
                   <span class="collection-item-icon"><AppIcon :value="c.icon" fallback="ri-book-2-line" /></span>
                   <span class="collection-item-name">{{ c.name }}</span>
@@ -324,6 +370,12 @@ function toggleAllFolders() {
   } else {
     expandedIds.value = new Set(allFolderIds.value)
   }
+}
+
+// 点「全部」行：选中根目录 + 切换整棵树展开/收起（与 FolderTreeItem 的选中即切换语义一致）
+function onAllClick() {
+  emit('select-folder', null)
+  toggleAllFolders()
 }
 
 function toggleExpand(id: number) {
@@ -521,9 +573,121 @@ async function deleteFolder(folder: FolderNode) {
 </script>
 
 <style scoped>
+/* 侧栏文件夹/分类列表项：内联样式收敛 + 语义令牌 + 三态。
+   注意：main-bundle.css 用 #categories-list .folder-item（ID 选择器）定义了字重/悬停色，
+   这里必须带 #categories-list 前缀才能盖过它（scoped 编译后优先级 1,3,0 > 1,1,0）。 */
+#categories-list .folder-item {
+  position: relative;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1), color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+#categories-list .folder-item--child {
+  padding-left: 28px;
+}
+/* 覆盖全局 .folder-name 的 height:32px/margin-bottom:1rem（main-bundle.css），
+   否则名称块把行撑错位：图标、名称、计数不在一条线上 */
+#categories-list .folder-name {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#categories-list .folder-item:hover {
+  background: var(--surface-selected);
+}
+#categories-list .folder-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+#categories-list .folder-item:active {
+  background: var(--primary-medium);
+  transform: scale(0.98);
+}
+#categories-list .folder-item.selected {
+  background: var(--primary);
+  color: var(--text-inverse);
+}
+#categories-list .folder-item.selected:hover {
+  background: var(--primary-hover);
+  color: var(--text-inverse);
+}
+#categories-list .folder-item.selected span {
+  color: var(--text-inverse);
+}
+#categories-list .folder-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  color: var(--primary);
+}
+#categories-list .folder-icon--sub {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+#categories-list .folder-item.selected .folder-icon,
+#categories-list .folder-item.selected .folder-icon--sub {
+  color: var(--text-inverse);
+}
+#categories-list .folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#categories-list .folder-item--all .folder-name {
+  padding-right: 60px;
+}
+#categories-list .item-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  padding: 1px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+#categories-list .item-count--pinned {
+  position: absolute;
+  right: 8px;
+  margin-left: 0;
+}
+#categories-list .folder-item.selected .item-count {
+  color: var(--text-inverse);
+  background: color-mix(in srgb, var(--text-inverse) 20%, transparent);
+}
+#categories-list .folder-toggle {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 2px;
+  border-radius: 6px;
+}
+#categories-list .folder-toggle--all {
+  position: absolute;
+  right: 32px;
+}
+#categories-list .folder-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .sidebar-collections-panel {
   margin-top: 16px;
-  border-top: 1px solid var(--border, #e5e7eb);
+  border-top: 1px solid var(--border);
   padding-top: 12px;
 }
 .sidebar-section-label {
@@ -533,16 +697,16 @@ async function deleteFolder(folder: FolderNode) {
   padding: 0 8px 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .sidebar-link-all {
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--text-tertiary);
   font-size: 14px;
   text-decoration: none;
 }
-.sidebar-link-all:hover { color: var(--primary, #10b981); }
+.sidebar-link-all:hover { color: var(--primary); }
 .collections-list {
   list-style: none;
   padding: 0;
@@ -552,13 +716,21 @@ async function deleteFolder(folder: FolderNode) {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px;
-  border-radius: 8px;
+  padding: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
 }
-.collection-item:hover { background: var(--surface-hover, #f3f4f6); }
+.collection-item:hover { background: var(--surface-hover); }
+.collection-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.collection-item:active {
+  background: var(--surface-active);
+  transform: scale(0.98);
+}
 .collection-item-icon { font-size: 16px; flex-shrink: 0; display: inline-flex; align-items: center; }
 .collection-item-icon i { font-size: 15px; }
 .collection-item-name {
@@ -567,14 +739,14 @@ async function deleteFolder(folder: FolderNode) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 .collection-item-count {
   font-size: 11px;
-  color: var(--text-tertiary, #9ca3af);
-  background: var(--surface-hover, #f3f4f6);
+  color: var(--text-tertiary);
+  background: var(--surface-hover);
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 .collection-new-badge {
   position: absolute;
@@ -583,17 +755,17 @@ async function deleteFolder(folder: FolderNode) {
   transform: translateY(-50%);
   font-size: 10px;
   font-weight: 600;
-  color: #fff;
-  background: #f59e0b;
+  color: var(--text-inverse);
+  background: var(--warning);
   padding: 2px 5px;
-  border-radius: 8px;
+  border-radius: 6px;
   pointer-events: none;
 }
 .collections-empty {
   display: block;
   padding: 8px;
   font-size: 12px;
-  color: var(--primary, #10b981);
+  color: var(--primary);
   text-decoration: none;
 }
 .collections-empty:hover { text-decoration: underline; }
@@ -602,15 +774,15 @@ async function deleteFolder(folder: FolderNode) {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 6px;
   text-decoration: none;
-  color: var(--text-primary, #111827);
-  background: var(--surface-hover, #f3f4f6);
-  transition: background 0.15s;
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.collections-entry-link:hover { background: var(--surface-active, #e5e7eb); }
+.collections-entry-link:hover { background: var(--surface-active); }
 .collections-entry-icon { font-size: 18px; display: inline-flex; align-items: center; }
 .collections-entry-text { flex: 1; font-size: 13px; font-weight: 500; }
-.collections-entry-link i { color: var(--text-tertiary, #9ca3af); }
+.collections-entry-link i { color: var(--text-tertiary); }
 </style>
 

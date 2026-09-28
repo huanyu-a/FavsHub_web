@@ -84,7 +84,7 @@
     </main>
     <!-- 个人信息编辑弹窗 -->
     <Teleport to="body">
-      <div v-if="showProfile" class="profile-overlay" @click.self="showProfile = false">
+      <div v-if="showProfile" :class="['profile-overlay', { active: showProfile }]" @click.self="showProfile = false">
         <div class="profile-modal">
           <div class="profile-header">
             <h3>个人信息</h3>
@@ -194,11 +194,11 @@ useHead({
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon.png' },
     { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260928' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260917' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260928f' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260917' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260928' },
   ],
 })
 </script>

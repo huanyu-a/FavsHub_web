@@ -362,6 +362,24 @@ onUnmounted(() => {
 })
 </script>
 
+<style>
+/* ── tokens 模块共享（全局，非 scoped）──
+   4 个弹窗组件（详情 / 编辑 / 审核 / 分享）原先各自复制一套 backdrop fade、
+   modal rise、spin keyframes，现合并为一份全局定义统一引用。
+   本页是所有 tokens 弹窗的唯一宿主路由，全局定义在这里必然先行加载。 */
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes modal-spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+
 <style scoped>
 .tokens-header {
   width: 100%;
@@ -391,9 +409,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   text-decoration: none;
-  transition: opacity 0.15s;
+  border-radius: 6px;
+  transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tokens-header-logo:hover { opacity: 0.7; }
+.tokens-header-logo:active { opacity: 0.6; }
+.tokens-header-logo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .tokens-header-logo-img {
   width: 26px;
   height: 26px;
@@ -422,7 +446,7 @@ onUnmounted(() => {
   color: var(--text-tertiary);
   font-size: 13px;
   font-weight: 500;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tokens-header-link svg {
   width: 15px;
@@ -434,9 +458,14 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 .tokens-header-link:hover svg { opacity: 1; }
+.tokens-header-link:active { background: var(--surface-active); }
+.tokens-header-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .tokens-header-link.active {
-  color: var(--accent-blue, #3b82f6);
-  background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
+  color: var(--primary);
+  background: var(--primary-light);
 }
 .tokens-header-link.active svg { opacity: 1; }
 
@@ -446,75 +475,79 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-/* ── 主色横幅：渐变 + 高光 + 点阵纹理 ── */
+/* ── 克制的中性面板：主题色仅作强调（焦点环、主按钮），不再用满屏主色大色块 ── */
+/* 紧凑页头：左标题+副文、右搜索+操作，一行放下（窄屏自动换行） */
 .tokens-hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(130% 150% at 88% -30%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 52%),
-    radial-gradient(120% 130% at -10% 130%, rgba(0, 0, 0, 0.14) 0%, transparent 55%),
-    linear-gradient(135deg, var(--primary, #10b981) 0%, color-mix(in srgb, var(--primary, #10b981) 72%, var(--primary-dark, #059669)) 100%);
-  border-radius: 20px;
-  padding: 34px 32px 30px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
   margin-bottom: 20px;
-  color: var(--text-inverse, #fff);
 }
-.tokens-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image: radial-gradient(color-mix(in srgb, #fff 55%, transparent) 1px, transparent 1.5px);
-  background-size: 22px 22px;
-  opacity: 0.14;
-  mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
-  -webkit-mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
-  pointer-events: none;
+.hero-text {
+  flex: 1 1 320px;
+  min-width: 0;
 }
-.tokens-hero > * { position: relative; z-index: 1; }
 .hero-title {
-  margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.022em;
-  color: var(--text-inverse, #fff);
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 .hero-sub {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  max-width: 640px;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 80%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 560px;
+  color: var(--text-secondary);
 }
 .hero-toolbar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  margin-top: 24px;
+  margin-top: 0;
   flex-wrap: wrap;
+  flex: 0 1 auto;
 }
 .hero-toolbar .search-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 12px;
-  background: var(--surface-raised, #fff);
-  flex: 1;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  flex: 1 1 240px;
   min-width: 220px;
-  transition: box-shadow 0.18s;
+  max-width: 420px;
+  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
+@media (max-width: 768px) {
+  .tokens-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-toolbar .search-box {
+    max-width: none;
+  }
+}
+.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
 .hero-toolbar .search-box:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-inverse, #fff) 45%, transparent);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 .hero-toolbar .search-box:focus-within i { color: var(--primary); }
 .hero-toolbar .search-box input {
   border: none;
   background: none;
   outline: none;
-  font-size: 13.5px;
+  font-size: 13px;
   width: 100%;
   color: var(--text-primary);
 }
@@ -525,19 +558,25 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 12px;
+  padding: 8px 16px;
+  border: 0.5px solid var(--primary);
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  background: var(--surface-raised, #fff);
-  color: var(--primary, #10b981);
-  transition: transform 0.18s, box-shadow 0.18s;
+  background: var(--primary);
+  color: var(--text-inverse);
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hero-publish:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.28);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: var(--shadow-sm);
+}
+.hero-publish:active { background: var(--primary-dark); border-color: var(--primary-dark); }
+.hero-publish:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .hero-publish i { font-size: 15px; }
 
@@ -547,33 +586,39 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  padding: 10px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--surface-raised, #fff);
-  transition: background 0.18s, transform 0.18s;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hero-review:hover {
-  background: rgba(255, 255, 255, 0.26);
-  transform: translateY(-1px);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+.hero-review:active { background: var(--surface-active); }
+.hero-review:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .hero-review i { font-size: 15px; }
 .review-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
-  background: #ef4444;
+  color: var(--text-inverse);
+  background: var(--danger);
 }
 
 .tokens-grid {
@@ -594,24 +639,24 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 16px;
   background: var(--surface-raised);
   border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
 }
 .sk {
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-hover) 50%, var(--surface-sunken) 75%);
   background-size: 200% 100%;
   animation: tokens-sk-shimmer 1.4s ease-in-out infinite;
 }
 .sk-row { display: flex; align-items: center; gap: 8px; }
-.sk-avatar { width: 26px; height: 26px; border-radius: 7px; }
-.sk-quality { width: 52px; height: 21px; border-radius: 6px; margin-left: auto; }
-.sk-line { height: 13px; }
+.sk-avatar { width: 28px; height: 28px; border-radius: 6px; }
+.sk-quality { width: 52px; height: 20px; border-radius: 6px; margin-left: auto; }
+.sk-line { height: 12px; }
 .sk-line.w-55 { width: 55%; }
 .sk-line.w-40 { width: 40%; }
-.sk-quota { height: 52px; border-radius: var(--radius-md); }
+.sk-quota { height: 52px; border-radius: 10px; }
 .sk-chip { width: 76px; height: 22px; border-radius: 6px; }
 .sk-foot { margin-top: 2px; }
 @keyframes tokens-sk-shimmer {
@@ -626,15 +671,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 64px 20px;
-  color: var(--text-tertiary, #9ca3af);
-  background: var(--surface-raised, #fff);
+  color: var(--text-tertiary);
+  background: var(--surface-raised);
   border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   margin-bottom: 28px;
 }
 .empty-state i {
   font-size: 36px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .empty-state p {
   font-size: 14px;
@@ -650,23 +695,28 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .pagination button {
-  padding: 7px 18px;
-  border: none;
+  padding: 8px 16px;
+  border: 0.5px solid var(--border);
   border-radius: 10px;
-  background: var(--surface-raised, #fff);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-secondary);
-  transition: color 0.18s, transform 0.18s, box-shadow 0.18s;
+  transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .pagination button:not(:disabled):hover {
   color: var(--primary);
-  transform: translateY(-1px);
+  background: var(--surface-hover);
   box-shadow: var(--shadow-md);
+}
+.pagination button:not(:disabled):active { background: var(--surface-active); }
+.pagination button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .pagination button:disabled {
   opacity: 0.5;
@@ -674,7 +724,7 @@ onUnmounted(() => {
 }
 .page-info {
   font-size: 12px;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -685,8 +735,8 @@ onUnmounted(() => {
   bottom: 96px;
   transform: translateX(-50%);
   z-index: 1400;
-  padding: 9px 18px;
-  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  border-radius: 10px;
   font-size: 13px;
   color: var(--text-inverse);
   background: var(--text-primary);
@@ -694,7 +744,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .tokens-toast-enter-active,
-.tokens-toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.tokens-toast-leave-active { transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
 .tokens-toast-enter-from,
 .tokens-toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
 
@@ -712,10 +762,10 @@ onUnmounted(() => {
     padding: 68px 12px 96px;
   }
   .tokens-hero {
-    padding: 24px 20px 22px;
-    border-radius: 16px;
+    padding: 24px 20px;
+    border-radius: 14px;
   }
-  .hero-title { font-size: 23px; }
+  .hero-title { font-size: 24px; }
   .hero-toolbar {
     flex-direction: column;
     align-items: stretch;

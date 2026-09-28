@@ -113,16 +113,26 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 12px;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color 0.12s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
   text-decoration: none;
 }
 
 .floating-nav-item:hover {
   background: var(--surface-hover);
+}
+
+.floating-nav-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.floating-nav-item:active {
+  transform: scale(0.98);
+  background: var(--surface-active);
 }
 
 .floating-nav-icon {

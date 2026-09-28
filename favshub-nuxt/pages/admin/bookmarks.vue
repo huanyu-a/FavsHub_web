@@ -76,7 +76,7 @@
             :key="f.id"
             :data-id="f.id"
             class="folder-drag-item"
-            :style="{ paddingLeft: (f._depth * 20 + 12) + 'px' }"
+            :style="{ '--depth-indent': (f._depth * 20 + 12) + 'px' }"
           >
             <span class="folder-drag-handle" title="拖拽排序">⠿</span>
             <span v-if="f._hasChildren" class="expand-btn" @click="collapsedIds.has(f.id) ? collapsedIds.delete(f.id) : collapsedIds.add(f.id)"><i :class="collapsedIds.has(f.id) ? 'ri-arrow-right-s-fill' : 'ri-arrow-down-s-fill'"></i></span>
@@ -96,7 +96,7 @@
       </div>
     </div>
     <!-- 文件夹编辑弹窗 -->
-    <div v-show="folderEditVisible" :class="['modal-overlay', { active: folderEditVisible }]" @click.self="folderEditVisible = false">
+    <div v-if="folderEditVisible" :class="['modal-overlay', { active: folderEditVisible }]" @click.self="folderEditVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>{{ folderEditId ? '编辑文件夹' : '新建文件夹' }}</h3><button class="modal-close" @click="folderEditVisible = false">&times;</button></div>
         <div class="modal-body">
@@ -118,7 +118,7 @@
       </div>
     </div>
     <!-- 编辑弹窗 -->
-    <div v-show="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
+    <div v-if="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>编辑书签</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
         <div class="modal-body">
@@ -411,8 +411,9 @@ onMounted(() => { loadBookmarks(); loadFolders(); loadUsers() })
 .folder-drag-list { display: flex; flex-direction: column; gap: 2px; }
 .folder-drag-item {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px; background: var(--surface-sunken);
-  border-radius: 6px; cursor: default; transition: background 0.15s;
+  padding: 8px 12px; padding-left: var(--depth-indent, 12px); background: var(--surface-sunken);
+  border-radius: 6px; cursor: default;
+  transition: background-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .folder-drag-item:hover { background: var(--surface-hover); }
 .folder-drag-handle {

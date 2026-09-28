@@ -47,3 +47,6 @@ DEPLOY.md
 
 # 本地工作数据（记忆 / 参考素材 / 技能 / 临时产物）—— 全部不入库，仅存本地
 .workbuddy/
+
+# 本地 agent 工具配置（含第三方 MCP token，勿入库）
+.agents/

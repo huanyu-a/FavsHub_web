@@ -39,14 +39,14 @@
             <label>保留份数</label>
             <input v-model.number="schedule.keepCopies" type="number" min="1">
           </div>
-          <div v-if="schedule.lastBackupDate" class="info-item" style="margin-bottom: 14px;">
+          <div v-if="schedule.lastBackupDate" class="info-item info-item-spaced">
             <span class="info-label">上次备份</span><span>{{ formatDate(schedule.lastBackupDate) }}</span>
           </div>
           <button class="btn btn-primary" @click="saveSchedule">保存计划</button>
         </div>
       </div>
       <!-- 手动备份 -->
-      <div class="card" style="margin-top: 20px;">
+      <div class="card card-spaced">
         <div class="card-header">
           <h3>手动操作</h3>
           <div class="header-actions">
@@ -60,12 +60,12 @@
         </div>
       </div>
       <!-- 备份文件列表 -->
-      <div class="card" style="margin-top: 20px;">
+      <div class="card card-spaced">
         <div class="card-header">
           <h3>备份文件</h3>
           <button class="btn btn-ghost btn-sm" @click="refreshFiles">刷新</button>
         </div>
-        <div v-if="filesLoading" class="loading-sm" style="padding: 20px;">加载中...</div>
+        <div v-if="filesLoading" class="loading-sm loading-padded">加载中...</div>
         <div v-else-if="backupFiles.length === 0" class="empty-state">暂无备份文件</div>
         <table v-else class="data-table">
           <thead>

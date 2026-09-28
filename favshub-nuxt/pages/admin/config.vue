@@ -17,7 +17,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>网站 TDK 设置</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <p class="hint">设置网站的标题（Title）、描述（Description）和关键词（Keywords），用于 SEO 优化。</p>
           <div class="fg"><label>网站标题</label><input v-model="tdk.siteTitle" placeholder="FavsHub - 智能书签管理" @input="saveTdk"></div>
           <div class="fg"><label>网站描述</label><input v-model="tdk.siteDescription" placeholder="FavsHub 是一个智能书签管理和 AI 提示词管理平台" @input="saveTdk"></div>
@@ -26,7 +26,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>网站统计</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <p class="hint">设置百度统计 ID，启用后将自动在所有前台页面嵌入百度统计脚本。</p>
           <div class="fg"><label>百度统计 ID</label><input v-model="analytics.baidu_tongji_id" placeholder="如 cbab65f7d4752af37d29b48bcbf3c646" @input="saveAnalytics"><small>留空则不启用百度统计</small></div>
           <div class="fg"><label>域名白名单</label><input v-model="analytics.baidu_tongji_domains" placeholder="如 favshub.com,www.favshub.com" @input="saveAnalytics"><small>多个域名用英文逗号分隔；留空则不限制（任何域名都触发）</small></div>
@@ -34,7 +34,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>系统设置</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <div class="toggle-row">
             <label>允许用户注册</label>
             <label class="switch">
@@ -46,7 +46,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>安全设置</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <p class="hint">JWT 令牌有效期、Cookie 过期时间、登录/注册频率限制和密码策略。</p>
           <div class="fg-row">
             <div class="fg"><label>JWT 有效期</label><input v-model="security.jwt_token_expiry" placeholder="7d" @input="saveSecurity"><small>如 7d, 24h, 30m</small></div>
@@ -67,7 +67,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>Favicon 下载设置</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <p class="hint">配置 Favicon 下载源、尺寸和超时时间。URL 中使用 <code>{domain}</code> 和 <code>{size}</code> 作为占位符。</p>
           <div class="fg"><label>下载源 URL</label><input v-model="favicon.favicon_source_url" placeholder="https://www.google.com/s2/favicons?domain={domain}&sz={size}" @input="saveFavicon"></div>
           <div class="fg-row">
@@ -79,7 +79,7 @@
       </div>
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>数据限制</h3></div>
-        <div style="padding:20px;">
+        <div class="card-body">
           <p class="hint">控制书签同步和查询的数据量上限。</p>
           <div class="fg-row">
             <div class="fg"><label>单次同步上限 (条)</label><input v-model.number="limits.max_bookmarks_per_sync" type="number" min="100" @input="saveLimits"></div>

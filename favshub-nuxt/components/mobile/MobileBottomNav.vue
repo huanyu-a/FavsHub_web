@@ -49,13 +49,14 @@
     <div v-if="isMobile && showFolderPanel" class="mobile-folder-overlay" @click="showFolderPanel = false"></div>
     <Transition name="folder-float">
       <div v-if="isMobile && showFolderPanel" class="mobile-folder-float">
-        <div class="mobile-folder-item" :class="{ active: isFolderActive('all') }" @click="selectFolder('all')">
+        <button type="button" class="mobile-folder-item" :class="{ active: isFolderActive('all') }" @click="selectFolder('all')">
           <span class="mobile-folder-icon"><i class="ri-folder-line"></i></span>
           <span class="mobile-folder-name">全部</span>
-        </div>
+        </button>
         <!-- 一级分类 -->
         <template v-for="folder in rootFolders" :key="folder.id">
-          <div
+          <button
+            type="button"
             class="mobile-folder-item"
             :class="{ active: isFolderActive(folder.id) || expandedFolderId === folder.id }"
             @click="toggleExpandFolder(folder.id)"
@@ -63,20 +64,21 @@
             <span class="mobile-folder-icon"><AppIcon :value="folder.icon" fallback="ri-folder-open-line" /></span>
             <span class="mobile-folder-name">{{ folder.name }}</span>
             <span v-if="folder.login_required" title="登录可见" class="mobile-folder-lock"><i class="ri-lock-line"></i></span>
-          </div>
+          </button>
           <!-- 二级分类 -->
           <Transition name="folder-sub">
             <div v-if="expandedFolderId === folder.id && hasChildren(folder.id)" class="mobile-folder-sub">
-              <div
+              <button
                 v-for="child in getChildFolders(folder.id)"
                 :key="child.id"
+                type="button"
                 class="mobile-folder-item sub"
                 :class="{ active: isFolderActive(child.id) }"
                 @click="selectFolder(child.id)"
               >
                 <span class="mobile-folder-icon sub"><AppIcon :value="child.icon" fallback="ri-file-line" /></span>
                 <span class="mobile-folder-name">{{ child.name }}</span>
-              </div>
+              </button>
             </div>
           </Transition>
         </template>
@@ -284,13 +286,13 @@ const themeIcon = computed(() => {
 
 <style scoped>
 /* 底栏由 6 项增至 7 项（新增「白嫖」）：收紧间距与内边距，
-   保证 375px 视口下不溢出（7×48 + 6×2 + 24 = 372px） */
+   保证 375px 视口下不溢出（间距统一为 4 的倍数） */
 .mobile-bottom-nav {
-  gap: 2px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 4px 8px;
 }
 .mobile-nav-item {
-  padding: 6px 9px;
+  padding: 4px 8px;
 }
 </style>
 

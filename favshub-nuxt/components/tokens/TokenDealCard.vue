@@ -2,7 +2,12 @@
   <article
     class="deal-card"
     :class="{ 'is-pinned': deal.pinned, 'is-expired': deal.is_expired }"
+    role="button"
+    tabindex="0"
+    :aria-label="`${deal.provider}：${deal.title}`"
     @click="$emit('open', deal)"
+    @keydown.enter.prevent="$emit('open', deal)"
+    @keydown.space.prevent="$emit('open', deal)"
   >
     <header class="deal-head">
       <div class="deal-brand">
@@ -170,18 +175,25 @@ const expiryWarn = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 16px;
   background: var(--surface-raised);
   border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s, transform 0.18s, box-shadow 0.18s;
+  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .deal-card:hover {
   border-color: var(--border-focus);
   background: var(--surface-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px -10px var(--shadow-color);
+  box-shadow: var(--shadow-md);
+}
+.deal-card:active {
+  background: var(--surface-active);
+  box-shadow: var(--shadow-sm);
+}
+.deal-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .deal-card.is-pinned {
   border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
@@ -204,9 +216,9 @@ const expiryWarn = computed(() => {
   min-width: 0;
 }
 .deal-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   object-fit: contain;
   flex-shrink: 0;
   background: var(--surface-sunken);
@@ -250,10 +262,9 @@ const expiryWarn = computed(() => {
   font-weight: 500;
 }
 .q-top {
-  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 72%, var(--primary-dark)));
+  background: var(--primary);
   color: var(--text-inverse);
   font-weight: 600;
-  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .q-high {
   background: var(--primary-light);
@@ -266,7 +277,7 @@ const expiryWarn = computed(() => {
 }
 .q-low,
 .q-bottom {
-  background: rgba(245, 158, 11, 0.12);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
   color: var(--warning);
 }
 
@@ -292,7 +303,7 @@ const expiryWarn = computed(() => {
   font-size: 12px;
 }
 .deal-nexus.is-off .nexus-tag {
-  background: rgba(245, 158, 11, 0.12);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
   color: var(--warning);
 }
 .deal-nexus.is-none .nexus-tag {
@@ -325,7 +336,7 @@ const expiryWarn = computed(() => {
   flex-direction: column;
   gap: 2px;
   padding: 8px 12px;
-  border-radius: var(--radius-md);
+  border-radius: 10px;
   background: color-mix(in srgb, var(--primary) 6%, var(--surface-sunken));
   border-left: 3px solid color-mix(in srgb, var(--primary) 75%, transparent);
 }

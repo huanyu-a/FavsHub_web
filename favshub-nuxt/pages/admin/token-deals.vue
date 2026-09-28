@@ -735,7 +735,7 @@ onBeforeUnmount(() => {
   font-size: 11px;
   line-height: 16px;
   background: var(--danger);
-  color: #fff;
+  color: var(--text-inverse);
 }
 
 .cell-provider {
@@ -767,7 +767,7 @@ onBeforeUnmount(() => {
 }
 .cell-url {
   display: block;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-tertiary);
   text-decoration: none;
   max-width: 260px;
@@ -779,12 +779,12 @@ onBeforeUnmount(() => {
 
 .cell-sub {
   margin-top: 3px;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-tertiary);
 }
 .cell-sub.is-warn { color: var(--warning); }
 .cell-quota {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -796,7 +796,7 @@ onBeforeUnmount(() => {
 .cell-votes {
   display: flex;
   gap: 10px;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .vote-up { color: var(--success); }
 .vote-down { color: var(--danger); }
@@ -805,14 +805,14 @@ onBeforeUnmount(() => {
   display: inline-block;
   padding: 1px 7px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
 }
 .quality-tag.q-top,
 .quality-tag.q-high { background: var(--primary-light); color: var(--primary); }
 .quality-tag.q-mid { background: var(--surface-sunken); color: var(--text-secondary); }
 .quality-tag.q-low,
-.quality-tag.q-bottom { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+.quality-tag.q-bottom { background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning); }
 
 /* ── 修改建议 Tab ── */
 .edit-list {
@@ -823,7 +823,7 @@ onBeforeUnmount(() => {
 }
 .edit-row {
   padding: 12px 14px;
-  border: 0.5px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-sunken);
 }
@@ -853,7 +853,7 @@ onBeforeUnmount(() => {
 }
 .edit-time {
   flex-shrink: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-tertiary);
 }
 .edit-meta {
@@ -910,20 +910,21 @@ onBeforeUnmount(() => {
 .edit-reject-box {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 0.5px dashed var(--border);
+  border-top: 1px dashed var(--border);
 }
 .edit-reject-box textarea {
   width: 100%;
-  padding: 8px 11px;
-  font-size: 12.5px;
+  padding: 8px 12px;
+  font-size: 13px;
   font-family: inherit;
   line-height: 1.5;
   color: var(--text-primary);
   background: var(--surface-raised);
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   outline: none;
   resize: vertical;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .edit-reject-box textarea:focus { border-color: var(--border-focus); }
 .edit-reject-actions {
@@ -960,10 +961,10 @@ onBeforeUnmount(() => {
 }
 .guest-content {
   margin: 8px 0 0;
-  padding: 9px 11px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
   background: var(--surface-sunken);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--text-secondary);
   white-space: pre-wrap;

@@ -20,8 +20,8 @@
       @select-collection-category="selectCollectionCategory"
     />
 
-    <!-- 主内容区 -->
-    <main class="flex-1 bg-gray-50 overflow-auto flex flex-col">
+    <!-- 主内容区（布局样式由全局 .home-shell > main 提供，背景继承 var(--surface)） -->
+    <main>
       <!-- 欢迎消息 - ClientOnly: greeting 依赖 authStore.user，SSR/客户端不一致 -->
       <ClientOnly>
         <WelcomeMessage v-if="settingsStore.get('showWelcomeMessage', true)" />
@@ -340,8 +340,8 @@ function selectCollectionCategory(categoryId: number | null) {
     const el = document.getElementById(elId)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      el.style.transition = 'background-color 0.3s'
-      el.style.backgroundColor = 'rgba(16, 185, 129, 0.06)'
+      el.style.transition = 'background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1)'
+      el.style.backgroundColor = 'var(--primary-light)'
       scheduleHighlightClear(() => { el.style.backgroundColor = '' }, 1200)
     }
   })
@@ -356,8 +356,8 @@ function selectFolder(id: number | null) {
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' })
         // 短暂高亮效果
-        el.style.transition = 'background-color 0.3s'
-        el.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'
+        el.style.transition = 'background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1)'
+        el.style.backgroundColor = 'var(--primary-light)'
         scheduleHighlightClear(() => { el.style.backgroundColor = '' }, 1500)
       }
     })
@@ -433,8 +433,8 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   gap: 8px;
   overflow-x: auto;
   padding: 4px;
-  background: var(--surface-sunken, #f3f4f6);
-  border-radius: 12px;
+  background: var(--surface-sunken);
+  border-radius: 10px;
   max-width: 100%;
 }
 
@@ -443,8 +443,8 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 }
 
 .collection-tabs::-webkit-scrollbar-thumb {
-  background: var(--border, #e5e7eb);
-  border-radius: 2px;
+  background: var(--border);
+  border-radius: 6px;
 }
 
 .collection-tab {
@@ -454,30 +454,39 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.12s cubic-bezier(0.22, 1, 0.36, 1), color 0.12s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
   white-space: nowrap;
   position: relative;
   text-decoration: none;
 }
 
 .collection-tab:hover {
-  color: var(--text-primary, #111827);
-  background: color-mix(in srgb, var(--primary, #10b981) 5%, transparent);
+  color: var(--text-primary);
+  background: var(--primary-light);
+}
+
+.collection-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.collection-tab:active {
+  transform: scale(0.98);
 }
 
 .collection-tab.active {
-  background: var(--surface-raised, #fff);
-  color: var(--primary, #10b981);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--surface-raised);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .collection-tab-market {
-  color: var(--primary, #10b981);
+  color: var(--primary);
 }
 
 .collection-tab i {
@@ -505,9 +514,9 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   justify-content: center;
   font-size: 10px;
   font-weight: 600;
-  color: #fff;
-  background: #f59e0b;
-  border-radius: 9px;
+  color: var(--text-inverse);
+  background: var(--warning);
+  border-radius: 10px;
   padding: 0 4px;
 }
 

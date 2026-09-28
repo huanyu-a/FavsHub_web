@@ -22,6 +22,7 @@
         :key="group.folderId ?? 'recommended'"
         class="folder-group flat-layout"
         :id="group.folderId === null ? 'folder-group-recommended' : 'folder-group-' + group.folderId"
+        :style="{ '--group-accent': groupAccent(group) }"
       >
         <h3 class="folder-group-title">{{ group.name }}</h3>
         <div :ref="setGridRef" class="folder-bookmarks-grid">
@@ -100,6 +101,14 @@ function setGridRef(el: any) {
   if (el && !gridEls.value.includes(el)) gridEls.value.push(el)
 }
 
+// 相邻分类卡片的强调色轮换：驱动标题下划线与 hover 阴影的着色（--group-accent）
+// 「全部/推荐」保持主题色，其余按文件夹 ID 稳定轮换，刷新后同一分类颜色不变
+const GROUP_ACCENTS = ['#10b981', '#0ea5e9', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4']
+function groupAccent(group: { folderId: number | null }): string {
+  if (group.folderId === null) return 'var(--primary)'
+  return GROUP_ACCENTS[Math.abs(group.folderId) % GROUP_ACCENTS.length]
+}
+
 // C2: SSR/hydration 阶段仅渲染前 30 张卡片，挂载后补齐其余（懒加载）
 // mounted 标志保证 SSR HTML 与客户端首帧一致，避免 hydration mismatch
 const INITIAL_RENDER_LIMIT = 30
@@ -108,8 +117,7 @@ const mounted = ref(false)
 // 用响应式 ref 维护，避免在 computed 中做副作用（frontend review）
 const priorityIds = ref(new Set<number>())
 
-// frontend #7/#15：注入的 <style> 引用 + 拖拽实例，卸载时统一清理
-let customStyleEl: HTMLStyleElement | null = null
+// frontend #7/#15：卸载时统一清理
 const sortableInstances = new Map<HTMLElement, { destroy: () => void }>()
 
 onMounted(() => {
@@ -117,13 +125,9 @@ onMounted(() => {
   ensureSortableInstances()
 })
 
-// C5 + frontend #7/#15：卸载时清空 DOM 引用、移除注入样式、销毁拖拽实例
+// C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例
 onBeforeUnmount(() => {
   gridEls.value.length = 0
-  if (customStyleEl) {
-    customStyleEl.remove()
-    customStyleEl = null
-  }
   for (const instance of sortableInstances.values()) instance.destroy()
   sortableInstances.clear()
 })
@@ -150,38 +154,6 @@ function onContextMenu(event: MouseEvent, bookmark: any) {
   contextMenu.bookmark = bookmark
   contextMenu.visible = true
 }
-
-// 书签宽度写入 CSS 变量 --bookmark-width，由其驱动 grid 列宽
-watchEffect(() => {
-  if (import.meta.client && props.bookmarkWidth) {
-    document.documentElement.style.setProperty('--bookmark-width', props.bookmarkWidth + 'px')
-  }
-})
-
-// 卡片高度：注入 <style> 覆盖 .card height（卸载时移除，避免全局样式残留）
-watchEffect(() => {
-  if (import.meta.client && props.bookmarkCardHeight) {
-    let el = document.getElementById('custom-card-height') as HTMLStyleElement | null
-    if (!el) {
-      el = document.createElement('style')
-      el.id = 'custom-card-height'
-      document.head.appendChild(el)
-    }
-    customStyleEl = el
-    el.textContent = `.folder-bookmarks-grid .bookmark-card { height: ${props.bookmarkCardHeight}px !important; }`
-  }
-})
-
-// 容器宽度写入 .bookmarks-container
-watchEffect(() => {
-  if (import.meta.client && props.bookmarkContainerWidth) {
-    const container = document.getElementById('bookmarks-list') as HTMLElement | null
-    if (container) {
-      container.style.width = `${props.bookmarkContainerWidth}%`
-      container.style.margin = '0 auto'
-    }
-  }
-})
 
 // 拖拽排序（仅登录用户）— frontend #15：onMounted 内动态加载，实例可被 destroy
 function ensureSortableInstances() {
@@ -276,3 +248,34 @@ const flatVisibleBookmarks = computed(() => {
 })
 </script>
 
+<style scoped>
+/* 卡片尺寸由 CSS 变量驱动，支持父级传入。
+   变量声明在本组件根元素上，由 CSS 自定义属性继承传给后代节点，
+   消费方在全局 main-bundle.css：
+   --bookmark-width      → .folder-bookmarks-grid 列宽 / .bookmark-placeholder / .add-bookmark-card 上限
+   --bookmark-card-height → .folder-bookmarks-grid .bookmark-card 高度 */
+.bookmarks-container {
+  --bookmark-card-height: v-bind('bookmarkCardHeight ? bookmarkCardHeight + "px" : "auto"');
+  --bookmark-container-width: v-bind('bookmarkContainerWidth ? bookmarkContainerWidth + "%" : "100%"');
+  --bookmark-width: v-bind('bookmarkWidth ? bookmarkWidth + "px" : "210px"');
+  margin: 0 auto;
+}
+
+/* 容器宽度：main-bundle.css 的 #bookmarks-list { width: 100% } 是 ID 选择器（特异度 1,0,0），
+   类选择器（0,1,0）必胜不过，故此处同样以 ID 选择器提升特异度，让用户设置能覆盖全局默认值 */
+#bookmarks-list {
+  width: var(--bookmark-container-width);
+}
+
+.folder-bookmarks-grid .bookmark-card {
+  height: var(--bookmark-card-height);
+}
+
+.bookmark-placeholder {
+  height: var(--bookmark-card-height, 56px);
+}
+
+.add-bookmark-card {
+  min-height: var(--bookmark-card-height, 56px);
+}
+</style>

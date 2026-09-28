@@ -44,7 +44,7 @@ const avgBookmarks = computed(() => {
 
 .stat-card {
   background: var(--surface-raised);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 20px;
   box-shadow: var(--shadow-sm);
 }
@@ -61,18 +61,18 @@ const avgBookmarks = computed(() => {
 }
 
 .stat-card .value.blue  { color: var(--primary); }
-.stat-card .value.green { color: var(--primary); }
+.stat-card .value.green { color: var(--success); }
 .stat-card .value.purple { color: var(--accent-purple); }
-.stat-card .value.orange { color: var(--accent-yellow); }
+.stat-card .value.orange { color: var(--warning); }
 
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    gap: 12px;
     margin-bottom: 16px;
   }
   .stat-card {
-    padding: 14px;
+    padding: 16px;
   }
   .stat-card .value {
     font-size: 22px;

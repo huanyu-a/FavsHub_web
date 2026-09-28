@@ -270,11 +270,7 @@ onUnmounted(() => {
   padding: 24px;
   background: var(--overlay);
   backdrop-filter: var(--backdrop-blur);
-  animation: tss-fade 0.18s ease-out;
-}
-@keyframes tss-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  animation: modal-fade 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tss-modal {
   position: relative;
@@ -285,22 +281,18 @@ onUnmounted(() => {
   max-height: 92vh;
   background: var(--surface-raised);
   border: 0.5px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: tss-rise 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes tss-rise {
-  from { opacity: 0; transform: translateY(12px) scale(0.99); }
-  to { opacity: 1; transform: none; }
+  animation: modal-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tss-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 12px 16px;
   border-bottom: 0.5px solid var(--divider);
 }
 .tss-title {
@@ -320,14 +312,19 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: none;
   color: var(--text-tertiary);
   font-size: 17px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tss-close:hover { background: var(--surface-hover); color: var(--text-primary); }
+.tss-close:active { background: var(--surface-active); }
+.tss-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 
 .tss-body {
   flex: 1;
@@ -348,8 +345,7 @@ onUnmounted(() => {
 .tss-state i { font-size: 22px; }
 .tss-state p { margin: 0; text-align: center; }
 .tss-state.is-err { color: var(--danger); }
-.spin { animation: tss-spin 1s linear infinite; }
-@keyframes tss-spin { to { transform: rotate(360deg); } }
+.spin { animation: modal-spin 1s linear infinite; }
 
 .tss-preview {
   display: flex;
@@ -363,16 +359,21 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 .tss-style {
-  padding: 4px 13px;
+  padding: 4px 12px;
   border-radius: 999px;
   border: 0.5px solid var(--border);
   background: transparent;
   color: var(--text-tertiary);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tss-style:hover { color: var(--text-primary); background: var(--surface-hover); }
+.tss-style:active { background: var(--surface-active); }
+.tss-style:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .tss-style.on {
   color: var(--primary);
   border-color: var(--primary);
@@ -384,7 +385,7 @@ onUnmounted(() => {
   max-width: 300px;
   aspect-ratio: 3 / 4;
   object-fit: contain;
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   border: 0.5px solid var(--border);
   background: var(--surface-sunken);
   user-select: none;
@@ -401,7 +402,7 @@ onUnmounted(() => {
 .tss-foot {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 12px 16px;
   border-top: 0.5px solid var(--divider);
 }
@@ -412,16 +413,21 @@ onUnmounted(() => {
   justify-content: center;
   gap: 5px;
   padding: 8px 14px;
-  border-radius: var(--radius-md);
+  border-radius: 10px;
   border: 0.5px solid var(--border);
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tss-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-primary); }
+.tss-btn:active:not(:disabled) { background: var(--surface-active); }
+.tss-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .tss-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .tss-btn.primary {
   background: var(--primary);
@@ -429,6 +435,7 @@ onUnmounted(() => {
   color: var(--text-inverse);
 }
 .tss-btn.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.tss-btn.primary:active:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
 .tss-btn.ghost { flex: 0 0 auto; }
 
 .tss-toast {
@@ -437,8 +444,8 @@ onUnmounted(() => {
   bottom: 68px;
   transform: translateX(-50%);
   padding: 8px 16px;
-  border-radius: var(--radius-md);
-  font-size: 12.5px;
+  border-radius: 10px;
+  font-size: 12px;
   color: var(--text-inverse);
   background: var(--text-primary);
   box-shadow: var(--shadow-lg);
@@ -446,7 +453,7 @@ onUnmounted(() => {
 }
 .tss-toast.err { background: var(--danger); }
 .toast-enter-active,
-.toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.toast-leave-active { transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
 .toast-enter-from,
 .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
 
@@ -455,7 +462,7 @@ onUnmounted(() => {
   .tss-modal {
     max-width: none;
     max-height: 94vh;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: 14px 14px 0 0;
   }
   .tss-preview img { max-width: 260px; }
   .tss-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }

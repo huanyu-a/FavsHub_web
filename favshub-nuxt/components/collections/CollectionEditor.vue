@@ -124,20 +124,8 @@ const form = reactive({
 })
 
 const tdkExpanded = ref(false)
-const categories = ref<any[]>([])
-const bookmarks = ref<any[]>([])
-const filterCategory = ref<string | null>(null)
 const saving = ref(false)
 const errorMsg = ref('')
-
-let nextCategoryId = 1
-let nextBookmarkId = 1
-
-// 过滤后的书签列表
-const filteredBookmarks = computed(() => {
-  if (!filterCategory.value) return bookmarks.value
-  return bookmarks.value.filter(bm => bm.category_id === filterCategory.value)
-})
 
 // 监听 visible 变化，加载数据（immediate: true 确保以 visible=true 挂载时也触发）
 watch(() => props.visible, async (val) => {
@@ -175,52 +163,6 @@ async function loadData() {
         is_public: col.is_public ?? 1,
         is_official: col.is_official ?? 0
       })
-
-      // 加载分类和书签（扁平数据结构，支持二级层级）
-      if (res.categories && Array.isArray(res.categories)) {
-        // 先建 db_id 与 temp_id 的映射，用于 parent_id 解析
-        const dbToTemp = new Map<number, string>()
-        const tempCats = res.categories.map((cat: any, idx: number) => {
-          const tempId = `cat-${idx}`
-          dbToTemp.set(cat.id, tempId)
-          return { ...cat, _tempId: tempId, _idx: idx }
-        })
-
-        categories.value = tempCats.map((cat: any) => {
-          const isChild = !!cat.parent_id
-          return {
-            id: cat.id,
-            _id: cat._tempId,
-            name: cat.name,
-            parent_id: cat.parent_id ? (dbToTemp.get(cat.parent_id) || null) : null,
-            _depth: isChild ? 1 : 0,
-            sort_order: cat.sort_order ?? cat._idx
-          }
-        })
-
-        nextCategoryId = categories.value.length + 1
-      }
-
-      if (res.bookmarks && Array.isArray(res.bookmarks)) {
-        // 创建分类ID映射
-        const catIdMap = new Map<number, string>()
-        categories.value.forEach((cat, idx) => {
-          if (cat.id) catIdMap.set(cat.id, cat._id)
-        })
-
-        bookmarks.value = res.bookmarks.map((bm: any, idx: number) => ({
-          id: bm.id,
-          _id: `bm-${idx}`,
-          title: bm.title,
-          url: bm.url,
-          description: bm.description || '',
-          icon: bm.icon || '',
-          category_id: bm.category_id ? catIdMap.get(bm.category_id) || null : null,
-          sort_order: bm.sort_order ?? idx
-        }))
-
-        nextBookmarkId = bookmarks.value.length + 1
-      }
     } catch (e) {
       console.error('加载精选集失败', e)
       errorMsg.value = '加载数据失败'
@@ -243,82 +185,8 @@ function resetForm() {
     is_public: 1,
     is_official: 0
   })
-  categories.value = []
-  bookmarks.value = []
-  filterCategory.value = null
   errorMsg.value = ''
   tdkExpanded.value = false
-  nextCategoryId = 1
-  nextBookmarkId = 1
-}
-
-// 分类操作
-function addCategory() {
-  categories.value.push({
-    _id: `cat-${nextCategoryId++}`,
-    name: '',
-    parent_id: null,
-    _depth: 0,
-    sort_order: categories.value.length
-  })
-}
-
-function addSubCategory(parentIdx: number) {
-  const parent = categories.value[parentIdx]
-  categories.value.push({
-    _id: `cat-${nextCategoryId++}`,
-    name: '',
-    parent_id: parent._id,
-    _depth: (parent._depth || 0) + 1,
-    sort_order: categories.value.length
-  })
-}
-
-// 可用作父级的分组（排除自身以防止循环引用，且仅允许顶级分类作为父级）
-function availableParents(currentIdx: number) {
-  const current = categories.value[currentIdx]
-  return categories.value.filter((cat, i) => {
-    if (i === currentIdx) return false
-    if (cat._id === current?.parent_id) return true  // 保留当前已选的父级
-    if (cat.parent_id) return false  // 已有父级的子分类不能再作为父级
-    return true
-  })
-}
-
-function removeCategory(idx: number) {
-  const cat = categories.value[idx]
-  // 将该分类及其子分类下的书签移到未分类
-  const removedIds = new Set([cat._id])
-  for (const c of categories.value) {
-    if (c.parent_id === cat._id) removedIds.add(c._id)
-  }
-  for (const bm of bookmarks.value) {
-    if (removedIds.has(bm.category_id)) {
-      bm.category_id = null
-    }
-  }
-  // 同时移除子分类
-  categories.value = categories.value.filter(c => !removedIds.has(c._id))
-}
-
-// 书签操作
-function addBookmark() {
-  bookmarks.value.push({
-    _id: `bm-${nextBookmarkId++}`,
-    title: '',
-    url: '',
-    description: '',
-    icon: '',
-    category_id: filterCategory.value || null,
-    sort_order: bookmarks.value.length
-  })
-}
-
-function removeBookmark(idx: number) {
-  const actualIndex = bookmarks.value.findIndex(bm => bm._id === filteredBookmarks.value[idx]._id)
-  if (actualIndex !== -1) {
-    bookmarks.value.splice(actualIndex, 1)
-  }
 }
 
 // 保存（仅元数据，分类和书签在 Tab 2 管理）
@@ -369,93 +237,26 @@ async function save() {
   }
 }
 
-// 拖拽排序
-const categoryListRef = ref<HTMLElement | null>(null)
-const bookmarkListRef = ref<HTMLElement | null>(null)
-let categorySortable: any = null
-let bookmarkSortable: any = null
-
-function initCategorySortable() {
-  if (categorySortable) {
-    categorySortable.destroy()
-    categorySortable = null
-  }
-
-  const el = categoryListRef.value
-  if (!el) return
-
-  import('sortablejs').then(({ default: Sortable }) => {
-    categorySortable = Sortable.create(el, {
-      handle: '.drag-handle',
-      animation: 200,
-      ghostClass: 'sortable-ghost',
-      onEnd(evt: any) {
-        if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
-          const [moved] = categories.value.splice(evt.oldIndex, 1)
-          categories.value.splice(evt.newIndex, 0, moved)
-        }
-      }
-    })
-  })
-}
-
-function initBookmarkSortable() {
-  if (bookmarkSortable) {
-    bookmarkSortable.destroy()
-    bookmarkSortable = null
-  }
-
-  const el = bookmarkListRef.value
-  if (!el) return
-
-  import('sortablejs').then(({ default: Sortable }) => {
-    bookmarkSortable = Sortable.create(el, {
-      handle: '.drag-handle',
-      animation: 200,
-      ghostClass: 'sortable-ghost',
-      onEnd(evt: any) {
-        if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
-          const filtered = [...filteredBookmarks.value]
-          const [moved] = filtered.splice(evt.oldIndex, 1)
-          filtered.splice(evt.newIndex, 0, moved)
-
-          // 更新原数组，保持分类间的原始相对顺序
-          if (filterCategory.value) {
-            const filteredIds = new Set(filtered.map((b: any) => b.id || b._id))
-            bookmarks.value = bookmarks.value.map(bm =>
-              (bm.category_id === filterCategory.value)
-                ? filtered.find((f: any) => (f.id || f._id) === (bm.id || bm._id)) || bm
-                : bm
-            )
-          } else {
-            bookmarks.value = filtered
-          }
-        }
-      }
-    })
-  })
-}
-
-watch(() => categories.value.length, () => {
-  nextTick(initCategorySortable)
-})
-
-watch(() => [filteredBookmarks.value.length, filterCategory.value], () => {
-  nextTick(initBookmarkSortable)
-})
-
-onMounted(() => {
-  initCategorySortable()
-  initBookmarkSortable()
-})
-
-onBeforeUnmount(() => {
-  if (categorySortable) categorySortable.destroy()
-  if (bookmarkSortable) bookmarkSortable.destroy()
-})
+// 注：拖拽排序与分类/书签管理已迁移至 AdminCategoryBookmarkManager，此编辑器仅保留元数据表单
 </script>
 
 <style scoped>
+/* 弹窗入场动效：v-if 挂载时类即就位，全局 transition 不触发，用 animation 补入场（与全局 .modal-overlay 过渡时长/缓动一致） */
+.modal-overlay.active {
+  animation: ce-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.modal-overlay.active .modal {
+  animation: ce-modal-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ce-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ce-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .collection-editor-modal {
   max-width: 900px;
   max-height: 90vh;
@@ -487,6 +288,13 @@ onBeforeUnmount(() => {
   background: var(--surface-raised);
   color: var(--text-primary);
   font-family: inherit;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.form-input:focus-visible,
+.form-textarea:focus-visible {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .form-textarea {
@@ -495,7 +303,7 @@ onBeforeUnmount(() => {
 
 .tdk-section {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px;
   background: var(--surface-sunken);
 }
@@ -511,6 +319,10 @@ onBeforeUnmount(() => {
 .tdk-header label {
   cursor: pointer;
   margin: 0;
+}
+
+.tdk-header i {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tdk-fields {
@@ -536,185 +348,12 @@ onBeforeUnmount(() => {
   color: var(--primary);
 }
 
-.categories-manager,
-.bookmarks-manager {
-  margin-bottom: 16px;
-}
-
-.categories-header,
-.bookmarks-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.filter-select {
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-
-.empty-hint {
-  padding: 24px;
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  background: var(--surface-sunken);
-  border-radius: 6px;
-}
-
-.categories-list,
-.bookmarks-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.category-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.category-item:hover {
-  background: var(--surface-hover);
-}
-
-.drag-handle {
-  cursor: grab;
-  color: var(--text-tertiary);
-  font-size: 14px;
-  user-select: none;
-  width: 16px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
-
-.cat-name-input {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-.cat-parent-select {
-  width: 110px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 12px;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-.btn-icon-sm {
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.btn-icon-sm:hover {
-  background: var(--surface-hover);
-  color: var(--accent-red);
-}
-
-.bookmark-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.bookmark-item:hover {
-  background: var(--surface-hover);
-}
-
-.bookmark-fields {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.bookmark-row {
-  display: flex;
-  gap: 8px;
-}
-
-.bm-title-input {
-  flex: 2;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-
-.bm-url-input {
-  flex: 3;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-
-.bm-desc-input {
-  flex: 2;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-
-.bm-cat-select {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 13px;
-  background: var(--surface-raised);
-  color: var(--text-primary);
-}
-
 .error-msg {
   padding: 12px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
   border-radius: 6px;
-  color: var(--accent-red);
+  color: var(--danger);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -723,8 +362,8 @@ onBeforeUnmount(() => {
 
 .saving-msg {
   padding: 12px 16px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--primary-light);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
   border-radius: 6px;
   color: var(--primary);
   display: flex;
@@ -751,11 +390,6 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
-.sortable-ghost {
-  opacity: 0.4;
-  background: var(--primary-light);
-}
-
 /* 开关样式 */
 .switch {
   position: relative;
@@ -770,16 +404,21 @@ onBeforeUnmount(() => {
   height: 0;
 }
 
+.switch input:focus-visible + .slider {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .slider {
   position: absolute;
   cursor: pointer;
   inset: 0;
   background-color: var(--border);
-  transition: 0.3s;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .slider.round {
-  border-radius: 24px;
+  border-radius: 999px;
 }
 
 .slider:before {
@@ -789,9 +428,13 @@ onBeforeUnmount(() => {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
+  background-color: var(--surface-raised);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
   border-radius: 50%;
+}
+
+.slider:active:before {
+  transform: scale(0.92);
 }
 
 input:checked + .slider {
@@ -800,5 +443,9 @@ input:checked + .slider {
 
 input:checked + .slider:before {
   transform: translateX(20px);
+}
+
+input:checked + .slider:active:before {
+  transform: translateX(20px) scale(0.92);
 }
 </style>

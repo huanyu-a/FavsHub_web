@@ -1,14 +1,14 @@
 <template>
-  <div id="edit-dialog" class="modal" style="display:flex;" @click.self="$emit('close')">
+  <div id="edit-dialog" class="modal" @click.self="$emit('close')">
     <div class="modal-content">
-      <span class="close-button" @click="$emit('close')">&times;</span>
+      <button type="button" class="close-button" aria-label="关闭" @click="$emit('close')">&times;</button>
       <h2>{{ isNew ? '添加快捷链接' : '编辑快捷链接' }}</h2>
       <form @submit.prevent="handleSubmit">
         <label>名称：</label>
         <input v-model="form.title" type="text" required placeholder="书签名称">
 
         <label>描述：</label>
-        <textarea v-model="form.description" placeholder="书签描述（选填）" rows="2" style="width:100%;resize:vertical;"></textarea>
+        <textarea v-model="form.description" placeholder="书签描述（选填）" rows="2"></textarea>
 
         <label>网址：</label>
         <input v-model="form.url" type="url" required placeholder="https://example.com">
@@ -32,7 +32,7 @@
               type="button"
               class="edit-category-select-option"
               :class="{ selected: form.folder_id === f.id }"
-              :style="{ paddingLeft: (f._depth || 0) * 16 + 12 + 'px' }"
+              :style="{ '--depth-indent': (f._depth || 0) * 16 + 12 + 'px' }"
               @click="selectFolder(f.id)"
             >
               <span class="edit-category-select-option-label">{{ f.name }}</span>
@@ -162,6 +162,19 @@ function handleSubmit() {
 
 
 <style scoped>
+#edit-dialog {
+  display: flex;
+}
+
+#edit-dialog textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+#edit-dialog .edit-category-select-option {
+  padding-left: var(--depth-indent, 12px);
+}
+
 .form-toggles {
   display: flex;
   gap: 24px;

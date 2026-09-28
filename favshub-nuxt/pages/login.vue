@@ -10,7 +10,7 @@
         <button :class="{ active: tab === 'login' }" @click="switchTab('login')">登录</button>
         <button v-if="registrationAllowed" :class="{ active: tab === 'register' }" @click="switchTab('register')">注册</button>
       </div>
-      <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
+      <div v-if="errorMsg" class="error-msg" role="alert">{{ errorMsg }}</div>
 
       <div v-show="tab === 'login'">
         <form @submit.prevent="handleLogin">
@@ -62,9 +62,9 @@ useHead({
   ],
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260830' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260928' },
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260917' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260928f' },
   ],
 })
 

@@ -98,7 +98,7 @@
           <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-primary" @click="$emit('edit', viewingPrompt)">
             <i class="ri-edit-line"></i> 编辑
           </button>
-          <button v-if="!isGuest && viewingPrompt.user_id !== currentUserId && viewingPrompt.owner_is_admin == 1" class="btn btn-primary" @click="$emit('edit', viewingPrompt)" style="background:var(--warning);border-color:var(--warning);color:#1a1a2e;">
+          <button v-if="!isGuest && viewingPrompt.user_id !== currentUserId && viewingPrompt.owner_is_admin == 1" class="btn btn-review-request" @click="$emit('edit', viewingPrompt)">
             <i class="ri-edit-line"></i> 申请修改
           </button>
           <button v-if="!isGuest && viewingPrompt.user_id === currentUserId" class="btn btn-danger" @click="$emit('delete', viewingPrompt)">
@@ -565,5 +565,47 @@ function formatTime(ts?: number) {
 </script>
 
 <style scoped>
-.review-hint { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: var(--text-primary); }
+/* ── 有限梯度局部变量 ── */
+:where(.modal) {
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 审核提示条：warning 语义 ── */
+.review-hint {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* ── 申请修改按钮：warning 语义，替代原内联 style ── */
+.btn-review-request {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: var(--text-primary);
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+.btn-review-request:hover {
+  background: color-mix(in srgb, var(--warning) 85%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 85%, var(--surface));
+}
+.btn-review-request:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn-review-request:active {
+  background: color-mix(in srgb, var(--warning) 75%, var(--surface));
+  transform: scale(0.98);
+}
 </style>

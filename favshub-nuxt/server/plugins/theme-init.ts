@@ -19,7 +19,6 @@
 const VALID_THEMES: Record<string, true> = {
   // 浅色主题
   'theme-bg-1': true, 'theme-bg-4': true, 'theme-bg-6': true,
-  'theme-bg-7': true,
   'theme-bg-tian-qing': true, 'theme-bg-hu-po': true, 'theme-bg-na-tie': true,
   // 深色主题
   'theme-bg-mo-ye': true, 'theme-bg-xing-yun': true,
@@ -31,6 +30,8 @@ const THEME_MIGRATIONS: Record<string, string> = {
   'theme-bg-2': 'theme-bg-tian-qing',
   'theme-bg-3': 'theme-bg-6',
   'theme-bg-5': 'theme-bg-hu-po',
+  // 旧默认靛蓝主题：CSS 定义已删除，必须迁移，否则变量全部落回兜底色
+  'theme-bg-7': 'theme-bg-4',
   'theme-bg-chen-guang': 'theme-bg-tian-qing',
 }
 
@@ -109,7 +110,7 @@ var bg=localStorage.getItem('favshub_bg')||'${DEFAULT_BG}';
 // 迁移旧 gradient-background-N 与已下线主题
 var m=bg.match(/^gradient-background-(\\d+)$/);
 if(m) bg='theme-bg-'+m[1];
-var MIG={'theme-bg-2':'theme-bg-tian-qing','theme-bg-3':'theme-bg-6','theme-bg-5':'theme-bg-hu-po','theme-bg-chen-guang':'theme-bg-tian-qing'};
+var MIG={'theme-bg-2':'theme-bg-tian-qing','theme-bg-3':'theme-bg-6','theme-bg-5':'theme-bg-hu-po','theme-bg-7':'theme-bg-4','theme-bg-chen-guang':'theme-bg-tian-qing'};
 if(MIG[bg]) bg=MIG[bg];
 h.classList.add(bg);
 var t=localStorage.getItem('favshub_token');

@@ -197,150 +197,70 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.collections-header {
-  width: 100%;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.collections-header-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  white-space: nowrap;
-}
-.collections-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.collections-header-logo {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-.collections-header-logo:hover { opacity: 0.7; }
-.collections-header-logo-img {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-}
-.collections-header-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-.collections-header-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: nowrap;
-}
-.collections-header-link {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  text-decoration: none;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
-}
-.collections-header-link svg {
-  width: 15px;
-  height: 15px;
-  opacity: 0.7;
-}
-.collections-header-link:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-.collections-header-link:hover svg { opacity: 1; }
-.collections-header-link.active {
-  color: var(--accent-blue, #3b82f6);
-  background: var(--accent-blue-light, rgba(59, 130, 246, 0.08));
-}
-.collections-header-link.active svg { opacity: 1; }
-/* ── 主色横幅：渐变 + 高光 + 点阵纹理 ── */
+/* collections-header 样式已提取至 main-bundle.css（与 [id].vue 共享） */
+/* ── 紧凑页头：左标题+副文、右搜索+排序，与 tokens 页 hero 同款 ── */
 .market-hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(130% 150% at 88% -30%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 52%),
-    radial-gradient(120% 130% at -10% 130%, rgba(0, 0, 0, 0.14) 0%, transparent 55%),
-    linear-gradient(135deg, var(--primary, #10b981) 0%, color-mix(in srgb, var(--primary, #10b981) 72%, var(--primary-dark, #059669)) 100%);
-  border-radius: 20px;
-  padding: 34px 32px 30px;
-  margin-bottom: 26px;
-  color: var(--text-inverse, #fff);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  color: var(--text-primary);
 }
-.market-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image: radial-gradient(color-mix(in srgb, #fff 55%, transparent) 1px, transparent 1.5px);
-  background-size: 22px 22px;
-  opacity: 0.14;
-  mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
-  -webkit-mask-image: radial-gradient(90% 130% at 100% 0%, #000 0%, transparent 72%);
-  pointer-events: none;
+.hero-text {
+  flex: 1 1 320px;
+  min-width: 0;
 }
-.market-hero > * { position: relative; z-index: 1; }
 .hero-title {
-  margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.022em;
-  color: var(--text-inverse, #fff);
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 .hero-sub {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 80%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
 }
 .hero-toolbar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  margin-top: 24px;
+  margin-top: 0;
   flex-wrap: wrap;
+  flex: 0 1 auto;
 }
 .hero-toolbar .search-box {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 12px;
-  background: var(--surface-raised, #fff);
-  flex: 1;
+  padding: 8px 16px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  flex: 1 1 240px;
   min-width: 220px;
-  transition: box-shadow 0.18s;
+  max-width: 380px;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
+.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1); }
 .hero-toolbar .search-box:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-inverse, #fff) 45%, transparent);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 .hero-toolbar .search-box:focus-within i { color: var(--primary); }
 .hero-toolbar .search-box input {
   border: none;
   background: none;
   outline: none;
-  font-size: 13.5px;
+  font-size: 13px;
   width: 100%;
   color: var(--text-primary);
 }
@@ -349,25 +269,38 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(6px);
-  border-radius: 12px;
+  background: var(--surface-hover);
+  border-radius: 10px;
 }
 .hero-toolbar .sort-tabs button {
   padding: 7px 16px;
-  font-size: 12.5px;
+  font-size: 12px;
   border: none;
   background: none;
-  border-radius: 9px;
+  border-radius: 6px;
   cursor: pointer;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
-  transition: all 0.18s;
+  color: var(--text-secondary);
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.hero-toolbar .sort-tabs button:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 14%, transparent); }
+.hero-toolbar .sort-tabs button:hover { background: var(--surface-active); }
+.hero-toolbar .sort-tabs button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.hero-toolbar .sort-tabs button:active { transform: scale(0.98); }
 .hero-toolbar .sort-tabs button.active {
-  background: var(--surface-raised, #fff);
-  color: var(--primary, #10b981);
+  background: var(--surface-raised);
+  color: var(--primary);
   font-weight: 600;
+}
+@media (max-width: 768px) {
+  .market-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-toolbar .search-box { max-width: none; }
 }
 .collections-page {
   max-width: 1200px;
@@ -394,19 +327,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 18px;
-  border-radius: 16px;
+  padding: 20px;
+  border-radius: 14px;
   background: var(--surface-raised, #fff);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 .sk {
-  border-radius: 8px;
+  border-radius: 6px;
   background: linear-gradient(90deg, var(--surface-sunken, #f1f0ec) 25%, var(--surface-hover, #f5f5f0) 50%, var(--surface-sunken, #f1f0ec) 75%);
   background-size: 200% 100%;
   animation: sk-shimmer 1.4s ease-in-out infinite;
 }
 .sk-row { display: flex; align-items: center; justify-content: space-between; }
-.sk-icon { width: 46px; height: 46px; border-radius: 13px; }
+.sk-icon { width: 46px; height: 46px; border-radius: 10px; }
 .sk-badge { width: 52px; height: 22px; border-radius: 999px; }
 .sk-line { height: 13px; }
 .sk-line.w-60 { width: 60%; }
@@ -428,8 +361,8 @@ onUnmounted(() => {
   padding: 64px 20px;
   color: var(--text-tertiary, #9ca3af);
   background: var(--surface-raised, #fff);
-  border: 1px dashed var(--border, rgba(0,0,0,0.08));
-  border-radius: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
   margin-bottom: 28px;
 }
 .empty-state i {
@@ -456,16 +389,26 @@ onUnmounted(() => {
   border: none;
   border-radius: 10px;
   background: var(--surface-raised, #fff);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-secondary);
-  transition: all 0.18s;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .pagination button:not(:disabled):hover {
   color: var(--primary);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px -2px rgba(16, 24, 40, 0.12);
+  box-shadow: var(--shadow-md);
+}
+.pagination button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.pagination button:not(:disabled):active {
+  transform: scale(0.98);
 }
 .pagination button:disabled {
   opacity: 0.5;
@@ -491,10 +434,10 @@ onUnmounted(() => {
     padding: 68px 12px 96px;
   }
   .market-hero {
-    padding: 24px 20px 22px;
-    border-radius: 16px;
+    padding: 24px 20px;
+    border-radius: 14px;
   }
-  .hero-title { font-size: 23px; }
+  .hero-title { font-size: 24px; }
   .hero-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -522,9 +465,6 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .collections-page {
     padding: 60px 10px 96px;
-  }
-  .collections-header-title {
-    font-size: 14px;
   }
 }
 </style>

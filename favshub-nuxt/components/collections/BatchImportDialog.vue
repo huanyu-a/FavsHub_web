@@ -316,6 +316,22 @@ async function doImport() {
 </script>
 
 <style scoped>
+/* 弹窗入场动效：v-if 挂载时类即就位，全局 transition 不触发，用 animation 补入场（与全局 .modal-overlay 过渡时长/缓动一致） */
+.modal-overlay.active {
+  animation: bid-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.modal-overlay.active .modal {
+  animation: bid-modal-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes bid-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bid-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .import-steps {
   display: flex;
   align-items: center;
@@ -323,7 +339,7 @@ async function doImport() {
   margin-bottom: 24px;
   padding: 16px;
   background: var(--surface-sunken);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .step {
@@ -332,7 +348,7 @@ async function doImport() {
   align-items: center;
   gap: 6px;
   opacity: 0.4;
-  transition: opacity 0.2s;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .step.active {
@@ -354,7 +370,8 @@ async function doImport() {
   justify-content: center;
   font-weight: 600;
   font-size: 14px;
-  transition: all 0.2s;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .step.active .step-num {
@@ -395,10 +412,10 @@ async function doImport() {
 
 .error-msg {
   padding: 12px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
   border-radius: 6px;
-  color: var(--accent-red);
+  color: var(--danger);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -407,10 +424,10 @@ async function doImport() {
 
 .warning-msg {
   padding: 12px 16px;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
   border-radius: 6px;
-  color: var(--accent-yellow);
+  color: var(--warning);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -419,10 +436,10 @@ async function doImport() {
 
 .success-msg {
   padding: 12px 16px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
   border-radius: 6px;
-  color: var(--primary);
+  color: var(--success);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -434,7 +451,7 @@ async function doImport() {
   gap: 24px;
   padding: 16px;
   background: var(--surface-sunken);
-  border-radius: 8px;
+  border-radius: 10px;
   margin-bottom: 16px;
 }
 
@@ -496,7 +513,7 @@ async function doImport() {
   gap: 8px;
   padding: 6px 8px;
   background: var(--surface-sunken);
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
 }
 
@@ -537,18 +554,29 @@ async function doImport() {
   gap: 10px;
   padding: 14px;
   border: 2px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .mode-option:hover {
   border-color: var(--primary);
 }
 
+.mode-option:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.mode-option:active {
+  transform: scale(0.98);
+}
+
 .mode-option.active {
   border-color: var(--primary);
-  background: rgba(var(--primary-rgb), 0.05);
+  background: var(--primary-light);
 }
 
 .mode-option input[type="radio"] {
@@ -606,7 +634,7 @@ async function doImport() {
   width: 100%;
   height: 8px;
   background: var(--surface-sunken);
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -614,7 +642,7 @@ async function doImport() {
 .progress-fill {
   height: 100%;
   background: var(--primary);
-  transition: width 0.3s ease;
+  transition: width 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .progress-text {

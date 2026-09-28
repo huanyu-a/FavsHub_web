@@ -39,16 +39,22 @@
             <!-- 全部：icon + name + count + 展开收缩箭头 -->
             <li
               class="folder-item"
-              :class="{ 'bg-emerald-500': !activeFolderId }"
-              style="cursor:pointer;padding:8px;border-radius:8px;display:flex;align-items:center;position:relative;"
+              :class="{ 'is-active': !activeFolderId }"
+              role="button"
+              tabindex="0"
               @click="selectAndToggleAll"
+              @keydown.enter="selectAndToggleAll"
+              @keydown.space.prevent="selectAndToggleAll"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line" style="font-size:16px;color:var(--primary);flex-shrink:0;width:20px;text-align:center;"></i>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:60px;">全部</span>
-              <span class="item-count" style="position:absolute;right:8px;">{{ allPromptCount }}</span>
+              <i class="ri-apps-line folder-item-icon"></i>
+              <span class="folder-item-label">全部</span>
+              <span class="item-count">{{ allPromptCount }}</span>
               <span
-                style="cursor:pointer;display:inline-flex;align-items:center;position:absolute;right:30px;"
+                class="folder-item-toggle"
+                role="button"
+                tabindex="-1"
+                aria-label="展开或收起全部文件夹"
                 @click.stop="toggleAllFolders"
               >
                 <svg v-if="allFoldersExpanded" xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M480-541.85 317.08-378.92q-8.31 8.3-20.89 8.5-12.57.19-21.27-8.5-8.69-8.7-8.69-21.08 0-12.38 8.69-21.08l179.77-179.77q10.85-10.84 25.31-10.84 14.46 0 25.31 10.84l179.77 179.77q8.3 8.31 8.5 20.89.19 12.57-8.5 21.27-8.7 8.69-21.08 8.69-12.38 0-21.08-8.69L480-541.85Z"/></svg>
@@ -120,8 +126,10 @@
     <main class="main-content">
       <div class="main-area">
         <section class="prompts-hero">
-          <h1 class="hero-title">提示词库</h1>
-          <p class="hero-sub">沉淀可复用的提示词模板，搜索后一键复制即用。共 {{ allPromptsCache.length }} 条提示词。</p>
+          <div class="hero-text">
+            <h1 class="hero-title">提示词库</h1>
+            <p class="hero-sub">沉淀可复用的提示词模板，搜索后一键复制即用。共 {{ allPromptsCache.length }} 条提示词。</p>
+          </div>
           <div class="hero-toolbar">
             <div class="search-box">
               <i class="ri-search-line"></i>
@@ -155,7 +163,7 @@
                   <!-- 回收站模式：还原 + 永久删除 -->
                   <template v-if="activeFolderId === '_recycle'">
                     <button class="prompt-btn" title="还原" @click.stop="restorePrompt(prompt)"><i class="ri-refresh-line"></i></button>
-                    <button class="prompt-btn" title="永久删除" @click.stop="permanentDelete(prompt)"><i class="ri-delete-bin-2-line" style="color:var(--danger,#ef4444);"></i></button>
+                    <button class="prompt-btn" title="永久删除" @click.stop="permanentDelete(prompt)"><i class="ri-delete-bin-2-line" style="color:var(--danger);"></i></button>
                   </template>
                   <!-- 正常模式 -->
                   <template v-else>
@@ -1049,124 +1057,282 @@ async function viewPromptById(promptId: string) {
 </script>
 
 <style scoped>
-/* ── 主色横幅：页面视觉锚点（与精选集市场同语言） ── */
+/* ── 有限梯度局部变量 ── */
+.prompts-root {
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 侧边栏文件夹项 ── */
+.folder-item {
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  position: relative;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.folder-item:hover {
+  background: var(--surface-hover);
+}
+.folder-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.folder-item:active {
+  background: var(--surface-active);
+}
+.folder-item.is-active {
+  background: var(--surface-selected);
+}
+.folder-item-icon {
+  font-size: 16px;
+  color: var(--primary);
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+.folder-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 48px;
+}
+.folder-item .item-count {
+  position: absolute;
+  right: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+.folder-item.is-active .item-count {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.folder-item-toggle {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  position: absolute;
+  right: 28px;
+  padding: 4px;
+  border-radius: var(--radius-xs);
+  color: var(--text-tertiary);
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+.folder-item-toggle:hover {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+.folder-item.is-active .folder-item-toggle {
+  color: var(--primary);
+}
+.folder-item.is-active .folder-item-toggle:hover {
+  background: var(--primary-light);
+}
+
+/* ── Hero 区域：中性 surface 底，主色仅作点缀 ── */
+/* 紧凑页头：左标题+副文、右搜索+操作，与 tokens 页 hero 同款 */
 .prompts-hero {
-  background: var(--primary, #10b981);
-  border-radius: 20px;
-  padding: 28px 28px 26px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
   margin-bottom: 20px;
-  color: var(--text-inverse, #fff);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+.hero-text {
+  flex: 1 1 320px;
+  min-width: 0;
 }
 .hero-title {
-  margin: 0 0 8px;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.022em;
-  color: var(--text-inverse, #fff);
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 .hero-sub {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 80%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 560px;
+  color: var(--text-secondary);
 }
 .hero-toolbar {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-top: 20px;
+  margin-top: 0;
   flex-wrap: wrap;
+  flex: 0 1 auto;
 }
 .hero-toolbar .search-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 12px;
-  background: var(--surface-raised, #fff);
-  flex: 1;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  flex: 1 1 240px;
   min-width: 220px;
-  transition: box-shadow 0.18s;
+  max-width: 420px;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
 }
-.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s; }
+@media (max-width: 768px) {
+  .prompts-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-toolbar .search-box { max-width: none; }
+}
+.hero-toolbar .search-box i {
+  color: var(--text-tertiary);
+  font-size: 16px;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
 .hero-toolbar .search-box:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-inverse, #fff) 45%, transparent);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
-.hero-toolbar .search-box:focus-within i { color: var(--primary); }
+.hero-toolbar .search-box:focus-within i {
+  color: var(--primary);
+}
 .hero-toolbar .search-box input {
   border: none;
   background: none;
   outline: none;
-  font-size: 13.5px;
+  font-size: 14px;
   width: 100%;
   color: var(--text-primary);
 }
-.hero-toolbar .search-box input::placeholder { color: var(--text-tertiary); }
+.hero-toolbar .search-box input::placeholder {
+  color: var(--text-tertiary);
+}
 .hero-toolbar .btn-favorite {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
-  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.18s, color 0.18s;
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
   white-space: nowrap;
 }
-.hero-toolbar .btn-favorite:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 28%, transparent); color: var(--text-inverse, #fff); }
+.hero-toolbar .btn-favorite:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+.hero-toolbar .btn-favorite:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.hero-toolbar .btn-favorite:active {
+  background: var(--surface-active);
+  transform: scale(0.98);
+}
 .hero-toolbar .btn-favorite.active {
-  background: var(--surface-raised, #fff);
-  color: var(--warning, #f59e0b);
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
   font-weight: 600;
 }
 .hero-toolbar .sort-tabs {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: color-mix(in srgb, var(--text-inverse, #fff) 18%, transparent);
-  border-radius: 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
 }
 .hero-toolbar .sort-tabs button {
-  padding: 7px 14px;
-  font-size: 12.5px;
+  padding: 6px 12px;
+  font-size: 13px;
   border: none;
   background: none;
-  border-radius: 9px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  color: color-mix(in srgb, var(--text-inverse, #fff) 88%, transparent);
-  transition: all 0.18s;
+  color: var(--text-secondary);
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
   white-space: nowrap;
 }
-.hero-toolbar .sort-tabs button:hover { background: color-mix(in srgb, var(--text-inverse, #fff) 14%, transparent); }
+.hero-toolbar .sort-tabs button:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.hero-toolbar .sort-tabs button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.hero-toolbar .sort-tabs button:active {
+  background: var(--surface-active);
+}
 .hero-toolbar .sort-tabs button.active {
-  background: var(--surface-raised, #fff);
-  color: var(--primary, #10b981);
+  background: var(--surface-raised);
+  color: var(--primary);
   font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 .btn-hero-create {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 12px;
-  background: var(--surface-raised, #fff);
-  color: var(--primary, #10b981);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--text-inverse);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: box-shadow 0.18s, transform 0.18s;
+  transition: background var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard);
   white-space: nowrap;
 }
 .btn-hero-create:hover {
-  box-shadow: 0 6px 14px -4px rgba(16, 24, 40, 0.28);
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
+.btn-hero-create:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn-hero-create:active {
+  background: var(--primary-dark);
+  transform: scale(0.98);
+}
+
 @media (max-width: 1024px) {
   /* 移动端头部已提供收藏/排序/新建，横幅内仅保留搜索 */
   .hero-toolbar .btn-favorite,
@@ -1175,8 +1341,8 @@ async function viewPromptById(promptId: string) {
   .hero-toolbar .search-box { flex: 1; min-width: 0; }
 }
 @media (max-width: 768px) {
-  .prompts-hero { padding: 22px 20px 20px; border-radius: 16px; }
-  .hero-title { font-size: 22px; }
+  .prompts-hero { padding: 16px; border-radius: var(--radius-sm); }
+  .hero-title { font-size: 20px; }
 }
 
 .usage-badge {
@@ -1186,9 +1352,9 @@ async function viewPromptById(promptId: string) {
   padding: 2px 6px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--warning, #f59e0b);
-  background: color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent);
-  border-radius: 10px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-radius: var(--radius-xs);
   white-space: nowrap;
 }
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="login-dialog-overlay" @click.self="$emit('close')">
     <div class="login-dialog-content">
-      <span class="close-button" @click="$emit('close')">&times;</span>
+      <button type="button" class="close-button" aria-label="关闭" @click="$emit('close')">&times;</button>
       <div class="login-logo">
         <img src="/images/logo.svg" alt="FavsHub">
         <h1>FavsHub</h1>
@@ -11,7 +11,7 @@
         <button :class="{ active: tab === 'login' }" @click="switchTab('login')">登录</button>
         <button v-if="registrationAllowed" :class="{ active: tab === 'register' }" @click="switchTab('register')">注册</button>
       </div>
-      <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
+      <div v-if="errorMsg" class="error-msg" role="alert">{{ errorMsg }}</div>
 
       <div v-show="tab === 'login'">
         <form @submit.prevent="handleLogin">
@@ -116,16 +116,27 @@ async function handleRegister() {
   justify-content: center;
   background: var(--overlay);
   z-index: 1002;
+  animation: login-dialog-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .login-dialog-content {
   position: relative;
   max-width: 420px;
   width: 90vw;
-  padding: 40px;
+  padding: 32px;
   text-align: center;
   background: var(--surface-raised);
-  border-radius: 16px;
-  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  animation: login-dialog-scale-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes login-dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes login-dialog-scale-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .login-logo {
   margin-bottom: 24px;
@@ -147,29 +158,59 @@ async function handleRegister() {
 .close-button {
   position: absolute;
   top: 12px;
-  right: 14px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 6px;
   font-size: 22px;
   cursor: pointer;
   color: var(--text-secondary);
   z-index: 1;
   line-height: 1;
+  transition: background-color 120ms cubic-bezier(0.22, 1, 0.36, 1), color 120ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.close-button:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.close-button:active {
+  transform: scale(0.98);
+}
+.close-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .tab-nav {
   display: flex;
   margin-bottom: 20px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 .tab-nav button {
   flex: 1;
   padding: 10px;
   border: none;
   background: none;
+  border-radius: 6px 6px 0 0;
   font-size: 14px;
   cursor: pointer;
   color: var(--text-tertiary);
-  transition: all 0.2s;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 120ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
   border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  margin-bottom: -1px;
+}
+.tab-nav button:hover:not(.active) {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+.tab-nav button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .tab-nav button.active {
   color: var(--primary);
@@ -177,28 +218,30 @@ async function handleRegister() {
   font-weight: 600;
 }
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   text-align: left;
 }
 .form-group label {
   display: block;
   font-size: 13px;
   color: var(--text-secondary);
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 .form-group input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: 1.5px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
-  transition: border-color 0.2s;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
   outline: none;
   background: var(--surface-raised);
   color: var(--text-primary);
 }
-.form-group input:focus {
+.form-group input:focus-visible {
   border-color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .submit-btn {
   width: 100%;
@@ -206,27 +249,58 @@ async function handleRegister() {
   background: var(--primary);
   color: var(--text-inverse);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
-  margin-top: 6px;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  margin-top: 8px;
 }
-.submit-btn:hover {
+.submit-btn:hover:not(:disabled) {
   background: var(--primary-hover);
+}
+.submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.submit-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .error-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--danger);
   font-size: 13px;
-  text-align: center;
+  text-align: left;
   margin-bottom: 12px;
-  padding: 8px;
-  background: light-dark(#ffeaea, rgba(255,234,234,0.1));
-  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--danger-soft);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  animation: login-dialog-error-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.error-msg::before {
+  content: '!';
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--text-inverse);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+@keyframes login-dialog-error-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

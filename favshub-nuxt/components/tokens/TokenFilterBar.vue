@@ -76,16 +76,16 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 0.5px solid var(--divider);
   margin-bottom: 16px;
 }
 .filter-tabs {
   display: flex;
-  gap: 2px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   background: var(--surface-sunken);
-  border-radius: 11px;
+  border-radius: 10px;
   overflow-x: auto;
   scrollbar-width: none;
   max-width: 100%;
@@ -94,16 +94,22 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
 .filter-tab {
   border: none;
   background: none;
-  padding: 6px 13px;
-  font-size: 12.5px;
+  padding: 6px 12px;
+  font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   white-space: nowrap;
-  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .filter-tab:hover {
   color: var(--text-primary);
+  background: var(--surface-hover);
+}
+.filter-tab:active { background: var(--surface-active); }
+.filter-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 .filter-tab.active {
   color: var(--primary);
@@ -118,13 +124,13 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
 }
 .filter-select select {
   font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 9px;
-  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
   background: var(--surface-raised);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .filter-select select:hover {
   color: var(--text-primary);

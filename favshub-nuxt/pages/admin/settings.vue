@@ -49,7 +49,7 @@
         <div class="setting-option"><span>扩展管理</span><label class="switch"><input type="checkbox" v-model="form.showExtensionsLink" @change="save"><span class="slider round"></span></label></div>
       </div>
       <!-- 搜索与布局 -->
-      <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="settings-stack">
         <div class="setting-card">
           <h3>搜索设置</h3>
           <div class="setting-option"><span>显示搜索建议</span><label class="switch"><input type="checkbox" v-model="form.showSearchSuggestions" @change="save"><span class="slider round"></span></label></div>
@@ -175,13 +175,18 @@ const cardsPerRow = computed(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.3);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 .bg-options {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style>

@@ -26,15 +26,15 @@
     <div class="card" v-show="activeTab === 'list'">
       <div class="card-header">
         <h3>精选集列表</h3>
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="header-actions">
           <input
             v-model="searchQuery"
             type="text"
             placeholder="搜索精选集..."
-            style="width: 200px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--surface-raised); color: var(--text-primary);"
+            class="search-input search-input-narrow"
             @input="debouncedSearch"
           >
-          <select v-model="filterType" @change="loadCollections" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--surface-raised); color: var(--text-primary);">
+          <select v-model="filterType" class="filter-select" @change="loadCollections">
             <option value="">全部</option>
             <option value="public">公开</option>
             <option value="private">私有</option>
@@ -77,7 +77,7 @@
               </td>
               <td>{{ c.bookmark_count || 0 }}</td>
               <td>
-                <label class="switch" style="width: 44px; height: 24px;">
+                <label class="switch">
                   <input
                     type="checkbox"
                     :checked="c.is_public === 1"
@@ -87,7 +87,7 @@
                 </label>
               </td>
               <td>
-                <label class="switch" style="width: 44px; height: 24px;">
+                <label class="switch">
                   <input
                     type="checkbox"
                     :checked="c.is_official === 1"
@@ -117,12 +117,12 @@
     </div>
 
     <!-- Tab 2: 分类与书签管理 -->
-    <div class="card" v-show="activeTab === 'categories'" style="padding: 20px;">
+    <div class="card card-body" v-show="activeTab === 'categories'">
       <AdminCategoryBookmarkManager :collections="collections" @changed="loadCollections(); loadStats()" />
     </div>
 
     <!-- Tab 3: TDK 设置 -->
-    <div v-if="activeTab === 'tdk' && isAdmin" class="card" style="padding: 20px;">
+    <div v-if="activeTab === 'tdk' && isAdmin" class="card card-body">
       <h3>精选集页面 TDK 设置</h3>
       <p class="hint">设置精选集市场页面的标题、描述和关键词。页面标题会自动拼接 _FavsHub 后缀。</p>
       <div class="fg"><label>页面标题</label><input v-model="collTdk.collectionsTitle" placeholder="网址导航精选集" @input="saveCollTdk"></div>
@@ -403,13 +403,24 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
+  border-radius: 6px;
+  transition: background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btn-icon:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.btn-icon:active {
+  transform: scale(0.95);
 }
 
 .actions {
@@ -418,90 +429,23 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border-top: 1px solid var(--border);
+.search-input-narrow {
+  min-width: 200px;
 }
 
-.pagination button {
+.filter-select {
   padding: 6px 12px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  font-size: 13px;
   background: var(--surface-raised);
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.pagination button:hover:not(:disabled) {
-  background: var(--surface-hover);
+.filter-select:focus {
   border-color: var(--primary);
-}
-
-.pagination button.active {
-  background: var(--primary);
-  color: var(--text-inverse);
-  border-color: var(--primary);
-}
-
-.pagination button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* 开关样式 */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background-color: var(--border);
-  transition: 0.3s;
-}
-
-.slider.round {
-  border-radius: 24px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.3s;
-  border-radius: 50%;
-}
-
-input:checked + .slider {
-  background-color: var(--primary);
-}
-
-input:checked + .slider:before {
-  transform: translateX(20px);
-}
-
-input:disabled + .slider {
-  opacity: 0.5;
-  cursor: not-allowed;
+  outline: none;
 }
 </style>

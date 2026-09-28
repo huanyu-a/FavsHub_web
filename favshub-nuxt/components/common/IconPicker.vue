@@ -10,13 +10,16 @@
       当前为历史 emoji 图标，重新选择后将替换为图标字体
     </div>
     <div class="icon-picker-grid">
-      <span
+      <button
         v-for="ic in filteredIcons"
         :key="ic"
+        type="button"
         class="icon-picker-option"
         :class="{ active: modelValue === ic }"
+        :aria-pressed="modelValue === ic"
+        :title="ic"
         @click="$emit('update:modelValue', modelValue === ic ? '' : ic)"
-      ><i :class="ic"></i></span>
+      ><i :class="ic"></i></button>
     </div>
   </div>
 </template>

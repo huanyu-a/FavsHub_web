@@ -8,21 +8,21 @@
       @submit.prevent="handleSearch()"
     >
       <div style="position: relative; height: auto;">
-        <div class="search-icon-container" title="切换搜索引擎" @click="toggleDropdown">
+        <button type="button" class="search-icon-container" title="切换搜索引擎" aria-label="切换搜索引擎" @click="toggleDropdown">
           <img
             :src="currentEngine?.icon || '/images/placeholder-icon.svg'"
             :alt="currentEngine?.name || 'search-engine-icon'"
             class="search-engine-icon"
           >
           <span class="dropdown-indicator"><i class="ri-arrow-down-s-line"></i></span>
-        </div>
+        </button>
         <textarea
           ref="inputRef"
           v-model="query"
           class="search-input"
           placeholder="按 Enter 键搜索，或按 Cmd/Ctrl + Enter 键搜索所有搜索引擎"
           rows="1"
-          style="width: 100%; resize: none; padding-left: 40px;"
+          style="width: 100%; resize: none; padding-left: 60px;"
           @keydown="handleKeydown"
           @input="onInput"
           @focus="onFocus"
@@ -102,7 +102,7 @@
     <Teleport to="body">
       <div id="search-engines-dialog" class="engine-dialog-overlay" :class="{ visible: showEngineDialog }" v-if="showEngineDialog" @click.self="closeEngineDialog">
         <div class="engine-dialog-content">
-          <span class="engine-dialog-close" @click="closeEngineDialog">&times;</span>
+          <button type="button" class="engine-dialog-close" aria-label="关闭" @click="closeEngineDialog">&times;</button>
           <h2 class="engine-dialog-title">搜索引擎设置</h2>
           <div class="engine-dialog-body">
             <div v-for="cat in engineCategories" :key="cat.key" class="engine-dialog-category">

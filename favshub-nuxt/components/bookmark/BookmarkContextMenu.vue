@@ -7,38 +7,38 @@
       @contextmenu.prevent="$emit('close')"
     >
       <div class="custom-context-menu" :style="menuStyle" style="display:block;" @click.stop>
-        <div class="custom-context-menu-item" @click="openInNewTab">
+        <button type="button" class="custom-context-menu-item" @click="openInNewTab">
           <i class="ri-external-link-line"></i>
           <span>在新标签页打开</span>
-        </div>
-        <div class="custom-context-menu-item" @click="openInNewWindow">
+        </button>
+        <button type="button" class="custom-context-menu-item" @click="openInNewWindow">
           <i class="ri-window-line"></i>
           <span>在新窗口打开</span>
-        </div>
-        <div class="custom-context-menu-item" @click="openIncognito">
+        </button>
+        <button type="button" class="custom-context-menu-item" @click="openIncognito">
           <i class="ri-user-heart-line"></i>
           <span>在无痕窗口打开</span>
-        </div>
+        </button>
         <template v-if="!isGuest && isOwn">
           <div class="custom-context-menu-divider"></div>
-          <div class="custom-context-menu-item" @click="$emit('edit', bookmark); $emit('close')">
+          <button type="button" class="custom-context-menu-item" @click="$emit('edit', bookmark); $emit('close')">
             <i class="ri-edit-line"></i>
             <span>编辑</span>
-          </div>
-          <div class="custom-context-menu-item custom-context-menu-item--danger" @click="confirmDelete">
+          </button>
+          <button type="button" class="custom-context-menu-item custom-context-menu-item--danger" @click="confirmDelete">
             <i class="ri-delete-bin-line"></i>
             <span>删除</span>
-          </div>
+          </button>
         </template>
         <div class="custom-context-menu-divider"></div>
-        <div class="custom-context-menu-item" @click="copyUrl">
+        <button type="button" class="custom-context-menu-item" @click="copyUrl">
           <i class="ri-file-copy-line"></i>
           <span>{{ copyLabel }}</span>
-        </div>
-        <div class="custom-context-menu-item" @click="showQrCode">
+        </button>
+        <button type="button" class="custom-context-menu-item" @click="showQrCode">
           <i class="ri-qr-code-line"></i>
           <span>生成二维码</span>
-        </div>
+        </button>
       </div>
     </div>
 
@@ -47,11 +47,11 @@
       <div class="qr-modal">
         <div class="qr-header">
           <span class="qr-title">{{ bookmark?.title }}</span>
-          <button class="qr-close" @click="qrVisible = false">&times;</button>
+          <button type="button" class="qr-close" aria-label="关闭" @click="qrVisible = false">&times;</button>
         </div>
         <div class="qr-body">
           <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code" class="qr-image">
-          <p v-else class="qr-link" style="min-height:200px;display:flex;align-items:center;justify-content:center;">{{ qrError ? '二维码生成失败' : '生成中…' }}</p>
+          <p v-else class="qr-link qr-loading">{{ qrError ? '二维码生成失败' : '生成中…' }}</p>
           <p class="qr-link">{{ bookmark?.url }}</p>
         </div>
       </div>
@@ -59,16 +59,16 @@
 
     <!-- 删除确认弹窗 -->
     <div v-if="deleteConfirmVisible" class="qr-overlay" @click.self="deleteConfirmVisible = false">
-      <div class="qr-modal" style="max-width:360px;">
+      <div class="qr-modal qr-modal--confirm">
         <div class="qr-header">
           <span class="qr-title">确认删除</span>
-          <button class="qr-close" @click="deleteConfirmVisible = false">&times;</button>
+          <button type="button" class="qr-close" aria-label="关闭" @click="deleteConfirmVisible = false">&times;</button>
         </div>
-        <div class="qr-body" style="text-align:center;">
-          <p style="margin:8px 0 16px;color:var(--text-secondary);">确定要删除「{{ bookmark?.title }}」吗？</p>
-          <div style="display:flex;justify-content:flex-end;gap:8px;">
-            <button class="qr-btn-cancel" @click="deleteConfirmVisible = false">取消</button>
-            <button class="qr-btn-danger" @click="executeDelete">删除</button>
+        <div class="qr-body qr-body--center">
+          <p class="qr-confirm-text">确定要删除「{{ bookmark?.title }}」吗？</p>
+          <div class="qr-confirm-actions">
+            <button type="button" class="qr-btn-cancel" @click="deleteConfirmVisible = false">取消</button>
+            <button type="button" class="qr-btn-danger" @click="executeDelete">删除</button>
           </div>
         </div>
       </div>
@@ -175,4 +175,3 @@ function executeDelete() {
   deleteConfirmVisible.value = false
 }
 </script>
-

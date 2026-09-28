@@ -125,22 +125,25 @@ async function quickImport() {
 .collection-card {
   display: flex;
   flex-direction: column;
-  padding: 18px;
-  border-radius: 16px;
+  padding: 20px;
+  border-radius: 14px;
   background: var(--surface-raised, #fff);
   text-decoration: none;
   color: inherit;
   position: relative;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
-  transition: box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .collection-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px -8px rgba(16, 24, 40, 0.14), 0 4px 8px -4px rgba(16, 24, 40, 0.06);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 .collection-card:focus-visible {
   outline: 2px solid var(--primary, #10b981);
   outline-offset: 2px;
+}
+.collection-card:active {
+  transform: scale(0.98);
 }
 .collection-card-header {
   display: flex;
@@ -151,17 +154,17 @@ async function quickImport() {
 .collection-icon-wrap {
   width: 46px;
   height: 46px;
-  border-radius: 13px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
   color: var(--primary);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary, #10b981) 18%, transparent), color-mix(in srgb, var(--primary, #10b981) 7%, transparent));
+  background: color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #10b981) 12%, transparent);
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.collection-card:hover .collection-icon-wrap { transform: scale(1.07) rotate(-3deg); }
+.collection-card:hover .collection-icon-wrap { transform: scale(1.05); }
 .collection-icon { font-style: normal; }
 .official-badge {
   display: inline-flex;
@@ -172,8 +175,7 @@ async function quickImport() {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-inverse, #fff);
-  background: linear-gradient(135deg, var(--primary, #10b981), color-mix(in srgb, var(--primary, #10b981) 70%, var(--primary-dark, #059669)));
-  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--primary, #10b981) 45%, transparent);
+  background: var(--primary, #10b981);
 }
 .official-badge i { font-size: 12px; }
 .collection-name {
@@ -225,14 +227,17 @@ async function quickImport() {
 }
 .btn-subscribe {
   padding: 7px 14px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -240,6 +245,13 @@ async function quickImport() {
 .btn-subscribe:hover {
   color: var(--primary);
   border-color: var(--primary);
+}
+.btn-subscribe:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn-subscribe:active {
+  transform: scale(0.98);
 }
 .btn-subscribe.subscribed {
   color: var(--primary);
@@ -250,23 +262,31 @@ async function quickImport() {
 .btn-import {
   flex: 1;
   padding: 7px 14px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-inverse, #fff);
-  background: linear-gradient(135deg, var(--primary, #10b981), color-mix(in srgb, var(--primary, #10b981) 78%, var(--primary-dark, #059669)));
+  background: var(--primary, #10b981);
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: filter 0.18s, box-shadow 0.18s, transform 0.18s;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
 }
 .btn-import:hover {
-  filter: brightness(1.06);
-  box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--primary, #10b981) 55%, transparent);
-  transform: translateY(-1px);
+  background: var(--primary-hover, #047857);
+  box-shadow: var(--shadow-md);
+}
+.btn-import:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.btn-import:active {
+  transform: scale(0.98);
 }
 .btn-import:disabled { opacity: 0.6; cursor: not-allowed; }
 .card-toast {
@@ -275,13 +295,13 @@ async function quickImport() {
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 14px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12px;
-  color: #fff;
+  color: var(--text-inverse, #fff);
   z-index: 10;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  box-shadow: var(--shadow-md);
 }
 .card-toast-success { background: var(--success, #10b981); }
 .card-toast-error { background: var(--danger, #ef4444); }

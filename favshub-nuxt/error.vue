@@ -22,7 +22,9 @@ useHead({
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon.png' },
-    { rel: 'stylesheet', href: '/css/error.css?v=20260830b' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20260928' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
+    { rel: 'stylesheet', href: '/css/error.css?v=20260928' },
   ],
 })
 

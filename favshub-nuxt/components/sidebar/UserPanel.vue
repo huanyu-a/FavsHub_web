@@ -2,7 +2,16 @@
   <ClientOnly>
     <div class="sidebar-bottom">
       <div class="sidebar-user-panel" ref="userMenuRef">
-        <div class="sidebar-user-bar" @click="showUserMenu = !showUserMenu">
+        <div
+          class="sidebar-user-bar"
+          role="button"
+          tabindex="0"
+          aria-haspopup="true"
+          :aria-expanded="showUserMenu"
+          @click="showUserMenu = !showUserMenu"
+          @keydown.enter="showUserMenu = !showUserMenu"
+          @keydown.space.prevent="showUserMenu = !showUserMenu"
+        >
           <div class="sidebar-user-avatar" :class="{ 'has-img': userAvatar && !avatarBroken }">
             <img
               v-if="userAvatar && !avatarBroken"
@@ -38,7 +47,15 @@
             <div class="user-menu-divider"></div>
 
             <div class="user-menu-items">
-              <div v-if="authStore.isLoggedIn" class="user-menu-item" @click="openProfile">
+              <div
+                v-if="authStore.isLoggedIn"
+                class="user-menu-item"
+                role="button"
+                tabindex="0"
+                @click="openProfile"
+                @keydown.enter="openProfile"
+                @keydown.space.prevent="openProfile"
+              >
                 <i class="ri-user-settings-line"></i>
                 <span>个人资料</span>
               </div>
@@ -50,7 +67,14 @@
                 <i class="ri-dashboard-line"></i>
                 <span>管理后台</span>
               </NuxtLink>
-              <div class="user-menu-item" @click="cycleTheme">
+              <div
+                class="user-menu-item"
+                role="button"
+                tabindex="0"
+                @click="cycleTheme"
+                @keydown.enter="cycleTheme"
+                @keydown.space.prevent="cycleTheme"
+              >
                 <i :class="themeIcon"></i>
                 <span>外观</span>
                 <span class="user-menu-toggle">{{ themeLabel }}</span>
@@ -60,7 +84,15 @@
             <div class="user-menu-divider"></div>
 
             <div class="user-menu-items">
-              <div v-if="authStore.isGuest" class="user-menu-item" @click="showLogin = true; showUserMenu = false">
+              <div
+                v-if="authStore.isGuest"
+                class="user-menu-item"
+                role="button"
+                tabindex="0"
+                @click="showLogin = true; showUserMenu = false"
+                @keydown.enter="showLogin = true; showUserMenu = false"
+                @keydown.space.prevent="showLogin = true; showUserMenu = false"
+              >
                 <i class="ri-login-box-line"></i>
                 <span>登录</span>
               </div>
@@ -287,13 +319,20 @@ if (import.meta.client) {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1);
   user-select: none;
 }
 .sidebar-user-bar:hover {
   background: var(--surface-hover);
+}
+.sidebar-user-bar:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.sidebar-user-bar:active {
+  background: var(--surface-active);
 }
 .sidebar-user-avatar {
   width: 28px;
@@ -325,7 +364,7 @@ if (import.meta.client) {
   margin-bottom: 6px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--shadow-lg);
   padding: 8px 0;
   z-index: 1000;
@@ -334,7 +373,7 @@ if (import.meta.client) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 10px 16px;
 }
 .user-menu-avatar {
   width: 36px;
@@ -381,15 +420,23 @@ if (import.meta.client) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   font-size: 13px;
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1);
   text-decoration: none;
 }
 .user-menu-item:hover {
   background: var(--surface-hover);
+}
+.user-menu-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.user-menu-item:active {
+  background: var(--surface-active);
+  transform: scale(0.98);
 }
 .user-menu-item i {
   font-size: 16px;
@@ -409,11 +456,11 @@ if (import.meta.client) {
   color: var(--text-secondary);
   background: var(--surface-sunken);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 .user-menu-enter-active,
 .user-menu-leave-active {
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .user-menu-enter-from,
 .user-menu-leave-to {
@@ -441,7 +488,7 @@ if (import.meta.client) {
   position: fixed;
   inset: 0;
   z-index: 10060;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -459,7 +506,7 @@ if (import.meta.client) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
 .up-head h3 {
@@ -476,8 +523,14 @@ if (import.meta.client) {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 6px;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1), color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .up-close:hover { color: var(--text-primary); background: var(--surface-hover); }
+.up-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.up-close:active { background: var(--surface-active); }
 .up-body {
   padding: 16px;
   display: flex;
@@ -507,28 +560,30 @@ if (import.meta.client) {
 .up-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .up-avatar-copy { display: flex; flex-direction: column; gap: 2px; }
 .up-avatar-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
-.up-avatar-sub { font-size: 11.5px; color: var(--text-tertiary); }
-.up-field { display: flex; flex-direction: column; gap: 5px; }
+.up-avatar-sub { font-size: 12px; color: var(--text-tertiary); }
+.up-field { display: flex; flex-direction: column; gap: 4px; }
 .up-label { font-size: 12px; color: var(--text-secondary); }
 .up-input {
   width: 100%;
-  padding: 8px 11px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface-sunken);
   color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .up-input:focus { outline: none; border-color: var(--border-focus); }
+.up-input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .up-privacy {
   margin: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-tertiary);
   display: flex;
   align-items: flex-start;
-  gap: 5px;
+  gap: 4px;
 }
 .up-privacy i { margin-top: 1px; }
 .up-foot {
@@ -539,13 +594,19 @@ if (import.meta.client) {
   border-top: 1px solid var(--border);
 }
 .up-btn {
-  padding: 7px 16px;
-  border-radius: 8px;
-  font-size: 12.5px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
   cursor: pointer;
   border: 1px solid var(--border);
   font-family: inherit;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+.up-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.up-btn:active:not(:disabled) { transform: scale(0.98); }
 .up-btn.ghost { background: transparent; color: var(--text-secondary); }
 .up-btn.ghost:hover { background: var(--surface-hover); }
 .up-btn.primary {
@@ -553,6 +614,7 @@ if (import.meta.client) {
   color: var(--text-inverse);
   border-color: var(--primary);
 }
+.up-btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
 .up-btn.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .up-toast {
   position: fixed;
@@ -561,8 +623,8 @@ if (import.meta.client) {
   transform: translateX(-50%);
   z-index: 10080;
   padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12.5px;
+  border-radius: 6px;
+  font-size: 13px;
   background: var(--surface-raised);
   color: var(--text-primary);
   border: 1px solid var(--border);
@@ -570,7 +632,7 @@ if (import.meta.client) {
 }
 .up-toast.err { color: var(--danger); border-color: var(--danger); }
 .up-toast-enter-active,
-.up-toast-leave-active { transition: opacity 0.2s; }
+.up-toast-leave-active { transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1); }
 .up-toast-enter-from,
 .up-toast-leave-to { opacity: 0; }
 </style>

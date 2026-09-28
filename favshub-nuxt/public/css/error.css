@@ -1,80 +1,102 @@
-/* error.vue 不加载 main-bundle.css，需在此声明 CSS 变量 */
-/* 使用 light-dark() + color-scheme 自动切换主题 */
-:root {
-  color-scheme: light dark;
-  --primary: light-dark(#10B981, #34D399);
-  --primary-hover: light-dark(#059669, #10B981);
-  --surface-raised: light-dark(rgba(255,255,255,0.95), rgba(30,41,59,0.98));
-  --text-primary: light-dark(#333, rgba(255,255,255,0.6));
-  --text-secondary: light-dark(#888, rgba(255,255,255,0.5));
-  --border: light-dark(#ddd, rgba(255,255,255,0.12));
-  --text-ghost: light-dark(#666, rgba(255,255,255,0.7));
-  --shadow-lg: 0 20px 60px rgba(0,0,0,0.25);
-}
-
-html[data-theme="light"] { color-scheme: light; }
-html[data-theme="dark"]  { color-scheme: dark; }
+/* error.vue 独立样式（layout: false）。
+   令牌由 error.vue 通过 useHead 引入的 tokens.css / themes.css 提供，
+   本文件不再自带与全局冲突的硬编码令牌。
+   视觉原则：中性 --surface 底，主题色仅作强调点缀（错误码、按钮、焦点环）。 */
 
 .error-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--surface);
+  font-family: var(--font-system);
 }
+
 .error-container {
   text-align: center;
   padding: 48px;
   background: var(--surface-raised);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
   max-width: 480px;
   width: 90%;
 }
+
 .error-code {
   font-size: 80px;
   font-weight: 800;
-  background: var(--primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--primary);
   line-height: 1;
   margin-bottom: 8px;
 }
+
 .error-page h1 {
   font-size: 24px;
   color: var(--text-primary);
   margin: 0 0 12px;
 }
+
 .error-message {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0 0 32px;
+  word-break: break-word;
 }
+
 .error-actions {
   display: flex;
   justify-content: center;
   gap: 12px;
 }
+
 .error-page .btn-primary {
   padding: 12px 32px;
   background: var(--primary);
-  color: #fff;
+  color: var(--text-inverse);
   border: none;
   border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.error-page .btn-primary:hover { opacity: 0.9; }
+
+.error-page .btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.error-page .btn-primary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.error-page .btn-primary:active {
+  transform: scale(0.98);
+}
+
 .error-page .btn-ghost {
   padding: 12px 32px;
   background: none;
-  border: 1.5px solid var(--border);
-  color: var(--text-ghost);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   border-radius: 10px;
   font-size: 15px;
   cursor: pointer;
+  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.error-page .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+.error-page .btn-ghost:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.error-page .btn-ghost:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.error-page .btn-ghost:active {
+  transform: scale(0.98);
+}

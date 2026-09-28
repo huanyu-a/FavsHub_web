@@ -63,7 +63,7 @@
     </div>
 
     <!-- 创建令牌 -->
-    <div v-show="createVisible" :class="['modal-overlay', { active: createVisible }]" @click.self="createVisible = false">
+    <div v-if="createVisible" :class="['modal-overlay', { active: createVisible }]" @click.self="createVisible = false">
       <div class="modal">
         <div class="modal-header">
           <h3>创建 API 令牌</h3>
@@ -110,7 +110,7 @@
     </div>
 
     <!-- 明文令牌（仅此一次） -->
-    <div v-show="plainVisible" :class="['modal-overlay', { active: plainVisible }]" @click.self="closePlain">
+    <div v-if="plainVisible" :class="['modal-overlay', { active: plainVisible }]" @click.self="closePlain">
       <div class="modal">
         <div class="modal-header">
           <h3>令牌已创建</h3>
@@ -265,12 +265,12 @@ onMounted(load)
 .scope-item strong { color: var(--text-primary); font-family: var(--font-mono, monospace); }
 .scope-lock { display: block; font-style: normal; font-size: 12px; color: var(--text-tertiary); }
 .err-msg { margin: 8px 0 0; color: var(--danger); font-size: 13px; }
-.warn-msg { margin: 0 0 12px; color: var(--warning, #d97706); font-size: 13px; line-height: 1.7; }
+.warn-msg { margin: 0 0 12px; color: var(--warning); font-size: 13px; line-height: 1.7; }
 .token-box { display: flex; gap: 8px; align-items: center; }
 .token-plain {
   flex: 1; padding: 10px 12px; border-radius: var(--radius-md);
   background: var(--surface-sunken); color: var(--text-primary);
   word-break: break-all; user-select: all;
 }
-.badge-danger { background: var(--danger); color: #fff; }
+.badge-danger { background: var(--danger); color: var(--text-inverse); }
 </style>

@@ -47,7 +47,7 @@
       <!-- 快捷操作：统一 DOM 结构，只通过 v-if 控制卡片显隐 -->
       <div class="admin-nav">
         <h3 class="settings-section-title">快捷操作</h3>
-        <div class="nav-grid" style="display:flex;flex-wrap:wrap;gap:12px;">
+        <div class="nav-grid">
           <NuxtLink v-if="isAdmin" to="/admin/users" class="nav-card">
             <i class="ri-user-line nav-icon"></i>
             <span class="nav-label">用户管理</span>
@@ -151,10 +151,3 @@ async function exportMyPrompts() {
   } catch { alert('导出失败') }
 }
 </script>
-<style>
-/* 确保仪表盘 nav-grid 有正确的 grid 布局（不受 @layer 优先级影响） */
-.admin-page .nav-grid {
-  display: flex; flex-wrap: wrap;
-  gap: 12px;
-}
-</style>

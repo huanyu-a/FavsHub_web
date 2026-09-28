@@ -52,7 +52,7 @@
       </table>
     </div>
     <!-- 添加/编辑弹窗 -->
-    <div v-show="modalVisible" :class="['modal-overlay', { active: modalVisible }]" @click.self="modalVisible = false">
+    <div v-if="modalVisible" :class="['modal-overlay', { active: modalVisible }]" @click.self="modalVisible = false">
       <div class="modal">
         <div class="modal-header"><h3>{{ isNew ? (isAdmin ? '添加搜索引擎' : '提交搜索引擎') : '编辑搜索引擎' }}</h3><button class="modal-close" @click="modalVisible = false">&times;</button></div>
         <div class="modal-body">
@@ -200,7 +200,7 @@ onMounted(() => { load(); loadMyDefault() })
   object-fit: contain;
 }
 .icon-placeholder {
-  color: var(--text-tertiary, #999);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 </style>
