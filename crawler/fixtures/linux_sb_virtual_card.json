@@ -1,0 +1,38 @@
+{
+  "_comment": "Quoted verbatim from docs/02 A.5 (topic 21253 card markup) and A.6 (list-page badge).",
+  "provenance": {
+    "quoted_from": [
+      "02 A.5",
+      "02 A.6"
+    ],
+    "fabricated_fields": []
+  },
+  "tid": 21253,
+  "url": "https://linux.sb/topic/21253",
+  "forum_id": 2,
+  "forum_name": "福利放送",
+  "card_html": "<div class=\"virtual-card-kicker\">积分兑换</div><strong>下载链接</strong><span class=\"virtual-card-status\">库存 292</span><div class=\"virtual-card-price\"><strong>88</strong><span>积分 / 张</span></div>…<span>已兑换 150 张</span>",
+  "list_badge_html": "<span class=\"virtual-card-title-status active\">发卡中</span>",
+  "badge_markers": [
+    ".virtual-card-box",
+    "virtual-card-title-status"
+  ],
+  "card_statuses": [
+    "发卡中",
+    "发卡结束"
+  ],
+  "parsed_expectation": {
+    "kicker": "积分兑换",
+    "stock": 292,
+    "price": 88,
+    "unit": "积分 / 张",
+    "sold": 150
+  },
+  "expected": {
+    "category": "D",
+    "matched_rule": "D-badge",
+    "action": "record only (title + link + price) as 福利情报; NO extraction, NO probe",
+    "manual_reason": "card_or_paid_benefit_info",
+    "rationale": "07 8.1 D row: the badge outranks the keyword fallback; in-site paid content is not free."
+  }
+}

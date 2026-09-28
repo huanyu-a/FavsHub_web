@@ -1,0 +1,38 @@
+{
+  "_comment": "Quoted from docs/02 A.4 (row '/topic/23217 游客可见部分') and A.5 (row '回复后可见 = 服务端不下发'). Contains no credential: the gated content is exactly what P0 must not touch (07 5.3, D2).",
+  "provenance": {
+    "quoted_from": [
+      "02 A.4",
+      "02 A.5"
+    ],
+    "fabricated_fields": [
+      "author_name",
+      "post_time"
+    ]
+  },
+  "tid": 23217,
+  "title": "DS GLM 1000刀鸡蛋",
+  "forum_id": 2,
+  "forum_name": "福利放送",
+  "url": "https://linux.sb/topic/23217",
+  "views_count": 865,
+  "replies_count": 187,
+  "author_name": "unknown",
+  "post_time": "",
+  "content_text": "来点下游接我国模谢谢喵…",
+  "first_post_external_link": "https://cssmapi.fun",
+  "locked_section_html_open_tag": "<section class=\"nb-editor-reply-visible nb-editor-reply-visible-locked\">…",
+  "article_body_tail": "…来点下游接我国模谢谢喵🔒回复后可见回复本主题后即可查看这部分内容。",
+  "enriched_body_char_count": 87,
+  "reply_visible_locked": true,
+  "virtual_card": false,
+  "expected": {
+    "category": "C",
+    "matched_rule": "C",
+    "stored_source": "reply_visible_guide",
+    "key_masked_must_be": "",
+    "key_hash_must_be": "",
+    "key_encrypted_must_be": null,
+    "rationale": "07 5.4 acceptance 3: 23217 型帖 100% 判为 C 类. 07 8.1 C row measured 6 hits / 0 false. The lock emoji alone must NOT be a signal (07 8.1: the loose variant fell to 86% precision)."
+  }
+}

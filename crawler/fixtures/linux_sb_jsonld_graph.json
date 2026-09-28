@@ -1,0 +1,56 @@
+{
+  "_comment": "Structure sample. The DiscussionForumPosting fields are quoted from docs/02 A.1 (topic 22897); 07 四 step 2 fixes the path JSON-LD @graph -> DiscussionForumPosting.articleBody, which is what the enricher must walk. The second document adds a fabricated credential beyond the 200-char aggregator truncation.",
+  "provenance": {
+    "quoted_from": [
+      "02 A.1 (topic 22897 JSON-LD)",
+      "07 四 step 2 (@graph path)",
+      "02 D.6 ([回复可见] leak shape)"
+    ],
+    "fabricated_fields": [
+      "the @graph / @context wrapper",
+      "the WebPage node",
+      "articleBody of the credential sample (sk-TESTFAKE)"
+    ]
+  },
+  "topic_tid": 22897,
+  "topic_url": "https://linux.sb/topic/22897",
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://linux.sb/topic/22897",
+        "url": "https://linux.sb/topic/22897",
+        "name": "给习惯使用 RSS / Follow 阅读器的佬友们搓了一个…",
+        "datePublished": "2026-09-20T03:18:26+08:00"
+      },
+      {
+        "@type": "DiscussionForumPosting",
+        "articleBody": "给习惯使用 RSS / Follow 阅读器的佬友们搓了一个…",
+        "datePublished": "2026-09-20T03:18:26+08:00",
+        "commentCount": 22
+      }
+    ]
+  },
+  "json_ld_credential_beyond_truncation": {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "DiscussionForumPosting",
+        "headline": "中转站福利（全文超 200 字，凭证在截断之后）",
+        "datePublished": "2026-09-20T03:18:26+08:00",
+        "commentCount": 3,
+        "articleBody": "前排提示：本站长期收录中转站。\n填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。填充正文，用于把凭证挤到 200 字之后。\nhttps://asvla.bbqwq.com/\nsk-TESTFAKEa1b2c3d4e5f6g7h8i9j0a1b2c3d4e5f6g7h8i9j0\n"
+      }
+    ]
+  },
+  "expected": {
+    "article_body_path": "@graph[*] where @type == 'DiscussionForumPosting' -> articleBody",
+    "credential_line": {
+      "key": "sk-TESTFAKEa1b2c3d4e5f6g7h8i9j0a1b2c3d4e5f6g7h8i9j0",
+      "base_url": "https://asvla.bbqwq.com/",
+      "confidence": "high"
+    },
+    "rationale": "07 四 step 2: articleBody bypasses the 200-char truncation; 07 5.4 acceptance 4 requires at least 1 key recovered from beyond the truncation."
+  }
+}

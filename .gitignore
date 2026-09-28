@@ -1,0 +1,25 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local data (SQLite WAL DB, feed.xml, daily reports) - never in git (07 §5.2)
+crawler/data/
+
+# Secrets / per-environment config (FERNET_KEY, DINGTALK_WEBHOOK, ...).
+# .env.example is tracked; .env is not.
+.env
+crawler/.env
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Scratch
+.pytest_cache/
+.mypy_cache/
+
+# Local tool state (Serena project registry)
+.serena/
+NUL
