@@ -198,7 +198,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260928f' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260928' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20260929' },
   ],
 })
 </script>
