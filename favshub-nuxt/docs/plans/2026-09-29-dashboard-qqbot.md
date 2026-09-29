@@ -209,3 +209,39 @@ AI 通道（`server/utils/ai-service.ts` 的 createTokenDeal 等）与修改建�
 
 - 仅新增表/文件/配置键，无破坏性迁移；总开关默认 false、不配置 env 时行为零变化。
 - 回滚 = 工作区直接丢弃（本任务不提交），或删除新增文件 + 还原 8 个挂载点。
+
+---
+
+## H. 部署后实施补记（2026-09-29 下午）：出站传输改为 Hermes outbox
+
+上线后实测确认两条平台级约束（服务器 gateway.log 与 `hermes send` 直接验证）：
+
+1. **官方 QQ 机器人对群「主动消息」无权限**：`/v2/groups/{group_openid}/messages` 返回 400
+   「主动消息失败, 无权限」；单聊 C2C 主动消息与被动回复窗口之外的群发均不可用。
+   「在群里 @ 主人」的原设计在官方 QQ 机器人上物理不可行（他人能群发的是已申请到主动消息
+   权限的机器人、QQ 频道，或 NapCat 等逆向 OneBot 协议）。
+2. **消息接收模式 WebSocket 与 HTTP 回调二选一**：服务器 Hermes 已用 WebSocket 承载 QQ 对话，
+   FavsHub 无法再占用同机器人的回调入站 → 本期纯出站，入站指令（绑定/通过/驳回）搁置，
+   待审/审核管理操作留在网页后台 + 仪表盘角标（已上线）。
+
+最终出站架构（transport='outbox'，为线上实际采用）：
+
+- FavsHub 事件 → 1s 节流队列 → **spool 目录**：每条消息写
+  `<qq_outbox_path>/<时间- pid-序号>.json`（tmp + rename 原子发布），
+  群目标支持逗号分隔多通道、裸 id 归一化为 `qqbot:` 前缀、文本 CQ 实体反转义。
+- 宿主机 cron（*/2 分钟）跑 `scripts/qq-outbox-deliver.py`：逐文件调
+  `hermes send --to <target> --json`（**成功与否以 JSON 的 success 字段为准，hermes 失败也
+  exit 0**），成功删文件、失败 attempts+1 原子回写，10 次或 12 小时超龄进死信。
+  并发保护用脚本内部 fcntl 锁（勿在 cron 行外再套 flock 同一把锁文件：flock 与 fcntl 同文件
+  互斥会互相视为占用导致空转——已踩）。
+- 待审类提醒 = 群广播（群目标为空则跳过）+ **私聊主人**（`qq_admin_qq` 在 outbox 下语义为
+  Hermes 私聊目标；QQ 私聊即「@ 主人」的等价可靠通道）。
+- 配置：`NUXT_QQ_OUTBOX_DIR`（回落 /opt/favshub/data）/ 热配置 `qq_outbox_path`；
+  `qq_bot_transport=onebot|outbox`（onebot 原链路保留，e2e 22 项仍全绿）。
+- 线上已验证：容器写 spool → 宿主机 bind-mount 可见；两条自检消息经
+  `deliver.py → hermes send → 主人 QQ 私聊`实测送达；cron 已装。
+
+**开启群播报的前置**：在 QQ 开放平台为本机器人（AppID 1903184150）申请「主动消息」权限；
+批准后在 后台 → 系统配置 → QQ 机器人「通知目标」填 `qqbot:37BC1D079515692C216C753A7E78FBC1`
+（群会话 id 已在 Hermes 通道目录中，无需重新抓取），如需同时播报钉钉群再追加
+`,dingtalk:cid5wGlm0fAc15hBqycmMSHBw==`。权限未批前群发会按上述策略重试后进死信，不影响主流程。
