@@ -4,6 +4,7 @@
  */
 import { getRawDb } from '../../../../../database'
 import { requireAdmin } from '../../../../../utils/auth'
+import { notifyPromptReviewApproved } from '../../../../../utils/qq-notify'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -50,6 +51,13 @@ export default defineEventHandler(async (event) => {
     db.prepare(`UPDATE prompt_review_requests SET status = 'approved', reviewed_at = ?, reviewed_by = ? WHERE id = ?`).run(now, auth.id, id)
   })
   applyApproval()
+
+  // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断审核请求）
+  try {
+    notifyPromptReviewApproved(String(request.title), request.user_id)
+  } catch (err: any) {
+    console.warn('[QQBot] 提示词审核通知入队失败（忽略）:', err?.message || err)
+  }
 
   return { success: true, message: '审核通过，已应用修改' }
 })

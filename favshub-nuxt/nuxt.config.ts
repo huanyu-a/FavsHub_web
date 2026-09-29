@@ -40,6 +40,11 @@ export default defineNuxtConfig({
     corsOrigin: 'http://localhost:3000',
     adminUsers: '',
     trustProxy: 'false',
+    // QQ 机器人（OneBot 11 / NapCat）— 私有键，仅服务端可读
+    // qqBotHttpUrl：NapCat HTTP API 地址（如 http://127.0.0.1:5701），空 = 出站禁用
+    // qqBotAccessToken：NapCat access_token（出站头 + 入站校验同一值），空 = 入站端点拒绝一切
+    qqBotHttpUrl: '',
+    qqBotAccessToken: '',
     public: {
       // 站点对外地址：用于 canonical / og:url / og:image / sitemap.xml。
       // 线上部署经环境变量 NUXT_PUBLIC_BASE_URL 覆盖；默认值必须与实际线上域名一致，

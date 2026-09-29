@@ -87,6 +87,21 @@
           </div>
         </div>
       </div>
+      <div v-if="isAdmin" class="card">
+        <div class="card-header"><h3>QQ 机器人</h3></div>
+        <div class="card-body">
+          <p class="hint">OneBot 11（NapCat）群通知：通告与提示词的待审 / 审核结果推送到目标群。需在服务端配置 <code>NUXT_QQ_BOT_HTTP_URL</code> 指向机器人 HTTP API。</p>
+          <div class="toggle-row">
+            <label>启用 QQ 机器人通知</label>
+            <label class="switch">
+              <input type="checkbox" v-model="qqBot.qq_bot_enabled" @change="saveQqBot">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="fg"><label>通知目标群号</label><input v-model="qqBot.qq_bot_group_id" placeholder="如 123456789" @input="saveQqBot"><small>留空则不推送群消息</small></div>
+          <div class="fg"><label>管理员 QQ 号</label><input v-model="qqBot.qq_admin_qq" placeholder="如 10001" @input="saveQqBot"><small>待审消息中 @ 提醒的 QQ 号；管理员已绑定 QQ 时优先用绑定号</small></div>
+        </div>
+      </div>
     </div>
     <BackToTop />
   </div>
@@ -219,6 +234,21 @@ function saveLimits() {
     } catch (e) { console.error('保存数据限制失败', e) }
   }, 500)
 }
+// ── QQ 机器人 ──────────────────────────────
+const qqBot = reactive({ qq_bot_enabled: false, qq_bot_group_id: '', qq_admin_qq: '' })
+let qqBotTimer: any = null
+function saveQqBot() {
+  clearTimeout(qqBotTimer)
+  qqBotTimer = setTimeout(async () => {
+    try {
+      await $fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: { data: { ...qqBot } }
+      })
+    } catch (e) { console.error('保存 QQ 机器人设置失败', e) }
+  }, 300)
+}
 // ── 初始化加载 ───────────────────────────
 onMounted(async () => {
   // 加载 TDK
@@ -247,6 +277,9 @@ security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       favicon.favicon_max_redirects = parseInt(s.favicon_max_redirects) || 3
       limits.max_bookmarks_per_sync = parseInt(s.max_bookmarks_per_sync) || 20000
       limits.bookmarks_query_limit = parseInt(s.bookmarks_query_limit) || 500
+      qqBot.qq_bot_enabled = s.qq_bot_enabled === 'true'
+      qqBot.qq_bot_group_id = s.qq_bot_group_id || ''
+      qqBot.qq_admin_qq = s.qq_admin_qq || ''
     }
   } catch {}
 })

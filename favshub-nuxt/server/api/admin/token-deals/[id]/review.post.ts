@@ -1,9 +1,12 @@
 /**
  * POST /api/admin/token-deals/:id/review — 审核通告（仅管理员）
  * Body: { action: 'approve' | 'reject', reason?: string }
+ *
+ * 写库语义与通知链路在 server/utils/token-deals.ts 的 reviewDealById
+ * （与 QQ 机器人「通过 / 驳回」指令共享同一实现）。
  */
-import { getRawDb } from '../../../../database'
 import { requireAdmin } from '../../../../utils/auth'
+import { reviewDealById } from '../../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -16,18 +19,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '审核动作必须是 approve 或 reject' } })
   }
 
-  const db = getRawDb()
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(id)
-  if (!deal) {
-    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
+  const result = reviewDealById(id, action, String(body?.reason ?? ''))
+  if (!result.ok) {
+    throw createError({ statusCode: result.status, data: { error: result.error } })
   }
 
-  const status = action === 'approve' ? 'approved' : 'rejected'
-  const reason = action === 'reject' ? String(body?.reason ?? '').trim().slice(0, 200) : ''
-
-  db.prepare(
-    'UPDATE token_deals SET status = ?, reject_reason = ?, updated_at = ? WHERE id = ?'
-  ).run(status, reason, Date.now(), id)
-
-  return { success: true, status }
+  return { success: true, status: action === 'approve' ? 'approved' : 'rejected' }
 })

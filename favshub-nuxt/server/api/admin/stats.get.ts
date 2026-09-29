@@ -59,12 +59,23 @@ export default defineEventHandler(async (event) => {
       }
     } catch { /* ignore */ }
 
-    // 管理员系统统计（合并为单次查询）
+    // 管理员系统统计 + 白嫖通告板块统计（合并为单次查询）
+    // 修改建议 / 游客评测待审口径与 /admin/token-deals 页面 Tab 一致：
+    // 排除「自己给自己的通告提的提案/评测」（见 deal-edits.ts listReviewableEdits、guest-reviews.ts guestReviewPendingCount）
     const sysStats = db.prepare(`
       SELECT
         (SELECT COUNT(*) FROM search_engines) as searchEngines,
         (SELECT COUNT(*) FROM users) as users,
-        (SELECT COUNT(*) FROM users WHERE is_admin = 1) as adminUsers
+        (SELECT COUNT(*) FROM users WHERE is_admin = 1) as adminUsers,
+        (SELECT COUNT(*) FROM token_deals) as tokenDealsTotal,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'pending') as tokenDealsPending,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'approved') as tokenDealsApproved,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'rejected') as tokenDealsRejected,
+        (SELECT COUNT(*) FROM prompt_review_requests WHERE status = 'pending') as promptReviewsPending,
+        (SELECT COUNT(*) FROM token_deal_edits e JOIN token_deals d ON d.id = e.deal_id
+          WHERE e.status = 'pending' AND e.user_id != d.user_id) as dealEditsPending,
+        (SELECT COUNT(*) FROM token_deal_guest_reviews g JOIN token_deals d ON d.id = g.deal_id
+          WHERE g.status = 'pending' AND (g.user_id IS NULL OR g.user_id != d.user_id)) as guestReviewsPending
     `).get() as any
     result.searchEngines = sysStats.searchEngines
     result.users = sysStats.users
@@ -72,6 +83,16 @@ export default defineEventHandler(async (event) => {
     result.dbSize = dbSize > 1024 * 1024
       ? (dbSize / 1024 / 1024).toFixed(2) + ' MB'
       : (dbSize / 1024).toFixed(1) + ' KB'
+    // 白嫖通告按状态聚合
+    result.tokenDeals = {
+      total: sysStats.tokenDealsTotal,
+      pending: sysStats.tokenDealsPending,
+      approved: sysStats.tokenDealsApproved,
+      rejected: sysStats.tokenDealsRejected,
+    }
+    result.promptReviews = { pending: sysStats.promptReviewsPending }
+    result.dealEdits = { pending: sysStats.dealEditsPending }
+    result.guestReviews = { pending: sysStats.guestReviewsPending }
   }
 
   return result

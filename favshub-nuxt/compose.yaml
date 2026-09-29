@@ -11,6 +11,10 @@ services:
       - NUXT_CORS_ORIGIN=${NUXT_CORS_ORIGIN:-}
       - NUXT_ADMIN_USERS=${NUXT_ADMIN_USERS:-}
       - NUXT_PUBLIC_BASE_URL=${NUXT_PUBLIC_BASE_URL:-https://hao.bx9y.com.cn}
+      # QQ 机器人（OneBot 11 / NapCat）：HTTP API 地址（空 = 出站禁用）
+      - NUXT_QQ_BOT_HTTP_URL=${NUXT_QQ_BOT_HTTP_URL:-}
+      # QQ 机器人 access_token（出站头 + 入站校验同一值；空 = 入站端点拒绝一切）
+      - NUXT_QQ_BOT_ACCESS_TOKEN=${NUXT_QQ_BOT_ACCESS_TOKEN:-}
     dns:
       - 119.29.29.29
       - 223.5.5.5

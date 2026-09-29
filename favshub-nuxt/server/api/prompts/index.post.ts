@@ -4,7 +4,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { getRawDb } from '../../database'
-import { requireAuth } from '../../utils/auth'
+import { isAdminUser, requireAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
@@ -23,8 +23,9 @@ export default defineEventHandler(async (event) => {
   const now = Date.now()
 
   // 可见性：管理员可自由选择公开/私有；普通用户强制私有（仅自己可见）
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-  const lr = (dbUser?.is_admin) ? (login_required ? 1 : 0) : 1
+  // 管理员判定与 requireAdmin/getAuthRole 同口径：users.is_admin 或 NUXT_ADMIN_USERS 环境名单
+  const dbUser = db.prepare('SELECT username, is_admin FROM users WHERE id = ?').get(user.id) as { username: string; is_admin: number } | undefined
+  const lr = (dbUser && isAdminUser(dbUser)) ? (login_required ? 1 : 0) : 1
 
   // 创建 prompt
   db.prepare(`

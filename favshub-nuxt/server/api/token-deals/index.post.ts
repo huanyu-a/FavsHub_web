@@ -7,6 +7,7 @@
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import { validateDealPayload, newDealId } from '../../utils/token-deals'
+import { notifyTokenDealPending, notifyTokenDealPublished } from '../../utils/qq-notify'
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -42,6 +43,17 @@ export default defineEventHandler(async (event) => {
   } catch (err: any) {
     console.error('发布 Token 白嫖通告失败:', err)
     throw createError({ statusCode: 500, data: { error: err.message || '发布失败' } })
+  }
+
+  // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
+  try {
+    if (isAdmin) {
+      notifyTokenDealPublished(d.title)
+    } else {
+      notifyTokenDealPending(d.title, user.username)
+    }
+  } catch (err: any) {
+    console.warn('[QQBot] 通告提交通知入队失败（忽略）:', err?.message || err)
   }
 
   return {

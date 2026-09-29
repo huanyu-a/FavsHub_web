@@ -1457,6 +1457,43 @@ function seedDefaultPrompts(db: Database.Database) {
  */
 
 /**
+ * QQ 机器人绑定表（users.id ↔ QQ 号一对一）
+ *
+ * 站点侧只生成绑定码（/api/qq/bind-code），实际绑定动作发生在机器人私聊指令中；
+ * 管理员身份判定、私聊通知回执都依赖本表。
+ *
+ * 设计约束（对齐项目迁移铁律）：
+ *   1. 不并入 createTables() 的大 exec 块 —— 独立 try/catch，单点失败不连累其余。
+ *   2. 每条索引独立 try/catch。
+ */
+export function createQqBotSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS qq_bindings (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        qq_number  TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 qq_bindings 失败:', err.message)
+  }
+
+  // 索引逐条独立 try/catch —— 单条失败不影响其余（血泪教训见上方 has_sync 注释）
+  const qqBotIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_qq_bindings_qq ON qq_bindings(qq_number)',
+  ]
+  for (const sql of qqBotIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] QQ 绑定索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
+}
+
+/**
  * 执行完整的数据库初始化
  */
 export function initializeDatabase(db: Database.Database) {
@@ -1465,5 +1502,6 @@ export function initializeDatabase(db: Database.Database) {
   createIndexes(db)
   createAiSchema(db)
   createNexusSchema(db)
+  createQqBotSchema(db)
   seedDefaults(db)
 }

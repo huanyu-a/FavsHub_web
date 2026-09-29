@@ -3,7 +3,8 @@
  * 普通用户修改管理员的公开提示词时使用
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
+import { isAdminUser, requireAuth } from '../../../utils/auth'
+import { notifyPromptReviewPending } from '../../../utils/qq-notify'
 import { createError, readBody, getRouterParams } from 'h3'
 
 export default defineEventHandler(async (event) => {
@@ -13,8 +14,9 @@ export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   if (!id) throw createError({ statusCode: 400, data: { error: '无效的提示词 ID' } })
 
-  const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(auth.id) as { is_admin: number } | undefined
-  const isAdmin = !!dbUser?.is_admin
+  // 管理员判定与 requireAdmin/getAuthRole 同口径：users.is_admin 或 NUXT_ADMIN_USERS 环境名单
+  const dbUser = db.prepare('SELECT username, is_admin FROM users WHERE id = ?').get(auth.id) as { username: string; is_admin: number } | undefined
+  const isAdmin = !!dbUser && isAdminUser(dbUser)
 
   // 管理员不需要审核，直接走 PUT 接口
   if (isAdmin) throw createError({ statusCode: 400, data: { error: '管理员可直接编辑，无需提审' } })
@@ -22,9 +24,9 @@ export default defineEventHandler(async (event) => {
   const prompt = db.prepare('SELECT * FROM prompts WHERE id = ?').get(id) as any
   if (!prompt) throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
 
-  // 只有管理员的公开提示词才需要审核
-  const ownerIsAdmin = (db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as any)?.is_admin
-  if (!ownerIsAdmin) throw createError({ statusCode: 403, data: { error: '只能对管理员的公开提示词提交审核' } })
+  // 只有管理员的公开提示词才需要审核（管理员判定含 NUXT_ADMIN_USERS 环境名单）
+  const owner = db.prepare('SELECT username, is_admin FROM users WHERE id = ?').get(prompt.user_id) as { username: string; is_admin: number } | undefined
+  if (!owner || !isAdminUser(owner)) throw createError({ statusCode: 403, data: { error: '只能对管理员的公开提示词提交审核' } })
   if (prompt.login_required) throw createError({ statusCode: 403, data: { error: '只能对公开的提示词提交审核' } })
 
   // 检查是否已有 pending 审核请求，避免重复提交
@@ -43,6 +45,13 @@ export default defineEventHandler(async (event) => {
     INSERT INTO prompt_review_requests (id, prompt_id, user_id, title, description, content, tags, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
   `).run(reviewId, id, auth.id, title, description || '', content, JSON.stringify(tags || []), now)
+
+  // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
+  try {
+    notifyPromptReviewPending(String(title))
+  } catch (err: any) {
+    console.warn('[QQBot] 提示词待审通知入队失败（忽略）:', err?.message || err)
+  }
 
   return { success: true, message: '已提交审核请求', review_id: reviewId }
 })

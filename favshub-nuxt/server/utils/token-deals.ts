@@ -5,6 +5,8 @@
  * 可用性投票与综合评分沿用「FreeBuddy 免费模型专区」的社区健康度模型。
  */
 import type Database from 'better-sqlite3'
+import { getRawDb } from '../database'
+import { notifyTokenDealApproved, notifyTokenDealRejected } from './qq-notify'
 
 /** 品质分级 — 上上品 → 下下品 */
 export const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品'] as const
@@ -368,4 +370,47 @@ export type EditOpResult<T> =
 /** 审核权限：通告作者或管理员（管理员可审核所有用户的提案） */
 export function canReviewDeal(deal: { user_id: number }, viewer: { id: number; isAdmin: boolean }): boolean {
   return viewer.isAdmin || deal.user_id === viewer.id
+}
+
+// ════════════════════════════════════════════════════════════════
+// 通告审核 — 共享写库 + 通知
+//
+// admin review 端点（POST /api/admin/token-deals/:id/review）与 QQ 机器人
+// 「通过 / 驳回」指令共用同一套写库语义与 §B4 通知链路，避免逻辑复制。
+// ════════════════════════════════════════════════════════════════
+
+export type DealReviewAction = 'approve' | 'reject'
+
+export type DealReviewResult =
+  | { ok: true; deal: { id: string; user_id: number; title: string } }
+  | { ok: false; status: number; error: string }
+
+/**
+ * 审核通告：approve → status='approved' 并清空 reject_reason；
+ * reject → status='rejected' 并写入 reason（trim 后截断 200 字，与原端点语义一致）。
+ * 写库成功后触发 QQ 机器人通知（群播 + 私聊作者），通知失败只告警不阻断。
+ */
+export function reviewDealById(dealId: string, action: DealReviewAction, reason: string): DealReviewResult {
+  const db = getRawDb()
+  const deal = db.prepare('SELECT id, user_id, title FROM token_deals WHERE id = ?')
+    .get(dealId) as { id: string; user_id: number; title: string } | undefined
+  if (!deal) return { ok: false, status: 404, error: '通告不存在' }
+
+  const status = action === 'approve' ? 'approved' : 'rejected'
+  const finalReason = action === 'reject' ? String(reason ?? '').trim().slice(0, 200) : ''
+  db.prepare(
+    'UPDATE token_deals SET status = ?, reject_reason = ?, updated_at = ? WHERE id = ?'
+  ).run(status, finalReason, Date.now(), dealId)
+
+  try {
+    if (action === 'approve') {
+      notifyTokenDealApproved(deal.title, deal.user_id)
+    } else {
+      notifyTokenDealRejected(deal.title, deal.user_id, finalReason)
+    }
+  } catch (err: any) {
+    console.warn('[QQBot] 通告审核通知入队失败（忽略）:', err?.message || err)
+  }
+
+  return { ok: true, deal }
 }

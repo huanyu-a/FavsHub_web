@@ -14,6 +14,7 @@
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import { validateDealPayload } from '../../utils/token-deals'
+import { notifyTokenDealRePending } from '../../utils/qq-notify'
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -62,6 +63,15 @@ export default defineEventHandler(async (event) => {
   } catch (err: any) {
     console.error('编辑 Token 白嫖通告失败:', err)
     throw createError({ statusCode: 500, data: { error: err.message || '编辑失败' } })
+  }
+
+  // QQ 机器人通知：被驳回的通告修改后重新进入待审（fire-and-forget，绝不阻断主请求）
+  if (status === 'pending' && deal.status === 'rejected') {
+    try {
+      notifyTokenDealRePending(d.title)
+    } catch (err: any) {
+      console.warn('[QQBot] 通告回待审通知入队失败（忽略）:', err?.message || err)
+    }
   }
 
   return {

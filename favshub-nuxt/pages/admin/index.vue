@@ -29,6 +29,7 @@
           <h4 class="stat-group-title"><i class="ri-chat-quote-line"></i> {{ isAdmin ? '提示词' : '我的提示词' }}</h4>
           <div class="stat-group-items">
             <div class="stat-group-item"><span class="sgi-label">提示词数</span><span class="sgi-value purple">{{ stats.prompts }}</span></div>
+            <div v-if="isAdmin" class="stat-group-item"><span class="sgi-label">待审</span><span class="sgi-value orange">{{ stats.promptReviews?.pending || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">文件夹</span><span class="sgi-value">{{ stats.promptFolders || 0 }}</span></div>
             <div v-if="!isAdmin" class="stat-group-item"><span class="sgi-label">收藏数</span><span class="sgi-value orange">{{ stats.favoritePrompts || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">标签</span><span class="sgi-value">{{ stats.tags || 0 }}</span></div>
@@ -40,6 +41,16 @@
           <div class="stat-group-items">
             <div class="stat-group-item"><span class="sgi-label">注册用户</span><span class="sgi-value green">{{ stats.users }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">管理员</span><span class="sgi-value">{{ stats.adminUsers || 0 }}</span></div>
+          </div>
+        </div>
+        <!-- 白嫖通告（仅管理员） -->
+        <div v-if="isAdmin" class="stat-group">
+          <h4 class="stat-group-title"><i class="ri-gift-2-line"></i> 白嫖通告</h4>
+          <div class="stat-group-items">
+            <div class="stat-group-item"><span class="sgi-label">总数</span><span class="sgi-value blue">{{ stats.tokenDeals?.total || 0 }}</span></div>
+            <div class="stat-group-item"><span class="sgi-label">待审</span><span class="sgi-value orange">{{ stats.tokenDeals?.pending || 0 }}</span></div>
+            <div class="stat-group-item"><span class="sgi-label">已发布</span><span class="sgi-value green">{{ stats.tokenDeals?.approved || 0 }}</span></div>
+            <div class="stat-group-item"><span class="sgi-label">驳回</span><span class="sgi-value">{{ stats.tokenDeals?.rejected || 0 }}</span></div>
           </div>
         </div>
       </div>
@@ -59,6 +70,12 @@
           <NuxtLink to="/admin/prompts" class="nav-card">
             <i class="ri-chat-quote-line nav-icon"></i>
             <span class="nav-label">{{ isAdmin ? '提示词管理' : '我的提示词' }}</span>
+            <span v-if="isAdmin && promptPendingTotal" class="nav-card-badge">{{ promptPendingTotal }}</span>
+          </NuxtLink>
+          <NuxtLink v-if="isAdmin" to="/admin/token-deals" class="nav-card">
+            <i class="ri-gift-2-line nav-icon"></i>
+            <span class="nav-label">白嫖通告</span>
+            <span v-if="dealPendingTotal" class="nav-card-badge">{{ dealPendingTotal }}</span>
           </NuxtLink>
           <NuxtLink to="/admin/search-engines" class="nav-card">
             <i class="ri-search-line nav-icon"></i>
@@ -101,6 +118,12 @@ const stats = computed(() => {
   const d = data.value as any
   return d || { bookmarks: 0, folders: 0, prompts: 0 }
 })
+// 白嫖通告板块待审总量 = 通告 + 修改建议 + 游客评测（与 /admin/token-deals 页面 Tab 口径一致）
+const dealPendingTotal = computed(() =>
+  (stats.value.tokenDeals?.pending || 0) + (stats.value.dealEdits?.pending || 0) + (stats.value.guestReviews?.pending || 0),
+)
+// 提示词修改审核待审数
+const promptPendingTotal = computed(() => stats.value.promptReviews?.pending || 0)
 // ── 数据导出 ──
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)

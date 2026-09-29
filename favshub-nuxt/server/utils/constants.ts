@@ -23,6 +23,8 @@ export const SYSTEM_ONLY_KEYS = [
   'max_bookmarks_per_sync', 'bookmarks_query_limit',
   // Analytics
   'baidu_tongji_id', 'baidu_tongji_domains',
+  // QQ Bot（OneBot 11 / NapCat）
+  'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
 ]
 
 /**
@@ -64,4 +66,11 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   // Data limits
   max_bookmarks_per_sync: '20000',
   bookmarks_query_limit: '500',
+  // QQ Bot（OneBot 11 / NapCat）
+  // qq_bot_enabled：总开关，false 时入站 403、出站不发送
+  // qq_bot_group_id：通知目标群号（空 = 不推送群消息）
+  // qq_admin_qq：群 @ 提醒的管理员 QQ 号（若管理员已绑定 QQ 则优先用绑定号）
+  qq_bot_enabled: 'false',
+  qq_bot_group_id: '',
+  qq_admin_qq: '',
 }

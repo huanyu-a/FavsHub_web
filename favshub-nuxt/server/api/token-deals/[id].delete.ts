@@ -5,6 +5,7 @@
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
+import { notifyTokenDealDeleted } from '../../utils/qq-notify'
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -16,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const db = getRawDb()
 
-  const deal = db.prepare('SELECT id, user_id FROM token_deals WHERE id = ?').get(id) as any
+  const deal = db.prepare('SELECT id, user_id, title FROM token_deals WHERE id = ?').get(id) as any
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
@@ -39,6 +40,13 @@ export default defineEventHandler(async (event) => {
   } catch (err: any) {
     console.error('删除 Token 白嫖通告失败:', err)
     throw createError({ statusCode: 500, data: { error: err.message || '删除失败' } })
+  }
+
+  // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
+  try {
+    notifyTokenDealDeleted(deal.title)
+  } catch (err: any) {
+    console.warn('[QQBot] 通告删除通知入队失败（忽略）:', err?.message || err)
   }
 
   return { success: true }

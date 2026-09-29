@@ -59,6 +59,18 @@
                 <i class="ri-user-settings-line"></i>
                 <span>个人资料</span>
               </div>
+              <div
+                v-if="authStore.isLoggedIn"
+                class="user-menu-item"
+                role="button"
+                tabindex="0"
+                @click="openQqBind"
+                @keydown.enter="openQqBind"
+                @keydown.space.prevent="openQqBind"
+              >
+                <i class="ri-robot-2-line"></i>
+                <span>QQ 绑定</span>
+              </div>
               <NuxtLink to="/admin/settings" class="user-menu-item" @click="showUserMenu = false">
                 <i class="ri-settings-3-line"></i>
                 <span>设置</span>
@@ -107,6 +119,61 @@
 
       <Teleport to="body">
         <LoginDialog v-if="showLogin" @close="showLogin = false" />
+      </Teleport>
+
+      <!-- QQ 绑定：生成绑定码 / 查看绑定状态 / 解绑 -->
+      <Teleport to="body">
+        <div v-if="qqBindOpen" class="up-backdrop" @click.self="closeQqBind">
+          <div class="up-modal" role="dialog" aria-modal="true" aria-label="QQ 绑定">
+            <header class="up-head">
+              <h3>QQ 绑定</h3>
+              <button type="button" class="up-close" title="关闭" @click="closeQqBind">
+                <i class="ri-close-line"></i>
+              </button>
+            </header>
+
+            <div class="up-body">
+              <p v-if="qqBindLoading" class="up-bind-hint">加载中...</p>
+
+              <!-- 已绑定：显示 QQ 号 + 解绑 -->
+              <template v-else-if="qqBoundQQ">
+                <p class="up-bind-hint">
+                  当前已绑定 QQ：<strong class="up-bind-qq">{{ qqBoundQQ }}</strong>
+                </p>
+                <p class="up-privacy">
+                  <i class="ri-robot-2-line"></i>
+                  绑定后可在 QQ 私聊机器人使用个人指令（我的投稿、解绑等）。
+                </p>
+              </template>
+
+              <!-- 未绑定 -->
+              <template v-else>
+                <template v-if="qqBindCode">
+                  <div class="up-bind-code-box">
+                    <span class="up-bind-code">{{ qqBindCode }}</span>
+                    <span class="up-bind-countdown">{{ qqCountdownText }}</span>
+                  </div>
+                  <p class="up-privacy">
+                    <i class="ri-time-line"></i>
+                    10 分钟内在 QQ 私聊机器人发送：绑定 {{ qqBindCode }}
+                  </p>
+                </template>
+                <p v-else class="up-bind-hint">未绑定 QQ。生成绑定码后，在 QQ 私聊机器人发送「绑定 码」即可完成绑定。</p>
+              </template>
+            </div>
+
+            <footer class="up-foot">
+              <button v-if="!qqBoundQQ && qqBindCode" type="button" class="up-btn ghost" @click="generateBindCode">重新生成</button>
+              <button v-if="!qqBoundQQ && !qqBindCode" type="button" class="up-btn primary" :disabled="qqBindLoading" @click="generateBindCode">
+                生成绑定码
+              </button>
+              <button v-if="qqBoundQQ" type="button" class="up-btn danger" :disabled="qqBindLoading" @click="unbindQQ">
+                解绑
+              </button>
+              <button type="button" class="up-btn ghost" @click="closeQqBind">关闭</button>
+            </footer>
+          </div>
+        </div>
       </Teleport>
 
       <!-- 个人资料：填 QQ 号以使用 QQ 头像 -->
@@ -298,6 +365,115 @@ function handleLogout() {
   authStore.logout()
   router.push('/login')
 }
+
+// ── QQ 绑定 ──────────────────────────────
+const qqBindOpen = ref(false)
+const qqBindLoading = ref(false)
+const qqBoundQQ = ref<string | null>(null)
+const qqBindCode = ref('')
+const qqBindExpiresAt = ref(0)
+let qqCountdownTimer: ReturnType<typeof setInterval> | null = null
+const qqCountdownText = ref('')
+
+/** 打开弹窗：顺带拉取当前绑定状态（POST 幂等复用未过期码，无副作用负担） */
+async function openQqBind() {
+  showUserMenu.value = false
+  qqBindOpen.value = true
+  qqBindCode.value = ''
+  qqBoundQQ.value = null
+  await fetchBindStatus()
+}
+
+function closeQqBind() {
+  qqBindOpen.value = false
+  stopCountdown()
+}
+
+async function fetchBindStatus() {
+  qqBindLoading.value = true
+  try {
+    const res = await $fetch<{ code: string; expiresAt: number; bound: string | null }>('/api/qq/bind-code', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    qqBoundQQ.value = res.bound
+  } catch (err: any) {
+    toast(err?.data?.error || '获取绑定状态失败', 'err')
+    qqBindOpen.value = false
+  } finally {
+    qqBindLoading.value = false
+  }
+}
+
+/** 生成（或复用未过期的）绑定码并开始倒计时 */
+async function generateBindCode() {
+  if (qqBindLoading.value) return
+  qqBindLoading.value = true
+  try {
+    const res = await $fetch<{ code: string; expiresAt: number; bound: string | null }>('/api/qq/bind-code', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (res.bound) {
+      qqBoundQQ.value = res.bound
+      qqBindCode.value = ''
+      stopCountdown()
+      return
+    }
+    qqBindCode.value = res.code
+    qqBindExpiresAt.value = res.expiresAt
+    startCountdown()
+  } catch (err: any) {
+    toast(err?.data?.error || '生成绑定码失败', 'err')
+  } finally {
+    qqBindLoading.value = false
+  }
+}
+
+function startCountdown() {
+  stopCountdown()
+  updateCountdown()
+  qqCountdownTimer = setInterval(updateCountdown, 1000)
+}
+
+function updateCountdown() {
+  const remain = Math.max(0, qqBindExpiresAt.value - Date.now())
+  if (remain <= 0) {
+    // 码过期：回到「生成绑定码」初始态
+    qqBindCode.value = ''
+    stopCountdown()
+    return
+  }
+  const totalSec = Math.ceil(remain / 1000)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  qqCountdownText.value = `${m}:${String(s).padStart(2, '0')}`
+}
+
+function stopCountdown() {
+  if (qqCountdownTimer) {
+    clearInterval(qqCountdownTimer)
+    qqCountdownTimer = null
+  }
+}
+
+async function unbindQQ() {
+  if (qqBindLoading.value) return
+  qqBindLoading.value = true
+  try {
+    await $fetch('/api/qq/bind-code', { method: 'DELETE', credentials: 'include' })
+    qqBoundQQ.value = null
+    qqBindCode.value = ''
+    stopCountdown()
+    toast('已解绑 QQ')
+  } catch (err: any) {
+    toast(err?.data?.error || '解绑失败', 'err')
+  } finally {
+    qqBindLoading.value = false
+  }
+}
+
+onBeforeUnmount(stopCountdown)
 
 if (import.meta.client) {
   const handleClickOutside = (e: MouseEvent) => {
@@ -616,6 +792,46 @@ if (import.meta.client) {
 }
 .up-btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
 .up-btn.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.up-btn.danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.up-btn.danger:hover:not(:disabled) { background: var(--danger); color: var(--text-inverse); }
+.up-btn.danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── QQ 绑定弹窗 ── */
+.up-bind-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+.up-bind-qq {
+  font-weight: 600;
+}
+.up-bind-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+.up-bind-code {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.up-bind-countdown {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
 .up-toast {
   position: fixed;
   left: 50%;

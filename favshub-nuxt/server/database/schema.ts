@@ -291,3 +291,14 @@ export const tokenDealReviews = sqliteTable('token_deal_reviews', {
   uniqueIndex('idx_tdr_unique').on(table.dealId, table.userId),
   index('idx_tdr_deal').on(table.dealId),
 ])
+
+// ─── qq_bindings（QQ 机器人绑定：users.id ↔ QQ 号一对一）───────
+// 站点侧只生成绑定码，实际绑定动作发生在机器人私聊指令中
+export const qqBindings = sqliteTable('qq_bindings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  qqNumber: text('qq_number').notNull().unique(),
+  createdAt: integer('created_at'),
+}, (table) => [
+  index('idx_qq_bindings_qq').on(table.qqNumber),
+])

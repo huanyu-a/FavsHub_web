@@ -24,6 +24,21 @@ export function parseAdminUsers(value: unknown): string[] {
 }
 
 /**
+ * 判断某用户是否管理员（数据库 is_admin 字段或 NUXT_ADMIN_USERS 环境名单）。
+ * 与 requireAdmin / getAuthRole 同口径，用于没有 H3 event 的场景
+ * （如 QQ 机器人身份判定、提示词归属判定）。
+ * 不在请求上下文内时读不到 runtimeConfig，此时按数据库字段单独判定。
+ */
+export function isAdminUser(user: { username: string; is_admin?: number | boolean | null }): boolean {
+  if (user?.is_admin) return true
+  try {
+    return parseAdminUsers(useRuntimeConfig().adminUsers).includes(user.username)
+  } catch {
+    return false
+  }
+}
+
+/**
  * 从 H3 event 中提取 token 并验证
  * 优先级：Authorization header > httpOnly cookie
  * @returns 已验证的用户信息，或 null（无 token 时）
