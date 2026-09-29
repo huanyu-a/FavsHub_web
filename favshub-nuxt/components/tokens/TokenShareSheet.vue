@@ -82,6 +82,7 @@ import {
 } from '~/utils/deal-share'
 
 const CARD_STYLES: ReadonlyArray<{ value: ShareCardStyle; label: string }> = [
+  { value: 'poster', label: '海报' },
   { value: 'magazine', label: '杂志' },
   { value: 'neon', label: '终端' },
   { value: 'clay', label: '暖阳' },
@@ -99,7 +100,7 @@ const previewUrl = ref('')
 const blob = ref<Blob | null>(null)
 const message = ref('')
 const messageType = ref<'ok' | 'err'>('ok')
-const cardStyle = ref<ShareCardStyle>('magazine')
+const cardStyle = ref<ShareCardStyle>('poster')
 let messageTimer: ReturnType<typeof setTimeout> | null = null
 
 const iconUrl = fallbackProxyIcon('', props.deal.url) || ''

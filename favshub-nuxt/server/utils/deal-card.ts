@@ -153,7 +153,7 @@ export interface RenderCardOptions {
   iconHost?: string | null
   /** 卡片底部展示的站点域名（如 hao.bx9y.com.cn） */
   siteHost: string
-  /** 卡片风格，默认 magazine */
+  /** 卡片风格，默认 poster */
   style?: ShareCardStyle
   /** favicon 本地缓存目录候选（按序探测） */
   faviconDirs?: string[]

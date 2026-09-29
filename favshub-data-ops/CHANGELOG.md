@@ -8,6 +8,14 @@
 
 ---
 
+## [1.3.0] - 2026-09-29
+
+- **新增** 分享卡片 `poster` 风格（夜幕鎏金海报）并成为**默认风格**：额度数字放大至
+  ≥10% 图宽、标题 ≥6%，缩略图尺度即可读；`?style=` 省略时出 poster。
+- **变更** `style` 参数白名单扩至六种：`poster`（默认）/ `magazine` / `neon` / `clay` /
+  `blast` / `voucher`（此前端点只放行 magazine/neon/clay，blast/voucher 会静默回退）。
+- **说明** 非法 style 的回退目标由 `magazine` 改为 `poster`。
+
 ## [1.2.0] - 2026-09-21
 
 - **新增** 通告分享卡片端点：`GET /api/ai/token-deals/:id/card.png`。

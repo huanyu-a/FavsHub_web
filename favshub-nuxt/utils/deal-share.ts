@@ -6,7 +6,7 @@
  *
  * 服务端（AI 技能卡片端点）走 `server/utils/deal-card.ts`，共用同一份绘制核心。
  *
- * 风格切换见 `ShareCardStyle`：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）/ blast（喜报爆款）/ voucher（卡券票根）。
+ * 风格切换见 `ShareCardStyle`：poster（夜幕鎏金海报，默认）/ magazine（编辑杂志）/ neon（深色终端）/ clay（暖阳陶土）/ blast（喜报爆款）/ voucher（卡券票根）。
  */
 
 import {
@@ -41,7 +41,7 @@ export interface BuildShareOptions {
   iconUrl?: string | null
   /** 卡片底部展示的站点域名（如 hao.bx9y.com.cn） */
   siteHost?: string
-  /** 卡片风格：magazine 编辑杂志（默认）/ neon 深色终端 / clay 暖阳陶土 / blast 喜报爆款 / voucher 卡券票根 */
+  /** 卡片风格：poster 夜幕鎏金（默认）/ magazine 编辑杂志 / neon 深色终端 / clay 暖阳陶土 / blast 喜报爆款 / voucher 卡券票根 */
   style?: ShareCardStyle
 }
 
@@ -133,8 +133,8 @@ export function buildShareUrl(dealId: string, origin: string): string {
 }
 
 /** 下载文件名（去掉路径不安全字符；非默认风格带风格后缀） */
-export function shareFileName(dealId: string, style: ShareCardStyle = 'magazine'): string {
+export function shareFileName(dealId: string, style: ShareCardStyle = 'poster'): string {
   const safe = String(dealId).replace(/[^\w.-]+/g, '_').slice(0, 60)
-  const suffix = style === 'magazine' ? '' : `-${style}`
+  const suffix = style === 'poster' ? '' : `-${style}`
   return `favshub-token-deal-${safe}${suffix}.png`
 }

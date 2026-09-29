@@ -319,14 +319,14 @@ console.log('=== 3. 只读端点（read scope） ===')
     const list = await bearer('/api/ai/token-deals?limit=1', readTok)
     const firstId = list.json?.token_deals?.[0]?.id
     if (firstId) {
-      const cardRes = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=clay`, {
+      const cardRes = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=poster`, {
         headers: { authorization: 'Bearer ' + readTok },
       })
       check('card.png → 200', cardRes.status === 200, 'status=' + cardRes.status)
       check('card.png content-type = image/png',
         (cardRes.headers.get('content-type') || '').includes('image/png'),
         cardRes.headers.get('content-type'))
-      check('card.png x-card-style = clay', cardRes.headers.get('x-card-style') === 'clay',
+      check('card.png x-card-style = poster', cardRes.headers.get('x-card-style') === 'poster',
         cardRes.headers.get('x-card-style'))
       const cardBuf = Buffer.from(await cardRes.arrayBuffer())
       check('card.png 体积 > 20KB', cardBuf.length > 20000, 'bytes=' + cardBuf.length)
@@ -336,18 +336,26 @@ console.log('=== 3. 只读端点（read scope） ===')
         [...cardBuf.slice(0, 4)].map(b => b.toString(16)).join(' '))
 
       // 二次请求应命中缓存
-      const again = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=clay`, {
+      const again = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=poster`, {
         headers: { authorization: 'Bearer ' + readTok },
       })
       check('card.png 二次请求命中缓存', again.headers.get('x-card-cached') === 'hit',
         again.headers.get('x-card-cached'))
       await again.arrayBuffer()
 
-      // 非法 style 回退 magazine（不报错）
+      // 旧风格仍可用（clay 走同一白名单）
+      const clayRes = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=clay`, {
+        headers: { authorization: 'Bearer ' + readTok },
+      })
+      check('card.png style=clay 仍可用', clayRes.status === 200 && clayRes.headers.get('x-card-style') === 'clay',
+        'status=' + clayRes.status + ' style=' + clayRes.headers.get('x-card-style'))
+      await clayRes.arrayBuffer()
+
+      // 非法 style 回退 poster（不报错）
       const badStyle = await fetch(BASE + `/api/ai/token-deals/${firstId}/card.png?style=nope`, {
         headers: { authorization: 'Bearer ' + readTok },
       })
-      check('card.png 非法 style 回退 magazine', badStyle.headers.get('x-card-style') === 'magazine',
+      check('card.png 非法 style 回退 poster', badStyle.headers.get('x-card-style') === 'poster',
         badStyle.headers.get('x-card-style'))
       await badStyle.arrayBuffer()
 

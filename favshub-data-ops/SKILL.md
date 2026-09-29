@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.2.0
+version: 1.3.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -141,11 +141,11 @@ GET    /api/ai/token-deals/:id/card.png?style=&refresh=   # 分享卡片（PNG �
 #### 分享卡片（生成图片）
 
 ```
-GET /api/ai/token-deals/:id/card.png?style=clay
+GET /api/ai/token-deals/:id/card.png?style=poster
 ```
 
 - **返回 `image/png` 二进制**（900×1200），不是 JSON —— 用 `curl -o` 直接落盘，不要 `jq`
-- `style` 三选一：`magazine` 编辑杂志（默认）| `neon` 深色终端 | `clay` 暖阳陶土
+- `style` 六选一：`poster` 夜幕鎏金海报（默认）| `magazine` 编辑杂志 | `neon` 深色终端 | `clay` 暖阳陶土 | `blast` 喜报爆款 | `voucher` 卡券票根
 - 卡片内容与网页端「分享通告」面板**完全同源**（同一份绘制逻辑），含：服务商 + 品质 + 标题 + 免费额度 + 有效期 + 模型 + Nexus 实测 + 投票/评分 + 备注 + 详情页二维码
 - 响应头 `x-card-style`（实际生效风格）、`x-card-cached`（`hit`/`miss`）便于核对
 - 渲染有缓存，通告更新后自动失效；`refresh=1` 可强制重绘

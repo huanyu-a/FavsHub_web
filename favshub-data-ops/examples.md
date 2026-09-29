@@ -237,9 +237,9 @@ curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
 卡片内容与网页端「分享通告」按钮产出的**完全一致**（服务端复用同一份绘制逻辑）。
 
 ```bash
-# 三种风格：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）
+# 六种风格：poster（夜幕鎏金海报，默认）/ magazine（编辑杂志）/ neon（深色终端）/ clay（暖阳陶土）/ blast（喜报爆款）/ voucher（卡券票根）
 curl -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
-     "$BASE/api/ai/token-deals/deal_1789870204833_tvvzzp/card.png?style=clay" \
+     "$BASE/api/ai/token-deals/deal_1789870204833_tvvzzp/card.png?style=poster" \
      -o stepfun-card.png
 ```
 

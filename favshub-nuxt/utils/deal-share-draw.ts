@@ -157,7 +157,7 @@ const V = {
 } as const
 
 /** 卡片风格标识 */
-export type ShareCardStyle = 'magazine' | 'neon' | 'clay' | 'blast' | 'voucher'
+export type ShareCardStyle = 'poster' | 'magazine' | 'neon' | 'clay' | 'blast' | 'voucher'
 
 /**
  * 绘制上下文的最小接口 —— 浏览器 `CanvasRenderingContext2D` 与
@@ -214,7 +214,7 @@ interface Block {
   draw: (y: number) => void
 }
 
-function font(size: number, weight: 400 | 500 | 600 | 700 = 400): string {
+function font(size: number, weight: 400 | 500 | 600 | 700 | 800 | 900 = 400): string {
   return `${weight} ${size}px ${FONT_STACK}`
 }
 
@@ -2228,7 +2228,359 @@ function drawVoucher(
   ctx.fillText(ellipsize(ctx, `FavsHub · ${siteHost}`, stubLeftW), left, stubY + 84)
 }
 
-/** 五风格绘制函数表 */
+// ═══════════════════════ 风格 F「poster」夜幕鎏金（默认） ═══════════════════════
+// 海报优先版式：额度 ≥10% 图宽、标题 ≥6%、信息块 ≤6、字号 5 档。
+// 设计目标与降级规则见 docs/plan-token-share-poster.md。
+
+/** 海报版配色：深紫夜幕 + 鎏金 */
+const P = {
+  text: 'rgba(255,255,255,0.94)',
+  textSec: 'rgba(196,181,253,0.85)',
+  textTer: 'rgba(196,181,253,0.55)',
+  gold: '#FDE68A',
+  goldMid: '#FBBF24',
+  goldDeep: '#D97706',
+}
+
+/** 展示级字体栈：数字巨号优先更粗的展示字体，两端缺失时回落正文字族 */
+const DISPLAY_STACK = '"Arial Black", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif'
+
+function displayFont(size: number, weight: 700 | 800 | 900 = 900): string {
+  return `${weight} ${size}px ${DISPLAY_STACK}`
+}
+
+/** 确定性伪随机：星点每次出图一致（同一通告的缓存图与重渲图不应有差异） */
+function mulberry32(seed: number): () => number {
+  return () => {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** 字距拉开的小标（两端 ctx.letterSpacing 实现不一致，手工逐字拉开） */
+function fillTracked(ctx: ShareCtx, text: string, x: number, y: number, tracking: number): void {
+  let cx = x
+  for (const ch of text) {
+    ctx.fillText(ch, cx, y)
+    cx += ctx.measureText(ch).width + tracking
+  }
+}
+
+function trackedWidth(ctx: ShareCtx, text: string, tracking: number): number {
+  let w = 0
+  for (const ch of text) w += ctx.measureText(ch).width + tracking
+  return w - tracking
+}
+
+const FREE_PROMISE = /(永久免费|永久有效|不限总量|不限次数|无限量|不限量)/
+interface QuotaHero { big: string; unit: string; detail: string }
+
+/** 数字前一个字符是字母/数字/小数点/横线 → 模型版本号（Qwen2.5-7B、GPT-4o），不做主角 */
+const MODEL_NUM_BEFORE = /[A-Za-z0-9.\-]/
+/** 数字出现在这些词之后 → 付费档（充值 10 美元后 1000 次），免费档候选存在时不做主角 */
+const PAID_BEFORE = /充值|付费|购买/
+const MAGNITUDE: Record<string, number> = { 亿: 1e8, 万: 1e4, 千: 1e3, 百: 1e2 }
+
+/**
+ * 额度文案 → 主角数字 + 单位 + 完整说明（原文明显更长时才保留）。
+ * 候选为全部"独立数字 + 量级 + 单位"，免费档（付费关键词之前）优先，
+ * 同档内取换算后数值最大者（"15 RPM / 1500 RPD" 取后者——速率限制不该盖过日额度）；
+ * 数值相同取先出现者。没有可用数字时才回落「永久免费 / 不限总量」这类高价值结论词。
+ */
+function extractQuotaHero(quota: string): QuotaHero {
+  const text = String(quota || '').trim()
+  if (!text) return { big: '限时免费', unit: '', detail: '' }
+
+  const NUM_RE = /(\d(?:[\d,]*\d)?(?:\.\d+)?)\s*([万亿千百])?\s*([A-Za-z一-鿿]+(?:\/[A-Za-z一-鿿]+)?)?/g
+  let best: { big: string; unit: string; value: number; paid: boolean } | null = null
+  for (let m = NUM_RE.exec(text); m; m = NUM_RE.exec(text)) {
+    if (m.index > 0 && MODEL_NUM_BEFORE.test(text[m.index - 1]!)) continue
+    const value = parseFloat(m[1]!.replace(/,/g, '')) * (MAGNITUDE[m[2]!] || 1)
+    const paid = PAID_BEFORE.test(text.slice(0, m.index))
+    // 免费档优先于付费档；同档比数值；同值保留先出现者
+    if (best && (best.paid !== paid ? paid : value <= best.value)) continue
+    best = { big: `${m[1]}${m[2] ? ` ${m[2]}` : ''}`, unit: (m[3] || '').trim(), value, paid }
+  }
+  if (best) {
+    const detail = text.length > best.big.length + best.unit.length + 6 ? text : ''
+    return { big: best.big, unit: best.unit, detail }
+  }
+
+  const promise = text.match(FREE_PROMISE)
+  if (promise) {
+    const rest = text.replace(promise[0], '').replace(/^[；;，,、\s]+/, '').replace(/等$/, '')
+    return { big: promise[0], unit: '', detail: rest ? text : '' }
+  }
+  return { big: text.length > 12 ? `${text.slice(0, 12)}…` : text, unit: '', detail: '' }
+}
+
+/** 标题字号 32 → 30 → 28 自适应：优先"完整不截断"，3 行都放不下才省略号 */
+function fitPosterTitle(ctx: ShareCtx, title: string, maxWidth: number): { size: number; lineH: number; lines: string[] } {
+  for (const size of [32, 30, 28] as const) {
+    ctx.font = font(size, 800)
+    const natural = wrapText(ctx, title, maxWidth, 99)
+    if (natural.length <= 3) return { size, lineH: size + 7, lines: natural }
+  }
+  ctx.font = font(28, 800)
+  return { size: 28, lineH: 35, lines: wrapText(ctx, title, maxWidth, 3) }
+}
+
+/** 主绘制流程 · 风格 F（夜幕鎏金：深紫渐变夜幕 + 鎏金渐变巨号 + 玻璃拟态卡片） */
+function drawPoster(
+  ctx: ShareCtx,
+  deal: ShareDeal,
+  qrImg: ShareImage | null,
+  iconImg: ShareImage | null,
+  siteHost: string,
+): void {
+  const d = normalizeDeal(deal)
+  const right = LOGIC_W - PAD
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'left'
+
+  const quotaRaw = String((deal as any)?.quota || (deal as any)?.freeQuota || '').trim()
+  const quality = String((deal as any)?.quality || '').trim()
+  const soon = isExpiringSoon((deal as any)?.expires_at)
+  const region = regionLabel((deal as any)?.region)
+  const source = sourceLabel((deal as any)?.source_tag)
+  const models = Array.isArray(deal?.models) ? deal.models.map((m) => String(m)).filter(Boolean) : []
+  const nexusRaw = deal?.nexus
+  const proved = nexusRaw && nexusRaw.enabled && nexusRaw.eval_total
+    ? `实测通过 ${nexusRaw.eval_ok}/${nexusRaw.eval_total}`
+    : '社区众包验真'
+  const proof = [models.length ? `${models[0]} 等 ${models.length} 款模型` : '', proved].filter(Boolean).join(' · ')
+
+  // 夜幕底：深紫斜向渐变 + 品红/紫罗兰辉光 + 星点
+  const bg = ctx.createLinearGradient(0, 0, LOGIC_W, LOGIC_H)
+  bg.addColorStop(0, '#150B2E')
+  bg.addColorStop(0.55, '#241448')
+  bg.addColorStop(1, '#31176B')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, LOGIC_W, LOGIC_H)
+  radialGlow(ctx, LOGIC_W - 20, 60, 240, 'rgba(217,70,239,0.16)')
+  radialGlow(ctx, 30, LOGIC_H - 60, 220, 'rgba(124,58,237,0.20)')
+  radialGlow(ctx, LOGIC_W / 2, LOGIC_H / 2 - 40, 260, 'rgba(245,158,11,0.05)')
+  const rand = mulberry32(20260929)
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  for (let i = 0; i < 70; i++) {
+    const sr = rand()
+    ctx.globalAlpha = 0.06 + sr * 0.22
+    ctx.fillRect(rand() * LOGIC_W, rand() * LOGIC_H, sr > 0.9 ? 1.6 : 1, sr > 0.9 ? 1.6 : 1)
+  }
+  ctx.globalAlpha = 1
+
+  // 鎏金细框（内缩 14px）+ 四角加重——证书式"裱框"
+  const frame = ctx.createLinearGradient(0, 0, LOGIC_W, LOGIC_H)
+  frame.addColorStop(0, 'rgba(245,158,11,0.55)')
+  frame.addColorStop(0.5, 'rgba(253,230,138,0.25)')
+  frame.addColorStop(1, 'rgba(245,158,11,0.55)')
+  ctx.strokeStyle = frame
+  ctx.lineWidth = 1
+  ctx.strokeRect(14.5, 14.5, LOGIC_W - 29, LOGIC_H - 29)
+  ctx.strokeStyle = 'rgba(253,230,138,0.9)'
+  ctx.lineWidth = 2
+  for (const [cx, cy, dx, dy] of [[14, 14, 1, 1], [LOGIC_W - 14, 14, -1, 1], [14, LOGIC_H - 14, 1, -1], [LOGIC_W - 14, LOGIC_H - 14, -1, -1]]) {
+    ctx.beginPath()
+    ctx.moveTo(cx + dx * 16, cy)
+    ctx.lineTo(cx, cy)
+    ctx.lineTo(cx, cy + dy * 16)
+    ctx.stroke()
+  }
+
+  // 紧急度：顶部 5px 金→红渐变带（仅 ≤3 天到期触发；置顶不做视觉噪音）
+  if (soon) {
+    const band = ctx.createLinearGradient(0, 0, LOGIC_W, 0)
+    band.addColorStop(0, '#DC2626')
+    band.addColorStop(1, '#F59E0B')
+    ctx.fillStyle = band
+    ctx.fillRect(0, 0, LOGIC_W, 5)
+  }
+
+  // ① 品牌：字距拉开的鎏金小标
+  ctx.fillStyle = P.gold
+  ctx.font = font(11, 700)
+  fillTracked(ctx, 'FAVSHUB', PAD + 4, 42, 3.5)
+  ctx.fillStyle = 'rgba(253,230,138,0.75)'
+  ctx.fillText('· 白嫖通告', PAD + 4 + trackedWidth(ctx, 'FAVSHUB', 3.5) + 6, 42)
+
+  if (quality) {
+    ctx.font = font(10.5, 700)
+    const qw = ctx.measureText(quality).width + 22
+    ctx.strokeStyle = 'rgba(253,230,138,0.55)'
+    ctx.lineWidth = 1
+    roundRect(ctx, right - qw - 4, 26, qw, 22, 11)
+    ctx.stroke()
+    ctx.fillStyle = P.gold
+    ctx.textAlign = 'center'
+    ctx.fillText(quality, right - qw / 2 - 4, 41)
+    ctx.textAlign = 'left'
+  }
+
+  // ② 服务商：玻璃拟态条
+  const glassY = 62
+  ctx.fillStyle = 'rgba(255,255,255,0.07)'
+  roundRect(ctx, PAD, glassY, LOGIC_W - PAD * 2, 42, 12)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'
+  ctx.lineWidth = 1
+  roundRect(ctx, PAD + 0.5, glassY + 0.5, LOGIC_W - PAD * 2 - 1, 41, 12)
+  ctx.stroke()
+  const iconSize = 26
+  ctx.fillStyle = 'rgba(255,255,255,0.92)'
+  roundRect(ctx, PAD + 8, glassY + 8, iconSize, iconSize, 7)
+  ctx.fill()
+  if (iconImg) {
+    ctx.save()
+    roundRect(ctx, PAD + 9, glassY + 9, iconSize - 2, iconSize - 2, 6)
+    ctx.clip()
+    ctx.drawImage(iconImg, PAD + 9, glassY + 9, iconSize - 2, iconSize - 2)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = '#6D28D9'
+    ctx.font = font(12, 800)
+    ctx.textAlign = 'center'
+    ctx.fillText(d.provider.slice(0, 1).toUpperCase(), PAD + 8 + iconSize / 2, glassY + 8 + 18)
+    ctx.textAlign = 'left'
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.font = font(14.5, 700)
+  ctx.fillText(ellipsize(ctx, d.provider, right - PAD - 130), PAD + 42, glassY + 19)
+  ctx.fillStyle = P.textSec
+  ctx.font = font(10, 500)
+  ctx.fillText([region, source].filter(Boolean).join(' · '), PAD + 42, glassY + 34)
+
+  // ③ 额度 hero：鎏金渐变巨号 + 金辉光
+  const hero = extractQuotaHero(quotaRaw)
+  const heroY = 126
+  const heroCardH = 118 + (hero.detail ? 20 : 0)
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'
+  roundRect(ctx, PAD, heroY, LOGIC_W - PAD * 2, heroCardH, 16)
+  ctx.fill()
+  const heroStroke = ctx.createLinearGradient(PAD, heroY, right, heroY + heroCardH)
+  heroStroke.addColorStop(0, 'rgba(245,158,11,0.5)')
+  heroStroke.addColorStop(0.5, 'rgba(255,255,255,0.10)')
+  heroStroke.addColorStop(1, 'rgba(245,158,11,0.35)')
+  ctx.strokeStyle = heroStroke
+  ctx.lineWidth = 1
+  roundRect(ctx, PAD + 0.5, heroY + 0.5, LOGIC_W - PAD * 2 - 1, heroCardH - 1, 16)
+  ctx.stroke()
+
+  ctx.fillStyle = 'rgba(253,230,138,0.8)'
+  ctx.font = font(10.5, 700)
+  ctx.fillText('免 费 额 度', PAD + 16, heroY + 30)
+
+  ctx.font = font(10, 600)
+  const vw = ctx.measureText(d.validity).width + 18
+  ctx.strokeStyle = soon ? 'rgba(248,113,113,0.7)' : 'rgba(196,181,253,0.45)'
+  ctx.lineWidth = 1
+  roundRect(ctx, right - 16 - vw, heroY + 15, vw, 20, 10)
+  ctx.stroke()
+  ctx.fillStyle = soon ? '#FCA5A5' : 'rgba(196,181,253,0.9)'
+  ctx.fillText(d.validity, right - 16 - vw + 9, heroY + 29)
+
+  // 数字（最大）+ 单位（0.32×），整体不超宽才降级
+  const innerW = LOGIC_W - PAD * 2 - 32
+  let bigSize = 64
+  for (;;) {
+    ctx.font = displayFont(bigSize, 900)
+    const bw = ctx.measureText(hero.big).width
+    ctx.font = font(Math.round(bigSize * 0.32), 600)
+    const uw = hero.unit ? ctx.measureText(hero.unit).width : 0
+    if (bw + (hero.unit ? 10 + uw : 0) <= innerW || bigSize <= 34) break
+    bigSize -= 1
+  }
+  const bigBase = heroY + 46 + Math.round(bigSize * 0.72)
+  ctx.save()
+  ctx.shadowColor = 'rgba(245,158,11,0.45)'
+  ctx.shadowBlur = 26
+  const gold = ctx.createLinearGradient(0, bigBase - bigSize, 0, bigBase)
+  gold.addColorStop(0, P.gold)
+  gold.addColorStop(0.5, P.goldMid)
+  gold.addColorStop(1, P.goldDeep)
+  ctx.fillStyle = gold
+  ctx.font = displayFont(bigSize, 900)
+  ctx.fillText(hero.big, PAD + 16, bigBase)
+  ctx.restore()
+  ctx.font = displayFont(bigSize, 900)
+  const bigW = ctx.measureText(hero.big).width
+  if (hero.unit) {
+    ctx.fillStyle = P.textSec
+    ctx.font = font(Math.round(bigSize * 0.32), 600)
+    ctx.fillText(hero.unit, PAD + 16 + bigW + 10, bigBase)
+  }
+  if (hero.detail) {
+    ctx.fillStyle = 'rgba(196,181,253,0.7)'
+    ctx.font = font(10, 500)
+    ctx.fillText(ellipsize(ctx, hero.detail, innerW), PAD + 16, bigBase + 20)
+  }
+
+  // 中部鬼影"免"字（描边空心，纵深用）
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'
+  ctx.lineWidth = 2
+  ctx.font = displayFont(150, 900)
+  ctx.strokeText('免', LOGIC_W - 168, heroY + heroCardH + 168)
+  ctx.restore()
+
+  // ④ 标题（自适应 32→28，最多 3 行，优先不截断）
+  const titleTop = heroY + heroCardH + 40
+  const t = fitPosterTitle(ctx, d.title, LOGIC_W - PAD * 2)
+  ctx.fillStyle = P.text
+  ctx.font = font(t.size, 800)
+  t.lines.forEach((l, i) => ctx.fillText(l, PAD, titleTop + t.lineH * (i + 1) - 9))
+  const barY = titleTop + t.lines.length * t.lineH + 8
+  const barGrad = ctx.createLinearGradient(PAD, 0, PAD + 46, 0)
+  barGrad.addColorStop(0, '#F59E0B')
+  barGrad.addColorStop(1, 'rgba(245,158,11,0)')
+  ctx.fillStyle = barGrad
+  roundRect(ctx, PAD, barY, 46, 3.5, 1.75)
+  ctx.fill()
+
+  // ⑤ 一行可信度
+  ctx.fillStyle = P.textSec
+  ctx.font = font(10.5, 500)
+  ctx.fillText(ellipsize(ctx, proof, LOGIC_W - PAD * 2), PAD, 452)
+
+  // ⑥ 页脚：金渐变规线 + 白卡二维码 + 鎏金 CTA
+  const footY = 466
+  const footLine = ctx.createLinearGradient(PAD, 0, right, 0)
+  footLine.addColorStop(0, 'rgba(245,158,11,0.5)')
+  footLine.addColorStop(1, 'rgba(245,158,11,0.06)')
+  ctx.fillStyle = footLine
+  ctx.fillRect(PAD, footY, LOGIC_W - PAD * 2, 1)
+
+  const qrSize = 72
+  const qrX = right - 4 - qrSize
+  const qrY = footY + 12
+  const qrPad = 10                    // ≥4 个模块的静区，保证扫码率
+  ctx.fillStyle = '#FFFFFF'
+  roundRect(ctx, qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrSize + qrPad * 2, 8)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(253,230,138,0.5)'
+  ctx.lineWidth = 1
+  roundRect(ctx, qrX - qrPad + 0.5, qrY - qrPad + 0.5, qrSize + qrPad * 2 - 1, qrSize + qrPad * 2 - 1, 8)
+  ctx.stroke()
+  if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
+  ctx.fillStyle = 'rgba(196,181,253,0.7)'
+  ctx.font = font(9, 500)
+  ctx.textAlign = 'center'
+  ctx.fillText('长按识别', qrX + qrSize / 2, qrY + qrSize + 22)
+  ctx.textAlign = 'left'
+
+  ctx.fillStyle = P.gold
+  ctx.font = font(12.5, 800)
+  ctx.fillText('扫码开薅 →', PAD, qrY + 24)
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'
+  ctx.font = font(10.5, 500)
+  ctx.fillText(ellipsize(ctx, siteHost, qrX - PAD - 20), PAD, qrY + 44)
+  ctx.fillStyle = P.textTer
+  ctx.font = font(9.5, 500)
+  ctx.fillText('通告详情 · 实测数据 · 社区评价', PAD, qrY + 62)
+}
+
+/** 六风格绘制函数表 */
 const DRAWERS: Record<ShareCardStyle, (
   ctx: ShareCtx,
   deal: ShareDeal,
@@ -2236,6 +2588,7 @@ const DRAWERS: Record<ShareCardStyle, (
   iconImg: ShareImage | null,
   siteHost: string,
 ) => void> = {
+  poster: drawPoster,
   magazine: drawMagazine,
   neon: drawNeon,
   clay: drawClay,
@@ -2264,7 +2617,7 @@ export function drawShareCard(
     style?: ShareCardStyle
   } = {},
 ): void {
-  const draw = DRAWERS[options.style || 'magazine'] || drawMagazine
+  const draw = DRAWERS[options.style || 'poster'] || drawPoster
   draw(ctx, deal, options.qrImg ?? null, options.iconImg ?? null, options.siteHost || 'FavsHub')
 }
 

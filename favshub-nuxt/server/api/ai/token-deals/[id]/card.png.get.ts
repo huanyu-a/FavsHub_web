@@ -5,7 +5,7 @@
  * （共用 `utils/deal-share-draw.ts`），故技能产出的卡片与站点一致。
  *
  * 查询参数：
- *   - `style` = magazine（默认）| neon | clay
+ *   - `style` = poster（默认）| magazine | neon | clay | blast | voucher
  *   - `refresh=1` 跳过缓存强制重渲染（用于调试）
  *
  * 鉴权：read scope。图片本身是公开通告的展示物，但仍走 PAT —— 防止匿名刷图
@@ -28,7 +28,7 @@ import {
   type ShareCardStyle,
 } from '../../../../utils/deal-card'
 
-const VALID_STYLES: ShareCardStyle[] = ['magazine', 'neon', 'clay']
+const VALID_STYLES: ShareCardStyle[] = ['poster', 'magazine', 'neon', 'clay', 'blast', 'voucher']
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -68,10 +68,10 @@ export default defineAiHandler('read', async (event, token) => {
   }
 
   const query = getQuery(event)
-  const styleRaw = String(query.style || 'magazine').toLowerCase()
+  const styleRaw = String(query.style || 'poster').toLowerCase()
   const style: ShareCardStyle = VALID_STYLES.includes(styleRaw as ShareCardStyle)
     ? (styleRaw as ShareCardStyle)
-    : 'magazine'
+    : 'poster'
 
   const db = getRawDb()
   const row = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any

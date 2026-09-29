@@ -7,13 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.2.0",
+  version: "1.3.0",
   site_version: "1.0.10",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**新增** 通告分享卡片端点：`GET /api/ai/token-deals/:id/card.png`。",
-  "**新增** 响应头 `x-card-style`（生效风格）与 `x-card-cached`（缓存命中状态）。",
-  "**说明** 该端点为 `read` scope；未审核通过的通告仅作者与管理员可取。"
+  "**新增** 分享卡片 `poster` 风格（夜幕鎏金海报）并成为**默认风格**：额度数字放大至",
+  "**变更** `style` 参数白名单扩至六种：`poster`（默认）/ `magazine` / `neon` / `clay` /",
+  "**说明** 非法 style 的回退目标由 `magazine` 改为 `poster`。"
 ],
 } as const
