@@ -90,16 +90,34 @@
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>QQ 机器人</h3></div>
         <div class="card-body">
-          <p class="hint">OneBot 11（NapCat）群通知：通告与提示词的待审 / 审核结果推送到目标群。需在服务端配置 <code>NUXT_QQ_BOT_HTTP_URL</code> 指向机器人 HTTP API。</p>
+          <p class="hint" v-if="qqBot.qq_bot_transport === 'outbox'">经服务器 Hermes（官方 QQ 机器人 / 钉钉）推送通知：应用把消息写入 outbox 队列文件，宿主机定时任务逐条调 <code>hermes send</code> 投递。群通知需 QQ 开放平台「主动消息」权限；待审提醒会直接私聊主人（@ 提醒的等价通道，实测可用）。</p>
+          <p class="hint" v-else>OneBot 11（NapCat）群通知：通告与提示词的待审 / 审核结果推送到目标群。需在服务端配置 <code>NUXT_QQ_BOT_HTTP_URL</code> 指向机器人 HTTP API。</p>
+          <div class="fg"><label>出站方式</label>
+            <select v-model="qqBot.qq_bot_transport" @change="saveQqBot">
+              <option value="onebot">OneBot 11 HTTP API（NapCat 直连）</option>
+              <option value="outbox">Hermes outbox（服务器 hermes send 投递）</option>
+            </select>
+          </div>
           <div class="toggle-row">
-            <label>启用 QQ 机器人通知</label>
+            <label>启用机器人通知</label>
             <label class="switch">
               <input type="checkbox" v-model="qqBot.qq_bot_enabled" @change="saveQqBot">
               <span class="slider"></span>
             </label>
           </div>
-          <div class="fg"><label>通知目标群号</label><input v-model="qqBot.qq_bot_group_id" placeholder="如 123456789" @input="saveQqBot"><small>留空则不推送群消息</small></div>
-          <div class="fg"><label>管理员 QQ 号</label><input v-model="qqBot.qq_admin_qq" placeholder="如 10001" @input="saveQqBot"><small>待审消息中 @ 提醒的 QQ 号；管理员已绑定 QQ 时优先用绑定号</small></div>
+          <div class="fg" v-if="qqBot.qq_bot_transport === 'outbox'">
+            <label>队列目录（spool）</label>
+            <input v-model="qqBot.qq_outbox_path" placeholder="如 /opt/favshub/data/qq-outbox" @input="saveQqBot">
+            <small>容器内的挂载卷目录，每条通知写成一个 JSON 文件、由宿主机定时任务逐文件消费；留空则回落到环境变量 NUXT_QQ_OUTBOX_DIR 下的 qq-outbox 子目录，两者皆空时不发送</small>
+          </div>
+          <div class="fg"><label>通知目标{{ qqBot.qq_bot_transport === 'outbox' ? '（群 / 频道）' : '群号' }}</label>
+            <input v-model="qqBot.qq_bot_group_id" :placeholder="qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:37BC…,dingtalk:cid…（逗号分隔多通道）' : '如 123456789'" @input="saveQqBot">
+            <small>{{ qqBot.qq_bot_transport === 'outbox' ? 'Hermes 目标串；裸 id 自动按 qqbot 处理。需开放平台「主动消息」权限，未开通时投递失败自动重试后进失败文件' : '留空则不推送群消息' }}</small>
+          </div>
+          <div class="fg"><label>{{ qqBot.qq_bot_transport === 'outbox' ? '主人提醒目标（私聊）' : '管理员 QQ 号' }}</label>
+            <input v-model="qqBot.qq_admin_qq" :placeholder="qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:C3DB…' : '如 10001'" @input="saveQqBot">
+            <small>{{ qqBot.qq_bot_transport === 'outbox' ? '待审消息同时私聊此目标（等价于群里 @ 主人）；留空则仅群播报' : '待审消息中 @ 提醒的 QQ 号；管理员已绑定 QQ 时优先用绑定号' }}</small>
+          </div>
         </div>
       </div>
     </div>
@@ -235,7 +253,7 @@ function saveLimits() {
   }, 500)
 }
 // ── QQ 机器人 ──────────────────────────────
-const qqBot = reactive({ qq_bot_enabled: false, qq_bot_group_id: '', qq_admin_qq: '' })
+const qqBot = reactive({ qq_bot_enabled: false, qq_bot_group_id: '', qq_admin_qq: '', qq_bot_transport: 'onebot', qq_outbox_path: '' })
 let qqBotTimer: any = null
 function saveQqBot() {
   clearTimeout(qqBotTimer)
@@ -280,6 +298,8 @@ security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       qqBot.qq_bot_enabled = s.qq_bot_enabled === 'true'
       qqBot.qq_bot_group_id = s.qq_bot_group_id || ''
       qqBot.qq_admin_qq = s.qq_admin_qq || ''
+      qqBot.qq_bot_transport = s.qq_bot_transport || 'onebot'
+      qqBot.qq_outbox_path = s.qq_outbox_path || ''
     }
   } catch {}
 })

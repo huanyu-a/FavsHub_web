@@ -25,6 +25,8 @@ export const SYSTEM_ONLY_KEYS = [
   'baidu_tongji_id', 'baidu_tongji_domains',
   // QQ Bot（OneBot 11 / NapCat）
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
+  // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
+  'qq_bot_transport', 'qq_outbox_path',
 ]
 
 /**
@@ -68,9 +70,14 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   bookmarks_query_limit: '500',
   // QQ Bot（OneBot 11 / NapCat）
   // qq_bot_enabled：总开关，false 时入站 403、出站不发送
-  // qq_bot_group_id：通知目标群号（空 = 不推送群消息）
-  // qq_admin_qq：群 @ 提醒的管理员 QQ 号（若管理员已绑定 QQ 则优先用绑定号）
+  // qq_bot_group_id：群通知目标。onebot 传输=群号；outbox 传输=Hermes 目标（qqbot:/dingtalk: 前缀的会话 id，
+  //   多个用逗号分隔；官方 QQ 群需先在开放平台开通「主动消息」权限，否则发送失败进重试）
+  // qq_admin_qq：主人提醒目标。onebot 传输=管理员 QQ 号（群消息尾 @）；outbox 传输=私聊 Hermes 目标（待审提醒直接 DM 主人）
+  // qq_bot_transport：出站传输方式 'onebot'（默认，兼容 NapCat 直连）/ 'outbox'（写 spool 目录，宿主机 cron + hermes send 消费）
+  // qq_outbox_path：outbox spool 目录（容器内路径，需为宿主机可见的挂载卷；空 = 回落 NUXT_QQ_OUTBOX_DIR；两者皆空 = outbox 传输不可用）
   qq_bot_enabled: 'false',
   qq_bot_group_id: '',
   qq_admin_qq: '',
+  qq_bot_transport: 'onebot',
+  qq_outbox_path: '',
 }

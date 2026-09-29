@@ -1,16 +1,25 @@
 /**
- * QQ 机器人出站通知服务（OneBot 11 HTTP API / NapCat）
+ * QQ 机器人出站通知服务（双传输）
  *
  * 架构（docs/plans/2026-09-29-dashboard-qqbot.md §B3）：
  *   - 调用方（各端点写库成功后）只做「组装文案 + 入队」，纯同步、零阻塞；
  *   - 模块级队列由 flush 定时器每 1s 投递一条（天然节流防刷屏）；
  *   - 单条失败退避重试最多 3 次（1s / 5s / 25s），仍失败丢弃并 console.warn；
- *   - 总开关不满足直接丢弃：qq_bot_enabled=true 且 qqBotHttpUrl 非空
- *     （群消息还要求 qq_bot_group_id 非空；私聊消息不需要群号）。
+ *   - 总开关不满足直接丢弃：qq_bot_enabled=true，且所选传输的投递通道可用：
+ *       transport='onebot'（默认）→ runtimeConfig.qqBotHttpUrl 非空，直连 OneBot 11 HTTP API；
+ *       transport='outbox'        → qq_outbox_path 或 NUXT_QQ_OUTBOX_DIR 可解析出 spool 目录，
+ *         每条消息写成目录下一个 JSON 文件（tmp+rename 原子发布），由宿主机
+ *         scripts/qq-outbox-deliver.py（cron）逐文件消费并转投 `hermes send`
+ *         （官方 QQ 群 / 单聊 / 钉钉群，目标串形如 'qqbot:37BC…'、'dingtalk:cid…'，
+ *          群目标支持逗号分隔多通道）。
+ *   - 待审类提醒：onebot 下 = 群消息尾附 CQ @码；outbox 下 = 群广播 + 私聊主人
+ *     （qq_admin_qq 语义在 outbox 下为 Hermes 私聊目标，因官方群主动消息受平台权限限制）。
  *
  * fire-and-forget 铁律：任何失败绝不向上抛出，绝不阻断主请求。
- * 出站用原生 fetch，不引入新依赖；message 为字符串格式（可含 CQ 码）。
+ * onebot 出站用原生 fetch（message 为字符串格式，可含 CQ 码）；outbox 出站为同步 spool 写入。
  */
+import { mkdirSync, writeFileSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
 import { getRawDb } from '../database'
 import { getConfig } from './config'
 import { parseAdminUsers } from './auth'
@@ -40,9 +49,14 @@ function ensureFlushTimer() {
   flushTimer.unref?.()
 }
 
-/** 出站总开关：system_config 热配置 + runtimeConfig HTTP 地址 */
+/** 出站总开关：system_config 热配置 */
 function botEnabled(): boolean {
   return getConfig('qq_bot_enabled') === 'true'
+}
+
+/** 当前出站传输：'outbox'（Hermes 文件队列）或 'onebot'（直连 HTTP API） */
+function isOutbox(): boolean {
+  return String(getConfig('qq_bot_transport') || 'onebot').trim() === 'outbox'
 }
 
 function botHttpUrl(): string {
@@ -51,6 +65,25 @@ function botHttpUrl(): string {
   } catch {
     return ''
   }
+}
+
+/**
+ * outbox 队列目录（spool）：热配置 qq_outbox_path 优先，回落 runtimeConfig.qqOutboxDir/qq-outbox。
+ * 容器内路径，必须位于挂载卷（线上 /opt/favshub/data/qq-outbox ↔ 宿主机 <data>/qq-outbox）。
+ */
+function outboxDir(): string {
+  const p = String(getConfig('qq_outbox_path') || '').trim()
+  if (p) return p
+  try {
+    const dir = String(useRuntimeConfig().qqOutboxDir || '').trim()
+    if (dir) return join(dir, 'qq-outbox')
+  } catch { /* runtimeConfig 不可用 */ }
+  return ''
+}
+
+/** 所选传输的投递通道是否可用 */
+function transportAvailable(): boolean {
+  return isOutbox() ? !!outboxDir() : !!botHttpUrl()
 }
 
 function botAccessToken(): string {
@@ -85,6 +118,37 @@ async function sendToOnebot(action: string, payload: Record<string, unknown>): P
   }
 }
 
+/**
+ * 写入 outbox spool 目录（一条消息一个 JSON 文件），宿主机 scripts/qq-outbox-deliver.py 消费。
+ * 先写 <id>.tmp 再 renameSync 原子发布，消费端只会读到完整文件；生产者从不改名已发布文件。
+ *
+ * outbox 目标归一化：
+ *   - 群目标（qq_bot_group_id）支持逗号分隔多通道（如 'qqbot:37BC…,dingtalk:cid…'），每个目标各写一个文件，独立重试；
+ *   - 无 'platform:' 前缀的目标串自动补 'qqbot:'（兼容裸 openid/群 id 配置）；
+ *   - 文本做 CQ 实体反转义（构造时按 OneBot 转义过 &#38;/&#91;/&#93;），
+ *     outbox 消费端是纯文本通道，不应显示 HTML 实体；@ 由待审提醒的 DM 分支实现，此处不会有裸 CQ 码。
+ */
+let outboxSeq = 0
+function sendToOutbox(item: QueueItem): void {
+  const dir = outboxDir()
+  if (!dir) throw new Error('qq_outbox_path/NUXT_QQ_OUTBOX_DIR 未配置')
+  mkdirSync(dir, { recursive: true })
+  const now = Date.now()
+  const iso = new Date(now).toISOString()
+  const targets = String(item.target || '').split(',').map(s => s.trim()).filter(Boolean)
+    .map(t => (/^[a-z0-9_-]+:/i.test(t) ? t : `qqbot:${t}`))
+  const text = unescapeCqText(item.text)
+  for (const target of targets) {
+    outboxSeq += 1
+    const base = `${now}-${process.pid}-${outboxSeq}`
+    const tmp = join(dir, `${base}.tmp`)
+    const final = join(dir, `${base}.json`)
+    const payload = { v: 1, at: iso, kind: item.kind, target, text }
+    writeFileSync(tmp, JSON.stringify(payload) + '\n', 'utf8')
+    renameSync(tmp, final) // 原子发布
+  }
+}
+
 /** 每 1s 投递一条：取队头第一条「退避已到期」的消息 */
 function flushQueue() {
   const now = Date.now()
@@ -97,7 +161,9 @@ function flushQueue() {
 /** 投递单条消息；失败按 1s/5s/25s 退避回队重试，3 次后丢弃 */
 async function deliver(item: QueueItem): Promise<void> {
   try {
-    if (item.kind === 'group') {
+    if (isOutbox()) {
+      sendToOutbox(item)
+    } else if (item.kind === 'group') {
       // OneBot 的 group_id 期望数字，纯数字串转 Number 兼容严格实现
       const groupId = /^\d+$/.test(item.target) ? Number(item.target) : item.target
       await sendToOnebot('/send_group_msg', { group_id: groupId, message: item.text })
@@ -117,11 +183,11 @@ async function deliver(item: QueueItem): Promise<void> {
   }
 }
 
-/** 入队（开关判定 + 异常兜底，绝不抛出） */
+/** 入队（开关判定 + 传输通道判定 + 异常兜底，绝不抛出） */
 function enqueue(item: Omit<QueueItem, 'retries' | 'retryAt'>) {
   try {
     if (!botEnabled()) return
-    if (!botHttpUrl()) return
+    if (!transportAvailable()) return
     queue.push({ ...item, retries: 0, retryAt: 0 })
     ensureFlushTimer()
   } catch (err: any) {
@@ -183,7 +249,23 @@ function resolveAdminQQ(): string {
   return fallback
 }
 
-/** 群消息尾部追加 CQ 码 @管理员（未配置管理员 QQ 号则不加） */
+/**
+ * 待审类提醒（需要主人行动的消息）：
+ *   - onebot：群消息尾附 CQ @码（已绑定管理员优先，回落 qq_admin_qq）
+ *   - outbox：群广播 + 私聊主人（qq_admin_qq 语义 = Hermes 私聊目标）。
+ *     官方 QQ 群不支持机器人主动 @ 成员（「主动消息」权限另受限），DM 主人是已实测可达的提醒通道。
+ */
+function queuePendingNotice(text: string): void {
+  if (isOutbox()) {
+    queueGroupMessage(text)
+    const adminTarget = String(getConfig('qq_admin_qq') || '').trim()
+    if (adminTarget) queuePrivateMessage(adminTarget, text)
+  } else {
+    queueGroupMessage(withAdminMention(text))
+  }
+}
+
+/** onebot 模式：群消息尾部追加 CQ 码 @管理员（未配置管理员 QQ 号则不加） */
 function withAdminMention(text: string): string {
   const adminQQ = resolveAdminQQ()
   return adminQQ ? `${text} [CQ:at,qq=${adminQQ}]` : text
@@ -200,6 +282,17 @@ export function escapeCqText(text: unknown): string {
     .replaceAll('&', '&#38;')
     .replaceAll('[', '&#91;')
     .replaceAll(']', '&#93;')
+}
+
+/**
+ * escapeCqText 的逆过程：outbox（Hermes）通道按纯文本投递，不应携带 HTML 实体。
+ * 仅用于 sendToOutbox；onebot 路径不经过此函数（CQ 码须保持转义态）。
+ */
+function unescapeCqText(text: string): string {
+  return String(text ?? '')
+    .replaceAll('&#91;', '[')
+    .replaceAll('&#93;', ']')
+    .replaceAll('&#38;', '&')
 }
 
 /** 待审通告条数（实时 COUNT） */
@@ -239,7 +332,7 @@ export function getBoundQQ(userId: number): string {
 
 /** 新通告待审 → 群（@管理员） */
 export function notifyTokenDealPending(title: string, submitter: string): void {
-  queueGroupMessage(withAdminMention(`📥 新通告待审：《${escapeCqText(title)}》（提交人：${escapeCqText(submitter)}），当前待审 ${countPendingDeals()} 条`))
+  queuePendingNotice(`📥 新通告待审：《${escapeCqText(title)}》（提交人：${escapeCqText(submitter)}），当前待审 ${countPendingDeals()} 条`)
 }
 
 /** 管理员直接发布 → 群（不 @） */
@@ -249,7 +342,7 @@ export function notifyTokenDealPublished(title: string): void {
 
 /** 通告修改回待审 → 群（@管理员） */
 export function notifyTokenDealRePending(title: string): void {
-  queueGroupMessage(withAdminMention(`✏️ 通告《${escapeCqText(title)}》已修改，重新进入待审，当前待审 ${countPendingDeals()} 条`))
+  queuePendingNotice(`✏️ 通告《${escapeCqText(title)}》已修改，重新进入待审，当前待审 ${countPendingDeals()} 条`)
 }
 
 /** 通告删除 → 群 */
@@ -274,7 +367,7 @@ export function notifyTokenDealRejected(title: string, authorUserId: number, rea
 
 /** 提示词修改待审 → 群（@管理员） */
 export function notifyPromptReviewPending(title: string): void {
-  queueGroupMessage(withAdminMention(`📝 提示词《${escapeCqText(title)}》有新的修改审核请求，当前待审 ${countPendingPromptReviews()} 条`))
+  queuePendingNotice(`📝 提示词《${escapeCqText(title)}》有新的修改审核请求，当前待审 ${countPendingPromptReviews()} 条`)
 }
 
 /** 提示词审核通过 → 私聊提交人（若已绑定 QQ） */

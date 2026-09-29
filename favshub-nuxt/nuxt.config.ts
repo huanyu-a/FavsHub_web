@@ -45,6 +45,10 @@ export default defineNuxtConfig({
     // qqBotAccessToken：NapCat access_token（出站头 + 入站校验同一值），空 = 入站端点拒绝一切
     qqBotHttpUrl: '',
     qqBotAccessToken: '',
+    // qqOutboxDir：outbox 传输（qq_bot_transport=outbox）的队列目录（容器内路径，必须是宿主机可见的挂载卷）。
+    // 热配置 qq_outbox_path 优先；两者都空 = outbox 传输不可用。
+    // 宿主机 cron 消费该目录（逐文件调 `hermes send` 投递，详见 scripts/qq-outbox-deliver.py）。
+    qqOutboxDir: '',
     public: {
       // 站点对外地址：用于 canonical / og:url / og:image / sitemap.xml。
       // 线上部署经环境变量 NUXT_PUBLIC_BASE_URL 覆盖；默认值必须与实际线上域名一致，
