@@ -1792,6 +1792,26 @@ aside .card-link:hover,
   background-color: var(--surface-active);
 }
 
+/* 结果项图标：固定 20px 视口，防止 API 返回的大图/无固有尺寸图撑爆面板 */
+.search-suggestions .suggestion-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.search-suggestions .suggestion-icon img.favicon {
+  width: 20px;
+  height: 20px;
+  max-width: none;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+  margin-right: 0;
+}
+
 /* 提示词条目：主题令牌高亮（color-mix 随 --warning 自动适配亮暗主题） */
 .search-suggestions li[data-type="prompt"] {
   background: color-mix(in srgb, var(--warning) 6%, transparent);

@@ -63,17 +63,17 @@
             <span class="suggestion-icon">
               <img v-if="s.icon" :src="s.icon" alt="" class="favicon" @error="(e) => ((e.target as HTMLElement).style.display = 'none')">
               <template v-else-if="s.type === 'prompt'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
                   <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                 </svg>
               </template>
               <template v-else-if="s.type === 'history'">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </svg>
               </template>
               <template v-else>
-                <i class="ri-bookmark-line" style="font-size:14px;color:var(--text-tertiary);"></i>
+                <i class="ri-bookmark-line" style="font-size:16px;color:var(--text-tertiary);"></i>
               </template>
             </span>
             <span class="suggestion-text">{{ s.text }}</span>
