@@ -25,9 +25,10 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const APP_PORT = 3212
 const BASE = `http://127.0.0.1:${APP_PORT}`
 const SPOOL = join(ROOT, 'data', `e2e-spool-${Date.now()}`, 'qq-outbox')
-const GROUP_QQBOT = '37BC1D079515692C216C753A7E78FBC1' // 裸 id（无平台前缀），断言归一化
-const GROUP_DINGTALK = 'dingtalk:cid5wGlm0fAc15hBqycmMSHBw=='
-const ADMIN_TARGET = 'C3DB769DF801B4661137307723B10FA2' // 主人私聊（裸 id → qqbot:）
+// 占位 fixture（测试只用其形状断言前缀归一化/原样透传，不涉及真实通道；真实 ID 只存线上热配置）
+const GROUP_QQBOT = 'F00DCAFE0123456789ABCDEF01234567' // 裸 id（无平台前缀），断言归一化
+const GROUP_DINGTALK = 'dingtalk:cidE2EFAKE000000000000000000=='
+const ADMIN_TARGET = 'A11CE0000000000000000000000000FE' // 主人私聊（裸 id → qqbot:）
 const PASSWORD = 'e2e-pass-123'
 
 let passCount = 0

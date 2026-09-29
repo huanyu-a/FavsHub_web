@@ -241,7 +241,7 @@ AI 通道（`server/utils/ai-service.ts` 的 createTokenDeal 等）与修改建�
 - 线上已验证：容器写 spool → 宿主机 bind-mount 可见；两条自检消息经
   `deliver.py → hermes send → 主人 QQ 私聊`实测送达；cron 已装。
 
-**开启群播报的前置**：在 QQ 开放平台为本机器人（AppID 1903184150）申请「主动消息」权限；
-批准后在 后台 → 系统配置 → QQ 机器人「通知目标」填 `qqbot:37BC1D079515692C216C753A7E78FBC1`
-（群会话 id 已在 Hermes 通道目录中，无需重新抓取），如需同时播报钉钉群再追加
-`,dingtalk:cid5wGlm0fAc15hBqycmMSHBw==`。权限未批前群发会按上述策略重试后进死信，不影响主流程。
+**开启群播报的前置**：在 QQ 开放平台为本机器人申请「主动消息」权限（AppID 见开放平台控制台，不入库不入仓库）；
+批准后在 后台 → 系统配置 → QQ 机器人「通知目标」填 `qqbot:<群通道ID>`（群通道 ID 由 Hermes
+channel_directory.json 取得，属机器人身份数据，只存线上热配置，文档与仓库不落值），如需同时播报钉钉群再追加
+`,dingtalk:<群会话ID>`。权限未批前群发会按上述策略重试后进死信，不影响主流程。
