@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.3.0
+version: 1.4.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -69,6 +69,9 @@ Authorization: Bearer {TOKEN}
 
 ### 5. 数据隔离
 所有查询与写入强制限定于令牌所属用户。操作他人资源返回 **404**（与"不存在"不区分，避免信息泄露）。
+**唯一的例外是通告**：通告内容允许所有人修改，但必须走**修改建议**通道（见 Token 通告小节）——
+他人**已公开**通告的直接 PUT 返回 **403 并给出建议通道指引**（按指引提交建议即可，不必找用户要管理员令牌）；
+直接 DELETE 返回 403（下架他人通告只能由创建者/管理员操作）。
 
 ### 6. 可见性
 非管理员写入的数据强制 `login_required = 1`（仅自己可见）；管理员可选择公开。
@@ -129,6 +132,13 @@ POST   /api/ai/token-deals      { provider, title, url, call_url?, quota?, model
 PUT    /api/ai/token-deals/:id  { title?, provider?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }
 DELETE /api/ai/token-deals/:id  { confirm: true, dry_run? }
 GET    /api/ai/token-deals/:id/card.png?style=&refresh=   # 分享卡片（PNG 二进制）
+
+# ── 修改建议（提案通道）：普通用户对他人/管理员通告的唯一修改路径 ──
+POST   /api/ai/token-deals/:id/edits      { <要改的字段...>, comment?, dry_run? }   # 提交建议（write）
+GET    /api/ai/token-deals/:id/edits      ?status=pending|approved|rejected|all     # 某通告的建议列表（read）
+GET    /api/ai/token-deal-edits           ?limit=&page=                             # 「待我审核」的建议（read）
+POST   /api/ai/token-deal-edits/:id/review { action: 'approve'|'reject', reason?, dry_run? }   # 审核（write，作者/管理员）
+DELETE /api/ai/token-deal-edits/:id       # 撤回自己的待审建议（write）
 ```
 
 - 列表默认返回公开的已审核通告 + 自己发布的全部（含待审核）
@@ -137,6 +147,22 @@ GET    /api/ai/token-deals/:id/card.png?style=&refresh=   # 分享卡片（PNG �
 - **`PUT` 是部分更新**：只传要改的字段，未传字段保持原值 —— 改标题不必回填其余字段
 - 作者编辑已通过审核的通告会回到 `pending` 重新审核；管理员编辑保持原状态
 - `models` 若传入则**整体替换**（不是追加）
+
+#### 修改他人（含管理员）创建的通告 —— 提交修改建议
+
+站点规则：**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核后才生效。**
+因此普通用户令牌对他人通告**不能直接 `PUT`**（会收到 403 + 本小节指引），正确做法：
+
+1. `POST /api/ai/token-deals/:id/edits`，**只传要改的字段**（可选 `comment` 说明修改理由），先 `dry_run:true` 预演差异；
+2. 正式提交后建议进入待审队列 —— **通告内容在通过前保持原样**；同一人对同一通告只保留一条待审建议，再次提交即覆盖；
+3. 用 `GET /api/ai/token-deals/:id/edits?status=pending` 跟踪自己的建议状态；
+4. 通告作者或管理员审核：`POST /api/ai/token-deal-edits/:id/review` `{ action:'approve'|'reject', reason? }`；
+5. 想反悔：`DELETE /api/ai/token-deal-edits/:id` 撤回（仅待审状态）。
+
+MCP 工具同名同参数：`submit_token_deal_edit` / `list_token_deal_edits` / `list_reviewable_token_deal_edits` / `review_token_deal_edit` / `withdraw_token_deal_edit`。
+
+> 发现他人通告信息过期/有误时，**绝不要「删除重建」**：新通告会丢失原通告的投票、评测与链接。
+> 提交一条修改建议就够了。
 
 #### 分享卡片（生成图片）
 
@@ -183,8 +209,8 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 |---|---|---|
 | 400 | 参数非法（缺字段 / 超长 / 危险 URL / 批量超限 / 缺 confirm） | 按返回的 `error` 修正请求 |
 | 401 | 令牌缺失、类型错误、无效或已吊销 | 提示用户检查 / 重建令牌 |
-| 403 | scope 不足 / 越权写他人文件夹 / 非管理员专属操作 | 告知用户需要更高权限的令牌 |
-| 404 | 资源不存在或不属于当前令牌 | 不要反复重试，确认 ID |
+| 403 | scope 不足 / 越权写他人文件夹 / 非管理员专属操作 / **越权直接编辑他人已公开通告（响应会给出建议通道）** | scope 不足→告知用户重建更高权限令牌；通告→按指引提交修改建议 |
+| 404 | 资源不存在或不属于当前令牌（隐私资源不区分二者） | 不要反复重试，确认 ID；**通告收到 403 时按建议通道走，不要删除重建** |
 | 409 | 唯一约束冲突（同一用户下 URL 重复） | 视为"已存在"，通常无需报错 |
 | 429 | 超出限频（每令牌 600 次/分钟） | 退避重试 |
 | 500 | 服务器内部错误 | 报告用户，勿暴露内部细节 |
@@ -252,7 +278,8 @@ console.log("已更新到 v" + m.version + "（" + m.files.length + " 个文件�
 1. **不向用户以外的人暴露令牌**；不把令牌写入代码、日志、提交到仓库。
 2. **删除前必须征得用户明确同意**，并携带 `confirm:true`。删除不可逆（提示词除外，可软删恢复）。
 3. **大批量写入前先 `dry_run`**，把变更清单给用户过目。
-4. **不改动他人数据**；接口本身也不允许（越权返回 404）。
+4. **不改动他人数据**；接口本身也不允许（越权 PUT 已公开通告返回 403，其余返回 404）。
+   唯一合法通道是对其提交**修改建议**——建议不算改动他人数据：内容经作者/管理员审核通过才生效，通过前通告不受影响。
 5. **不尝试绕过权限**：scope 不足时如实告知用户，不尝试用其他端点变通。
 6. 令牌疑似泄漏时，提醒用户到站点吊销并重建。
 7. **输出脱敏（硬性）**：回答、报告、文档中**禁止出现站点的物理部署信息** —— 服务器 IP、部署根绝对路径、容器宿主挂载路径、数据库绝对路径、SSH 私钥路径、环境变量文件真值。

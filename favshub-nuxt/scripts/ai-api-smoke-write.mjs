@@ -439,6 +439,45 @@ let dealA = null
   const ghostUpd = await jsonApi('/api/ai/token-deals/deal_not_exist_' + RUN, adminTok, 'PUT', { title: 'x' })
   check('更新不存在的通告 → 404', ghostUpd.status === 404, 'status=' + ghostUpd.status)
 
+  // ── 已公开通告的越权编辑：403 + 提案通道引导（避免 AI 客户端把「他人已发布」误读成「不存在」后删除重建）──
+  const crossPub = await jsonApi('/api/ai/token-deals/' + adminDealId, tokB, 'PUT', { title: '越权改名' })
+  check('B PUT 管理员已发布通告 → 403（区别于不存在）', crossPub.status === 403, 'status=' + crossPub.status)
+  check('403 响应引导走 /edits 提交建议', String(crossPub.json?.error || '').includes('/api/ai/token-deals/' + adminDealId + '/edits'), 'error=' + JSON.stringify(crossPub.json).slice(0, 200))
+
+  // ── 提案全生命周期：预演 → 提交 → 覆盖 → 审核 → 生效 → 撤回 ──
+  const edDry = await jsonApi('/api/ai/token-deals/' + adminDealId + '/edits', tokB, 'POST', { quota: '提案额度', comment: '额度信息过期', dry_run: true })
+  check('dry_run 提案 → 200 且不落库', edDry.status === 200 && edDry.json?.dry_run === true, 'status=' + edDry.status)
+
+  const edSub = await jsonApi('/api/ai/token-deals/' + adminDealId + '/edits', tokB, 'POST', { quota: '提案额度', comment: '额度信息过期' })
+  check('普通用户对管理员通告提交提案 → 200 created=true', edSub.status === 200 && edSub.json?.created === true, 'status=' + edSub.status + ' ' + JSON.stringify(edSub.json).slice(0, 160))
+  const editId = edSub.json?.edit?.id
+
+  const edAgain = await jsonApi('/api/ai/token-deals/' + adminDealId + '/edits', tokB, 'POST', { quota: '提案额度（改）' })
+  check('同人重复提交覆盖待审提案（created=false 同 id）', edAgain.status === 200 && edAgain.json?.created === false && edAgain.json?.edit?.id === editId, JSON.stringify({ s: edAgain.status, c: edAgain.json?.created }))
+
+  const edOnPending = await jsonApi('/api/ai/token-deals/' + dealA + '/edits', tokB, 'POST', { title: '越权提案' })
+  check('对他人未过审通告提案 → 404（不可见即隔离）', edOnPending.status === 404, 'status=' + edOnPending.status)
+
+  const myEdits = await api('/api/ai/token-deals/' + adminDealId + '/edits?status=pending', tokB)
+  check('提案人列表可见自己的待审提案', myEdits.status === 200 && (myEdits.json?.edits || []).some(e => e.id === editId), JSON.stringify(myEdits.json).slice(0, 120))
+
+  const pendList = await api('/api/ai/token-deal-edits', adminTok)
+  check('管理员「待我审核」列表含该提案', pendList.status === 200 && (pendList.json?.edits || []).some(e => e.id === editId), JSON.stringify(pendList.json).slice(0, 120))
+
+  const rvDry = await jsonApi('/api/ai/token-deal-edits/' + editId + '/review', adminTok, 'POST', { action: 'approve', dry_run: true })
+  check('审核 dry_run → 200 不落库', rvDry.status === 200 && rvDry.json?.dry_run === true, 'status=' + rvDry.status)
+
+  const rv = await jsonApi('/api/ai/token-deal-edits/' + editId + '/review', adminTok, 'POST', { action: 'approve' })
+  check('管理员 approve → 200 且提案 approved', rv.status === 200 && rv.json?.edit?.status === 'approved', 'status=' + rv.status + ' ' + JSON.stringify(rv.json).slice(0, 140))
+
+  const dealAfter = await api('/api/ai/token-deals?mine=1&limit=100', adminTok)
+  const approvedDeal = (dealAfter.json?.token_deals || []).find(d => d.id === adminDealId)
+  check('提案 patch 写入通告内容', approvedDeal?.quota === '提案额度（改）', 'quota=' + approvedDeal?.quota)
+
+  const ed2 = await jsonApi('/api/ai/token-deals/' + adminDealId + '/edits', tokB, 'POST', { note: '待撤回提案' })
+  const wd = await jsonApi('/api/ai/token-deal-edits/' + (ed2.json?.edit?.id || '') , tokB, 'DELETE')
+  check('撤回自己的待审提案 → 200', wd.status === 200, 'status=' + wd.status)
+
   // 管理员更新待审核通告：保持原状态（不因管理员编辑而改变）
   const adminUpd = await jsonApi('/api/ai/token-deals/' + dealA, adminTok, 'PUT', { quota: '每日 2000 次' })
   check('管理员更新他人通告 → 200', adminUpd.status === 200, 'status=' + adminUpd.status)

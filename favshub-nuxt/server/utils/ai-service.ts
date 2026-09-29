@@ -718,8 +718,11 @@ const DEAL_UPDATABLE = DEAL_PATCHABLE
  * 这是与 Web 端 `PUT /api/token-deals/:id`（全量替换）的关键差异：
  * AI 通道按字段级 patch 处理，避免「只想改标题却必须回填全部字段」导致的误伤。
  *
- * 权限：通告作者或管理员；他人资源一律 **404**（不区分「不存在」与「无权限」，与全局隔离策略一致）。
- *       **修改他人通告请走提案通道**（`submitTokenDealEdit`），不经过本函数。
+ * 权限：通告作者或管理员。
+ *   - **已公开（approved）**的他人通告 → **403 + 提案通道引导**（公开通告的存在性本就公开，
+ *     404 反而把 AI 客户端逼向「删除重建」，这是线上实际踩到的误伤）；
+ *   - **未公开（pending/rejected）**的他人通告 → 404（不泄露私有数据的存在性，与全局隔离策略一致）；
+ *   - 修改他人通告的正确路径是提案通道（`submitTokenDealEdit`），不经过本函数。
  * 状态：管理员编辑保持原状态；作者是本人通告的审核人 → 编辑即刻生效，
  *       仅当通告处于 `rejected` 时修正后回到 `pending` 交管理员过目。
  */
@@ -731,7 +734,13 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
   if (!deal) fail(404, '通告不存在')
 
   const isAdmin = isUserAdmin(db, userId)
-  if (deal.user_id !== userId && !isAdmin) fail(404, '通告不存在')
+  if (deal.user_id !== userId && !isAdmin) {
+    if (deal.status === 'approved') {
+      fail(403, '通告由他人创建，不能直接编辑。修改请提交建议：POST /api/ai/token-deals/' + id + '/edits'
+        + '（只传要改的字段，可带 comment 说明理由；需经通告作者或管理员审核后才生效）')
+    }
+    fail(404, '通告不存在')
+  }
 
   const fields = new Map<string, any>()
   for (const key of DEAL_UPDATABLE) {

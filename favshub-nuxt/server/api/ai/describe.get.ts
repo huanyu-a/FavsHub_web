@@ -58,7 +58,7 @@ export default defineAiHandler('read', async (_event, token) => {
       delete_requires_confirm: true,
       delete_confirm_hint: '删除端点必须在请求体携带 {"confirm": true}，否则返回 400。',
       batch_delete: '不支持批量删除，每次只能删除一条。',
-      isolation: '所有查询与写入强制限定于令牌所属用户；操作他人资源返回 404（不区分「不存在」与「无权限」，避免信息泄露）。',
+      isolation: '所有查询与写入强制限定于令牌所属用户；操作他人资源返回 404（不区分「不存在」与「无权限」，避免信息泄露）。唯一例外是通告：他人**已公开**通告的修改建议走 deal_edits 通道，直接 PUT 会返回 403 并在 error 中给出建议通道。',
       visibility: '非管理员写入的数据强制 login_required=1（仅自己可见）；管理员可选择公开。',
       soft_delete: '提示词删除为软删除（进入回收站），可用 restore:true 恢复；permanent:true 才物理删除。',
       prompts_ownership: 'AI 只能操作自己创建的提示词，不开放编辑管理员发布的公共提示词。',
@@ -66,7 +66,7 @@ export default defineAiHandler('read', async (_event, token) => {
       token_deals_status: '管理员发布的通告直接上线（approved）；普通用户发布进入待审核（pending）。',
       patch_semantics: '更新端点（PUT）一律为**部分更新**：只传需要修改的字段，未传字段保持原值。无需先 GET 再回填全部字段。',
       deal_edits: '**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核。** 修改他人通告必须走建议通道（POST /api/ai/token-deals/:id/edits 或工具 submit_token_deal_edit），不能直接 UPDATE；作者是本人通告的审核人，可直接改自己的（PUT），编辑即刻生效。审核权限 = 通告作者或管理员，管理员可审核所有用户的建议。建议通过前通告内容不受影响。',
-      card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。三种风格：magazine（编辑杂志，默认）/ neon（深色终端）/ clay（暖阳陶土）。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
+      card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。六种风格：poster（夜幕鎏金海报，默认）/ magazine / neon / clay / blast / voucher。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
     },
 
     resources: {
@@ -194,8 +194,8 @@ export default defineAiHandler('read', async (_event, token) => {
     errors: {
       400: '参数非法（缺字段、超长、危险 URL、批量超限、缺 confirm）',
       401: '缺少令牌 / 令牌类型错误 / 令牌无效或已吊销',
-      403: 'scope 不足 / 越权写入他人文件夹 / 非管理员执行管理员专属操作',
-      404: '资源不存在或不属于当前令牌（两者不区分）',
+      403: 'scope 不足 / 越权写入他人文件夹 / 非管理员执行管理员专属操作 / 直接编辑他人已公开通告（error 内含修改建议通道指引）',
+      404: '资源不存在或不属于当前令牌（两者不区分；他人已公开通告的越权编辑除外，见 403）',
       409: '唯一约束冲突（如同一用户下 URL 重复）',
       429: '超出限频（每令牌 600 次/分钟）',
       500: '服务器内部错误（细节不返回给客户端）',

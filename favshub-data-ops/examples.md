@@ -227,7 +227,60 @@ curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
 - 普通用户修改已通过审核的通告，状态会回到 `pending`（需管理员重新审核）；
   管理员修改保持原状态。
 - 触发条件是「字段实际有变化」；传了与原值相同的值不会导致状态回退。
-- 权限：通告作者或管理员。他人通告返回 404（不区分「不存在」与「无权限」）。
+- 权限：通告作者或管理员。**他人已公开的通告直接 PUT 返回 403，并在响应里给出建议通道指引**（走下一节的修改建议流程，不要删除重建）；他人**未过审**的通告一律 404（按不存在隔离）。
+
+---
+
+## 7.6 修改他人（含管理员）创建的通告 —— 修改建议流程
+
+站点规则：**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核后才生效。**
+普通用户对管理员通告**没有直接编辑权，也不需要管理员令牌** —— 提交一条修改建议即可。
+建议通过前通告内容**完全不受影响**；同一人同一通告只保留一条待审建议，再次提交即覆盖。
+
+```bash
+# 1) 找到通告 ID（已公开的通告人人可见）
+curl -s -H "$AUTH" "$BASE/api/ai/token-deals?q=StepFun"
+
+# 2) 预演：只传要改的字段（可带 comment 说明理由），确认差异无误
+curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "quota": "登录 15 天 + 首调 15 天（邀请奖励已下线）", "comment": "官方活动页已改版", "dry_run": true }' \
+  "$BASE/api/ai/token-deals/<deal_id>/edits"
+# → { "dry_run": true, "changes": [ { "field": "quota", "from": "...", "to": "..." } ] }
+
+# 3) 正式提交（去掉 dry_run）→ 进入作者/管理员的待审队列
+curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{ "quota": "登录 15 天 + 首调 15 天（邀请奖励已下线）", "comment": "官方活动页已改版" }' \
+  "$BASE/api/ai/token-deals/<deal_id>/edits"
+# → { "created": true, "edit": { "id": "...", "status": "pending" }, "message": "修改建议已提交，等待作者或管理员审核" }
+
+# 4) 跟踪建议状态（只有自己的待审可见；通过后 status=approved）
+curl -s -H "$AUTH" "$BASE/api/ai/token-deals/<deal_id>/edits?status=pending"
+
+# 5) 想反悔 → 撤回（仅待审状态可撤回）
+curl -s -X DELETE -H "$AUTH" "$BASE/api/ai/token-deal-edits/<edit_id>"
+```
+
+管理员/作者收到建议后的处理（需要**通告作者**或**管理员**身份的令牌）：
+
+```bash
+# 看待我审核的建议（管理员=全部用户；作者=自己通告上他人的提案）
+curl -s -H "$ADMIN_AUTH" "$BASE/api/ai/token-deal-edits"
+
+# 预演审核后落库的差异 → 确认 → 通过（patch 合并进通告，状态保持原样）
+curl -s -X POST -H "$ADMIN_AUTH" -H 'Content-Type: application/json' \
+  -d '{ "action": "approve" }' "$BASE/api/ai/token-deal-edits/<edit_id>/review"
+
+# 或驳回并说明理由（提案人可在自己的建议列表里看到原因）
+curl -s -X POST -H "$ADMIN_AUTH" -H 'Content-Type: application/json' \
+  -d '{ "action": "reject", "reason": "额度描述以官网为准，当前值无误" }' \
+  "$BASE/api/ai/token-deal-edits/<edit_id>/review"
+```
+
+### 注意事项
+
+- **绝不通过「删除自己的、新建一条」来替代他人通告** —— 原通告的投票、评测、分享链接会全部丢失。
+- 未公开（他人 `pending`/`rejected`）通告对非作者返回 404，属正常隔离，**不要反复重试或换端点变通**。
+- MCP 工具等价：`submit_token_deal_edit` / `list_token_deal_edits` / `list_reviewable_token_deal_edits` / `review_token_deal_edit` / `withdraw_token_deal_edit`。
 
 ---
 
