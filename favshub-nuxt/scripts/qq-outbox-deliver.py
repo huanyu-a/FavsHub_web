@@ -16,8 +16,9 @@ hermes send 约定：`--json` 输出恒为单个 JSON 对象；投递失败也�
   mkdir -p <favshub-data>/qq-outbox
   cp scripts/qq-outbox-deliver.py /opt/scripts/qq-outbox-deliver.py && chmod +x /opt/scripts/qq-outbox-deliver.py
   crontab -e 追加：
-    */2 * * * * flock -n /tmp/qq-outbox-deliver.lock FAVSHUB_OUTBOX_DIR=<favshub-data>/qq-outbox /usr/bin/python3 /opt/scripts/qq-outbox-deliver.py >> /var/log/qq-outbox-deliver.log 2>&1
-  （flock 防两个实例并发消费同一目录；cron 环境变量少，显式给出 python 与脚本绝对路径）
+    */2 * * * * FAVSHUB_OUTBOX_DIR=<favshub-data>/qq-outbox /usr/bin/python3 /opt/scripts/qq-outbox-deliver.py >> /var/log/qq-outbox-deliver.log 2>&1
+  说明：并发保护由脚本内部 fcntl 锁完成（cron 前不要套 flock——flock 与 fcntl 锁同一文件会
+  互相视为占用，导致空转跳过）；cron 环境变量少，显式给出 python 与脚本绝对路径。
 """
 import json
 import os
