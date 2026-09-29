@@ -50,7 +50,7 @@ function readSkillVersion(text) {
   return m ? m[1].trim().replace(/^['"]|['"]$/g, '') : null
 }
 
-/** 解析 CHANGELOG.md 为条目数组：## [版本] - 日期 后的 - 列表 */
+/** 解析 CHANGELOG.md 为条目数组：## [版本] - 日期 后的 - 列表（缩进续行并入上一条，避免半句话） */
 function parseChangelog(text) {
   if (!text) return []
   const out = []
@@ -58,10 +58,15 @@ function parseChangelog(text) {
   for (const block of blocks) {
     const head = /^##\s+\[?([^\]\s]+)\]?(?:\s*-\s*(.+))?/.exec(block.split(/\r?\n/)[0])
     if (!head) continue
-    const items = block.split(/\r?\n/)
-      .filter(l => /^\s*[-*]\s+/.test(l))
-      .map(l => l.replace(/^\s*[-*]\s+/, '').trim())
-      .filter(Boolean)
+    const items = []
+    for (const line of block.split(/\r?\n/)) {
+      const bullet = /^\s*[-*]\s+(.+)$/.exec(line)
+      if (bullet) {
+        items.push(bullet[1].trim())
+      } else if (items.length && /^\s{2,}\S/.test(line)) {
+        items[items.length - 1] += ' ' + line.trim()
+      }
+    }
     out.push({ version: head[1], date: (head[2] || '').trim(), changes: items })
   }
   return out

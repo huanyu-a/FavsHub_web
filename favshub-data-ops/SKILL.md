@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.4.0
+version: 1.4.1
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -41,6 +41,16 @@ Authorization: Bearer {TOKEN}
 
 返回：能力清单（`endpoints`）、字段字典（`resources`）、规则（`rules`）、错误码（`errors`）、当前令牌身份与权限（`caller`）。
 **不要凭记忆猜测字段**——以 describe 的返回为准。
+
+**先判类型，再取字段**：返回里**数组与对象混用**——`endpoints`、`recommended_workflow` 是**数组**；
+`rules`、`resources`、`errors`（以 HTTP 状态码为键）、`caller`、`scopes`、`skill` 是**对象**。
+写检查脚本前先确认形态（JS `Array.isArray(x)`、Python `isinstance(x, list)`）：对数组调 `.keys()`、对对象按下标取，都会抛错。
+
+**检查脚本必须真的跑起来**：断言要放在会执行、且失败即中止的路径上。异常被 `try` 吞掉、或代码根本没走到，
+却仍按旧假设输出结论，等于没检查。**推断不等于事实**——得出「清单里少了某端点」「服务端漏登记」这类结论前，
+先把命中项打印出来跑一次真实检查，再向用户陈述；把"看起来像"当事实说出去，错误结论会沿下游传导。
+（实例：曾有客户端把 `endpoints` 当 dict 调 `.keys()`，异常被吞后报出「describe 漏登记 edits 端点」的假缺陷 ——
+实际 29 条端点里 edits 占 5 条，一直是齐的。）
 
 ## 核心规则（必须遵守）
 
