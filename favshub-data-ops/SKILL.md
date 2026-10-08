@@ -1,14 +1,15 @@
 ---
 name: favshub-data-ops
-version: 1.4.1
+version: 1.5.0
 description: >
-  通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告。
+  通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
   所有操作限定于令牌所属用户，写操作支持 dry_run 预演，删除必须显式确认。
   TRIGGER: "favshub 书签", "操作 favshub 数据", "把书签导入 favshub", "favshub 提示词管理",
   "favshub api token", "favshub mcp", "整理我的 favshub 书签", "批量添加书签到 favshub",
   "favshub token 通告", "更新 favshub 通告", "查询 favshub 数据", "更新 favshub 技能",
-  "favshub 分享卡片", "生成通告卡片", "favshub card.png".
+  "favshub 分享卡片", "生成通告卡片", "favshub card.png",
+  "favshub 福利 Key", "上报 favshub key", "favshub token key".
 agent_created: true
 ---
 
@@ -21,6 +22,7 @@ agent_created: true
 - 用户要求"把一批链接存到 FavsHub"、"整理/清理我的书签"、"在 FavsHub 建个文件夹"
 - 用户要求"把这些提示词存进 FavsHub"、"找一下我之前存的某个提示词"
 - 用户要求"看看有哪些免费额度通告"、"帮我发一条 Token 通告"
+- 用户要求"上报一批探测到的福利 Key 到站点"、"看看站点有哪些可用的福利 Key"
 - 需要先盘点站点数据规模，再决定操作策略
 
 ## 前置配置
@@ -198,6 +200,31 @@ curl -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
 curl -sI -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
      "https://<站点域名>/api/ai/token-deals/<id>/card.png" | grep -i "x-card"
 ```
+
+### 福利 Key
+
+```
+POST /api/ai/token-keys   { key_hash, base_url?, key_masked?, key_encrypted?, provider?, models?,
+                            source?, confidence?, verdict?, source_id?, source_tid?, source_url?,
+                            source_title?, consecutive_failures?, last_probe_at?, first_seen_at?,
+                            note?, dry_run? }              # 上报快照（write）
+```
+
+- **用途**：采集端（爬虫 / 探测器）把「福利 Key」的最新探测快照上报到站点；服务端按
+  `(key_hash, base_url)` **幂等 upsert** —— 已存在则更新探测结论，不存在则新建（重复上报不产生重复行）
+- **审核语义**：普通用户令牌上报 → `pending`（待审）；**管理员令牌上报 → 直接 `published`**
+- **公开展示**：仅 `published` 行进入公开脱敏列表 `GET /api/token-keys`（**无需令牌**，
+  14 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
+  source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at`）；
+  `pending`（待审）与 `hidden`（下架）永不外流
+- `verdict` 枚举：`valid` 有效 | `quota` 额度耗尽 | `limited` 限次 | `dead` 失效 |
+  `unknown` | `restricted` | `blocked_by_waf` | `endpoint_unsupported`
+- **时间戳为秒**：`first_seen_at` / `last_probe_at` 等沿采集端语义存**秒**
+  （站点其余表是毫秒），不要混用
+- 支持 `dry_run: true` 预演；响应返回 `{ token_key: {…白名单字段, deal_status}, upserted, status, message }`
+- **绝对红线**：明文 key、`key_hash`、`key_encrypted` **绝不出现在任何日志、报告或响应正文**；
+  上报报错时也只会返回通用校验错误，不会回显敏感值
+- 该通道暂无对应 MCP 工具（REST 专用）；`describe` 的 `endpoints` 清单会同步列出
 
 ### 盘点
 
