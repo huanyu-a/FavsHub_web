@@ -102,11 +102,13 @@ let dealId = null
 
 console.log('=== 5. 鉴权（未登录应拒绝） ===')
 {
+  // 游客发布已开放（游客通道：昵称 + 人机校验），匿名缺校验材料 → 400（index.post.ts:25 / guest-deals.ts:61）
   const r1 = await req('/api/token-deals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider: 'x', title: 'y', url: 'https://a.com' }) })
-  check('未登录发布 → 401', r1.status === 401, 'status=' + r1.status)
+  check('未登录发布（无游客校验材料）→ 400', r1.status === 400, 'status=' + r1.status)
 
+  // 投票已开放给游客（vote.post.ts:5，写 token_deal_guest_votes）→ 匿名可投 200
   const r2 = await req('/api/token-deals/' + dealId + '/vote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ vote: 'up' }) })
-  check('未登录投票 → 401', r2.status === 401, 'status=' + r2.status)
+  check('未登录投票 → 200（游客投票开放）', r2.status === 200, 'status=' + r2.status)
 
   const r3 = await req('/api/admin/token-deals?status=pending')
   check('未登录访问管理端 → 401', r3.status === 401, 'status=' + r3.status)
