@@ -35,6 +35,12 @@ if errorlevel 1 (
   exit /b 1
 )
 
+%SCP% -i %KEY% -o StrictHostKeyChecking=no crawler\data\feed.xml %SRV%:/www/dk_project/dk_app/data/crawler-feed.xml >> crawler\data\cron.log 2>&1
+if errorlevel 1 (
+  echo [%date% %time%] feed scp FAILED >> crawler\data\cron.log
+  exit /b 1
+)
+
 %SSH% -i %KEY% -o StrictHostKeyChecking=no %SRV% "cd %RDIR% && .venv/bin/python push_to_favshub.py --source data/tokenhub.db --env .env --json >> data/push.log 2>&1"
 if errorlevel 1 (
   echo [%date% %time%] push FAILED >> crawler\data\cron.log
