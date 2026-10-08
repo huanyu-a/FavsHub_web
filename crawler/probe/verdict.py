@@ -122,6 +122,17 @@ OPEN_200_ENDPOINTS: Tuple[str, ...] = (
 #: must never reach it ("403 永不直接判失效").
 GENERIC_INVALID_MARKERS: Tuple[str, ...] = ("invalid", "无效", "incorrect", "not found")
 
+#: 07 §8.3 400 row verbatim: "400（xAI/Google）→ API_KEY_INVALID → invalid 候选；
+#: 其他 → unknown". ONLY these measured xAI/Google shapes may make a 400 an
+#: invalid candidate; every other 400 (OAuth ``invalid_grant``, malformed
+#: payload, a relay's own request error) is undecided, so a deterministic
+#: non-credential 400 can never dead-confirm a real key across two rounds.
+GOOGLE_XAI_400_HINTS: Tuple[str, ...] = (
+    "API_KEY_INVALID",     # Google error status
+    "invalid-argument",    # Google RPC code / the xAI shape
+    "API key not valid",   # Google verbose message
+)
+
 #: 07 §8.3 rows 1-3: verdicts that prove the credential exists, so each one
 #: resets the dead-confirmation counter (and recovers a wrongly dead row, 07 D3).
 CONFIRMING_VALID_VERDICTS: Tuple[str, ...] = (VERDICT_VALID, VERDICT_QUOTA, VERDICT_LIMITED)
@@ -230,13 +241,15 @@ def _looks_invalid(body: str) -> bool:
 
 
 def _auth_rejection(status: int, content_type: str, body: str) -> str:
-    """Shared 400 / 401 ordering: never-before-seen reasons are checked first.
+    """401 ordering: never-before-seen reasons are checked first.
 
-    02 §B.6 lists two false-positive shapes that can wear a 401/400: an IP
+    02 §B.6 lists two false-positive shapes that can wear a 401: an IP
     allow-list ("IP 白名单会让有效凭证得到 401 **或 403**") and Cloudflare, which
     changes its status code with the UA ("换 UA 后行为还会变"). Both are screened
     before the ``invalid`` candidate, and an unexplained rejection stays
-    ``unknown`` rather than guessing.
+    ``unknown`` rather than guessing. (400 no longer routes here: 07 §8.3 gives
+    it its own row — only the xAI/Google shapes are invalid candidates — see the
+    400 branch in :func:`classify_response`.)
     """
     text = body or ""
     if body_indicates(text, WAF_HTML_HINTS) is not None or (
@@ -302,7 +315,20 @@ def classify_response(status: int, content_type: str, body: str,
         # 07 §8.3 row 6: 200 + success:false is an auth failure wearing a 200.
         return VERDICT_UNKNOWN if says_management_api_rejection(text) else VERDICT_VALID
 
-    if status in (400, 401):
+    if status == 400:
+        # 07 §8.3 400 row verbatim: "400（xAI/Google）→ API_KEY_INVALID →
+        # invalid 候选；其他 → unknown". ONLY the measured xAI/Google literals
+        # make a 400 an invalid candidate — the 401 message table and the
+        # generic invalid/无效/incorrect scan must NOT apply here, because a
+        # deterministic non-credential 400 (OAuth invalid_grant, a malformed
+        # payload) would otherwise dead-confirm a real key across two rounds.
+        if body_indicates(text, WAF_HTML_HINTS) is not None:
+            return VERDICT_BLOCKED_BY_WAF
+        if body_indicates(text, GOOGLE_XAI_400_HINTS) is not None:
+            return RESPONSE_INVALID
+        return VERDICT_UNKNOWN
+
+    if status == 401:
         return _auth_rejection(status, ctype, text)
 
     if status == 403:
@@ -394,6 +420,17 @@ class StateMachine(VerdictMachine):
             # from zero, which is what pulls a wrongly dead row back on the daily
             # re-probe (07 D3 "dead 每天复探 1 次可自动挽回").
             return VerdictDecision(verdict=label, consecutive_failures=0,
+                                   unknown_rounds=0, escalate=False)
+
+        if was_dead and label != RESPONSE_INVALID:
+            # 07 §8.3 状态机图: the ONLY arrow out of ``dead`` is 复探恢复 through
+            # CONFIRMING_VALID_VERDICTS (an invalid candidate re-confirms dead in
+            # its own branch below). Neutral evidence (000/5xx/restricted/waf/
+            # endpoint_unsupported) — or a label from outside the table — says
+            # nothing about the credential and must not resurrect a dead row
+            # into the feed snapshot (D3 "dead 在 feed 剔除"): keep it dead and
+            # let the daily re-probe timestamp refresh via update_verdict.
+            return VerdictDecision(verdict=VERDICT_DEAD, consecutive_failures=failures,
                                    unknown_rounds=0, escalate=False)
 
         if label == RESPONSE_INVALID:

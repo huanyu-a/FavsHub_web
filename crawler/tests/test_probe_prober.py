@@ -547,7 +547,13 @@ class DebounceTests(unittest.TestCase):
         self.assertEqual(transport.count("/v1/models"), 1, "10 s later is inside the window")
         self.assertEqual(second.verdict, first.verdict)
         self.assertEqual(second.http_status, first.http_status)
-        self.assertEqual(second.probed_at, target.clock[0], "re-stamped with this round's clock")
+        # Review fix (confirmed medium finding): the cached copy is the SAME
+        # single observation, not a new one - it must keep the original
+        # probed_at. Re-stamping it with the current clock made the state
+        # machine see two "consistent invalids" 30s+ apart off ONE real 401 and
+        # set dead, violating 07 §8.3 "dead 需连续 2 次一致 invalid（间隔 ≥30s）".
+        self.assertEqual(second.probed_at, first.probed_at,
+                         "a cached answer is not a second observation")
 
     def test_after_60s_the_ladder_runs_again(self):
         target, transport = build([("/v1/models", (401, JSON_HEADERS, OPENAI_INVALID))])

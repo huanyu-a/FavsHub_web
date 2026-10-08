@@ -33,11 +33,15 @@ import os
 import sqlite3
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 # Single source of truth for the thresholds (07 8.3 / 5.1) lives in interfaces.py;
 # import rather than re-declare so a value can never drift between layers.
-from interfaces import DEAD_REPROBE_INTERVAL_S, PROBE_LOG_RETENTION_DAYS
+from interfaces import (
+    DEAD_CONSECUTIVE_INVALID,
+    DEAD_REPROBE_INTERVAL_S,
+    PROBE_LOG_RETENTION_DAYS,
+)
 
 #: ``dead`` rows are re-probed at most once per this many seconds (07 8.3 / D3).
 DEAD_REPROBE_INTERVAL_SECONDS = DEAD_REPROBE_INTERVAL_S
@@ -53,6 +57,7 @@ __all__ = [
     "connect",
     "connect_in_memory",
     "init_db",
+    "migrate_schema",
     "get_watermark",
     "get_crawl_state",
     "set_watermark",
@@ -61,9 +66,12 @@ __all__ = [
     "set_deal_status",
     "get_token_key",
     "count_unknown_streak",
+    "count_undecided_streak",
     "update_verdict",
     "select_publishable",
     "select_dead_for_reprobe",
+    "select_reprobe_candidates",
+    "token_key_stats",
     "insert_probe_log",
     "prune_probe_log",
     "record_reveal",
@@ -100,6 +108,7 @@ SCHEMA_STATEMENTS: Sequence[str] = (
       consecutive_failures INTEGER DEFAULT 0,
       last_probe_at INTEGER,
       first_seen_at INTEGER,
+      post_time TEXT DEFAULT '',
       deal_status TEXT DEFAULT 'published',
       note TEXT DEFAULT '',
       created_at INTEGER, updated_at INTEGER,
@@ -202,10 +211,60 @@ def connect_in_memory() -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """Create all tables and indexes (idempotent, safe to run every cycle)."""
+    """Create all tables and indexes (idempotent, safe to run every cycle).
+
+    Also applies :func:`migrate_schema`: ``CREATE TABLE IF NOT EXISTS`` cannot
+    add a column to a table that already exists, so a database created by an
+    older build would otherwise crash the cycle the first time a newer column
+    is written (this exact failure was hit live: a ``crawl_state`` table from
+    before the sitemap bookmark made ``set_watermark`` raise
+    ``sqlite3.OperationalError: table crawl_state has no column named
+    last_sitemap_lastmod``). Schema repair is idempotent infrastructure, not
+    crawl data, so it runs in every mode including ``--dry-run``.
+    """
     with conn:
         for stmt in SCHEMA_STATEMENTS:
             conn.execute(stmt)
+    migrate_schema(conn)
+
+
+#: Idempotent column migrations for databases created by older builds, applied
+#: by :func:`migrate_schema`. Each pair is (probe, alter): the literal probe
+#: SELECT succeeds when the column already exists; the literal ALTER adds it
+#: when the probe raises. Both strings are fixed code constants — never user
+#: input, no interpolation (test_store_db's source scan and the store red line).
+MIGRATIONS: Sequence[Tuple[str, str]] = (
+    (
+        # sitemap fallback bookmark (07 §四 ①), written by set_watermark since
+        # the sources owner's P0-2 landed; missing from early crawl_state DDLs.
+        "SELECT last_sitemap_lastmod FROM crawl_state LIMIT 0",
+        "ALTER TABLE crawl_state ADD COLUMN last_sitemap_lastmod TEXT DEFAULT ''",
+    ),
+    (
+        # original forum post time (raw string, verbatim from the source feed /
+        # API), surfaced on the site keys page; missing from pre-2026-10-08 DDLs.
+        "SELECT post_time FROM token_keys LIMIT 0",
+        "ALTER TABLE token_keys ADD COLUMN post_time TEXT DEFAULT ''",
+    ),
+)
+
+
+def migrate_schema(conn: sqlite3.Connection) -> int:
+    """Add columns that pre-existing tables are missing; return count applied.
+
+    Idempotent: a second call finds every probe succeeding and applies nothing.
+    Must run AFTER :data:`SCHEMA_STATEMENTS` so the tables themselves exist —
+    a missing TABLE is created by the DDL, a missing COLUMN is what migrates.
+    """
+    applied = 0
+    for probe, alter in MIGRATIONS:
+        try:
+            conn.execute(probe)
+        except sqlite3.OperationalError:  # column missing on this database
+            with conn:
+                conn.execute(alter)
+            applied += 1
+    return applied
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +344,7 @@ def _default_token_key(**overrides: Any) -> Dict[str, Any]:
         "consecutive_failures": 0,
         "last_probe_at": None,
         "first_seen_at": ts,
+        "post_time": "",
         "deal_status": "published",
         "note": "",
         "created_at": ts,
@@ -338,12 +398,12 @@ def upsert_token_key(conn: sqlite3.Connection, record: Dict[str, Any]) -> str:
                   id, source_id, source_tid, source_url, source_title, source_author,
                   key_masked, key_hash, key_encrypted, base_url, provider, models,
                   source, confidence, verdict, consecutive_failures, last_probe_at,
-                  first_seen_at, deal_status, note, created_at, updated_at
+                  first_seen_at, post_time, deal_status, note, created_at, updated_at
                 ) VALUES (
                   :id, :source_id, :source_tid, :source_url, :source_title, :source_author,
                   :key_masked, :key_hash, :key_encrypted, :base_url, :provider, :models,
                   :source, :confidence, :verdict, :consecutive_failures, :last_probe_at,
-                  :first_seen_at, :deal_status, :note, :created_at, :updated_at
+                  :first_seen_at, :post_time, :deal_status, :note, :created_at, :updated_at
                 )
                 """,
                 rec,
@@ -360,6 +420,7 @@ def upsert_token_key(conn: sqlite3.Connection, record: Dict[str, Any]) -> str:
               source = :source,
               confidence = :confidence,
               note = :note,
+              post_time = CASE WHEN :post_time != '' THEN :post_time ELSE post_time END,
               updated_at = :updated_at
             WHERE id = :row_id
             """,
@@ -407,6 +468,41 @@ def count_unknown_streak(conn: sqlite3.Connection, credential_id: str,
     streak = 0
     for row in rows:
         if row["verdict"] != "unknown":
+            break
+        streak += 1
+    return streak
+
+
+def count_undecided_streak(conn: sqlite3.Connection, credential_id: str,
+                           limit: int = 64) -> int:
+    """How many most-recent ``probe_log`` rows left this credential undecided.
+
+    Additive integration helper fixing a cross-module seam: ``probe_log`` stores
+    the RAW response label, so an "invalid candidate" is recorded as
+    ``'invalid'`` while :meth:`probe.verdict.StateMachine.next` folds it into a
+    persisted ``unknown`` (a lone candidate is undecided, 07 8.3). Feeding only
+    :func:`count_unknown_streak` into ``ProbeState.unknown_rounds`` therefore
+    reset the "unknown 连续 5 轮未决" counter every cycle for keys that keep
+    answering invalid without ever being confirmed - exactly the rows the probe
+    owner says a human should look at. The undecided set is ``unknown``
+    (transport / 5xx / undecided rejection) plus ``invalid`` (unconfirmed
+    candidate); any decided verdict (valid/quota/limited/dead/restricted/...)
+    breaks the streak, mirroring the state machine.
+
+    Call it BEFORE inserting the current outcome, like :func:`count_unknown_streak`.
+    """
+    rows = conn.execute(
+        """
+        SELECT verdict FROM probe_log
+        WHERE credential_id = ?
+        ORDER BY probed_at DESC, id DESC
+        LIMIT ?
+        """,
+        (credential_id, limit),
+    ).fetchall()
+    streak = 0
+    for row in rows:
+        if row["verdict"] not in ("unknown", "invalid"):
             break
         streak += 1
     return streak
@@ -462,6 +558,70 @@ def select_dead_for_reprobe(conn: sqlite3.Connection, ts: Optional[int] = None) 
     ).fetchall()
 
 
+def select_reprobe_candidates(conn: sqlite3.Connection, ts: Optional[int] = None) -> List[sqlite3.Row]:
+    """Every credential row the probe stage must visit this cycle (07 8.3 复探节奏).
+
+    Additive integration helper (the cycle owns the probe schedule, not a single
+    caller): non-``dead`` rows ride the 3-hourly cron ("valid/limited 每 3 小时
+    随 cron"); ``dead`` rows only after the daily interval ("dead 每天复探 1 次
+    可挽回", D3). Rows that cannot be probed are excluded here so the caller
+    never has to guess:
+
+      * C-class guide rows carry no credential and ``key_encrypted IS NULL``;
+      * a row without ``base_url`` has no endpoint to probe;
+      * ``deal_status`` is irrelevant to probing - a hidden row is still probed
+        so its verdict stays truthful for the audit trail (D12 only governs
+        publishing, which :func:`select_publishable` owns).
+
+    Callers must still de-conflict with the fresh-key loop of the same cycle
+    (a row stored + probed earlier in this cycle is not re-probed).
+    """
+    ts = ts if ts is not None else now_ts()
+    cutoff = ts - DEAD_REPROBE_INTERVAL_SECONDS
+    return conn.execute(
+        """
+        SELECT * FROM token_keys
+        WHERE key_encrypted IS NOT NULL
+          AND IFNULL(base_url, '') != ''
+          AND (
+            verdict != 'dead'
+            OR last_probe_at IS NULL
+            OR last_probe_at <= ?
+          )
+        ORDER BY first_seen_at ASC, id ASC
+        """,
+        (cutoff,),
+    ).fetchall()
+
+
+def token_key_stats(conn: sqlite3.Connection) -> Dict[str, Any]:
+    """Snapshot counts the daily report's 07 5.5 gate section is built from.
+
+    Returns ``{"by_verdict": {...}, "by_source": {...}, "with_two_consecutive_invalids": n}``.
+    ``with_two_consecutive_invalids`` is the denominator of the false-positive
+    gate question (GATE "dead rows / rows that had 2 consistent invalids", 07 8.3).
+    """
+    by_verdict = {
+        row["verdict"]: int(row["n"])
+        for row in conn.execute(
+            "SELECT verdict, COUNT(*) AS n FROM token_keys GROUP BY verdict")
+    }
+    by_source = {
+        row["source"]: int(row["n"])
+        for row in conn.execute(
+            "SELECT source, COUNT(*) AS n FROM token_keys GROUP BY source")
+    }
+    two_failures = conn.execute(
+        "SELECT COUNT(*) AS n FROM token_keys WHERE consecutive_failures >= ?",
+        (DEAD_CONSECUTIVE_INVALID,),
+    ).fetchone()
+    return {
+        "by_verdict": by_verdict,
+        "by_source": by_source,
+        "with_two_consecutive_invalids": int(two_failures["n"]) if two_failures else 0,
+    }
+
+
 # ---------------------------------------------------------------------------
 # probe_log
 # ---------------------------------------------------------------------------
@@ -508,6 +668,31 @@ def prune_probe_log(conn: sqlite3.Connection, days: int = PROBE_LOG_RETENTION_DA
     cutoff = ts - days * _DAY_SECONDS
     with conn:
         cur = conn.execute("DELETE FROM probe_log WHERE probed_at < ?", (cutoff,))
+        return cur.rowcount
+
+
+#: Reply-visible guide rows expire 24h after they were first collected: the
+#: "reply to unlock" windows these posts advertise are inherently short-lived,
+#: and the site owner asked for the stale ones to be cleaned automatically
+#: (2026-10-08). B-class key rows keep the state-machine lifecycle instead.
+GUIDE_ROW_TTL_SECONDS = 24 * 3600
+
+
+def prune_expired_guide_rows(conn: sqlite3.Connection, ts: Optional[int] = None,
+                             ttl_s: int = GUIDE_ROW_TTL_SECONDS) -> int:
+    """Delete ``reply_visible_guide`` rows first seen more than ``ttl_s`` ago.
+
+    Uses ``first_seen_at`` (collection time), not the forum post time: a guide
+    discovered today from an old thread is still worth showing for its 24h
+    window. Returns the number of rows deleted.
+    """
+    ts = ts if ts is not None else now_ts()
+    cutoff = ts - ttl_s
+    with conn:
+        cur = conn.execute(
+            "DELETE FROM token_keys WHERE source = 'reply_visible_guide' AND first_seen_at < ?",
+            (cutoff,),
+        )
         return cur.rowcount
 
 

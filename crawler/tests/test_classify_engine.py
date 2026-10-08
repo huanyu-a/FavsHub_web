@@ -3,8 +3,9 @@
 Covers the ordering guarantees the contract makes with *data* (priority), the
 needs-review routing (``ClassifiedPost.low_confidence`` is the flag the integrator
 files in ``manual_queue`` - ARCHITECTURE.md §5), the confidence triple the task
-asks the classifier to output (category + matched rule + confidence, via
-:func:`classify.engine.confidence_label`), and the two boundary posts 07 §8.1
+asks the classifier to output (category + matched rule + confidence - the last as
+``low_confidence`` plus the ``confidence=high|low`` label in ``note``), and the
+two boundary posts 07 §8.1
 names: tid 23295 (credential inside a reply gate -> B) and tid 23165 (the lock
 emoji used as a bullet -> must not be C).
 

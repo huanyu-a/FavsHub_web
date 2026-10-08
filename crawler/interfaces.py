@@ -287,6 +287,13 @@ class FullPost:
     reply_visible_locked: bool = False
     #: ``.virtual-card-box`` / ``virtual-card-title-status`` present -> D class.
     virtual_card: bool = False
+    #: Additive (review fix, keeps every existing consumer valid): the D-class
+    #: price ("88 积分 / 张") sniffed by enrichment from the topic HTML's
+    #: ``.virtual-card-price`` box. The price markup lives in the fetched page
+    #: HTML (02 §A.5), NOT in the JSON-LD ``articleBody``, so without this field
+    #: the 07 §8.1 D-row "标题+链接+价格" record could never carry a price.
+    #: Empty string = unknown (degraded enrichment or no price box).
+    virtual_card_price: str = ""
     #: False when enrichment failed and the truncated text is used (P0-3 degrade).
     enriched: bool = False
 
@@ -438,6 +445,9 @@ class FeedEntry:
     key_masked: str = ""
     #: C-class instruction ("回复本主题后即可查看"); empty for B entries.
     guide_text: str = ""
+    #: Additive (integration, keeps every existing consumer valid): unix ts of
+    #: ``token_keys.first_seen_at``, rendered as the RSS ``pubDate``. 0 = unknown.
+    published_at: int = 0
 
 
 # ---------------------------------------------------------------------------

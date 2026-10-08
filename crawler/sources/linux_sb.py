@@ -70,7 +70,7 @@ from interfaces import (
 )
 from sources.base import SourceAdapter, dedupe_by_fingerprint
 
-__all__ = ["LinuxSbAdapter", "extract_jsonld_documents", "find_article_body"]
+__all__ = ["LinuxSbAdapter", "extract_jsonld_documents", "find_article_body", "find_date_published"]
 
 #: Forum ids pulled every cycle (07 §5.2 FORUMS=2,8,3; overridden by config).
 DEFAULT_FORUMS: Tuple[int, ...] = (2, 8, 3)
@@ -201,6 +201,38 @@ def find_article_body(html: str) -> str:
                 if isinstance(body, str) and body:
                     return body
     return ""
+
+
+def find_date_published(html: str) -> str:
+    """Return the ``DiscussionForumPosting.datePublished`` from ``html`` or ``""``.
+
+    Same traversal as :func:`find_article_body`. The raw ISO string is
+    normalised by :func:`_normalise_post_time` at the call site.
+    """
+    for document in extract_jsonld_documents(html):
+        for node in _iter_nodes(document):
+            if JSONLD_POSTING_TYPE in _node_types(node):
+                value = node.get("datePublished")
+                if isinstance(value, str) and value:
+                    return value
+    return ""
+
+
+def _normalise_post_time(value: str) -> str:
+    """ISO ``datePublished`` -> ``YYYY-MM-DD HH:MM`` in UTC+8 (site owner zone).
+
+    Discourse emits UTC (``Z`` / ``+00:00``); naive values are treated as UTC.
+    Unparsable input is returned verbatim so the raw string still surfaces.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
 
 
 def _html_marker_hit(html: str, marker: str) -> bool:
@@ -478,6 +510,22 @@ class LinuxSbAdapter(SourceAdapter):
         article_body = find_article_body(html)
         reply_visible_locked = REPLY_VISIBLE_LOCKED_MARKER in html
         virtual_card = any(_html_marker_hit(html, marker) for marker in D_BADGE_MARKERS)
+        # Original forum posting time (site page shows "原帖 …"; 2026-10-08):
+        # JSON-LD datePublished is authoritative, so it overwrites whatever the
+        # list/sitemap fallback left in post_time (lastmod is a *modified* date).
+        date_published = find_date_published(html)
+        if date_published:
+            post.post_time = _normalise_post_time(date_published)
+        # 07 §8.1 D row records 标题+链接+价格; the price box (.virtual-card-price)
+        # lives in the fetched topic HTML (02 §A.5), NOT in the JSON-LD
+        # articleBody (rules_linux_sb's own note: "must sniff the fetched page
+        # HTML, not the JSON-LD articleBody"), so enrichment is the only place
+        # the pipeline can capture it. Additive FullPost.virtual_card_price.
+        virtual_card_price = ""
+        if virtual_card:
+            from classify.rules_linux_sb import card_price  # lazy, D10 layering
+
+            virtual_card_price = card_price(html) or ""
         if not article_body:
             # 200 but no DiscussionForumPosting body (structural change or a
             # non-topic page): degrade to the truncated text (07 §九), but keep
@@ -488,6 +536,7 @@ class LinuxSbAdapter(SourceAdapter):
                 article_body="",
                 reply_visible_locked=reply_visible_locked,
                 virtual_card=virtual_card,
+                virtual_card_price=virtual_card_price,
                 enriched=False,
             )
         return FullPost(
@@ -495,6 +544,7 @@ class LinuxSbAdapter(SourceAdapter):
             article_body=article_body,
             reply_visible_locked=reply_visible_locked,
             virtual_card=virtual_card,
+            virtual_card_price=virtual_card_price,
             enriched=True,
         )
 

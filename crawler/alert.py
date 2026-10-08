@@ -15,7 +15,9 @@ touch the network.
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import Callable, Optional
@@ -66,13 +68,55 @@ class Alerter:
 
 
 class NullAlerter(Alerter):
-    """No-op sink used when ``DINGTALK_WEBHOOK`` is unset (local dev / tests)."""
+    """No-op sink used when neither a webhook nor a log path is available."""
 
     def notify(self, message: str) -> bool:
         return False
 
     def __repr__(self) -> str:
         return "NullAlerter()"
+
+
+class FileLogAlerter(Alerter):
+    """Degrade-to-log sink used when ``DINGTALK_WEBHOOK`` is unset.
+
+    P0 keeps the outbound channel set closed (D4: no new notification channel),
+    but an alert must still be able to outlive the process that raised it - the
+    sitemap-fallback acceptance (07 §5.4 ⑥) has to be provable on a machine
+    with no webhook configured. This alerter appends one scrubbed line per
+    alert to a local log file (``crawler/data/alerts.log`` in production).
+
+    ``notify`` is best-effort like every alerter here: it never raises, it
+    returns True when the line is on disk and records the failure in
+    ``last_error`` otherwise.
+    """
+
+    def __init__(self, path: str):
+        if not path:
+            raise ValueError("FileLogAlerter requires a log path")
+        self.path = path
+        self.last_error = ""
+
+    def __repr__(self) -> str:
+        return f"FileLogAlerter(path={self.path!r})"
+
+    def notify(self, message: str) -> bool:
+        try:
+            line = (
+                time.strftime("%Y-%m-%dT%H:%M:%S")
+                + " [alert] "
+                + scrub(message).replace("\n", " ")
+                + "\n"
+            )
+            directory = os.path.dirname(os.path.abspath(self.path))
+            os.makedirs(directory, exist_ok=True)
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(line)
+            self.last_error = ""
+            return True
+        except Exception as exc:  # alerting must never break a crawl cycle
+            self.last_error = f"{type(exc).__name__}: {scrub(str(exc))}"
+            return False
 
 
 class DingTalkAlerter(Alerter):
@@ -118,8 +162,17 @@ class DingTalkAlerter(Alerter):
         return True
 
 
-def build_alerter(webhook_url: str, transport: Optional[Transport] = None) -> Alerter:
-    """Return a :class:`DingTalkAlerter` when configured, else ``NullAlerter``."""
-    if not webhook_url:
-        return NullAlerter()
-    return DingTalkAlerter(webhook_url, transport=transport)
+def build_alerter(webhook_url: str, transport: Optional[Transport] = None,
+                  log_path: str = "") -> Alerter:
+    """Return the right sink for the configuration (best channel first).
+
+    * webhook configured -> :class:`DingTalkAlerter` (07 §四 "运维告警");
+    * else ``log_path`` given -> :class:`FileLogAlerter` (degrade-to-log, the
+      P0 default when no webhook is configured - alerts must survive locally);
+    * else :class:`NullAlerter` (nowhere to go, still never raises).
+    """
+    if webhook_url:
+        return DingTalkAlerter(webhook_url, transport=transport)
+    if log_path:
+        return FileLogAlerter(log_path)
+    return NullAlerter()

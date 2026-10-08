@@ -292,7 +292,6 @@ class DiscoverAggregatorTests(unittest.TestCase):
         self.assertEqual(len(posts), interfaces.AGG_LIMIT_MAX)
         self.assertEqual(posts[0].tid, 1050)     # oldest 50 dropped
         self.assertEqual(posts[-1].tid, 1149)    # newest kept, ascending order
-        self.assertEqual(alerter_messages := [], [])
 
     def test_partial_forum_failure_does_not_switch_source(self):
         alerter = RecordingAlerter()

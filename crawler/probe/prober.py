@@ -643,12 +643,19 @@ class HttpProber(Prober):
             if deadline <= now:
                 del self._debounce[debounce_key]
                 return None
+            # The copy KEEPS the original probed_at: it is the SAME single
+            # observation, not a new one (07 §8.3 "401/403 不重试但 60s 后复探 1 次
+            # 去抖" — the whole point of the window is that no second request is
+            # made). Refreshing probed_at to `now` made the state machine treat
+            # one real 401 as two consistent invalids 30s+ apart and could set
+            # dead off a single failure - the exact false-positive the two-
+            # consistent rule exists to prevent.
             return ProbeOutcome(
                 credential_id=outcome.credential_id, base_url=outcome.base_url,
                 probe_kind=outcome.probe_kind, http_status=outcome.http_status,
                 verdict=outcome.verdict, error_code=outcome.error_code,
                 error_message_raw=outcome.error_message_raw,
-                attempt_n=outcome.attempt_n, probed_at=now,
+                attempt_n=outcome.attempt_n, probed_at=outcome.probed_at,
             )
 
     def _bearer(self, pair: CredentialPair) -> Dict[str, str]:

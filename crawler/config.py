@@ -125,6 +125,17 @@ class AppConfig:
     def report_dir(self) -> str:
         return os.path.join(os.path.dirname(self.db_path) or CRAWLER_DIR, "reports")
 
+    @property
+    def alert_log_path(self) -> str:
+        """Local degrade-to-log sink when ``DINGTALK_WEBHOOK`` is unset.
+
+        Lives next to the DB (07 §5.2 ``data/`` is the only place files are
+        written), so a ``--dry-run`` rehearsal against ``:memory:`` still
+        resolves to ``crawler/`` and can be overridden by pointing ``DB_PATH``
+        elsewhere.
+        """
+        return os.path.join(os.path.dirname(self.db_path) or CRAWLER_DIR, "alerts.log")
+
     def ensure_data_dir(self) -> None:
         """Create the ``data/`` dir (07 5.2: tokenhub.db / feed.xml / reports/)."""
         directory = os.path.dirname(self.db_path) or CRAWLER_DIR
