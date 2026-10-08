@@ -1075,6 +1075,7 @@ export function createTokenKeysSchema(db: Database.Database) {
         key_masked TEXT DEFAULT '',
         key_hash TEXT DEFAULT '',
         key_encrypted TEXT,
+        key_plain TEXT DEFAULT '',
         base_url TEXT DEFAULT '',
         provider TEXT DEFAULT '',
         models TEXT DEFAULT '[]',
@@ -1084,6 +1085,7 @@ export function createTokenKeysSchema(db: Database.Database) {
         consecutive_failures INTEGER DEFAULT 0,
         last_probe_at INTEGER,
         first_seen_at INTEGER,
+        post_time TEXT DEFAULT '',
         deal_status TEXT DEFAULT 'published',
         note TEXT DEFAULT '',
         created_at INTEGER, updated_at INTEGER,
@@ -1092,6 +1094,22 @@ export function createTokenKeysSchema(db: Database.Database) {
     `)
   } catch (err: any) {
     console.error('[DB] 创建 token_keys 失败:', err.message)
+  }
+
+  // 2026-10-08 设计变更（站点方需求）：key_plain 明文公开可复制（原「脱敏 +
+  // 揭示」流程取消）、post_time 原帖发帖时间 —— 存量库增量补列（独立 try/catch，
+  // duplicate column 视为已迁移）。
+  for (const alterSql of [
+    "ALTER TABLE token_keys ADD COLUMN key_plain TEXT DEFAULT ''",
+    "ALTER TABLE token_keys ADD COLUMN post_time TEXT DEFAULT ''",
+  ]) {
+    try {
+      db.exec(alterSql)
+    } catch (err: any) {
+      if (!/duplicate column/i.test(err?.message || '')) {
+        console.error('[DB] token_keys 补列失败:', err.message)
+      }
+    }
   }
 
   try {

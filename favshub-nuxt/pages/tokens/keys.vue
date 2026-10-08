@@ -54,13 +54,13 @@
       </div>
 
       <template v-else>
-        <!-- ② 统计条：总数 / 有效 / 失效来自 verdict_counts（全量口径），附数据截至 -->
+        <!-- ② 统计条：总数 / 有效 / 未验证来自 verdict_counts（已展示口径全集），附数据截至 -->
         <div class="keys-stats">
           <span class="keys-stat">共 <b>{{ pagination.total }}</b> 条</span>
           <span class="keys-sep">·</span>
           <span class="keys-stat is-valid">有效 <b>{{ validCount }}</b></span>
           <span class="keys-sep">·</span>
-          <span class="keys-stat is-dead-stat">失效 <b>{{ deadCount }}</b></span>
+          <span class="keys-stat is-unknown-stat">待验证 <b>{{ unknownCount }}</b></span>
           <span v-if="lastUpdatedText" class="keys-updated">数据截至 {{ lastUpdatedText }}</span>
         </div>
 
@@ -110,13 +110,12 @@
           <span>{{ hasFilter ? '试试放宽筛选条件' : '爬虫每 3 小时抓取一轮，敬请期待' }}</span>
         </div>
 
-        <!-- ④ 卡片列表：B 类 key 卡 / C 类指引卡，dead 整卡置灰 -->
+        <!-- ④ 卡片列表：B 类 key 卡（完整 key 可复制）/ C 类指引卡 -->
         <div v-else class="keys-grid">
           <TokenKeyCard
             v-for="k in keys"
             :key="k.id"
             :key-row="k"
-            :logged-in="authStore.isLoggedIn"
           />
         </div>
 
@@ -141,10 +140,12 @@ import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ layout: 'default' })
 
 // 与 components/tokens/TokenKeyCard.vue 各自维护同构接口（照 index.vue / TokenDealCard.vue 的既有惯例）；
-// 字段 = F3 GET /api/token-keys 白名单 14 字段（docs/08 §4.2），敏感列（key_encrypted/key_hash）根本不在响应里
+// 字段 = F3 GET /api/token-keys 白名单（docs/08 §4.2 + 2026-10-08 增量 key_plain/post_time），
+// 敏感列（key_encrypted/key_hash）根本不在响应里
 interface ITokenKeyRow {
   id: string
   key_masked: string
+  key_plain: string
   verdict: string
   confidence: string
   provider: string
@@ -157,6 +158,7 @@ interface ITokenKeyRow {
   source_title: string
   first_seen_at: number | null
   last_probe_at: number | null
+  post_time: string
 }
 
 interface IPagination {
@@ -172,14 +174,12 @@ interface IKeysResponse {
   verdict_counts: Record<string, number>
 }
 
-const authStore = useAuthStore()
-
 const _keysBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const keysBaseUrl = computed(() => `${_keysBase}/tokens/keys`)
 
 const keysTitle = '福利 Key — 免费 API Key 时效看板'
-const keysDesc = '来自第三方论坛公开帖的免费 API Key 时效看板：脱敏展示、厂商与状态筛选、有效性探测实时更新，失效置灰标红，回帖领取指引一页看全。'
-const keysKw = '免费API Key,福利Key,免费大模型API,API白嫖,Key失效,额度查询'
+const keysDesc = '来自第三方论坛公开帖的免费 API Key 时效看板：完整 Key 公开可复制、原帖时间可溯、厂商与状态筛选、有效性探测实时更新，失效 Key 自动清理，回帖领取指引一页看全。'
+const keysKw = '免费API Key,福利Key,免费大模型API,API白嫖,Key复制,额度查询'
 
 useHead({
   title: keysTitle,
@@ -222,7 +222,7 @@ const keys = computed(() => data.value?.keys || [])
 const pagination = computed(() => data.value?.pagination || { page: 1, limit, total: 0, totalPages: 1 })
 const verdictCounts = computed(() => data.value?.verdict_counts || {})
 const validCount = computed(() => verdictCounts.value.valid || 0)
-const deadCount = computed(() => verdictCounts.value.dead || 0)
+const unknownCount = computed(() => verdictCounts.value.unknown || 0)
 const hasFilter = computed(() => !!(verdict.value || provider.value))
 
 /** 数据截至：行内最大 last_probe_at，无探测数据时取最早 first_seen_at（docs/08 §3.2 ②） */
@@ -245,7 +245,8 @@ function formatTs(ts: number | null | undefined): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-// 状态下拉：dead 殿后并配红点（D3「页面置灰标红、可筛选、不删除」）；计数后缀取 verdict_counts 全量口径
+// 状态下拉：dead 已被服务端恒定清理（不返回、不入统计），故不提供该选项；
+// 计数后缀取 verdict_counts 已展示口径
 const VERDICT_OPTIONS: Array<{ value: string; label: string; danger?: boolean }> = [
   { value: 'valid', label: '有效(valid)' },
   { value: 'limited', label: '受限可用(limited)' },
@@ -254,7 +255,6 @@ const VERDICT_OPTIONS: Array<{ value: string; label: string; danger?: boolean }>
   { value: 'restricted', label: '受限(restricted)' },
   { value: 'blocked_by_waf', label: 'WAF 拦截(blocked_by_waf)' },
   { value: 'endpoint_unsupported', label: '端点不支持(endpoint_unsupported)' },
-  { value: 'dead', label: '失效(dead)', danger: true },
 ]
 
 /** 厂商输入 300ms debounce，归一后触发重新请求（照 index.vue:280-283） */
@@ -420,7 +420,7 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 .keys-stat.is-valid b { color: var(--success); }
-.keys-stat.is-dead-stat b { color: var(--danger); }
+.keys-stat.is-unknown-stat b { color: var(--text-primary); }
 .keys-sep { color: var(--text-tertiary); }
 .keys-updated {
   margin-left: auto;

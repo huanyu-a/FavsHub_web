@@ -310,8 +310,10 @@ export const qqBindings = sqliteTable('qq_bindings', {
 // ─── token_keys（福利 Key 凭证：爬虫抓取的 API Key 快照）────────
 // 建表真源是 migrate.ts 的 createTokenKeysSchema（07 §8.4 原始 SQL），本定义仅作
 // Drizzle 查询/类型层，两边如有出入以 migrate.ts 为准（docs/08 §4.1）。
-// 时间戳为**秒级**（沿爬虫语义，与站点其余表的毫秒不同），页面渲染时 ×1000。
+// 时间戳为**秒级**（沿爬虫语义，与站点其余表的毫秒不同），页面渲染时 ×1000；
+// post_time 例外 —— 原帖发帖时间，原文字符串（不解析、直接展示）。
 // 红线（07 §8.5）：keyEncrypted / keyHash 两列永不进任何读接口 SELECT、永不上页面。
+// 2026-10-08 设计变更：keyPlain 明文公开（页面可复制，原「脱敏 + 揭示」流程取消）。
 // 与爬虫侧 crawler/store/db.py SCHEMA_STATEMENTS 逐字同构，改一处必须同步三处。
 export const tokenKeys = sqliteTable('token_keys', {
   id: text('id').primaryKey(),
@@ -322,7 +324,8 @@ export const tokenKeys = sqliteTable('token_keys', {
   sourceAuthor: text('source_author').default(''),
   keyMasked: text('key_masked').default(''),         // 脱敏展示（前6+后4）；C 类恒空
   keyHash: text('key_hash').default(''),             // sha256 去重；C 类存无凭证哨兵；红线列
-  keyEncrypted: text('key_encrypted'),               // 密文，仅供 F5 揭示；C 类恒 NULL；红线列
+  keyEncrypted: text('key_encrypted'),               // 密文，采集端解密为 key_plain 上报；红线列
+  keyPlain: text('key_plain').default(''),           // 明文（2026-10-08 公开可复制）；C 类恒空
   baseUrl: text('base_url').default(''),             // API 地址；C 类恒空
   provider: text('provider').default(''),
   models: text('models').default('[]'),              // JSON 数组，读侧需 JSON.parse + Array.isArray
@@ -332,6 +335,7 @@ export const tokenKeys = sqliteTable('token_keys', {
   consecutiveFailures: integer('consecutive_failures').default(0),
   lastProbeAt: integer('last_probe_at'),
   firstSeenAt: integer('first_seen_at'),
+  postTime: text('post_time').default(''),           // 原帖发帖时间（原文字符串）
   dealStatus: text('deal_status').default('published'), // published | hidden | pending（pending 待管理员转正）
   note: text('note').default(''),                    // 内部诊断，不上页面
   createdAt: integer('created_at'),

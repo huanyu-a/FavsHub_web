@@ -1021,13 +1021,14 @@ const PLAIN_KEY_SOURCE =
   ')[A-Za-z0-9_\\-]{10,220}'
 
 /**
- * 读侧字段白名单 —— 14 字段（docs/08 §4.2，与 GET /api/token-keys 的
- * SELECT 列清单同源）。key_encrypted / key_hash / error_message_raw 三红线列
- * 与 note / consecutive_failures 等内部诊断列不在其列。
+ * 读侧字段白名单 —— 16 字段（docs/08 §4.2 + 2026-10-08 设计变更）。key_encrypted /
+ * key_hash / error_message_raw 红线列与 note / consecutive_failures 内部诊断列不在其列。
+ * 设计变更（2026-10-08 站长拍板）：`key_plain` 明文进公开页（本站定位即福利分享，
+ * 原「脱敏 + 登录后揭示」F5 流程取消）；`post_time` 为原帖发帖时间原文字符串。
  */
 const TOKEN_KEY_PUBLIC_FIELDS = [
-  'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
-  'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at',
+  'id', 'key_masked', 'key_plain', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
+  'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at', 'post_time',
 ].join(', ')
 
 /** 归一化后的上行载荷（列名用 snake_case，与请求体 / 表列一致） */
@@ -1036,6 +1037,7 @@ export interface TokenKeyPayload {
   base_url: string
   key_masked: string
   key_encrypted: string | null
+  key_plain: string
   provider: string
   models: string[]
   source: string
@@ -1049,6 +1051,7 @@ export interface TokenKeyPayload {
   consecutive_failures: number
   last_probe_at: number | null
   first_seen_at: number | null
+  post_time: string
   note: string
 }
 
@@ -1121,6 +1124,14 @@ export function validateTokenKeyPayload(body: any): TokenKeyValidateResult {
   const note = str(body?.note)
   if (note.length > KEY_LIMITS.note) return { ok: false, error: `note 不能超过 ${KEY_LIMITS.note} 字` }
 
+  // 2026-10-08 设计变更：key_plain 明文公开（页面可复制），但仍限长防滥用；
+  // post_time 为原帖时间原文字符串（格式由采集端保证，站点不解析只透传展示）。
+  const keyPlain = str(body?.key_plain)
+  if (keyPlain.length > 200) return { ok: false, error: 'key_plain 不能超过 200 字' }
+
+  const postTime = str(body?.post_time)
+  if (postTime.length > 64) return { ok: false, error: 'post_time 不能超过 64 字' }
+
   const sourceTid = nonNegIntOrNull(body?.source_tid)
   if (sourceTid === undefined) return { ok: false, error: 'source_tid 必须是非负整数或缺省' }
 
@@ -1150,6 +1161,7 @@ export function validateTokenKeyPayload(body: any): TokenKeyValidateResult {
     base_url: str(body?.base_url),
     key_masked: keyMasked,
     key_encrypted: keyEncrypted,
+    key_plain: keyPlain,
     provider,
     models: normalizeModels(body?.models),
     source,
@@ -1163,14 +1175,16 @@ export function validateTokenKeyPayload(body: any): TokenKeyValidateResult {
     consecutive_failures: consecutiveFailuresRaw ?? 0,
     last_probe_at: lastProbeAt,
     first_seen_at: firstSeenAt,
+    post_time: postTime,
     note,
   }
 
   // C 类服务端强制覆盖（D2 红线，不信任客户端）：指引行零 key 数据 ——
-  // 即使 payload 带了值也丢弃。
+  // 即使 payload 带了值也丢弃。post_time 是原帖时间（非 key 数据）保留。
   if (source === 'reply_visible_guide') {
     data.key_masked = ''
     data.key_encrypted = null
+    data.key_plain = ''
     data.base_url = ''
   }
 
@@ -1210,6 +1224,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
       dry_run: true,
       changes: {
         key_masked: d.key_masked,
+        key_plain: d.key_plain ? `${d.key_plain.slice(0, 6)}***` : '',
         base_url: d.base_url,
         provider: d.provider,
         models: d.models,
@@ -1222,6 +1237,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
         source_title: d.source_title,
         first_seen_at: d.first_seen_at,
         last_probe_at: d.last_probe_at,
+        post_time: d.post_time,
         deal_status: dealStatus,
       },
     }
@@ -1245,6 +1261,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
         UPDATE token_keys SET
           key_masked = ?,
           key_encrypted = COALESCE(?, key_encrypted),
+          key_plain = COALESCE(NULLIF(?, ''), key_plain),
           provider = ?,
           models = ?,
           source = ?,
@@ -1252,12 +1269,14 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
           verdict = ?,
           consecutive_failures = ?,
           last_probe_at = ?,
+          post_time = ?,
           note = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
         d.key_masked,
         d.key_encrypted, // null → 保留既有密文（不清空）
+        d.key_plain, // 空串 → 保留既有明文（guide 行 / 解密失败行不清空站点已存的值）
         d.provider,
         JSON.stringify(d.models),
         d.source,
@@ -1265,6 +1284,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
         d.verdict,
         d.consecutive_failures,
         d.last_probe_at,
+        d.post_time,
         d.note,
         nowSec,
         rowId,
@@ -1273,10 +1293,10 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
       db.prepare(`
         INSERT INTO token_keys (
           id, source_id, source_tid, source_url, source_title, source_author,
-          key_masked, key_hash, key_encrypted, base_url, provider, models,
+          key_masked, key_hash, key_encrypted, key_plain, base_url, provider, models,
           source, confidence, verdict, consecutive_failures, last_probe_at,
-          first_seen_at, deal_status, note, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          first_seen_at, post_time, deal_status, note, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         newId,
         d.source_id,
@@ -1287,6 +1307,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
         d.key_masked,
         d.key_hash,
         d.key_encrypted,
+        d.key_plain,
         d.base_url,
         d.provider,
         JSON.stringify(d.models),
@@ -1296,6 +1317,7 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
         d.consecutive_failures,
         d.last_probe_at,
         d.first_seen_at,
+        d.post_time,
         dealStatus,
         d.note,
         nowSec,
@@ -1316,4 +1338,50 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
       ? (isAdmin ? '已入库并发布（管理员 PAT 直上）' : '已入库，待管理员审核转正')
       : '已更新现有行（key_hash + base_url 命中）',
   }
+}
+
+/** prune 请求体里的一个身份对（与 UNIQUE(key_hash, base_url) 同构） */
+export interface TokenKeyIdentity {
+  key_hash: string
+  base_url: string
+}
+
+/**
+ * 对账清理 token_keys（2026-10-08 站点方需求「失效 key 及时清理」）。
+ *
+ * 语义：删除 ``published`` 且 (key_hash, base_url) **不在** keep 列表中的行 ——
+ * 爬虫每轮全量快照上报后调用，dead / 下架 / 过期 guide 行因此自动从站点消失，
+ * 而爬虫本地库照旧保留（状态机历史）。hidden 与 pending 行永不删（管理员审核
+ * 数据不归爬虫管）。身份命中按精确匹配；keep 为空表示清空全部 published。
+ *
+ * 权限：仅管理员 PAT（端点层已判 delete scope + isUserAdmin，此处再判一次防御纵深）。
+ * 返回 { deleted }；审计由 defineAiHandler 统一记录（不含请求体）。
+ */
+export function pruneTokenKeys(db: DB, userId: number, keep: TokenKeyIdentity[]) {
+  if (!isUserAdmin(db, userId)) {
+    fail(403, '对账清理仅管理员 PAT 可用')
+  }
+
+  const known = new Set(
+    keep
+      .filter(k => k && typeof k.key_hash === 'string' && k.key_hash)
+      .map(k => `${String(k.key_hash).toLowerCase()}\u0000${String(k.base_url ?? '')}`),
+  )
+  if (known.size > 2000) {
+    fail(400, 'keep 列表过大（上限 2000）')
+  }
+
+  let deleted = 0
+  db.transaction(() => {
+    const rows = db.prepare(
+      "SELECT id, key_hash, base_url FROM token_keys WHERE deal_status = 'published'",
+    ).all() as Array<{ id: string, key_hash: string, base_url: string }>
+    const stale = rows.filter(r => !known.has(`${r.key_hash}\u0000${r.base_url ?? ''}`))
+    for (const r of stale) {
+      db.prepare('DELETE FROM token_keys WHERE id = ?').run(r.id)
+    }
+    deleted = stale.length
+  })()
+
+  return { deleted, keep_count: known.size }
 }

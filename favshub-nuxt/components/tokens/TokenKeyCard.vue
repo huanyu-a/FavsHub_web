@@ -9,10 +9,20 @@
       <span class="keys-src" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
     </header>
 
-    <!-- B 类主体：脱敏 key 等宽块（前缀+星号+后缀，模板插值天然转义，禁 v-html） -->
-    <div v-if="!isGuide" class="keys-masked">
+    <!-- B 类主体：完整 key 等宽块（2026-10-08 起公开可复制；无明文时回退脱敏形态） -->
+    <div v-if="!isGuide" class="keys-key">
       <i class="ri-key-2-line"></i>
-      <span class="keys-masked-value">{{ props.keyRow.key_masked || '—' }}</span>
+      <code class="keys-key-value">{{ displayKey || '—' }}</code>
+      <button
+        v-if="props.keyRow.key_plain"
+        type="button"
+        class="keys-copy"
+        :class="{ 'is-done': copied }"
+        :title="copied ? '已复制' : '复制完整 Key'"
+        @click="copyKey"
+      >
+        <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+      </button>
     </div>
 
     <!-- C 类主体：回帖解锁指引块（无 key 行不出 key_masked / 置信） -->
@@ -48,6 +58,9 @@
       >
         <i class="ri-external-link-line"></i>原帖
       </a>
+      <span v-if="postTimeText" class="keys-time" title="原帖发帖时间">
+        <i class="ri-calendar-line"></i>{{ postTimeText }}
+      </span>
       <span v-if="!isGuide && timeText" class="keys-time">
         <i class="ri-time-line"></i>{{ timeText }}
       </span>
@@ -63,35 +76,28 @@
         <i class="ri-chat-3-line"></i>去论坛回复领取
       </a>
 
-      <!-- B 类：F5 揭示按钮（本轮降级态，落 F5 时只改此事件层）：
-           未登录 → 引导登录（登录页带回跳 /tokens/keys）；已登录 → 禁用占位，功能 P1 上线 -->
-      <NuxtLink
-        v-if="!isGuide && !loggedIn"
-        to="/login?redirect=/tokens/keys"
-        class="keys-reveal is-guide"
-        title="登录后揭示完整 Key"
-      >
-        <i class="ri-lock-line"></i>登录后揭示
-      </NuxtLink>
+      <!-- B 类：主按钮「复制完整 Key」（2026-10-08：key_plain 公开，揭示/登录门槛取消） -->
       <button
-        v-else-if="!isGuide"
+        v-else-if="!isGuide && props.keyRow.key_plain"
         type="button"
-        class="keys-reveal"
-        disabled
-        title="揭示功能 P1 上线"
+        class="keys-copy-main"
+        :class="{ 'is-done': copied }"
+        @click="copyKey"
       >
-        <i class="ri-eye-line"></i>揭示完整 Key
+        <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+        {{ copied ? '已复制' : '复制 Key' }}
       </button>
     </footer>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 
 interface ITokenKeyRow {
   id: string
   key_masked: string
+  key_plain: string
   verdict: string
   confidence: string
   provider: string
@@ -104,18 +110,51 @@ interface ITokenKeyRow {
   source_title: string
   first_seen_at: number | null
   last_probe_at: number | null
+  post_time: string
 }
 
 const props = defineProps<{
   keyRow: ITokenKeyRow
-  /** 登录态由页面传入：未登录渲染「登录后揭示」引导链接，已登录渲染 P1 降级占位按钮 */
-  loggedIn: boolean
 }>()
 
 /** C 类（回帖指引）行没有 key，主体与脚部整体换形 */
 const isGuide = computed(() => props.keyRow.source === 'reply_visible_guide')
 /** dead 整卡置灰（07 F6；先例 TokenDealCard.vue is-expired / local_server.py is-dead） */
 const isDead = computed(() => props.keyRow.verdict === 'dead')
+
+/** 展示键：完整明文优先，无明文（历史行/解密失败）回退脱敏形态 */
+const displayKey = computed(() => props.keyRow.key_plain || props.keyRow.key_masked || '')
+
+/** 复制状态反馈（1.6s 后复位）；clipboard API 不可用时降级 execCommand */
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+async function copyKey() {
+  const text = props.keyRow.key_plain
+  if (!text) return
+  let ok = false
+  try {
+    await navigator.clipboard.writeText(text)
+    ok = true
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+    } catch {
+      ok = false
+    }
+  }
+  if (ok) {
+    copied.value = true
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => { copied.value = false }, 1600)
+  }
+}
 
 /** 名称兜底链：provider → 帖标题 → 未知来源（local_server.py:91-94 无 provider 时兜底命名的先例） */
 const providerName = computed(() => {
@@ -188,6 +227,16 @@ const timeText = computed(() => {
   if (seen) return `收录 ${seen}`
   return probed ? `探测 ${probed}` : ''
 })
+
+/** 原帖发帖时间：采集端原文字符串，展示时把 ISO（lastmod 兜底路径）规整为同形 */
+const postTimeText = computed(() => {
+  const raw = String(props.keyRow.post_time || '').trim()
+  if (!raw) return ''
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/)
+  return `原帖 ${m ? `${m[1]} ${m[2]}` : raw}`
+})
+
+onUnmounted(() => clearTimeout(copiedTimer))
 </script>
 
 <style scoped>
@@ -260,27 +309,57 @@ const timeText = computed(() => {
   color: var(--primary);
 }
 
-/* ── B 类：脱敏 key 等宽块 ── */
-.keys-masked {
+/* ── B 类：完整 key 等宽块（明文公开可复制；无明文回退脱敏形态） ── */
+.keys-key {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 9px 12px;
   border-radius: 10px;
   background: var(--surface-sunken);
   border: 0.5px solid var(--border);
 }
-.keys-masked i {
+.keys-key i {
   color: var(--text-tertiary);
   font-size: 14px;
   flex-shrink: 0;
+  margin-top: 1px;
 }
-.keys-masked-value {
+.keys-key-value {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: 13px;
   color: var(--text-primary);
   word-break: break-all;
   min-width: 0;
+  flex: 1;
+}
+.keys-copy {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 0.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.keys-copy:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.keys-copy.is-done {
+  color: var(--success);
+  border-color: var(--success);
+}
+.keys-copy:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ── C 类：回帖解锁指引块（风格对齐 TokenDealCard 的 deal-quota 软底语法） ── */
@@ -429,38 +508,35 @@ const timeText = computed(() => {
   outline-offset: 2px;
 }
 
-/* B 类揭示按钮：本轮 F5 降级态（未登录为引导链接 / 已登录禁用占位），布局与 C 类 CTA 等位 */
-.keys-reveal {
+/* B 类复制主按钮：主色实底 CTA（对齐 C 类 keys-cta 等位） */
+.keys-copy-main {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 0.5px solid var(--border);
-  background: var(--surface-raised);
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 0.5px solid var(--primary);
+  background: var(--primary);
+  color: var(--text-inverse);
   font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.keys-reveal:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.keys-copy-main:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: var(--shadow-sm);
 }
-.keys-reveal.is-guide {
-  text-decoration: none;
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+.keys-copy-main:active { background: var(--primary-dark); border-color: var(--primary-dark); }
+.keys-copy-main.is-done {
+  background: color-mix(in srgb, var(--success) 90%, transparent);
+  border-color: var(--success);
 }
-.keys-reveal.is-guide:hover {
-  background: var(--primary-light);
-  border-color: var(--primary);
-}
-.keys-reveal.is-guide:focus-visible {
+.keys-copy-main:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-.keys-reveal i { font-size: 13px; }
+.keys-copy-main i { font-size: 13px; }
 </style>
