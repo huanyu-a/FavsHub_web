@@ -30,7 +30,7 @@
               </span>
               <span class="sidebar-hub-label">白嫖通告</span>
             </NuxtLink>
-            <NuxtLink to="/tokens/keys" class="sidebar-hub-link" :class="{ active: activePage === 'tokens-keys' }" title="福利 Key">
+            <NuxtLink v-if="showKeysLink" to="/tokens/keys" class="sidebar-hub-link" :class="{ active: activePage === 'tokens-keys' }" title="福利 Key">
               <span class="sidebar-hub-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               </span>
@@ -254,6 +254,10 @@ const props = defineProps<{
   activeCollectionId?: string | null
   activeCategoryId?: number | null
 }>()
+
+const route = useRoute()
+// 「福利 Key」入口不进主页与提示词页的侧边栏；/tokens、/tokens/keys 等其余页面照常展示
+const showKeysLink = computed(() => route.path !== '/' && !route.path.startsWith('/prompts'))
 
 const emit = defineEmits<{
   toggle: []
