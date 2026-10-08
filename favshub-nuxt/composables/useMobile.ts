@@ -31,8 +31,15 @@ function initMobile() {
     }
   }
 
-  checkMobile()
-  window.addEventListener('resize', onResize)
+  // 首次判定必须推迟到 app ready（hydration 完成后）：SSR 没有视口概念，
+  // isMobile 固定 false（渲染桌面标记）；若在 hydration 渲染阶段就翻转，
+  // 客户端会改渲染移动壳 → 全站每个页面在 ≤1024px 视口都报 hydration
+  // mismatch（2026-10-08 实测 /tokens /prompts /collections 全中）。
+  // ready 后翻转只产生一次正常的响应式重渲染，视觉跳变与原先一致。
+  onNuxtReady(() => {
+    checkMobile()
+    window.addEventListener('resize', onResize)
+  })
   onUnmounted(() => window.removeEventListener('resize', onResize))
 }
 

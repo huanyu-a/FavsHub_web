@@ -145,7 +145,6 @@ definePageMeta({ layout: 'default' })
 interface ITokenKeyRow {
   id: string
   key_masked: string
-  key_plain: string
   verdict: string
   confidence: string
   provider: string
@@ -178,7 +177,7 @@ const _keysBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.
 const keysBaseUrl = computed(() => `${_keysBase}/tokens/keys`)
 
 const keysTitle = '福利 Key — 免费 API Key 时效看板'
-const keysDesc = '来自第三方论坛公开帖的免费 API Key 时效看板：完整 Key 公开可复制、原帖时间可溯、厂商与状态筛选、有效性探测实时更新，失效 Key 自动清理，回帖领取指引一页看全。'
+const keysDesc = '来自第三方论坛公开帖的免费 API Key 时效看板：Key 一键复制（页面不直接显示明文）、原帖时间可溯、厂商与状态筛选、有效性探测实时更新，失效 Key 自动清理，回帖领取指引一页看全。'
 const keysKw = '免费API Key,福利Key,免费大模型API,API白嫖,Key复制,额度查询'
 
 useHead({
@@ -236,13 +235,14 @@ const lastUpdatedText = computed(() => {
   return formatTs(maxProbe || minSeen)
 })
 
-// token_keys 时间戳为秒级（沿爬虫语义），页面渲染 ×1000
+// token_keys 时间戳为秒级，页面渲染 ×1000；统一 UTC+8 纯算术（与
+// TokenKeyCard.formatTs 同步），避免 SSR/客户端时区差异的 hydration mismatch
 function formatTs(ts: number | null | undefined): string {
   if (!ts || ts <= 0) return ''
-  const d = new Date(ts * 1000)
+  const d = new Date(ts * 1000 + 8 * 3600 * 1000)
   if (Number.isNaN(d.getTime())) return ''
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
 }
 
 // 状态下拉：dead 已被服务端恒定清理（不返回、不入统计），故不提供该选项；
@@ -505,12 +505,17 @@ onUnmounted(() => {
   border: 0;
 }
 
-/* ── ④ 卡片网格（照 .tokens-grid index.vue:629-633） ── */
+/* ── ④ 卡片网格（照 .tokens-grid index.vue:629-633） ──
+   min(300px, 100%) 防窄屏下最小列宽撑破容器；子项 min-width:0 防内容
+   （长 URL / 长 masked 串）把 grid item 撑出屏幕（移动端适配关键） */
 .keys-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 28px;
+}
+.keys-grid > * {
+  min-width: 0;
 }
 
 /* ── 加载态骨架屏（结构照 index.vue:74-89） ── */

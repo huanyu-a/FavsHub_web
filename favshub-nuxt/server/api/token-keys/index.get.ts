@@ -2,14 +2,16 @@
  * GET /api/token-keys — 「福利 Key」公开列表（docs/08 §4.2 F3）
  * Query: page, limit, verdict, provider
  *
- * 2026-10-08 设计变更（站点方需求）：
- *   - key_plain 明文进返回（页面公开可复制，原「脱敏 + 登录后揭示」流程取消）；
+ * 2026-10-08 设计变更（站点方需求，二次调整后口径）：
+ *   - 明文 key **不进列表响应**：完整 key 只能经「复制」按钮从
+ *     GET /api/token-keys/:id/copy 按需获取 —— 卡面只渲染脱敏形态，且 SSR
+ *     payload（__NUXT_DATA__）同样不含明文；
  *   - dead 行不再返回（爬虫侧每轮 prune 对账清理 + 此处恒过滤双保险）；
  *   - 回帖指引行只返回收录 24h 内的（与爬虫 TTL 双保险）；
  *   - post_time（原帖发帖时间原文字符串）随行返回。
  *
  * 红线（07 §8.5 / docs/08 §1.3）：
- *   - SELECT 列清单即白名单：key_encrypted / key_hash / error_message_raw
+ *   - SELECT 列清单即白名单：key_encrypted / key_hash / key_plain / error_message_raw
  *     （以及 note / consecutive_failures 等内部诊断列）根本不进 SELECT，
  *     绝不出现在任何返回、日志或错误信息中；
  *   - 恒定 WHERE deal_status = 'published'，无任何旁路（无 token-deals 的 mine
@@ -32,9 +34,9 @@ const VERDICTS = [
   'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported',
 ] as const
 
-/** 白名单字段 = SELECT 列清单；key_encrypted / key_hash 等敏感列不在其列（docs/08 §4.2） */
+/** 白名单字段 = SELECT 列清单；key_encrypted / key_hash / key_plain 等敏感列不在其列 */
 const KEY_FIELDS = [
-  'id', 'key_masked', 'key_plain', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
+  'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
   'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at', 'post_time',
 ].join(', ')
 

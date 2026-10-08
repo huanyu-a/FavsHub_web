@@ -9,16 +9,17 @@
       <span class="keys-src" :class="sourceMeta.cls">{{ sourceMeta.label }}</span>
     </header>
 
-    <!-- B 类主体：完整 key 等宽块（2026-10-08 起公开可复制；无明文时回退脱敏形态） -->
+    <!-- B 类主体：脱敏形态等宽块 + 复制按钮（2026-10-08 二次调整：完整 key
+         绝不明文渲染进 DOM，只经复制按钮进入剪贴板） -->
     <div v-if="!isGuide" class="keys-key">
       <i class="ri-key-2-line"></i>
-      <code class="keys-key-value">{{ displayKey || '—' }}</code>
+      <code class="keys-key-value" :title="props.keyRow.key_masked">{{ displayKey || '••••••••' }}</code>
       <button
-        v-if="props.keyRow.key_plain"
+        v-if="copyable"
         type="button"
         class="keys-copy"
         :class="{ 'is-done': copied }"
-        :title="copied ? '已复制' : '复制完整 Key'"
+        :title="copied ? '已复制完整 Key' : '复制完整 Key'"
         @click="copyKey"
       >
         <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
@@ -31,10 +32,11 @@
       <span>key 需在原帖回复后可见，点击下方链接去论坛回复领取</span>
     </div>
 
-    <!-- B 类：API 地址（存在才渲染）+ models chips 前 3 + N（照 local_server.py:1076-1083） -->
-    <div v-if="!isGuide && props.keyRow.base_url" class="keys-baseurl" :title="props.keyRow.base_url">
+    <!-- B 类：API 地址（存在才渲染）+ models chips 前 3 + N（照 local_server.py:1076-1083）。
+         base_url 有时把 key 写进路径/query（URL 即 key），展示时同样遮蔽 key 段 -->
+    <div v-if="!isGuide && props.keyRow.base_url" class="keys-baseurl">
       <span class="keys-baseurl-label">API 地址</span>
-      <span class="keys-baseurl-value">{{ props.keyRow.base_url }}</span>
+      <span class="keys-baseurl-value">{{ displayBaseUrl }}</span>
     </div>
     <div v-if="!isGuide && visibleModels.length" class="keys-models">
       <span v-for="m in visibleModels" :key="m" class="keys-chip">{{ m }}</span>
@@ -76,9 +78,9 @@
         <i class="ri-chat-3-line"></i>去论坛回复领取
       </a>
 
-      <!-- B 类：主按钮「复制完整 Key」（2026-10-08：key_plain 公开，揭示/登录门槛取消） -->
+      <!-- B 类：主按钮「复制完整 Key」（明文仅进剪贴板，不在页面渲染） -->
       <button
-        v-else-if="!isGuide && props.keyRow.key_plain"
+        v-else-if="!isGuide && copyable"
         type="button"
         class="keys-copy-main"
         :class="{ 'is-done': copied }"
@@ -97,7 +99,6 @@ import { computed, ref, onUnmounted } from 'vue'
 interface ITokenKeyRow {
   id: string
   key_masked: string
-  key_plain: string
   verdict: string
   confidence: string
   provider: string
@@ -122,14 +123,38 @@ const isGuide = computed(() => props.keyRow.source === 'reply_visible_guide')
 /** dead 整卡置灰（07 F6；先例 TokenDealCard.vue is-expired / local_server.py is-dead） */
 const isDead = computed(() => props.keyRow.verdict === 'dead')
 
-/** 展示键：完整明文优先，无明文（历史行/解密失败）回退脱敏形态 */
-const displayKey = computed(() => props.keyRow.key_plain || props.keyRow.key_masked || '')
+/** 卡面展示：压缩脱敏形态（前 6 + … + 后 4）—— 完整 masked 串过长会撑破
+    移动端卡片；title 里保留完整形态。明文绝不渲染进 DOM / SSR payload。 */
+const displayKey = computed(() => {
+  const m = props.keyRow.key_masked || ''
+  if (!m) return ''
+  if (m.length <= 18) return m
+  return `${m.slice(0, 6)}…${m.slice(-4)}`
+})
+
+/** API 地址展示：遮蔽嵌在路径 / query 里的 key 段（如 https://x.site/sk-xxx），
+    只留前 6 + … + 后 4，规则与卡面 masked 一致；不含 key 形态的 URL 原样显示 */
+const KEY_LIKE_RE = /\b[A-Za-z0-9_\-]*(?:sk-|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|r8_)[A-Za-z0-9_\-]{8,}/g
+const displayBaseUrl = computed(() => {
+  const u = props.keyRow.base_url || ''
+  return u.replace(KEY_LIKE_RE, (m) => (m.length <= 18 ? m : `${m.slice(0, 6)}…${m.slice(-4)}`))
+})
+/** 可复制：凡有脱敏形态的 B 类行都可复制（明文由 copy 端点按需下发） */
+const copyable = computed(() => !!props.keyRow.key_masked)
 
 /** 复制状态反馈（1.6s 后复位）；clipboard API 不可用时降级 execCommand */
 const copied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 async function copyKey() {
-  const text = props.keyRow.key_plain
+  if (copied.value) return
+  let text = ''
+  try {
+    // 完整明文只在点击瞬间经 GET /api/token-keys/:id/copy 获取，不进任何渲染状态
+    const res = await $fetch<{ key_plain: string }>(`/api/token-keys/${props.keyRow.id}/copy`)
+    text = res?.key_plain || ''
+  } catch {
+    return
+  }
   if (!text) return
   let ok = false
   try {
@@ -160,7 +185,13 @@ async function copyKey() {
 const providerName = computed(() => {
   return props.keyRow.provider?.trim() || props.keyRow.source_title?.trim() || '未知来源'
 })
-const initial = computed(() => (providerName.value || '?').charAt(0).toUpperCase())
+// 厂商首字母 fallback：**必须码点感知**取首字符 —— provider 名可能以 emoji
+// （代理对）开头，charAt(0) 会截出孤立代理：SSR 侧 UTF-8 编码成 U+FFFD，
+// 客户端保留半个代理对 → hydration mismatch（2026-10-08 实测修复）
+const initial = computed(() => {
+  const name = providerName.value || '?'
+  return ([...name][0] || '?').toUpperCase()
+})
 
 // 来源徽标：post 绿 / aggregator_leak 灰 / reply_visible_guide 蓝（07 §3.2 ④ 表）
 const SOURCE_META: Record<string, { label: string; cls: string }> = {
@@ -211,13 +242,16 @@ const safeSourceUrl = computed(() => {
   return /^https?:\/\//i.test(url) ? url : ''
 })
 
-// token_keys 时间戳为秒级（沿爬虫语义，07 §4.3），页面渲染 ×1000
+// token_keys 时间戳为秒级（沿爬虫语义，07 §4.3），页面渲染 ×1000。
+// 统一按 UTC+8（站点受众时区）用纯 UTC 算术格式化 —— getFullYear/getHours
+// 这类本地时区方法在 SSR（服务器时区）与客户端（用户时区）会差 8 小时，
+// 造成 hydration mismatch（2026-10-08 实测修复）。
 function formatTs(ts: number | null | undefined): string {
   if (!ts || ts <= 0) return ''
-  const d = new Date(ts * 1000)
+  const d = new Date(ts * 1000 + 8 * 3600 * 1000)
   if (Number.isNaN(d.getTime())) return ''
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
 }
 
 const timeText = computed(() => {
@@ -248,6 +282,8 @@ onUnmounted(() => clearTimeout(copiedTimer))
   background: var(--surface-raised);
   border: 0.5px solid var(--border);
   border-radius: 14px;
+  min-width: 0; /* grid/flex 子项防内容撑破（移动端适配） */
+  max-width: 100%;
 }
 /* dead 整卡置灰标红：先例 local_server.py:509 .deal-card.is-dead 与 TokenDealCard.vue:202-204 is-expired */
 .keys-card.is-dead {
@@ -388,6 +424,7 @@ onUnmounted(() => clearTimeout(copiedTimer))
   gap: 8px;
   font-size: 12px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 .keys-baseurl-label {
   color: var(--text-tertiary);
@@ -399,6 +436,8 @@ onUnmounted(() => clearTimeout(copiedTimer))
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 .keys-models {
   display: flex;
@@ -539,4 +578,18 @@ onUnmounted(() => clearTimeout(copiedTimer))
   outline-offset: 2px;
 }
 .keys-copy-main i { font-size: 13px; }
+
+/* ── 移动端：主按钮整行、时间行可换行（768px 与 keys 页断点一致） ── */
+@media (max-width: 480px) {
+  .keys-copy-main,
+  .keys-cta {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    margin-top: 2px;
+  }
+  .keys-foot {
+    gap: 8px;
+  }
+}
 </style>

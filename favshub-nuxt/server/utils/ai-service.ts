@@ -1021,13 +1021,14 @@ const PLAIN_KEY_SOURCE =
   ')[A-Za-z0-9_\\-]{10,220}'
 
 /**
- * 读侧字段白名单 —— 16 字段（docs/08 §4.2 + 2026-10-08 设计变更）。key_encrypted /
+ * 读侧字段白名单 —— 15 字段（docs/08 §4.2 + 2026-10-08 设计变更）。key_encrypted /
  * key_hash / error_message_raw 红线列与 note / consecutive_failures 内部诊断列不在其列。
- * 设计变更（2026-10-08 站长拍板）：`key_plain` 明文进公开页（本站定位即福利分享，
- * 原「脱敏 + 登录后揭示」F5 流程取消）；`post_time` 为原帖发帖时间原文字符串。
+ * 设计变更（2026-10-08 二次调整）：`key_plain` 明文**不进任何列表/详情响应**——
+ * 完整 key 只经 GET /api/token-keys/:id/copy 按需下发（页面不明文渲染，SSR
+ * payload 也不含）；`post_time` 为原帖发帖时间原文字符串。
  */
 const TOKEN_KEY_PUBLIC_FIELDS = [
-  'id', 'key_masked', 'key_plain', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
+  'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
   'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at', 'post_time',
 ].join(', ')
 
