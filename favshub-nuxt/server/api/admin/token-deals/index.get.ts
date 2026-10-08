@@ -47,7 +47,8 @@ export default defineEventHandler(async (event) => {
     .get(...params) as { total: number }).total
 
   const rows = db.prepare(`
-    SELECT d.*, u.username, u.nickname
+    SELECT d.*, u.username,
+      CASE WHEN d.guest_name IS NOT NULL AND d.guest_name != '' THEN d.guest_name ELSE u.nickname END AS nickname
     FROM token_deals d
     LEFT JOIN users u ON d.user_id = u.id
     WHERE ${where}

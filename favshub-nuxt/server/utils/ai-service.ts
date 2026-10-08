@@ -24,6 +24,7 @@ import {
   extractDealPatch,
   validateDealPatch,
   diffDealPatch,
+  normalizeModels,
 } from './token-deals'
 import {
   submitDealEdit,
@@ -972,4 +973,347 @@ function parseEditPayload(raw: unknown): Record<string, any> {
 export function withdrawTokenDealEdit(db: DB, userId: number, rawEditId: unknown) {
   const viewer = { id: userId, isAdmin: isUserAdmin(db, userId) }
   return unwrapEditOp(withdrawDealEdit(db, viewer, rawEditId))
+}
+
+// ════════════════════════════════════════════════════════════════
+// 福利 Key（token_keys）— PAT 写通道（docs/08 §4.3 F4）
+//
+// 数据链路：爬虫每轮把最新快照经 POST /api/ai/token-keys 上报，本模块是
+// 该通道的唯一写库实现（upsert 按 UNIQUE(key_hash, base_url)）。
+//
+// 红线（07 §8.5 / docs/08 §1.3）：本模块任何返回、错误信息、日志都不得出现
+// 明文 key、key_hash 值或 key_encrypted 密文 —— 校验失败只报字段名不回显值，
+// 返回行恒走 TOKEN_KEY_PUBLIC_FIELDS 白名单（key_encrypted / key_hash 根本不在列）。
+// ════════════════════════════════════════════════════════════════
+
+/** 字段长度上限（docs/08 §4.3，照 ./token-deals LIMITS 风格；models 复用 normalizeModels 的 20 条上限） */
+export const KEY_LIMITS = {
+  keyMasked: 260,
+  sourceUrl: 500,
+  sourceTitle: 200,
+  sourceAuthor: 60,
+  provider: 60,
+  note: 500,
+  models: 20,
+} as const
+
+/** source 枚举（07 §8.4 / crawler interfaces.py:60-72） */
+const KEY_SOURCES = ['post', 'aggregator_leak', 'reply_visible_guide'] as const
+
+/** confidence 枚举（(key, base_url) 配对置信度，07 §8.2） */
+const KEY_CONFIDENCES = ['high', 'medium', 'low'] as const
+
+/** verdict 枚举（8 值，07 §8.4 / crawler interfaces.py:49-59） */
+const KEY_VERDICTS = [
+  'valid', 'quota', 'limited', 'dead',
+  'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported',
+] as const
+
+/**
+ * 明文 key 形状正则 —— tokenhub local_server.py:47-52 的 JS 等价式（07 §8.2
+ * 分层厂商前缀 + 通用 sk- 兜底）。脱敏值中的 `*` 会截断 `{10,220}` 尾段、
+ * 天然不命中，故「含 * 的脱敏形态」可原样通过本闸门（同 local_server 实测行为）。
+ */
+const PLAIN_KEY_SOURCE =
+  '(?<![A-Za-z0-9_\\-])(?:' +
+  'sk-(?:or-v1|ant(?:-api\\d{2})?|proj|svcacct|admin|live|test)-?' +
+  '|sk-|gsk_|xai-|fw_|hf_|pplx-|r8_|csk-|AIza|nvapi-|ghp_' +
+  ')[A-Za-z0-9_\\-]{10,220}'
+
+/**
+ * 读侧字段白名单 —— 14 字段（docs/08 §4.2，与 GET /api/token-keys 的
+ * SELECT 列清单同源）。key_encrypted / key_hash / error_message_raw 三红线列
+ * 与 note / consecutive_failures 等内部诊断列不在其列。
+ */
+const TOKEN_KEY_PUBLIC_FIELDS = [
+  'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
+  'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at',
+].join(', ')
+
+/** 归一化后的上行载荷（列名用 snake_case，与请求体 / 表列一致） */
+export interface TokenKeyPayload {
+  key_hash: string
+  base_url: string
+  key_masked: string
+  key_encrypted: string | null
+  provider: string
+  models: string[]
+  source: string
+  confidence: string
+  verdict: string
+  source_id: string
+  source_tid: number | null
+  source_url: string
+  source_title: string
+  source_author: string
+  consecutive_failures: number
+  last_probe_at: number | null
+  first_seen_at: number | null
+  note: string
+}
+
+export type TokenKeyValidateResult =
+  | { ok: true; data: TokenKeyPayload }
+  | { ok: false; error: string }
+
+function str(v: unknown): string {
+  return String(v ?? '').trim()
+}
+
+/** 「正整数或缺省」语义：缺省 / null / '' → null；其余必须为正整数 */
+function posIntOrNull(v: unknown): number | null | undefined {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  if (!Number.isInteger(n) || n <= 0) return undefined // undefined = 非法
+  return n
+}
+
+/** 「非负整数或缺省」语义：缺省 / null / '' → null；其余必须为非负整数 */
+function nonNegIntOrNull(v: unknown): number | null | undefined {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  if (!Number.isInteger(n) || n < 0) return undefined // undefined = 非法
+  return n
+}
+
+/**
+ * 校验并归一化「福利 Key」上行载荷（docs/08 §4.3）。
+ * 只做字段级校验与 C 类强制覆盖，权限映射（PAT→pending / 管理员→published）
+ * 与落库由 upsertTokenKey 负责 —— 分工同 validateDealPayload。
+ */
+export function validateTokenKeyPayload(body: any): TokenKeyValidateResult {
+  // key_hash 必填且 64 位小写 sha256 hex（去重身份的一半；错误信息不回显值）
+  const keyHash = str(body?.key_hash).toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(keyHash)) {
+    return { ok: false, error: 'key_hash 必填且必须为 64 位小写 sha256 hex' }
+  }
+
+  const source = str(body?.source) || 'post'
+  if (!(KEY_SOURCES as readonly string[]).includes(source)) {
+    return { ok: false, error: 'source 取值非法（post / aggregator_leak / reply_visible_guide）' }
+  }
+
+  const confidence = str(body?.confidence) || 'low'
+  if (!(KEY_CONFIDENCES as readonly string[]).includes(confidence)) {
+    return { ok: false, error: 'confidence 取值非法（high / medium / low）' }
+  }
+
+  const verdict = str(body?.verdict) || 'unknown'
+  if (!(KEY_VERDICTS as readonly string[]).includes(verdict)) {
+    return { ok: false, error: 'verdict 取值非法（8 值白名单）' }
+  }
+
+  const provider = str(body?.provider)
+  if (provider.length > KEY_LIMITS.provider) return { ok: false, error: `provider 不能超过 ${KEY_LIMITS.provider} 字` }
+
+  const keyMasked = str(body?.key_masked)
+  if (keyMasked.length > KEY_LIMITS.keyMasked) return { ok: false, error: `key_masked 长度不能超过 ${KEY_LIMITS.keyMasked}` }
+
+  const sourceUrl = str(body?.source_url)
+  if (sourceUrl.length > KEY_LIMITS.sourceUrl) return { ok: false, error: `source_url 不能超过 ${KEY_LIMITS.sourceUrl} 字` }
+
+  const sourceTitle = str(body?.source_title)
+  if (sourceTitle.length > KEY_LIMITS.sourceTitle) return { ok: false, error: `source_title 不能超过 ${KEY_LIMITS.sourceTitle} 字` }
+
+  const sourceAuthor = str(body?.source_author)
+  if (sourceAuthor.length > KEY_LIMITS.sourceAuthor) return { ok: false, error: `source_author 不能超过 ${KEY_LIMITS.sourceAuthor} 字` }
+
+  const note = str(body?.note)
+  if (note.length > KEY_LIMITS.note) return { ok: false, error: `note 不能超过 ${KEY_LIMITS.note} 字` }
+
+  const sourceTid = nonNegIntOrNull(body?.source_tid)
+  if (sourceTid === undefined) return { ok: false, error: 'source_tid 必须是非负整数或缺省' }
+
+  const consecutiveFailuresRaw = nonNegIntOrNull(body?.consecutive_failures)
+  if (consecutiveFailuresRaw === undefined) return { ok: false, error: 'consecutive_failures 必须是非负整数或缺省' }
+
+  const lastProbeAt = posIntOrNull(body?.last_probe_at)
+  if (lastProbeAt === undefined) return { ok: false, error: 'last_probe_at 必须是正整数（秒级）或缺省' }
+
+  const firstSeenAt = posIntOrNull(body?.first_seen_at)
+  if (firstSeenAt === undefined) return { ok: false, error: 'first_seen_at 必须是正整数（秒级）或缺省' }
+
+  // B 类硬闸门（docs/08 §4.3）：非 C 类且 key_masked 非空时，必须是「含 * 的脱敏
+  // 形态」且不得命中明文形状正则 —— F3 白名单把 key_masked 原样透传上公开页，
+  // 服务端不拦明文形状，明文 key 就能经 F4 入库、经 F3 上页。
+  const keyEncrypted = body?.key_encrypted === undefined || body?.key_encrypted === null
+    ? null
+    : str(body?.key_encrypted)
+  if (source !== 'reply_visible_guide' && keyMasked) {
+    if (!keyMasked.includes('*') || new RegExp(PLAIN_KEY_SOURCE).test(keyMasked)) {
+      return { ok: false, error: 'key_masked 必须是脱敏形态（含 *），不得提交明文' }
+    }
+  }
+
+  const data: TokenKeyPayload = {
+    key_hash: keyHash,
+    base_url: str(body?.base_url),
+    key_masked: keyMasked,
+    key_encrypted: keyEncrypted,
+    provider,
+    models: normalizeModels(body?.models),
+    source,
+    confidence,
+    verdict,
+    source_id: str(body?.source_id) || 'linux_sb',
+    source_tid: sourceTid,
+    source_url: sourceUrl,
+    source_title: sourceTitle,
+    source_author: sourceAuthor,
+    consecutive_failures: consecutiveFailuresRaw ?? 0,
+    last_probe_at: lastProbeAt,
+    first_seen_at: firstSeenAt,
+    note,
+  }
+
+  // C 类服务端强制覆盖（D2 红线，不信任客户端）：指引行零 key 数据 ——
+  // 即使 payload 带了值也丢弃。
+  if (source === 'reply_visible_guide') {
+    data.key_masked = ''
+    data.key_encrypted = null
+    data.base_url = ''
+  }
+
+  return { ok: true, data }
+}
+
+/**
+ * 按 `UNIQUE(key_hash, base_url)` upsert 福利 Key（docs/08 §4.3，
+ * 照 crawler/store/db.py:354-420 upsert_token_key 的列所有权纪律重写为 TS）。
+ *
+ * 审核映射（07 F4 / D9）：管理员 PAT 直上 published，普通 PAT 入 pending ——
+ * **只在 INSERT 时判定**；UPDATE 绝不动 deal_status（不复活 hidden、
+ * 不把 pending 刷成 published，db.py:365-372 注释原文同义）。
+ * UPDATE 列所有权：只刷可变列（key_masked / key_encrypted=COALESCE / provider /
+ * models / source / confidence / verdict / consecutive_failures / last_probe_at /
+ * note / updated_at）；id / key_hash / base_url / source_* / first_seen_at /
+ * created_at 是身份历史。verdict 允许更新：PAT 通道里爬虫是唯一写者
+ * （07 C3「存量 key 每轮 upsert 最新 verdict」——与爬虫本地库由状态机独占写不同）。
+ *
+ * 时间戳纪律：token_keys 沿爬虫语义存**秒**（与站点其余表的毫秒不同，
+ * 页面渲染 ×1000，两库直拷才不需要换算）。
+ *
+ * 返回：`{ token_key: {…白名单 14 字段, deal_status}, upserted, status, message }`；
+ * `dry_run: true` 时只返回归一化结果不落库（爬虫切 PAT 的首轮预演，07 §6.2 C1）。
+ */
+export function upsertTokenKey(db: DB, userId: number, body: any) {
+  const result = validateTokenKeyPayload(body)
+  if (!result.ok) fail(400, result.error)
+  const d = result.data
+
+  const isAdmin = isUserAdmin(db, userId)
+  const dealStatus = isAdmin ? 'published' : 'pending'
+
+  // dry_run：返回归一化后的行（白名单口径，不含 key_hash / key_encrypted / 内部诊断列）
+  if (body?.dry_run === true) {
+    return {
+      dry_run: true,
+      changes: {
+        key_masked: d.key_masked,
+        base_url: d.base_url,
+        provider: d.provider,
+        models: d.models,
+        source: d.source,
+        confidence: d.confidence,
+        verdict: d.verdict,
+        source_id: d.source_id,
+        source_tid: d.source_tid,
+        source_url: d.source_url,
+        source_title: d.source_title,
+        first_seen_at: d.first_seen_at,
+        last_probe_at: d.last_probe_at,
+        deal_status: dealStatus,
+      },
+    }
+  }
+
+  const newId = randomUUID().replace(/-/g, '')
+  const nowSec = Math.floor(Date.now() / 1000)
+
+  let rowId = newId
+  let upserted: 'inserted' | 'updated' = 'inserted'
+
+  // 查存量 + 插入/更新整体包事务（CLAUDE.md:103 多步写纪律，本文件既有 6 处先例）
+  db.transaction(() => {
+    const existing = db.prepare('SELECT id FROM token_keys WHERE key_hash = ? AND base_url = ?')
+      .get(d.key_hash, d.base_url) as { id: string } | undefined
+
+    if (existing) {
+      upserted = 'updated'
+      rowId = existing.id
+      db.prepare(`
+        UPDATE token_keys SET
+          key_masked = ?,
+          key_encrypted = COALESCE(?, key_encrypted),
+          provider = ?,
+          models = ?,
+          source = ?,
+          confidence = ?,
+          verdict = ?,
+          consecutive_failures = ?,
+          last_probe_at = ?,
+          note = ?,
+          updated_at = ?
+        WHERE id = ?
+      `).run(
+        d.key_masked,
+        d.key_encrypted, // null → 保留既有密文（不清空）
+        d.provider,
+        JSON.stringify(d.models),
+        d.source,
+        d.confidence,
+        d.verdict,
+        d.consecutive_failures,
+        d.last_probe_at,
+        d.note,
+        nowSec,
+        rowId,
+      )
+    } else {
+      db.prepare(`
+        INSERT INTO token_keys (
+          id, source_id, source_tid, source_url, source_title, source_author,
+          key_masked, key_hash, key_encrypted, base_url, provider, models,
+          source, confidence, verdict, consecutive_failures, last_probe_at,
+          first_seen_at, deal_status, note, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        newId,
+        d.source_id,
+        d.source_tid,
+        d.source_url,
+        d.source_title,
+        d.source_author,
+        d.key_masked,
+        d.key_hash,
+        d.key_encrypted,
+        d.base_url,
+        d.provider,
+        JSON.stringify(d.models),
+        d.source,
+        d.confidence,
+        d.verdict,
+        d.consecutive_failures,
+        d.last_probe_at,
+        d.first_seen_at,
+        dealStatus,
+        d.note,
+        nowSec,
+        nowSec,
+      )
+    }
+  })()
+
+  const row = db
+    .prepare(`SELECT ${TOKEN_KEY_PUBLIC_FIELDS}, deal_status FROM token_keys WHERE id = ?`)
+    .get(rowId) as any
+
+  return {
+    token_key: { ...row, models: parseDealModels(row?.models) },
+    upserted,
+    status: dealStatus,
+    message: upserted === 'inserted'
+      ? (isAdmin ? '已入库并发布（管理员 PAT 直上）' : '已入库，待管理员审核转正')
+      : '已更新现有行（key_hash + base_url 命中）',
+  }
 }

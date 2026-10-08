@@ -480,6 +480,10 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'collections', 'meta_description', "ALTER TABLE collections ADD COLUMN meta_description TEXT DEFAULT ''")
   ensureColumn(db, 'collections', 'meta_keywords', "ALTER TABLE collections ADD COLUMN meta_keywords TEXT DEFAULT ''")
   ensureColumn(db, 'collection_bookmarks', 'category_id', 'ALTER TABLE collection_bookmarks ADD COLUMN category_id INTEGER')
+  // 游客发布通告（无需登录）：署名昵称 + 身份指纹（与游客评测同一套身份体系，
+  // 用于「待审上限」去重；user_id 固定为 0，即种子系统用户 _system，满足外键约束）
+  ensureColumn(db, 'token_deals', 'guest_name', "ALTER TABLE token_deals ADD COLUMN guest_name TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'guest_fingerprint', "ALTER TABLE token_deals ADD COLUMN guest_fingerprint TEXT DEFAULT ''")
 
   // 删除旧的 category_name 列（SQLite 需要重建表）
   try {
@@ -1042,6 +1046,104 @@ export function createNexusSchema(db: Database.Database) {
 }
 
 /**
+ * 「福利 Key」三表 — token_keys / probe_log / reveal_log（07 §8.4 / docs/08 §4.1）
+ *
+ * 数据链路：爬虫库 → 本地桥脚本 / 生产 PAT 写端点 → 本表，本页 DDL 与爬虫侧
+ * crawler/store/db.py SCHEMA_STATEMENTS 逐字同构（两库直拷互通的前提），
+ * 改一处必须同步三处（docs/08 §5.2）。
+ *
+ * 设计约束（对齐项目迁移铁律）：
+ *   1. 不并入 createTables() 的大 exec 块 —— 每张表独立 try/catch，绝不抛出。
+ *   2. 每条索引独立 try/catch。
+ *   3. UNIQUE(key_hash, base_url) 为表级约束（自动产生 sqlite_autoindex），与爬虫库一致；
+ *      C 类指引行的 key_hash 存无凭证哨兵 hash，UNIQUE 由此成立（07 :393 勘误）。
+ *   4. 时间戳为**秒级**（沿爬虫语义，与站点其余表的毫秒不同），页面渲染时 ×1000。
+ *   5. 红线（07 §8.5）：key_encrypted / key_hash / error_message_raw 三列
+ *      永不进任何读接口 SELECT，永不上页面。
+ *   6. reveal_log 暂不加索引 —— F5 揭示端点落地时按需追加，同样独立 try/catch。
+ */
+export function createTokenKeysSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_keys (
+        id TEXT PRIMARY KEY,
+        source_id TEXT DEFAULT 'linux_sb',
+        source_tid INTEGER,
+        source_url TEXT DEFAULT '',
+        source_title TEXT DEFAULT '',
+        source_author TEXT DEFAULT '',
+        key_masked TEXT DEFAULT '',
+        key_hash TEXT DEFAULT '',
+        key_encrypted TEXT,
+        base_url TEXT DEFAULT '',
+        provider TEXT DEFAULT '',
+        models TEXT DEFAULT '[]',
+        source TEXT DEFAULT 'post',
+        confidence TEXT DEFAULT 'low',
+        verdict TEXT DEFAULT 'unknown',
+        consecutive_failures INTEGER DEFAULT 0,
+        last_probe_at INTEGER,
+        first_seen_at INTEGER,
+        deal_status TEXT DEFAULT 'published',
+        note TEXT DEFAULT '',
+        created_at INTEGER, updated_at INTEGER,
+        UNIQUE(key_hash, base_url)
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_keys 失败:', err.message)
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS probe_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        credential_id TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        probe_kind TEXT NOT NULL,
+        http_status INTEGER,
+        error_code TEXT DEFAULT '',
+        error_message_raw TEXT DEFAULT '',
+        attempt_n INTEGER DEFAULT 1,
+        verdict TEXT NOT NULL,
+        probed_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 probe_log 失败:', err.message)
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS reveal_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        credential_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        ip TEXT DEFAULT '',
+        revealed_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 reveal_log 失败:', err.message)
+  }
+
+  // 索引逐条独立 try/catch —— 单条失败不影响其余（血泪教训见上方 has_sync 注释）
+  const tokenKeysIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_token_keys_verdict ON token_keys(verdict)',
+    'CREATE INDEX IF NOT EXISTS idx_token_keys_status ON token_keys(deal_status)',
+    'CREATE INDEX IF NOT EXISTS idx_probe_log_probed_at ON probe_log(probed_at)',
+    'CREATE INDEX IF NOT EXISTS idx_probe_log_credential ON probe_log(credential_id)',
+  ]
+  for (const sql of tokenKeysIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] 福利 Key 索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
+}
+
+/**
  * 初始化系统用户和默认数据
  */
 export function seedDefaults(db: Database.Database) {
@@ -1502,6 +1604,7 @@ export function initializeDatabase(db: Database.Database) {
   createIndexes(db)
   createAiSchema(db)
   createNexusSchema(db)
+  createTokenKeysSchema(db)
   createQqBotSchema(db)
   seedDefaults(db)
 }

@@ -51,6 +51,13 @@ export default defineEventHandler((event) => {
       changefreq: 'daily',
       priority: 0.9,
     },
+    // 福利 Key 看板（公开页面，随爬虫轮次日更）
+    {
+      loc: `${baseUrl}/tokens/keys`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.8,
+    },
     // 提示词管理（公开页面）
     {
       loc: `${baseUrl}/prompts`,

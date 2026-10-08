@@ -153,6 +153,17 @@ if (CHECK_ONLY) {
   process.exit(0)
 }
 
+// 幂等写盘：漂移判定口径与 --check 一致（忽略 generated_at——它每次构建都变）。
+// 内容无实质变化时跳过写入，避免每次构建都翻动清单文件、制造无意义的 git 噪音。
+if (existsSync(OUT_FILE)) {
+  const current = readFileSync(OUT_FILE, 'utf8')
+  const strip = (s) => s.replace(/"generated_at":\s*"[^"]*",?\n?/, '')
+  if (strip(current) === strip(serialized)) {
+    console.log(`[skill-manifest] 内容未变化（仅 generated_at 流转），跳过写入：${OUT_FILE}`)
+    process.exit(0)
+  }
+}
+
 mkdirSync(OUT_DIR, { recursive: true })
 writeFileSync(OUT_FILE, serialized, 'utf8')
 

@@ -122,6 +122,13 @@ export default defineNuxtConfig({
         'Cache-Control': 'public, max-age=300',
       },
     },
+    // 「福利 Key」公开脱敏列表（docs/08 §4.2 偏差 2 待补项）：响应与登录态零相关、
+    // 恒为已发布行 → 可被 CDN / 浏览器缓存 5 分钟（更具体规则覆盖上方 '/api/**' 的 no-store）
+    '/api/token-keys': {
+      headers: {
+        'Cache-Control': 'public, max-age=300',
+      },
+    },
     // QQ 头像代理：URL 本身即内容指纹（AES-GCM 密文，同一 QQ 恒得同一 URL），
     // 内容稳定且非敏感 → 长缓存。独立于 /api/** 的 no-store，故单独设规则。
     // 同时覆盖 /** 的 Vary:Cookie —— 头像与登录态无关，共享缓存安全。

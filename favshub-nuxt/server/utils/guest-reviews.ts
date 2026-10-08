@@ -155,6 +155,24 @@ export function createGuestChallenge(): { question: string; token: string; expir
   }
 }
 
+/**
+ * 校验并消费一道游客人机校验题（答对即作废，防脚本解一题反复提交）。
+ *
+ * 供多个游客提交通道共用（评测 / 发布通告）：校验签名 → 比对答案 → 一次性 nonce。
+ * 返回 null 表示通过；否则返回给用户看的错误文案（含「校验」二字，前端据此刷新题目）。
+ */
+export function consumeGuestChallenge(token: unknown, answerRaw: unknown): string | null {
+  const tokenStr = String(token ?? '')
+  if (!tokenStr) return '请先完成人机校验'
+  const challenge = verifyChallenge(tokenStr)
+  if (!challenge) return '校验已过期，请刷新后重试'
+  const answer = Number(answerRaw)
+  if (!Number.isInteger(answer) || answer !== challenge.a) return '校验答案不正确'
+  if (usedNonces.has(challenge.n)) return '校验已使用，请重新获取题目'
+  markNonceUsed(challenge.n, challenge.e)
+  return null
+}
+
 // ─── 内容过滤 ───────────────────────────────────────────────────
 
 /**
@@ -174,6 +192,12 @@ function validateGuestContent(content: string): string | null {
     if (re.test(content)) return '内容包含疑似广告或违规信息，请修改后重试'
   }
   return null
+}
+
+/** 文本命中灌水/广告黑名单（供游客通告等其它游客通道复用） */
+export function hasGuestSpam(text: string): boolean {
+  if (!text) return false
+  return SPAM_PATTERNS.some(re => re.test(text))
 }
 
 // ─── 序列化 ─────────────────────────────────────────────────────
@@ -296,22 +320,8 @@ export function submitGuestReview(
   }
 
   // ── 1. 人机校验 ──
-  const token = String(body?.challenge_token ?? '')
-  const answerRaw = body?.challenge_answer
-  if (!token) return { ok: false, status: 400, error: '请先完成人机校验' }
-  const challenge = verifyChallenge(token)
-  if (!challenge) {
-    return { ok: false, status: 400, error: '校验已过期，请刷新后重试' }
-  }
-  const answer = Number(answerRaw)
-  if (!Number.isInteger(answer) || answer !== challenge.a) {
-    return { ok: false, status: 400, error: '校验答案不正确' }
-  }
-  // 一题只用一次：答对即作废，防脚本解一题后反复提交
-  if (usedNonces.has(challenge.n)) {
-    return { ok: false, status: 400, error: '校验已使用，请重新获取题目' }
-  }
-  markNonceUsed(challenge.n, challenge.e)
+  const challengeError = consumeGuestChallenge(body?.challenge_token, body?.challenge_answer)
+  if (challengeError) return { ok: false, status: 400, error: challengeError }
 
   // ── 2. 字段校验 ──
   const rating = Number(body?.rating)

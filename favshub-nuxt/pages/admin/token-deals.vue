@@ -240,7 +240,10 @@
               </div>
               <div class="cell-sub">{{ ratingText(d) }}</div>
             </td>
-            <td>{{ d.nickname || d.username || '-' }}</td>
+            <td>
+              <span v-if="d.user_id === 0" class="guest-tag" title="游客发布（无需登录），同样经管理员审核">游客</span>
+              {{ d.nickname || d.username || '-' }}
+            </td>
             <td>{{ formatTime(d.created_at) }}</td>
             <td class="actions">
               <template v-if="d.status === 'pending'">
@@ -753,6 +756,20 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--primary);
   flex-shrink: 0;
+}
+/* 游客发布标识（user_id=0 的通告） */
+.guest-tag {
+  display: inline-block;
+  margin-right: 5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: 1px;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: 0.5px solid var(--border);
 }
 
 .cell-title {

@@ -20,11 +20,20 @@
     <NuxtLink
       to="/tokens"
       class="mobile-nav-item"
-      :class="{ active: isTokensPage }"
+      :class="{ active: isTokensPage && !isKeysPage }"
       @click="closeDrawer"
     >
       <span class="mobile-nav-icon"><i class="ri-gift-2-line"></i></span>
       <span class="mobile-nav-label">白嫖</span>
+    </NuxtLink>
+    <NuxtLink
+      to="/tokens/keys"
+      class="mobile-nav-item"
+      :class="{ active: isKeysPage }"
+      @click="closeDrawer"
+    >
+      <span class="mobile-nav-icon"><i class="ri-key-2-line"></i></span>
+      <span class="mobile-nav-label">福利</span>
     </NuxtLink>
     <button class="mobile-nav-item" type="button" @click="toggleFolderPanel">
       <span class="mobile-nav-icon"><i class="ri-folder-open-line"></i></span>
@@ -120,6 +129,7 @@ const { isMobile, drawerOpen, searchSheetOpen, closeDrawer, openSearchSheet, clo
 const isPromptsPage = computed(() => route.path.startsWith('/prompts'))
 const isCollectionsPage = computed(() => route.path.startsWith('/collections'))
 const isTokensPage = computed(() => route.path.startsWith('/tokens'))
+const isKeysPage = computed(() => route.path.startsWith('/tokens/keys'))
 
 // Mobile search: reuse same stores as desktop SearchBar
 const uiStore = useUIStore()

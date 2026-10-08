@@ -16,6 +16,42 @@
         </header>
 
         <div class="tde-body">
+          <!-- 游客身份（未登录发布时）：署名 + 人机校验 -->
+          <fieldset v-if="isGuest" class="tde-group">
+            <legend class="tde-legend">游客身份</legend>
+
+            <label class="tde-field">
+              <span class="field-label">昵称 <em>*</em></span>
+              <input
+                v-model="guestNickname"
+                type="text"
+                :maxlength="24"
+                placeholder="展示用的名字，最长 24 字"
+              >
+            </label>
+
+            <div class="tde-field">
+              <span class="field-label">人机校验 <em>*</em></span>
+              <div class="guest-challenge">
+                <template v-if="challenge.question">
+                  <span class="challenge-q">{{ challenge.question }}</span>
+                  <input
+                    v-model="challengeAnswer"
+                    type="text"
+                    inputmode="numeric"
+                    class="challenge-input"
+                    placeholder="答案"
+                  >
+                  <button type="button" class="challenge-refresh" title="换一题" @click="loadChallenge">
+                    <i class="ri-refresh-line"></i>
+                  </button>
+                </template>
+                <button v-else type="button" class="tde-btn ghost" @click="loadChallenge">加载校验题</button>
+              </div>
+              <span class="field-hint">游客提交无需登录；提交后同样由管理员审核，通过后公开展示。</span>
+            </div>
+          </fieldset>
+
           <!-- 基本信息 -->
           <fieldset class="tde-group">
             <legend class="tde-legend">基本信息</legend>
@@ -288,6 +324,8 @@ const SOURCE_LABELS: Record<string, string> = {
 const isEdit = computed(() => !!props.deal?.id)
 const isProposal = computed(() => !!props.proposal)
 const isAdmin = computed(() => authStore.isAdmin)
+/** 游客发布模式：未登录 + 新建（编辑/提案永远需要登录身份） */
+const isGuest = computed(() => !authStore.isLoggedIn && !isEdit.value && !isProposal.value)
 
 const headTitle = computed(() => {
   if (isProposal.value) return '建议修改'
@@ -302,6 +340,7 @@ const headSub = computed(() => {
   if (isProposal.value) {
     return '只提交你改动的字段，由通告作者或管理员审核通过后生效。'
   }
+  if (isGuest.value) return '游客提交无需登录，答对校验题即可提交；通过管理员审核后公开展示。'
   if (isAdmin.value) return '管理员发布将直接上线，无需审核。'
   if (isEdit.value) return '作者编辑即刻生效；通告曾被驳回时会重新进入待审队列。'
   return '提交后由管理员审核，通过后公开展示。'
@@ -349,6 +388,22 @@ const expiresDate = ref('')
 const saving = ref(false)
 const errorText = ref('')
 const comment = ref('')
+
+// ── 游客身份（isGuest 时生效）──
+const guestNickname = ref('')
+const challenge = ref({ question: '', token: '' })
+const challengeAnswer = ref('')
+
+/** 获取人机校验题（答案在服务端签名令牌里，前端只拿到题目） */
+async function loadChallenge() {
+  challengeAnswer.value = ''
+  try {
+    const res = await $fetch<{ question: string; token: string }>('/api/token-deals/guest-challenge')
+    challenge.value = { question: res.question, token: res.token }
+  } catch {
+    challenge.value = { question: '', token: '' }
+  }
+}
 
 /** 打开时的原始值 —— 提案模式据此算 diff，只提交被改动的字段 */
 const original = ref<Record<string, any>>({})
@@ -483,10 +538,21 @@ async function submit() {
     return
   }
 
-  // ── 发布 / 编辑自己的通告 ──
+  // ── 发布 / 编辑自己的通告（游客走同一端点的游客通道）──
+  if (isGuest.value) {
+    if (!guestNickname.value.trim()) { errorText.value = '请填写昵称'; return }
+    if (!challenge.value.token) { errorText.value = '请先加载并完成人机校验'; return }
+    if (!challengeAnswer.value.trim()) { errorText.value = '请填写人机校验答案'; return }
+  }
+
   saving.value = true
   try {
-    const body = { ...cur }
+    const body: Record<string, any> = { ...cur }
+    if (isGuest.value) {
+      body.nickname = guestNickname.value.trim()
+      body.challenge_token = challenge.value.token
+      body.challenge_answer = Number(challengeAnswer.value.trim())
+    }
 
     const res = await $fetch<{ success: boolean; message?: string }>(
       isEdit.value ? `/api/token-deals/${props.deal!.id}` : '/api/token-deals',
@@ -500,6 +566,8 @@ async function submit() {
     emit('saved', res?.message || '')
   } catch (err: any) {
     errorText.value = err?.data?.error || err?.message || '提交失败，请稍后重试'
+    // 校验题是一次性的（答题即消耗），失败后换一题避免重复提交同一答案
+    if (String(err?.data?.error || '').includes('校验')) loadChallenge()
   } finally {
     saving.value = false
   }
@@ -535,6 +603,9 @@ onMounted(() => {
 
   // 快照原始值 —— 提案模式据此算 diff（必须放在表单填充之后）
   original.value = currentPatch()
+
+  // 游客模式：预取人机校验题，省去一次手动点击
+  if (isGuest.value) loadChallenge()
 })
 
 onUnmounted(() => {
@@ -862,6 +933,47 @@ onUnmounted(() => {
 .tde-btn.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 .tde-btn.primary:active:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
 .spin { animation: modal-spin 1s linear infinite; }
+
+/* 游客身份：人机校验行（挑战题 + 答案输入 + 换一题） */
+.guest-challenge {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.challenge-q {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+/* 覆写 .tde-field input[type=text] 的 width:100%，让答案输入框在行内自适应 */
+.guest-challenge input.challenge-input {
+  width: auto;
+  flex: 1 1 110px;
+  min-width: 0;
+  max-width: 160px;
+}
+.challenge-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.challenge-refresh:hover { background: var(--surface-hover); color: var(--primary); }
+.challenge-refresh:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 
 @media (max-width: 640px) {
   .tde-backdrop { padding: 0; align-items: flex-end; }

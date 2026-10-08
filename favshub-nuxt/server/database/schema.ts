@@ -1,5 +1,7 @@
 /**
- * Drizzle ORM Schema — 完整映射 FavsHub SQLite 数据库的 10 张表
+ * Drizzle ORM Schema — FavsHub SQLite 数据库的 Drizzle 表定义。
+ * 建表真源是 migrate.ts 的原始 SQL（启动时增量执行），本文件仅作查询/类型层；
+ * 库中另有若干表仅由 migrate.ts 各 create*Schema 建表、无 Drizzle 定义。
  */
 import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 
@@ -251,6 +253,8 @@ export const tokenDeals = sqliteTable('token_deals', {
   expiresAt: integer('expires_at'),              // 有效期截止（NULL = 永久）
   pinned: integer('pinned').default(0),
   note: text('note').default(''),                // 备注 / 使用提示
+  guestName: text('guest_name').default(''),     // 游客署名昵称（user_id=0 的游客通告）
+  guestFingerprint: text('guest_fingerprint').default(''), // 游客身份指纹（待审上限去重）
   status: text('status').default('pending'),     // pending|approved|rejected
   rejectReason: text('reject_reason').default(''),
   voteUp: integer('vote_up').default(0),         // 缓存计数
@@ -302,3 +306,68 @@ export const qqBindings = sqliteTable('qq_bindings', {
 }, (table) => [
   index('idx_qq_bindings_qq').on(table.qqNumber),
 ])
+
+// ─── token_keys（福利 Key 凭证：爬虫抓取的 API Key 快照）────────
+// 建表真源是 migrate.ts 的 createTokenKeysSchema（07 §8.4 原始 SQL），本定义仅作
+// Drizzle 查询/类型层，两边如有出入以 migrate.ts 为准（docs/08 §4.1）。
+// 时间戳为**秒级**（沿爬虫语义，与站点其余表的毫秒不同），页面渲染时 ×1000。
+// 红线（07 §8.5）：keyEncrypted / keyHash 两列永不进任何读接口 SELECT、永不上页面。
+// 与爬虫侧 crawler/store/db.py SCHEMA_STATEMENTS 逐字同构，改一处必须同步三处。
+export const tokenKeys = sqliteTable('token_keys', {
+  id: text('id').primaryKey(),
+  sourceId: text('source_id').default('linux_sb'),   // 来源站标识
+  sourceTid: integer('source_tid'),                  // 来源站帖子 ID
+  sourceUrl: text('source_url').default(''),         // 原帖链接
+  sourceTitle: text('source_title').default(''),
+  sourceAuthor: text('source_author').default(''),
+  keyMasked: text('key_masked').default(''),         // 脱敏展示（前6+后4）；C 类恒空
+  keyHash: text('key_hash').default(''),             // sha256 去重；C 类存无凭证哨兵；红线列
+  keyEncrypted: text('key_encrypted'),               // 密文，仅供 F5 揭示；C 类恒 NULL；红线列
+  baseUrl: text('base_url').default(''),             // API 地址；C 类恒空
+  provider: text('provider').default(''),
+  models: text('models').default('[]'),              // JSON 数组，读侧需 JSON.parse + Array.isArray
+  source: text('source').default('post'),            // post | aggregator_leak | reply_visible_guide
+  confidence: text('confidence').default('low'),     // high | medium | low
+  verdict: text('verdict').default('unknown'),       // valid|quota|limited|dead|unknown|restricted|blocked_by_waf|endpoint_unsupported
+  consecutiveFailures: integer('consecutive_failures').default(0),
+  lastProbeAt: integer('last_probe_at'),
+  firstSeenAt: integer('first_seen_at'),
+  dealStatus: text('deal_status').default('published'), // published | hidden | pending（pending 待管理员转正）
+  note: text('note').default(''),                    // 内部诊断，不上页面
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  // 对应 migrate.ts DDL 的表级 UNIQUE(key_hash, base_url)（真实索引为 sqlite_autoindex）
+  uniqueIndex('idx_token_keys_hash_base').on(table.keyHash, table.baseUrl),
+  index('idx_token_keys_verdict').on(table.verdict),
+  index('idx_token_keys_status').on(table.dealStatus),
+])
+
+// ─── probe_log（福利 Key 探测审计：站点自身运行时产物）──────────
+// 与爬虫库同构（docs/08 §4.1）；errorMessageRaw 仅审计，永不展示。
+export const probeLog = sqliteTable('probe_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  credentialId: text('credential_id').notNull(),     // → token_keys.id
+  baseUrl: text('base_url').notNull(),
+  probeKind: text('probe_kind').notNull(),
+  httpStatus: integer('http_status'),
+  errorCode: text('error_code').default(''),
+  errorMessageRaw: text('error_message_raw').default(''), // 红线列，仅审计
+  attemptN: integer('attempt_n').default(1),
+  verdict: text('verdict').notNull(),
+  probedAt: integer('probed_at').notNull(),
+}, (table) => [
+  index('idx_probe_log_probed_at').on(table.probedAt),
+  index('idx_probe_log_credential').on(table.credentialId),
+])
+
+// ─── reveal_log（福利 Key 揭示审计，F5 落地时启用）──────────────
+// userId 为 TEXT（07 §8.4 权威 DDL，与爬虫库逐字同构；两库直拷互通的前提），
+// 非 users.id 的 INTEGER——勿擅自改列型。本轮无索引，F5 落地时按需追加。
+export const revealLog = sqliteTable('reveal_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  credentialId: text('credential_id').notNull(),     // → token_keys.id
+  userId: text('user_id').notNull(),
+  ip: text('ip').default(''),
+  revealedAt: integer('revealed_at').notNull(),
+})
