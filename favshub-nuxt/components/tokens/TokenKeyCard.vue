@@ -59,6 +59,11 @@
     <div v-if="!isGuide" class="keys-badges">
       <span class="keys-badge" :class="verdictMeta.cls">{{ verdictMeta.label }}</span>
       <span class="keys-badge" :class="confidenceMeta.cls">{{ confidenceMeta.label }}</span>
+      <!-- 社交证明：复制热度（copy 端点 +1，站点本地计数）。仅 >0 时显示，
+           避免「已复制 0 次」这种反向劝退的文案 -->
+      <span v-if="copyHeat" class="keys-badge is-heat" :title="`累计被复制 ${props.keyRow.copy_count} 次`">
+        <i class="ri-fire-line"></i>已复制 {{ props.keyRow.copy_count }} 次
+      </span>
     </div>
 
     <footer class="keys-foot">
@@ -135,6 +140,8 @@ interface ITokenKeyRow {
   first_seen_at: number | null
   last_probe_at: number | null
   post_time: string
+  /** 复制热度（站点本地计数，copy 端点 +1）；非敏感，用于社交证明 */
+  copy_count?: number
 }
 
 const props = defineProps<{
@@ -302,6 +309,13 @@ const CONFIDENCE_META: Record<string, { label: string; cls: string }> = {
 }
 const confidenceMeta = computed(() => {
   return CONFIDENCE_META[props.keyRow.confidence] || CONFIDENCE_META.low
+})
+
+/** 复制热度徽标：仅 copy_count > 0 时出现（社交证明，营销位）。
+ *  0 次不显示——「已复制 0 次」是反向劝退文案。 */
+const copyHeat = computed(() => {
+  const n = Number(props.keyRow.copy_count || 0)
+  return Number.isFinite(n) && n > 0
 })
 
 const modelList = computed(() => {
@@ -593,6 +607,15 @@ onUnmounted(() => {
   background: var(--surface-sunken);
   color: var(--text-tertiary);
 }
+/* 复制热度徽标：暖橙，弱于 verdict（verdict 才是主状态），但可一眼看见「有人用过」 */
+.keys-badge.is-heat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.keys-badge.is-heat i { font-size: 12px; }
 
 /* ── 脚：原帖链接 + 时间 + 揭示按钮 / 领取 CTA ── */
 .keys-foot {

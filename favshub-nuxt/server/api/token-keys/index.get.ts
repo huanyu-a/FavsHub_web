@@ -34,10 +34,13 @@ const VERDICTS = [
   'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported', 'tls_invalid',
 ] as const
 
-/** 白名单字段 = SELECT 列清单；key_encrypted / key_hash / key_plain 等敏感列不在其列 */
+/** 白名单字段 = SELECT 列清单；key_encrypted / key_hash / key_plain 等敏感列不在其列。
+ *  copy_count 为复制热度计数（站点本地维护，copy 端点 +1），非敏感：用于卡片上的
+ *  社交证明「已复制 N 次」，与 keys.vue / TokenKeyCard 的 ITokenKeyRow 同步。 */
 const KEY_FIELDS = [
   'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
   'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at', 'post_time',
+  'copy_count',
 ].join(', ')
 
 /** 回帖指引行收录窗口（秒），与爬虫 prune_expired_guide_rows / push GUIDE_WINDOW_SECONDS 同值 */

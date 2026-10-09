@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.7.0
+version: 1.7.1
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -219,8 +219,9 @@ GET  /api/token-keys/{id}/copy  # 复制专用：{ key_plain, base_url } 完整�
 - **2026-10-08 协议变更**：上报改传 `key_plain` **明文**（供站点「复制 Key」链路）与 `post_time`
   （原帖发帖时间原文字符串）；`key_encrypted` 密文**不再过网**（上行传了也会被忽略）
 - **公开展示**：仅 `published` 行进入公开脱敏列表 `GET /api/token-keys`（**无需令牌**，
-  15 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
-  source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at / post_time`；
+  16 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
+  source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at / post_time /
+  copy_count`（`copy_count` 为复制热度，站点本地计数，非敏感）；
   `base_url` 中的 key 形态片段已服务端遮蔽）；`pending`（待审）与 `hidden`（下架）永不外流
 - **给用户提供完整 Key / API 地址**：调 `GET /api/token-keys/{id}/copy`（与列表同可见口径：
   `published`、非 `dead`、回帖指引限 24h；指引行恒 404），响应 `{ key_plain, base_url }`

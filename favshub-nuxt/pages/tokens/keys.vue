@@ -54,6 +54,27 @@
       </div>
 
       <template v-else>
+        <!-- ⓪ Hero：价值主张 + 新鲜度承诺（营销位；免责声明仍在其上方保持第一视觉位） -->
+        <section class="keys-hero">
+          <div class="keys-hero-text">
+            <h2 class="keys-hero-title"><i class="ri-key-2-line"></i> 免费 API Key，探活即用</h2>
+            <p class="keys-hero-sub">
+              爬虫每 3 小时抓取论坛公开帖并自动探测有效性——当前收录 <b>{{ pagination.total }}</b> 条，
+              探测确认有效 <b>{{ validCount }}</b> 条。一键复制，填入任意 OpenAI 兼容客户端即可使用。
+            </p>
+          </div>
+          <div class="keys-hero-badge" title="爬虫定时任务每 3 小时运行一轮">
+            <span class="keys-hero-dot"></span> 每 3 小时自动探测
+          </div>
+        </section>
+
+        <!-- ⓪.5 三步上手（转化引导：拿到 key 后立刻知道怎么用） -->
+        <ol class="keys-howto">
+          <li><span class="keys-howto-step">1</span> 复制 Key</li>
+          <li><span class="keys-howto-step">2</span> 复制 API 地址</li>
+          <li><span class="keys-howto-step">3</span> 填入 Cherry Studio / NextChat 等 OpenAI 兼容客户端</li>
+        </ol>
+
         <!-- ② 统计条：总数 / 有效 / 未验证来自 verdict_counts（已展示口径全集），附数据截至 -->
         <div class="keys-stats">
           <span class="keys-stat">共 <b>{{ pagination.total }}</b> 条</span>
@@ -164,6 +185,7 @@ interface ITokenKeyRow {
   first_seen_at: number | null
   last_probe_at: number | null
   post_time: string
+  copy_count: number
 }
 
 interface IPagination {
@@ -405,6 +427,109 @@ onUnmounted(() => {
 .keys-disclaimer i {
   font-size: 16px;
   flex-shrink: 0;
+}
+
+/* ── ⓪ Hero：价值主张 + 新鲜度承诺（营销位） ── */
+.keys-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  flex-wrap: wrap;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+  margin-bottom: 12px;
+}
+.keys-hero-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.keys-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.keys-hero-title i {
+  color: var(--primary);
+  font-size: 19px;
+}
+.keys-hero-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 640px;
+  color: var(--text-secondary);
+}
+.keys-hero-sub b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.keys-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--success) 32%, transparent);
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.keys-hero-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: keys-pulse 2.4s ease-in-out infinite;
+}
+@keyframes keys-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+/* 尊重 prefers-reduced-motion：脉冲点静止但保留颜色语义 */
+@media (prefers-reduced-motion: reduce) {
+  .keys-hero-dot { animation: none; }
+}
+
+/* ── ⓪.5 三步上手 ── */
+.keys-howto {
+  display: flex;
+  align-items: center;
+  gap: 8px 22px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.keys-howto li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.keys-howto-step {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-light);
 }
 
 /* ── ② 统计条 ── */
@@ -678,6 +803,15 @@ onUnmounted(() => {
   }
   .keys-legend {
     flex-wrap: wrap;
+  }
+  .keys-hero {
+    padding: 14px 16px;
+  }
+  .keys-hero-title { font-size: 16px; }
+  .keys-howto {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
   }
 }
 @media (max-width: 480px) {
