@@ -152,6 +152,39 @@ class LayeredRegexTests(unittest.TestCase):
         self.assertEqual([], C.find_credentials(""))
         self.assertEqual([], C.find_urls(""))
 
+    def test_url_stops_at_full_width_punctuation(self):
+        """Regression 2026-10-09: a CJK comma glued the key list onto the URL.
+
+        Real forum text (tid ~25588) writes several keys after the domain with
+        no ASCII space, so the old ``URL_RE`` (whitespace-only exclusion) turned
+        ``base_url`` into ``https://xlai.pro，sk-…，sk-…。一个key5并发``. urllib
+        then raised ``UnicodeEncodeError: 'latin-1' … '\\uff0c'`` and the row
+        never left ``unknown`` (10 of 11 probe-eligible rows).
+        """
+        body = ("中转站 https://xlai.pro，sk-" + "a" * 40 + "，sk-" + "b" * 40
+                + "。一个key5并发")
+        self.assertEqual(["https://xlai.pro"], C.find_urls(body))
+
+    def test_url_stops_at_cjk_without_punctuation(self):
+        self.assertEqual(["https://sky-code.org"], C.find_urls("地址https://sky-code.org可用"))
+
+    def test_idn_url_is_skipped_not_crashed(self):
+        """A non-ASCII host has no ASCII spelling here, so it is dropped.
+
+        Previously the IDN host was captured verbatim and urllib then raised
+        ``UnicodeEncodeError: 'latin-1'`` - the same crash class as the CJK comma
+        (RFC 3986 requires percent-encoding, which the extractor does not invent).
+        Dropping the candidate is honest: no fabricated base_url (07 §B.5).
+        """
+        self.assertEqual([], C.find_urls("看看 https://中文站点.com/v1 这个"))
+
+    def test_ascii_urls_still_intact(self):
+        # The fix must not truncate ordinary ASCII URLs (query / path / port).
+        for url in ("https://api.openai.com/v1",
+                    "https://x.example.test:8443/v1/models?key=abc&x=1",
+                    "https://freeapi.site/sk-" + "c" * 48):
+            self.assertEqual([url], C.find_urls("看这个 " + url + " 挺好"), url)
+
 
 class PrefixHintTests(unittest.TestCase):
     def test_prefix_hints_map_to_provider_hosts(self):

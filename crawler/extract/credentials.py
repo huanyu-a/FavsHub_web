@@ -75,7 +75,17 @@ GOOGLE_RE = re.compile(GOOGLE_CREDENTIAL_RE)
 BEARER_RE = re.compile(r"(?i)\bbearer[ \t]+")
 
 #: Any http(s) URL in the body; the pairing step consumes these.
-URL_RE = re.compile(r"https?://[^\s\"'<>()\[\]{}]+")
+#:
+#: The character class must stop at **non-ASCII** (CJK, full-width punctuation,
+#: emoji), not just whitespace: forum posts write ``https://xlai.pro，sk-xxx，
+#: sk-yyy。一个key5并发`` with no space at all. The old class swallowed the whole
+#: run, so ``base_url`` became a prose fragment - 58 probe_log rows died on
+#: ``UnicodeEncodeError: 'latin-1' codec can't encode character '\uff0c'``
+#: (urllib cannot put a full-width comma in a request line) and every such key
+#: sat at ``unknown`` forever (2026-10-09, 10 of 11 probe-eligible rows).
+#: A legal URL is ASCII-only (RFC 3986; non-ASCII must be percent-encoded), so
+#: ``\u0080`` onwards is never part of one.
+URL_RE = re.compile(r"https?://[^\s\"'<>()\[\]{}\u0080-\U0010FFFF]+")
 
 #: Trailing sentence punctuation that URL_RE greedily absorbs.
 _URL_TRAILING = ")]},.;:!>\"'`"

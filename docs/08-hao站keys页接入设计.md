@@ -606,12 +606,60 @@ python scripts/sync_to_favshub_local.py [--dry-run] [--source PATH] [--db PATH] 
 
 ### 10.5 仍待改进（本轮未做，留痕）
 
-- **探测预算固定 5 行/轮**：31 行需要 6 轮（约 18h）才覆盖一遍，页面长期大量「待验证」。
-  可改为按行数自适应（如 `max(5, rows // 8)`）或优先探测「最新收录且从未探测」的行。
+- ~~**探测预算固定 5 行/轮**~~ **更正（2026-10-09）**：此说法有误。`select_reprobe_candidates()`
+  返回**全部** `key_encrypted IS NOT NULL AND base_url != ''` 的非 dead 行，无预算上限——
+  「每轮全量复探」本就是现行行为。此前页面大量「未知」的真实根因是 URL 提取正则缺陷
+  （§10.6 ①），已修复。
+- **中转站授权契约漂移**（2026-10-09 实测发现）：sky-code.org / www.aivalux.com 等
+  new-api 系中转对 `?key=` 查询参数回 `400 api_key_in_query_deprecated`（要求改用
+  Authorization 头）。阶梯 level 3 的 query_key 方案因此拿不到证据，落盘为 unknown。
+  属上游行为变化，非爬虫 bug；若此类中转增多，可考虑在 level 3 收到该 400 时
+  提前终止并改记主方案（Bearer）结果。
 - **无单卡分享锚点**：卡片没有 `#id` 锚点/详情页，无法把某个 Key 直接分享给他人。
 - **provider 归一化缺失**：杂牌中转站的 `provider` 多落「未知」，可建域名→品牌别名表。
 - **前端无自动化测试**：`copy 可见性矩阵` / `mask 规则` / `prune 对账` 依赖人工验证，
   建议把这三处核心逻辑补成脚本化断言（照 `scripts/ai-api-smoke-*.mjs` 模式）。
+
+### 10.6 2026-10-09 修复留痕（URL 正则 + TLS 归类）
+
+**① URL 提取吞掉中文标点（根因：页面大量「未知」+ 垃圾 API 地址）**
+
+`extract/credentials.py` 的 `URL_RE` 字符类只排除了空白与 ASCII 括号，未排除 CJK /
+全角标点。帖子原文形如 `https://xlai.pro，sk-…，…。一个key5并发` 时，整段被当成
+一个「URL」→ urllib 发请求抛 `UnicodeEncodeError: 'latin-1' codec can't encode
+character '\uff0c'`（probe_log 58 行全部 attempts=4）→ 11 个可探测行中 10 个永久
+unknown，站点还渲染出带中文的「API 地址」。
+
+- 修复：`URL_RE = re.compile(r"https?://[^\s\"'<>()\[\]{}\u0080-\U0010FFFF]+")`——
+  遇任何非 ASCII 字符即停；IDN 主机不再匹配（跳过而非崩溃）。
+- 回归测试 4 条（全角标点截断 / 无标点 CJK 截断 / IDN 跳过 / ASCII 不受影响），
+  fixture `linux_sb_credentials_d6.json` tid 23194 同步改为真实端口 `:2333`
+  （旧值 `:2…` 是编辑省略号，只有贪婪 bug 正则才匹配得上）。
+- 存量数据：`scripts/repair_base_urls.py --apply` 修复 8 行（xlai.pro ×4、
+  sky-code.org ×2、www.aivalux.com ×2），备份
+  `crawler/data/tokenhub.db.pre-urlrepair-20261009095947`；这些行
+  `consecutive_failures=0`（编码崩溃从未计入失效计数），无误判 dead 风险。
+- 验证：修复后完整轮次（verify-urlfix.json）8 行全部发出真实 HTTP 请求，
+  probe_errors=0，无 UnicodeEncodeError。
+
+**② TLS 证书失败独立判定 `tls_invalid`（新增第 9 个 verdict）**
+
+① 修复后暴露第二层问题：max.ai0728.com.cn / free.zynk.bot.cd / xlai.pro 三站
+挂过期证书，40/114 probe_log 行为 `CERTIFICATE_VERIFY_FAILED`，全落 unknown，
+把「探测异常率」推到 90.9%（告警阈值 0.2）。证书问题是中转站的问题，不是凭证
+证据——按 07 §8.3 仍绝不判失效，但值得独立记录（同 blocked_by_waf 的先例）。
+
+- 爬虫：`interfaces.VERDICTS` +9 值；`verdict.TLS_FAILURE_MARKERS` +
+  `looks_like_tls_failure()`；`classify_response` 的 status==0 分支识别传输错误文本
+  （`_fetch` 把错误串放在 body 槽，无需改管道）；入 `NEUTRAL_VERDICTS`（不推进
+  失效计数、不触发 5 轮人工队列）。普通超时/拒连**不**在此列，保持 unknown。
+- 白名单同步 6 处：`push_to_favshub.py` / 站点 `index.get.ts` / `ai-service.ts` /
+  `schema.ts` 注释 / `TokenKeyCard.vue` VERDICT_META（黄「TLS 异常」）/
+  `keys.vue` VERDICT_OPTIONS；`local_server.py` 标签表 + preview-style-guide.md。
+- 前端展示优化（同批）：卡片脚部新增**探测新鲜度徽标**（刚刚/N 分钟前/N 小时前，
+  >24h 变灰提示结论可能已失效）；keys 页统计条下新增**状态图例行**，说明
+  「待验证 ≠ 失效」。
+- SKILL.md verdict 枚举同步 + manifest 重新生成（v1.7.0）。
 3. **生产部署链**（07 §6.3 :201）：bump VERSION → 镜像 → 服务器 `docker compose pull + deploy.sh`；nginx feed.xml alias（07 C4）；管理后台创建 PAT（**普通 or 管理员绑定**——pending 转正方案见 §9.4 拍板项）填入爬虫 `.env`；爬虫发布层从本地文件切 PAT（07 §6.2 C1-C3）。前置 = P0 七天闸门数据 + 用户拍板。
 4. **开放点（需拍板）**：
    - F4 POST 载荷是否携带 `key_encrypted`——07 未明定；不同步则 F5 无密文可解。本地桥默认同步（`--no-encrypted` 可关），生产 F4 按本文契约默认接收；若拍板不同步则删该字段并同步删桥开关。

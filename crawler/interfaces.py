@@ -46,6 +46,14 @@ PRIORITY_A = 3
 PRIORITY_E = 4
 
 #: Liveness verdicts - ``token_keys.verdict`` (07 §8.4).
+#:
+#: ``tls_invalid`` is a post-launch addition (2026-10-09): free relays routinely
+#: serve an expired or self-signed certificate, so every request dies inside the
+#: TLS handshake before any credential evidence exists. 07 §8.3 folds that into
+#: ``unknown``; it is broken out as its own non-decisive state for the same reason
+#: ``blocked_by_waf`` exists - a distinct recorded cause is actionable for the
+#: reader ("证书异常"), while ``unknown`` reads as "we have not found out yet".
+#: It NEVER counts as a failure of the credential (see ``verdict.NEUTRAL_VERDICTS``).
 VERDICTS: Sequence[str] = (
     "valid",
     "quota",
@@ -55,6 +63,7 @@ VERDICTS: Sequence[str] = (
     "restricted",
     "blocked_by_waf",
     "endpoint_unsupported",
+    "tls_invalid",
 )
 
 #: Named verdicts, so ``dead`` / ``valid`` are never mistyped in four modules.
@@ -66,6 +75,9 @@ VERDICT_UNKNOWN = "unknown"
 VERDICT_RESTRICTED = "restricted"
 VERDICT_BLOCKED_BY_WAF = "blocked_by_waf"
 VERDICT_ENDPOINT_UNSUPPORTED = "endpoint_unsupported"
+#: TLS handshake / certificate failure: the host answered, but not with a
+#: verifiable certificate. Non-decisive - says nothing about the credential.
+VERDICT_TLS_INVALID = "tls_invalid"
 
 #: (key, base_url) pairing confidence (07 §8.2).
 CONFIDENCE_HIGH = "high"

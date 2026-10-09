@@ -50,10 +50,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
-# F4 verdict 白名单（8 值，与站点 index.get.ts VERDICTS / crawler verdict.py 同源）
+# F4 verdict 白名单（9 值，与站点 index.get.ts VERDICTS / crawler interfaces.py VERDICTS 同源）
+# tls_invalid 为 2026-10-09 新增：免费中转站常挂过期/自签证书，请求死在 TLS 握手，
+# 与凭证无关；归为独立非决定性状态，页面读作「TLS 异常」而非「未知」。
 VERDICTS = {
     "valid", "quota", "limited", "dead",
     "unknown", "restricted", "blocked_by_waf", "endpoint_unsupported",
+    "tls_invalid",
 }
 
 # 源库 → F4 载荷的字段映射（docs/08 §4.3 契约 + 2026-10-08 增量：post_time 原帖时间、

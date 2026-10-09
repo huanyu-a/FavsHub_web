@@ -49,6 +49,7 @@ from interfaces import (
     VERDICT_LIMITED,
     VERDICT_QUOTA,
     VERDICT_RESTRICTED,
+    VERDICT_TLS_INVALID,
     VERDICT_UNKNOWN,
     VERDICT_VALID,
     ProbeOutcome,
@@ -62,6 +63,7 @@ from interfaces import (
 LADDER: Tuple[str, ...] = (
     VERDICT_VALID, VERDICT_QUOTA, VERDICT_LIMITED, VERDICT_DEAD, VERDICT_UNKNOWN,
     VERDICT_RESTRICTED, VERDICT_BLOCKED_BY_WAF, VERDICT_ENDPOINT_UNSUPPORTED,
+    VERDICT_TLS_INVALID,
 )
 
 #: 07 §8.3 row 1's "invalid 候选": a response-level label only. Not a persisted
@@ -72,7 +74,7 @@ RESPONSE_INVALID = "invalid"
 RESPONSE_VERDICTS: Tuple[str, ...] = (
     VERDICT_VALID, VERDICT_QUOTA, VERDICT_LIMITED, RESPONSE_INVALID,
     VERDICT_UNKNOWN, VERDICT_RESTRICTED, VERDICT_BLOCKED_BY_WAF,
-    VERDICT_ENDPOINT_UNSUPPORTED,
+    VERDICT_ENDPOINT_UNSUPPORTED, VERDICT_TLS_INVALID,
 )
 
 #: 07 §8.3: 中转站 ``error.type`` was observed with five different literal values
@@ -98,6 +100,34 @@ QUOTA_HINTS: Tuple[str, ...] = (
     "credit_balance_exhausted", "insufficient_user_quota",
     "organization_spend_limit_exceeded", "project_spend_limit_exceeded",
     "organization_usage_limit_exceeded", "用户额度不足",
+)
+
+#: Certificate / TLS-handshake failures seen in the transport error text that
+#: ``prober.transport_fetch`` returns as the ``body`` of a ``000`` response.
+#:
+#: Free relays routinely serve an expired or self-signed certificate. The request
+#: never completes, so there is no credential evidence at all - but "证书异常" is a
+#: far more useful state for the reader than "未知", and the round must not count
+#: toward the dead / 5-round-manual machinery (see :data:`NEUTRAL_VERDICTS`).
+#:
+#: Only TLS-phase literals are listed. A plain ``timed out`` / ``Connection
+#: refused`` is NOT here: those are ordinary transport ``000``s (02 §B.4's largest
+#: false-positive source) and must stay ``unknown``.
+TLS_FAILURE_MARKERS: Tuple[str, ...] = (
+    "certificate_verify_failed",
+    "certificate verify failed",
+    "certificate has expired",
+    "certificate is not yet valid",
+    "self-signed certificate",
+    "self signed certificate",
+    "unable to get local issuer certificate",
+    "hostname mismatch",
+    "sslcertverificationerror",
+    "sslerror",
+    "wrong_version_number",
+    "unsupported protocol",
+    "tlsv1 alert",
+    "handshake",
 )
 
 #: 07 §8.3: Cloudflare interstitial shape.
@@ -139,9 +169,16 @@ CONFIRMING_VALID_VERDICTS: Tuple[str, ...] = (VERDICT_VALID, VERDICT_QUOTA, VERD
 
 #: 07 §8.3 降误报铁律: rounds that carry no evidence about the credential. They
 #: never advance and never reset the invalid counter.
+#:
+#: ``tls_invalid`` joins them for the same reason ``blocked_by_waf`` is here: the
+#: host answered, but the handshake failed, so the round says nothing about the
+#: key. It must not advance the invalid counter - a wrong certificate is the
+#: relay's problem, not evidence against the credential (2026-10-09: 40 of 114
+#: probe_log rows were ``CERTIFICATE_VERIFY_FAILED`` on two relays, all of which
+#: used to read as ``unknown`` and inflated 探测异常率 to 90.9%).
 NEUTRAL_VERDICTS: Tuple[str, ...] = (
     VERDICT_UNKNOWN, VERDICT_RESTRICTED, VERDICT_BLOCKED_BY_WAF,
-    VERDICT_ENDPOINT_UNSUPPORTED,
+    VERDICT_ENDPOINT_UNSUPPORTED, VERDICT_TLS_INVALID,
 )
 
 
@@ -200,6 +237,17 @@ def is_public_endpoint(url: str) -> bool:
 def transport_failure_status(status: int) -> bool:
     """``000`` / timeout / 5xx: 07 §8.3's "绝不判失效" set (largest FP source, 02 §B.4)."""
     return status == 0 or status >= 500
+
+
+def looks_like_tls_failure(text: str) -> bool:
+    """Whether a ``000``'s transport error text describes a TLS/certificate failure.
+
+    ``prober.transport_fetch`` returns ``f"{type(exc).__name__}: {reason}"`` as the
+    body of a status-``0`` result, so the transport error is readable here without
+    widening the frozen 4-argument signature.
+    """
+    haystack = (text or "").lower()
+    return any(marker in haystack for marker in TLS_FAILURE_MARKERS)
 
 
 def body_indicates(body: str, hints: Tuple[str, ...]) -> Optional[str]:
@@ -309,6 +357,14 @@ def classify_response(status: int, content_type: str, body: str,
     # for a code the measurement table never produced, and it falls through to
     # the undecided tail below.
     if status == 0 or status == 408 or status >= 500 or 300 <= status < 400:
+        # A ``000`` many relays produce is a *certificate* failure rather than a
+        # dead host (2026-10-09: 40 rows, all ``CERTIFICATE_VERIFY_FAILED`` on two
+        # free relays). ``prober.transport_fetch`` puts the transport error text in
+        # the body, so it can be told apart here. It stays non-decisive (never a
+        # dead candidate) but gets its own recorded state instead of ``unknown``.
+        # Real HTTP statuses never carry transport text, so this is gated on 0.
+        if status == 0 and looks_like_tls_failure(text):
+            return VERDICT_TLS_INVALID
         return VERDICT_UNKNOWN
 
     if 200 <= status < 300:

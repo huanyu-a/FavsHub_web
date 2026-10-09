@@ -70,6 +70,7 @@ VERDICT_META = {
     "dead": ("bad", "失效"),
     "unknown": ("muted", "未知"),
     "endpoint_unsupported": ("muted", "端点不支持"),
+    "tls_invalid": ("warn", "TLS 异常"),
     # Defensive: not in the current enum but tolerated by the probe layer.
     "quota_exceeded": ("warn", "额度耗尽"),
 }

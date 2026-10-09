@@ -211,6 +211,7 @@ FavsHub 的惯例是：**徽标 = 软色底（状态色 8%~15% 透明度，或 s
 | `limited` / `quota_exceeded` / `restricted` / `blocked_by_waf` | warn | `--warning-soft`（warning 12%） | `--warning` | 待定/受限黄 |
 | `dead` | bad | `--danger-soft`（danger 10%） | `--danger` | 「已失效」红 |
 | `unknown` / `endpoint_unsupported` | muted | `--neutral-soft`（tertiary 12%） | `--text-tertiary` | 「未接入」灰 |
+| `tls_invalid` | warn | `--warning-soft`（warning 12%） | `--warning` | 证书/握手异常黄（2026-10-09 新增，非凭证证据） |
 | `confidence: high/medium/low` | — | success/warning/neutral 同上 | 同上 | 「置信」徽标 |
 | `source: reply_visible_guide` | guide | `--info-soft`（accent-blue 12%） | `--accent-blue` | 信息类蓝（本地特有，替换现在的紫色 `.guide`） |
 

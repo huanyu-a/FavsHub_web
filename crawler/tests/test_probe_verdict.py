@@ -192,6 +192,41 @@ class IronRuleTests(unittest.TestCase):
             label = verdict.classify_response(status, "text/html", "gateway blew up")
             self.assertEqual(label, interfaces.VERDICT_UNKNOWN, status)
 
+    def test_tls_certificate_failure_is_its_own_state(self):
+        """2026-10-09: two free relays serve expired certs; 40 of 114 probe_log
+        rows died with ``CERTIFICATE_VERIFY_FAILED`` and all read as ``unknown``,
+        inflating 探测异常率 to 90.9%. The transport error text rides in the body
+        slot of a status-0 result, so it is classifiable here."""
+        cert_error = ("URLError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify "
+                      "failed: certificate has expired (_ssl.c:1017)")
+        self.assertEqual(verdict.classify_response(0, "", cert_error),
+                         interfaces.VERDICT_TLS_INVALID)
+        # A plain transport failure is NOT a TLS failure - it stays unknown
+        # (02 §B.4's largest false-positive source must never be re-labelled).
+        for msg in ("URLError: <urlopen error timed out>",
+                    "URLError: <urlopen error [Errno 111] Connection refused>",
+                    "TimeoutError: ", "OSError: [Errno -2] Name or service not known"):
+            self.assertEqual(verdict.classify_response(0, "", msg),
+                             interfaces.VERDICT_UNKNOWN, msg)
+        # Only status 0 carries transport text; a real HTTP body that merely
+        # mentions "handshake" must not be mislabelled.
+        self.assertNotEqual(
+            verdict.classify_response(400, "application/json", '{"error":"tls handshake"}'),
+            interfaces.VERDICT_TLS_INVALID)
+        self.assertIn(interfaces.VERDICT_TLS_INVALID, verdict.NEUTRAL_VERDICTS)
+        self.assertIn(interfaces.VERDICT_TLS_INVALID, interfaces.VERDICTS)
+
+    def test_tls_invalid_never_advances_the_dead_counter(self):
+        """A wrong certificate is the relay's problem, not evidence against the key."""
+        machine = verdict.StateMachine()
+        previous = interfaces.ProbeState(verdict=interfaces.VERDICT_UNKNOWN,
+                                         consecutive_failures=1)
+        decision = machine.next(previous, outcome(interfaces.VERDICT_TLS_INVALID,
+                                                  status=0, probed_at=2_000))
+        self.assertEqual(decision.verdict, interfaces.VERDICT_TLS_INVALID)
+        self.assertEqual(decision.consecutive_failures, 1)
+        self.assertFalse(decision.escalate)
+
     def test_403_never_becomes_invalid_under_any_body(self):
         bodies = ("", "{}", "Just a moment...", "Forbidden", "用户额度不足", "分组", "region",
                   '{"error":{"message":"Incorrect API key provided"}}',
