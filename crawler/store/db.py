@@ -109,6 +109,7 @@ SCHEMA_STATEMENTS: Sequence[str] = (
       last_probe_at INTEGER,
       first_seen_at INTEGER,
       post_time TEXT DEFAULT '',
+      copy_count INTEGER NOT NULL DEFAULT 0,
       deal_status TEXT DEFAULT 'published',
       note TEXT DEFAULT '',
       created_at INTEGER, updated_at INTEGER,
@@ -245,6 +246,14 @@ MIGRATIONS: Sequence[Tuple[str, str]] = (
         # API), surfaced on the site keys page; missing from pre-2026-10-08 DDLs.
         "SELECT post_time FROM token_keys LIMIT 0",
         "ALTER TABLE token_keys ADD COLUMN post_time TEXT DEFAULT ''",
+    ),
+    (
+        # copy popularity counter — maintained by the SITE (its copy endpoint
+        # increments on every fetch); the crawler never writes it. Present here
+        # only to keep the three-way schema mirror identical, and so a locally
+        # restored site snapshot does not lose the column.
+        "SELECT copy_count FROM token_keys LIMIT 0",
+        "ALTER TABLE token_keys ADD COLUMN copy_count INTEGER NOT NULL DEFAULT 0",
     ),
 )
 

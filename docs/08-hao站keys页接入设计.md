@@ -546,6 +546,72 @@ python scripts/sync_to_favshub_local.py [--dry-run] [--source PATH] [--db PATH] 
 
 1. **F5 揭示端点（P1，07 D2「必做」，:185）**：`server/api/ai/token-keys/[id]/reveal.post.ts`（登录态 + `checkRateLimit('reveal:{ip}:{userId}')`（rate-limit.ts:46 同款）+ 写 `reveal_log` + 解密 `key_encrypted`）。页面已留双态降级按钮（§3.3），F5 落地只改按钮事件层；`reveal_log` 表本轮已建。注意该端点路径在 `/api/ai/*` 下但需要 **JWT 登录态**而非 PAT——与 CLAUDE.md 通道隔离铁律存在张力，F5 设计时须先拍板通道归属（07 原文「要求登录态（复用 server/utils/auth.ts/JWT cookie）」倾向 JWT，则路径不宜挂在 `/api/ai/` 下，或作为该铁律的首个显式豁免记录在案）。
 2. **F8 www 站入口**：`markflow-wiki` hero 第 4 按钮指向 `hao.bx9y.com.cn/tokens/keys`——本轮完全不动，实施时按 07 F8（:188）现场看 `scripts\deploy.cmd` 发布链。
+
+---
+
+## 10. 2026-10-08 / 10-09 上线后的三轮需求变更（本节为现行口径，覆盖前文相关表述）
+
+前文 §3.3「F5 降级态（脱敏 + 揭示）」与 §4.2「公开读接口 14 字段白名单」是**上线前**的设计。
+站长在 10-08 上线后连续提出三轮变更，以下是**当前生效**的口径（代码即实现，文档随代码更新）：
+
+### 10.1 第一轮：原帖时间 + 回帖 24h + 失效清理
+
+- **post_time**：新增列 `post_time TEXT DEFAULT ''`，存原帖发帖时间**原文字符串**（不解析，页面原样展示）。
+  采集端从话题页 JSON-LD `datePublished` 提取并规范化为 UTC+8 `YYYY-MM-DD HH:MM`
+  （`crawler/sources/linux_sb.py` 的 `find_date_published` / `_normalise_post_time`）。
+- **guide 24h TTL（双保险）**：采集端每轮 `prune_expired_guide_rows()` 按 `first_seen_at < now-24h`
+  删 `reply_visible_guide` 行；站点 `GET /api/token-keys` 同时只返回 24h 内的指引行
+  （`GUIDE_WINDOW_SECONDS = 24*3600` 三处同值：爬虫 `db.py` / 推送脚本 / 站点读接口）。
+- **对账清理**：新增 `POST /api/ai/token-keys/prune`（`delete` scope + 仅管理员 + `confirm: true`），
+  推送脚本在**零失败且有成功上报**时按 `keep` 身份列表清理站点 `published` 存量；
+  `hidden` / `pending` 永不删。`dead` 行由「探测判定 + 逐轮对账」双路径清理。
+
+### 10.2 第二轮：Key 不明文显示，只保留复制（覆盖 §3.3）
+
+站长验收后改口径：**页面上不显示明文 Key，只用复制功能**。
+
+- **卡面**：只渲染**短脱敏形态**（`前6…后4`，如 `sk-oYF…rMgs`），完整 masked 串放 `title`。
+- **列表接口不再下发 `key_plain`**（白名单 15 字段），且 `base_url` 中 key 形态片段由**服务端遮蔽**。
+  原因：Nuxt 会把组件 props 序列化进 SSR payload（`__NUXT_DATA__`），只改前端显示不够——
+  明文仍会出现在页面源码里（首版实现即因此泄露，实测 `page.Contains(key_plain) === true`）。
+- **复制专用端点** `GET /api/token-keys/{id}/copy`：按需返回 `{ key_plain, base_url }` 完整值，
+  显式 `Cache-Control: no-store`；可见口径与列表一致（`published`、非 `dead`、指引 24h、指引行恒 404）；
+  每次调用 `copy_count + 1`（复制热度，**站点本地数据**，爬虫上报不涉及）。
+- **前端**：点击复制 → 取明文 → 剪贴板 → 1.6s「已复制」反馈；404（已下架）按钮变红「Key 已失效」，
+  不再静默。API 地址行另有独立复制按钮（复制完整 `base_url`）——列表给的是遮蔽版，完整值同样只经 copy 端点。
+
+### 10.3 第三轮：移动端与工程问题（自查发现）
+
+- **移动端溢出**：网格 `minmax(min(300px,100%),1fr)` + 子项 `min-width:0`；`base_url`
+  与 masked 串不再撑破卡片；≤480px 时复制主按钮整行。
+- **`useMobile` hydration mismatch（全站既有缺陷）**：`checkMobile()` 原先在 hydration 渲染阶段
+  就翻转 `isMobile`，而 SSR 无视口概念固定渲染桌面标记 → ≤1024px 视口下每个页面都报 mismatch
+  （实测 `/tokens`、`/prompts`、`/collections`、`/tokens/keys`、首页全中）。改为 `onNuxtReady()` 后再判定。
+- **时间格式化的时区问题**：`formatTs` 原用本地时区 getter（SSR=服务器时区、客户端=用户时区，
+  相差 8h）→ 渲染时间在 hydration 时跳变。改为固定 UTC+8 纯 UTC 算术。
+- **首字母取字符**：`charAt(0)` 会把 emoji 代理对切成两半（SSR 编码成 U+FFFD，客户端保留孤立代理）
+  → 改码点感知 `[...name][0]`。
+- **排序**：`(source='post') DESC, verdict 权重(valid > quota > limited > 其他), first_seen_at DESC`
+  —— 可用 Key 优先（原先按探测时间，有效行会被未知行挤下去）。
+- **技能包版本**：`favshub-data-ops` 的 `SKILL.md` frontmatter 此前停在 1.5.0 而站点分发清单是
+  1.6.0（手工改产物、源未同步）——已对齐为 **1.7.0** 并由 `pnpm skill:manifest` 重新生成。
+
+### 10.4 三向 DDL 同步现状（改列时必须同时改这三处）
+
+| 列 | 爬虫 `crawler/store/db.py` | 站点 `server/database/migrate.ts` | drizzle `server/database/schema.ts` |
+|---|---|---|---|
+| `key_plain` | ✓ SCHEMA + MIGRATIONS | ✓ 独立 try/catch ALTER | ✓ `keyPlain` |
+| `post_time` | ✓ SCHEMA + MIGRATIONS | ✓ 独立 try/catch ALTER | ✓ `postTime` |
+| `copy_count` | ✓ SCHEMA + MIGRATIONS（**站点维护**，爬虫不写） | ✓ 独立 try/catch ALTER | ✓ `copyCount` |
+
+### 10.5 仍待改进（本轮未做，留痕）
+
+- **探测预算固定 5 行/轮**：31 行需要 6 轮（约 18h）才覆盖一遍，页面长期大量「待验证」。
+  可改为按行数自适应（如 `max(5, rows // 8)`）或优先探测「最新收录且从未探测」的行。
+- **无单卡分享锚点**：卡片没有 `#id` 锚点/详情页，无法把某个 Key 直接分享给他人。
+- **provider 归一化缺失**：杂牌中转站的 `provider` 多落「未知」，可建域名→品牌别名表。
+- **前端无自动化测试**：`copy 可见性矩阵` / `mask 规则` / `prune 对账` 依赖人工验证，
+  建议把这三处核心逻辑补成脚本化断言（照 `scripts/ai-api-smoke-*.mjs` 模式）。
 3. **生产部署链**（07 §6.3 :201）：bump VERSION → 镜像 → 服务器 `docker compose pull + deploy.sh`；nginx feed.xml alias（07 C4）；管理后台创建 PAT（**普通 or 管理员绑定**——pending 转正方案见 §9.4 拍板项）填入爬虫 `.env`；爬虫发布层从本地文件切 PAT（07 §6.2 C1-C3）。前置 = P0 七天闸门数据 + 用户拍板。
 4. **开放点（需拍板）**：
    - F4 POST 载荷是否携带 `key_encrypted`——07 未明定；不同步则 F5 无密文可解。本地桥默认同步（`--no-encrypted` 可关），生产 F4 按本文契约默认接收；若拍板不同步则删该字段并同步删桥开关。
