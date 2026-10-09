@@ -202,7 +202,7 @@ c) :132 补 `isKeysPage` computed。
 |---|---|---|
 | 头 | provider 首字母 fallback 块 + provider 名（空则兜底帖标题→「未知来源」，TokenKeyCard.vue:121-124）+ 来源徽标（SOURCE_META :127-134：post→绿「帖子直提取」/ aggregator_leak→灰「聚合源泄漏」） | 同左，来源徽标固定蓝「回帖解锁指引」 |
 | 主体 | `key_masked` 等宽块（:13-16，`font-family: var(--font-mono,…)`，前缀+星号+后缀形态，模板插值天然转义，**禁 v-html**） | 🔒 指引块（:19-22）：「key 需在原帖回复后可见，点击下方链接去论坛回复领取」 |
-| 行 | API 地址 `base_url`（存在才渲染 :25-28）；models chips 前 3 + N（:29-32、:166-167，照 local_server.py:1076-1083） | — |
+| 行 | API 地址 `base_url`（存在才渲染 :25-28）；models chips 前 3 + N（:29-32、:166-167，照 local_server.py:1076-1083） | models chips 前 3 + N（同左；模型名来自公开标题，2026-10-09 §10.7⑥ 起不再丢弃） |
 | 徽标行 | verdict 徽标（见下表 :35-38）+ confidence 徽标（仅 B 类：high→绿「置信 · 高」/medium→黄「置信 · 中」/low→灰「置信 · 低」，CONFIDENCE_META :153-160；C 类不出——豁免理由同 local_server.py:1033-1037：C 类无 (key,base_url) 配对，置信无意义） | 无徽标行 |
 | 脚 | 原帖链接 `source_url`（:41-50，`rel="noopener noreferrer nofollow"` target=_blank；**协议白名单** :170-173 只放行 http(s)，防 `javascript:` 注入）+ 收录/探测时间（:184-190） | 原帖链接 + **主按钮「去论坛回复领取」**（:56-64，同一 source_url，按钮强化 CTA） |
 
@@ -616,7 +616,9 @@ python scripts/sync_to_favshub_local.py [--dry-run] [--source PATH] [--db PATH] 
   属上游行为变化，非爬虫 bug；若此类中转增多，可考虑在 level 3 收到该 400 时
   提前终止并改记主方案（Bearer）结果。
 - **无单卡分享锚点**：卡片没有 `#id` 锚点/详情页，无法把某个 Key 直接分享给他人。
-- **provider 归一化缺失**：杂牌中转站的 `provider` 多落「未知」，可建域名→品牌别名表。
+- ~~**provider 归一化缺失**~~ **已修（2026-10-09，见 §10.7）**：`extract/provider.py`
+  以「key 前缀 > base_url 主机」的次序归一化；前缀命中仍是 07 §8.2 的原语义，
+  未命中的中转站取自身域名（`xlai.pro` / `sky-code.org`），不再落「未知」。
 - **前端无自动化测试**：`copy 可见性矩阵` / `mask 规则` / `prune 对账` 依赖人工验证，
   建议把这三处核心逻辑补成脚本化断言（照 `scripts/ai-api-smoke-*.mjs` 模式）。
 
@@ -671,3 +673,72 @@ unknown，站点还渲染出带中文的「API 地址」。
 5. **本轮实施偏差待补**（§0.2）：① `nuxt.config.ts` 加 `'/api/token-keys'` 的 `public, max-age=300` routeRules（照 :120-124 search-engines 形式，加一行即可）；② `pages/tokens/index.vue` hero 互链（§2 #8，可选）。两者均无阻塞风险。
 6. **验证边界**：`pnpm build` / `pnpm ts:check` 未在本设计会话运行（约束：门禁统一执行）；桥对目标库的首次写入与 §6 完整 HTTP 断言（A8-A14 语义）依赖 build 产物 + dev/preview 服务，均留待门禁。**A1-A7（DB 层断言）当前脚本未实现**（§5.3）：门禁跑桥后建议以任一 sqlite 客户端按 A2-A6 口径人工复核一次，后续补入脚本。已实跑并全绿：verify 脚本 `--self-test`（16/16）、桥脚本 `--help`（exit 0）、tokenhub.db 只读数据核对。
 7. **两处既有文件头注释陈旧（打磨项，本轮按「只改文档」约束不动代码）**：`server/database/schema.ts:2`「完整映射 FavsHub SQLite 数据库的 10 张表」实际已 13 张（本设计 +3）；`components/mobile/MobileBottomNav.vue:298`「底栏由 6 项增至 7 项」实际 8 项（且该样式块系上一轮已提交代码，见 §0.1 评审复核①）。均不影响功能；建议与 §9.5① routeRules 补齐同批顺手更新（无需单独任务）。
+
+### 10.7 2026-10-09 修复留痕（provider 归一化 + models 提取）
+
+**① 背景：两列存在但从未被写入**
+
+`provider` 只由 key 前缀启发填充（`provider_for_key`，07 §8.2「猜来源不替代 URL」）。
+存量 13 行全是匿名 `sk-` 中转 key，无前缀可猜 → `provider=''`，卡片头部回落到
+**帖子标题**：11 个不同中转站全渲染成「免费token」，站点「按厂商筛选」也形同虚设
+（`provider LIKE ?` 恒不命中）。`models` 更彻底：schema、F4 载荷、站点读接口、卡片
+chips 四处都通了，**没有任何环节产出过值**，13 行全 `'[]'`。
+
+**② 归一化设计（新增 `extract/provider.py`）**
+
+次序：**key 前缀证据 > base_url 主机**。前缀命中保持 07 §8.2 原语义（`sk-or-` →
+openrouter.ai）；未命中时取 base_url 主机作为展示名，且：
+
+- 一级品牌表 `PROVIDER_BRANDS`（26 条）映射一方便宜域名 → 展示名（`api.deepseek.com`
+  → `DeepSeek`），表中未列出的中转站**保留自身域名**（`xlai.pro` / `sky-code.org`）——
+  把中转站标成官方厂商是事实错误，而域名本就随 `base_url` 公开在卡片上；
+- 本机/内网地址（`127.0.0.1` / `localhost` / `192.168.*`）与单标签主机返回空，不造标签；
+- 纯函数、无网络、不触碰 key；`resolve_provider(key, base_url, prefix)` 保留前缀优先。
+
+**③ 模型识别（新增 `extract/models.py`）**
+
+`find_model_mentions(text)`：24 条家族正则（Claude Opus/Sonnet/Haiku、GPT-4o/4/5、
+o1/o3/o4、DeepSeek、Grok、Gemini、GLM、Qwen、Kimi、Llama、Mistral、MiniMax、
+Doubao、ERNIE、Hunyuan）+ 7 条中文别名（深度求索 / 通义千问 / 智谱 / 豆包 …）。
+
+- **只保留原文写出的版本号**（`grok4.6` → `Grok 4.6`，`deepseek` → `DeepSeek`），
+  不臆造「V3」这类来源没写的版本；
+- 先剥离 URL 与凭证形状串，`/v1/models`、`sk-…` 永不变成 chip；
+- 裸 `o3` 需邻近模型词（`gpt`/模型/推理…）才算，避免化学式/编号误报；
+- 去重保序、上限 20 条（对齐站点 `KEY_LIMITS.models`）。
+- 接入点：`LayeredExtractor.extract` 每个 body 扫一次，同帖所有 pair 共享；
+  C 类指引行由 `_store_guide` 从**公开标题**提取（不含任何 key 数据）。
+
+**④ 找到并修复一个横跨两仓的静默契约漂移（关键）**
+
+首次推送后站点 `models` 仍全空。根因：爬虫库存 **JSON 字符串**（`'["DeepSeek"]'`，
+`store/db.py:models_to_json`），站点 F4 `normalizeModels` 只接受**数组**且对非数组
+**静默返回 `[]`**（`server/utils/token-deals.ts:63-75`）。两侧对「列」一致、对
+「线上形状」不一致，且在每行都是 `'[]'` 时无法暴露——`upserted:13` 看起来完全成功。
+
+- 修复：`scripts/push_to_favshub.py` 的 `normalize()` 把 `models` 字符串解码为数组
+  （解析失败降级 `[]`，绝不抛）；站点侧 `JSON.stringify(array)` 入库，语义对齐。
+- 回归测试 `crawler/test_push_payload.py`（13 条）：字符串→数组、Unicode 保真、
+  畸形/`null`/对象降级为空、字段白名单、verdict 9 值闸门、`key_encrypted` 不过网。
+
+**⑤ 存量回填与验证**
+
+- `scripts/backfill_provider_models.py`（dry-run 默认，`--apply` 写入）：只填空值，
+  已填 provider（前缀猜测）/models 的行绝不改写；备份
+  `crawler/data/tokenhub.db.bak-20261009`。回填 13 行：provider 11 行
+  （2 行 base_url 为空 → 保持空，卡片回落标题）、models 4 行。
+  > 存量行的正文未落库（07 §8.5 只留标题），故 models 只能从标题提取；
+  > 新增行由管道从**正文**提取，召回更高。
+- 完整测试：爬虫 513 条全绿（新增 `test_extract_provider_models.py` 25 条 +
+  `test_push_payload.py` 13 条 + `test_wiring.py` 2 条指引行用例）。
+- 生产验证（`https://hao.bx9y.com.cn/tokens/keys`）：13 张卡全部显示厂商名；
+  4 行显示模型 chip（DeepSeek / Claude Opus 5.5 / GLM / Grok 4.6）；
+  `?provider=xlai` 精确返回 4 行（筛选从不可用变为可用）；SSR HTML 中
+  完整长度 `sk-` 串 0 个、`gAAAAA` 密文 0 处；copy 端点 B 行 200、
+  指引行仍 404。
+
+**⑥ 站点侧配套（FavsHub_web `main`）**
+
+`TokenKeyCard.vue` 的 models chips 去掉 `!isGuide` 条件——指引行同样渲染（模型名来自
+公开标题，正是「值不值得去回帖」的决策信息；此前指引行把已提取的 models 静默丢弃，
+4 行里只显示 2 行，观感等同 bug）。移动端 390px 实测：`flex-wrap` 生效、无溢出。

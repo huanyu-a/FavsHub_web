@@ -165,6 +165,16 @@ def normalize(row: dict, plain: str = "") -> tuple[Optional[dict], str]:
         if val is None:
             continue
         body[col] = val
+    # models 在爬虫库存 JSON 字符串（'[]' / '["DeepSeek"]'），站点 F4 的
+    # normalizeModels 只接受数组 —— 字符串原样透传会被静默归一成 []
+    # （2026-10-09 实测：回填后的 models 全部丢失）。此处解码为数组再上报。
+    models_raw = body.get("models")
+    if isinstance(models_raw, str):
+        try:
+            parsed = json.loads(models_raw)
+        except ValueError:
+            parsed = []
+        body["models"] = parsed if isinstance(parsed, list) else []
     if plain:
         body["key_plain"] = plain
     return body, ""

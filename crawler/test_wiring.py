@@ -20,6 +20,7 @@ Self-contained: tempfile dirs, in-memory SQLite, no network, no
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -273,6 +274,28 @@ class CGuideFlowTests(WiringTestCase):
             xml = fh.read()
         self.assertIn("回复本主题后即可查看", xml)
         self.assertNotIn("key:", xml)
+
+    def test_guide_row_models_come_from_the_public_title_only(self):
+        # The chips are what tells a reader whether replying is worth it; the
+        # title is public, so this leaks nothing about the gated key (2026-10-09).
+        body = "网盘链接在二楼，回复本主题后即可查看这部分内容。"
+        adapter = _FakeAdapter([_post(23217, body, title="免费的grok4.6 速蹬")],
+                               rules=linux_sb_rules())
+        result = self._run(adapter, _ScriptedProber(), _RecordingAlerter())
+
+        self.assertEqual(1, result.stored_guides)
+        row = self._rows("SELECT * FROM token_keys")[0]
+        self.assertEqual(["Grok 4.6"], json.loads(row["models"]))
+        self.assertEqual("", row["key_masked"])  # still zero key data (D2)
+        self.assertEqual("", row["base_url"])
+
+    def test_guide_row_without_a_model_mention_stays_empty(self):
+        body = "回复本主题后即可查看这部分内容。"
+        adapter = _FakeAdapter([_post(23217, body, title="福利放送")],
+                               rules=linux_sb_rules())
+        self._run(adapter, _ScriptedProber(), _RecordingAlerter())
+        row = self._rows("SELECT * FROM token_keys")[0]
+        self.assertEqual("[]", row["models"])
 
 
 class DRecordOnlyTests(WiringTestCase):

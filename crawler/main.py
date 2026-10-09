@@ -59,6 +59,7 @@ from interfaces import (  # noqa: E402
     FeedEntry,
     ProbeState,
 )
+from extract.models import find_model_mentions  # noqa: E402
 from store import db  # noqa: E402
 
 __all__ = ["CycleResult", "build_components", "run_cycle", "main"]
@@ -705,7 +706,9 @@ def _store_guide(conn: Any, item: Any) -> int:
             "key_encrypted": None,
             "base_url": "",
             "provider": "",
-            "models": "[]",
+            # 模型名取自公开标题，不含任何 key 数据：指引行也要让用户看见
+            # 「值不值得去回帖」，否则站点上已提取的 chips 永远不渲染（2026-10-09）。
+            "models": db.models_to_json(find_model_mentions(raw.title or "")),
             "source": "reply_visible_guide",
             "confidence": "high",
             "verdict": "unknown",

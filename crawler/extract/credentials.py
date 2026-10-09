@@ -63,6 +63,12 @@ from interfaces import (
     PRIMARY_CREDENTIAL_RE,
     Prober,
 )
+# Package-relative on purpose: the extractor's import-root guard
+# (test_extract_credentials.ForbiddenBypassTests) whitelists re / typing /
+# interfaces / crypto only. A top-level ``extract.*`` import would widen that
+# whitelist and weaken the "no network, no bypass" audit of this module.
+from .models import find_model_mentions
+from .provider import resolve_provider
 
 #: The three 07 §8.2 patterns, compiled once from the shared source strings.
 PRIMARY_RE = re.compile(PRIMARY_CREDENTIAL_RE)
@@ -299,7 +305,10 @@ def _make_pair(key: str, base_url: str, confidence: str, evidence: str) -> Crede
     return CredentialPair(
         key=key,
         base_url=base_url,
-        provider=provider_for_key(key),
+        # Prefix evidence first (07 §8.2 "猜来源不替代 URL"); a relay key has no
+        # prefix, so the paired host supplies the card's display brand instead of
+        # leaving the row blank and falling back to the post title (2026-10-09).
+        provider=resolve_provider(key, base_url, provider_for_key(key)),
         confidence=confidence,
         origin=KEY_SOURCE_POST,
         evidence=evidence,
@@ -542,10 +551,15 @@ class LayeredExtractor(CredentialExtractor):
         origins = _gate_origins(cleaned, keys)
         source_id = getattr(post, "source_id", "")
         source_tid = getattr(post, "tid", 0)
+        # Model chips: the post announces which models the key covers. One scan
+        # per body, shared by every pair of that body (2026-10-09).
+        models = find_model_mentions(cleaned)
         for p in pairs:
             p.origin = origins.get(p.key, KEY_SOURCE_POST)
             p.source_id = source_id
             p.source_tid = source_tid
+            if models and not p.models:
+                p.models = tuple(models)
         if self.prober is None:
             return _collapse_candidates(pairs)
         return disambiguate(pairs, self.prober)
