@@ -1003,10 +1003,10 @@ const KEY_SOURCES = ['post', 'aggregator_leak', 'reply_visible_guide'] as const
 /** confidence 枚举（(key, base_url) 配对置信度，07 §8.2） */
 const KEY_CONFIDENCES = ['high', 'medium', 'low'] as const
 
-/** verdict 枚举（8 值，07 §8.4 / crawler interfaces.py:49-59） */
+/** verdict 枚举（9 值，07 §8.4 / crawler interfaces.py:49-61；tls_invalid 2026-10-09 新增） */
 const KEY_VERDICTS = [
   'valid', 'quota', 'limited', 'dead',
-  'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported',
+  'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported', 'tls_invalid',
 ] as const
 
 /**

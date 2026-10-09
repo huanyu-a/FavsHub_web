@@ -28,10 +28,10 @@
 import { getRawDb } from '../../database'
 import { escapeLike } from '../../utils/token-deals'
 
-/** verdict 枚举白名单（8 值，与 crawler 侧 VERDICTS / migrate.ts DDL 注释一致） */
+/** verdict 枚举白名单（9 值，与 crawler 侧 interfaces.VERDICTS / migrate.ts DDL 注释一致） */
 const VERDICTS = [
   'valid', 'quota', 'limited', 'dead',
-  'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported',
+  'unknown', 'restricted', 'blocked_by_waf', 'endpoint_unsupported', 'tls_invalid',
 ] as const
 
 /** 白名单字段 = SELECT 列清单；key_encrypted / key_hash / key_plain 等敏感列不在其列 */

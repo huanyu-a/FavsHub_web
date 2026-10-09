@@ -78,6 +78,16 @@
       <span v-if="!isGuide && timeText" class="keys-time">
         <i class="ri-time-line"></i>{{ timeText }}
       </span>
+      <!-- 探测新鲜度：本页核心承诺「key 是最近探过的」；>24h 变灰提示结论可能已失效。
+           mounted 门控：Date.now() 相对时间在 SSR/hydration 间可能跨桶，仅客户端渲染 -->
+      <span
+        v-if="!isGuide && mounted && probeFreshness"
+        class="keys-fresh"
+        :class="{ 'is-stale': probeFreshness.stale }"
+        :title="probeFreshness.stale ? '超过 24 小时未复探，结论可能已失效' : '最近一次探测时间'"
+      >
+        <i :class="probeFreshness.stale ? 'ri-alarm-warning-line' : 'ri-flashlight-line'"></i>{{ probeFreshness.text }}
+      </span>
 
       <!-- C 类：主按钮「去论坛回复领取」（与原帖同一 source_url，按钮强化 CTA） -->
       <a
@@ -107,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 
 interface ITokenKeyRow {
   id: string
@@ -267,7 +277,8 @@ const sourceMeta = computed(() => {
 })
 
 // verdict 徽标：07 F6 权威口径 —— valid 绿 / quota·limited 黄 / dead 红且整卡置灰 / unknown·restricted 灰；
-// 07 未点名的 blocked_by_waf·endpoint_unsupported 沿用 local_server.py:64-75 语义
+// 07 未点名的 blocked_by_waf·endpoint_unsupported 沿用 local_server.py:64-75 语义；
+// tls_invalid 为 2026-10-09 新增（中转站证书过期/自签，请求死在 TLS 握手，与凭证无关）
 const VERDICT_META: Record<string, { label: string; cls: string }> = {
   valid: { label: '有效', cls: 'is-ok' },
   limited: { label: '受限可用', cls: 'is-warn' },
@@ -275,6 +286,7 @@ const VERDICT_META: Record<string, { label: string; cls: string }> = {
   restricted: { label: '受限', cls: 'is-muted' },
   blocked_by_waf: { label: 'WAF 拦截', cls: 'is-warn' },
   endpoint_unsupported: { label: '端点不支持', cls: 'is-muted' },
+  tls_invalid: { label: 'TLS 异常', cls: 'is-warn' },
   dead: { label: '失效', cls: 'is-bad' },
   unknown: { label: '未知', cls: 'is-muted' },
 }
@@ -324,6 +336,29 @@ const timeText = computed(() => {
   if (seen) return `收录 ${seen}`
   return probed ? `探测 ${probed}` : ''
 })
+
+/** 探测新鲜度：相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）+ 过期标记。
+    这是本页的核心承诺——「key 是最近探过的」。用 Date.now() 计算，SSR 与客户端
+    的 now 相差秒级，但相对文案对分钟级抖动不敏感（60s 内都是「刚刚」），
+    且只影响一个 <span> 文本，不会造成结构性 mismatch。 */
+const probeFreshness = computed(() => {
+  const ts = props.keyRow.last_probe_at
+  if (!ts || ts <= 0) return null
+  const diffMin = Math.floor((Date.now() / 1000 - ts) / 60)
+  let text: string
+  if (diffMin < 1) text = '刚刚探测'
+  else if (diffMin < 60) text = `${diffMin} 分钟前探测`
+  else if (diffMin < 24 * 60) text = `${Math.floor(diffMin / 60)} 小时前探测`
+  else text = `${Math.floor(diffMin / (24 * 60))} 天前探测`
+  // > 24h 视为过期：徽标变灰提示「结论可能已失效」
+  return { text, stale: diffMin >= 24 * 60 }
+})
+
+/** 客户端门控（与 useMobile/onNuxtReady 同纪律）：Date.now() 在 SSR 与 hydration
+    之间可能跨越相对时间桶边界（如 59.9→60.1 分钟），导致文案不一致。徽标仅在
+    mounted 后渲染，SSR 不出该节点，彻底消除 mismatch；代价是 hydration 后瞬现。 */
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
 
 /** 原帖发帖时间：采集端原文字符串，展示时把 ISO（lastmod 兜底路径）规整为同形 */
 const postTimeText = computed(() => {
@@ -589,6 +624,23 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 .keys-time i { font-size: 13px; }
+/* 探测新鲜度徽标：默认主色（新鲜），>24h 变灰 + 警示图标 */
+.keys-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.keys-fresh i { font-size: 13px; }
+.keys-fresh.is-stale {
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+}
 
 /* C 类主按钮：主色实底，风格对齐 index.vue 的 .hero-publish */
 .keys-cta {

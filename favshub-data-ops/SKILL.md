@@ -226,7 +226,8 @@ GET  /api/token-keys/{id}/copy  # 复制专用：{ key_plain, base_url } 完整�
   `published`、非 `dead`、回帖指引限 24h；指引行恒 404），响应 `{ key_plain, base_url }`
   —— 明文 key 只在此响应出现，**取到后直接交给用户，不要写入日志或过程输出**
 - `verdict` 枚举：`valid` 有效 | `quota` 额度耗尽 | `limited` 限次 | `dead` 失效 |
-  `unknown` | `restricted` | `blocked_by_waf` | `endpoint_unsupported`
+  `unknown` | `restricted` | `blocked_by_waf` | `endpoint_unsupported` |
+  `tls_invalid` TLS 异常（中转站证书过期/自签，请求死在握手，与凭证无关）
 - **时间戳为秒**：`first_seen_at` / `last_probe_at` 等沿采集端语义存**秒**
   （站点其余表是毫秒），不要混用
 - 支持 `dry_run: true` 预演；响应返回 `{ token_key: {…白名单字段, deal_status}, upserted, status, message }`

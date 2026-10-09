@@ -64,6 +64,12 @@
           <span v-if="lastUpdatedText" class="keys-updated">数据截至 {{ lastUpdatedText }}</span>
         </div>
 
+        <!-- ②.5 状态图例：解释「未知/待验证」≠失效，降低用户把灰徽标误读为坏 key 的概率 -->
+        <div class="keys-legend" role="note">
+          <i class="ri-information-line"></i>
+          <span><b>有效</b>＝探测确认可用 · <b>受限/额度</b>＝可用但有条件 · <b>待验证</b>＝尚未探出结果（不代表失效）</span>
+        </div>
+
         <!-- ③ 筛选器：状态下拉（计数后缀，dead 殿后标红）+ 厂商输入（300ms debounce） -->
         <div class="keys-filterbar">
           <label class="keys-filter-select">
@@ -255,6 +261,7 @@ const VERDICT_OPTIONS: Array<{ value: string; label: string; danger?: boolean }>
   { value: 'restricted', label: '受限(restricted)' },
   { value: 'blocked_by_waf', label: 'WAF 拦截(blocked_by_waf)' },
   { value: 'endpoint_unsupported', label: '端点不支持(endpoint_unsupported)' },
+  { value: 'tls_invalid', label: 'TLS 异常(tls_invalid)' },
 ]
 
 /** 厂商输入 300ms debounce，归一后触发重新请求（照 index.vue:280-283） */
@@ -428,6 +435,19 @@ onUnmounted(() => {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── ②.5 状态图例：一行说明各徽标语义，降低「未知」被误读为失效的概率 ── */
+.keys-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+.keys-legend i { font-size: 14px; flex-shrink: 0; }
+.keys-legend b { color: var(--text-secondary); font-weight: 500; }
 
 /* ── ③ 筛选器（状态 + 厂商，内联控件不复用 TokenFilterBar——其三 v-model 语义不合） ── */
 .keys-filterbar {
@@ -655,6 +675,9 @@ onUnmounted(() => {
   }
   .keys-updated {
     margin-left: 0;
+  }
+  .keys-legend {
+    flex-wrap: wrap;
   }
 }
 @media (max-width: 480px) {

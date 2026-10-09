@@ -332,7 +332,7 @@ export const tokenKeys = sqliteTable('token_keys', {
   models: text('models').default('[]'),              // JSON 数组，读侧需 JSON.parse + Array.isArray
   source: text('source').default('post'),            // post | aggregator_leak | reply_visible_guide
   confidence: text('confidence').default('low'),     // high | medium | low
-  verdict: text('verdict').default('unknown'),       // valid|quota|limited|dead|unknown|restricted|blocked_by_waf|endpoint_unsupported
+  verdict: text('verdict').default('unknown'),       // valid|quota|limited|dead|unknown|restricted|blocked_by_waf|endpoint_unsupported|tls_invalid
   consecutiveFailures: integer('consecutive_failures').default(0),
   lastProbeAt: integer('last_probe_at'),
   firstSeenAt: integer('first_seen_at'),
