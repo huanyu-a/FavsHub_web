@@ -1,0 +1,2 @@
+# deal-share-draw.ts: exports duplicate utils/deal-share.ts re-exports (ShareDeal/drawShareCard etc); excluded to silence 6 Nuxt Duplicated-imports warnings. Explicit imports are unaffected.
+utils/deal-share-draw.ts
