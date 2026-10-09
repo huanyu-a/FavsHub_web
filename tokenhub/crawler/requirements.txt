@@ -1,0 +1,8 @@
+# tokenhub crawler runtime deps (07 5.2 / P0-1).
+# Standard library covers everything else (sqlite3, urllib, json, re, hashlib,
+# dataclasses, argparse). The only non-stdlib import in the whole crawler is
+# Fernet for token_keys.key_encrypted (07 8.5).
+#
+# Pinned to the compatible range verified locally (cryptography 43.0.0). The
+# Fernet API has been stable across these releases.
+cryptography>=42,<45

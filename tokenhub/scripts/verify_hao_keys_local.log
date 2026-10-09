@@ -1,0 +1,43 @@
+[2026-09-30T07:47:37.986Z] === verify_hao_keys_local 开始 ===
+[2026-09-30T07:47:37.988Z] node v24.19.0 · win32 · script: D:\project\wwwroot\tokenhub\scripts\verify_hao_keys_local.mjs
+[2026-09-30T07:47:37.993Z] 在端口 3100 启动 server: node D:/project/wwwroot/FavsHub_web/favshub-nuxt/.output/server/index.mjs (cwd=D:/project/wwwroot/FavsHub_web/favshub-nuxt, env PORT=3100)
+[2026-09-30T07:47:38.708Z] server 就绪：http://127.0.0.1:3100/
+[2026-09-30T07:47:38.743Z] check PASS: GET /tokens/keys → 200
+[2026-09-30T07:47:38.744Z]   - HTTP: 200
+[2026-09-30T07:47:38.744Z]   - HTML 长度: 46498 字符
+[2026-09-30T07:47:38.745Z] check PASS: 页面含免责声明原文（07 §8.5-4 / A13）
+[2026-09-30T07:47:38.745Z]   - 免责关键句命中
+[2026-09-30T07:47:38.746Z] check PASS: 页面含指向 /tokens/keys 的导航链接
+[2026-09-30T07:47:38.746Z]   - 查找 href="/tokens/keys": 命中
+[2026-09-30T07:47:38.747Z] check PASS: 页面含状态筛选控件（08 §3.2 ③）
+[2026-09-30T07:47:38.747Z]   - 候选标识: 全部状态 / 有效(valid) / 失效(dead)
+[2026-09-30T07:47:38.747Z]   - 命中: 全部状态
+[2026-09-30T07:47:38.747Z] check PASS: HTML 全文明文 key 扫描 0 命中（PLAIN_KEY_RE, local_server.py:47-52）
+[2026-09-30T07:47:38.748Z]   - 命中数: 0
+[2026-09-30T07:47:38.748Z] check PASS: HTML 不含 key_encrypted / key_hash / error_message_raw 字样
+[2026-09-30T07:47:38.748Z]   - 零命中
+[2026-09-30T07:47:38.749Z] check PASS: GET /api/token-keys → 200
+[2026-09-30T07:47:38.749Z]   - HTTP: 200
+[2026-09-30T07:47:38.749Z] check PASS: API 原始响应不含 key_encrypted / key_hash / error_message_raw（A10 全文子串口径）
+[2026-09-30T07:47:38.750Z]   - 零命中
+[2026-09-30T07:47:38.750Z] check PASS: API 响应为合法 JSON
+[2026-09-30T07:47:38.750Z]   - JSON.parse 成功
+[2026-09-30T07:47:38.750Z] check PASS: 分页列表存在（keys 数组 + pagination.total）
+[2026-09-30T07:47:38.751Z]   - keys: 数组，24 行
+[2026-09-30T07:47:38.751Z]   - pagination.total: 31
+[2026-09-30T07:47:38.751Z]   - pagination 其余键: page, limit, total, totalPages
+[2026-09-30T07:47:38.751Z]   - verdict_counts: 存在（A9）
+[2026-09-30T07:47:38.752Z] check PASS: 每行 key_masked 含 * 或为空（C 类指引行；A8 形状）
+[2026-09-30T07:47:38.752Z]   - 检查行数: 24
+[2026-09-30T07:47:38.752Z]   - 全部合规（只判形状，不记录值）
+[2026-09-30T07:47:38.753Z] check PASS: dead 筛选只含 dead 行（?verdict=dead · 0 行）
+[2026-09-30T07:47:38.753Z]   - ?status=dead → 200，24 行，不满足: 24 行 verdict != dead
+[2026-09-30T07:47:38.753Z]   - ?verdict=dead → 200，0 行，全部 verdict=dead
+[2026-09-30T07:47:38.753Z]   - 偏离说明: 任务口径为 status 参数，设计文档契约 (docs/08:369、A12 docs/08:536) 为 verdict 参数；实测生效的是 ?verdict=dead
+[2026-09-30T07:47:38.754Z] 结果: 12/12 项通过，exit=0
+[2026-09-30T07:47:38.754Z] 停止 server 子进程（try/finally 保证，失败路径同样执行）
+[2026-09-30T07:47:38.775Z] 子进程输出尾部 [server stdout] [Backup] 自动备份调度已启动
+[2026-09-30T07:47:38.775Z] 子进程输出尾部 [server stdout] [DB] 已连接: D:\project\wwwroot\FavsHub_web\favshub-nuxt\data\favshub.db
+[2026-09-30T07:47:38.776Z] 子进程输出尾部 [server stdout] [Init] FavsHub Nuxt 服务已启动
+[2026-09-30T07:47:38.776Z] 子进程输出尾部 [server stdout] Listening on http://127.0.0.1:3100
+[2026-09-30T07:47:38.777Z] === verify_hao_keys_local 结束 ===

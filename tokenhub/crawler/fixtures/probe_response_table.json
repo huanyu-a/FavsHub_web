@@ -1,0 +1,155 @@
+{
+  "_comment": "Real-response semantics measured in docs/02 §B.1 (无效凭证的响应语义) plus the same-status ambiguities of §B.2 / §B.6. expected_verdict is fixed by docs/07 §8.3 (判定表 + 降误报铁律). No credential here is usable: the only key-shaped text is the masked echo the vendor itself returned.",
+  "provenance": {
+    "quoted_from": [
+      "02 §B.1",
+      "02 §B.2",
+      "02 §B.6"
+    ],
+    "derived_from": [
+      "07 §8.3 判定表",
+      "07 §8.3 降误报铁律",
+      "07 §8.3 必须读 body 的 5 组同码歧义"
+    ]
+  },
+  "invalid_credential": [
+    {
+      "endpoint": "api.openai.com/v1/models",
+      "http_status": 401,
+      "body_fragment": "{\"error\":{\"message\":\"Incorrect API key provided: sk-thisi***…0000.\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}",
+      "expected_verdict": "invalid",
+      "note": "02 §B.1: 269 B, WWW-Authenticate: Bearer realm=\"OpenAI API\""
+    },
+    {
+      "endpoint": "generativelanguage.googleapis.com/v1beta/models",
+      "http_status": 400,
+      "body_fragment": "{\"error\":{\"code\":400,\"message\":\"API key not valid…\",\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"reason\":\"API_KEY_INVALID\"}]}}",
+      "expected_verdict": "invalid",
+      "note": "07 §8.3: xAI / Google answer 400, not 401. Sending no key at all gives 403 (02 §B.1)."
+    },
+    {
+      "endpoint": "api.x.ai/v1/models",
+      "http_status": 400,
+      "body_fragment": "{\"code\":\"invalid-argument\",\"error\":\"Incorrect API key provided…\"}",
+      "expected_verdict": "invalid"
+    },
+    {
+      "endpoint": "openrouter.ai/api/v1/key",
+      "http_status": 401,
+      "body_fragment": "{\"error\":{\"message\":\"User not found.\",\"code\":401}}",
+      "expected_verdict": "invalid",
+      "note": "07 §8.3 level 1: /api/v1/key is the OpenRouter validation endpoint."
+    },
+    {
+      "endpoint": "openrouter.ai/api/v1/models",
+      "http_status": 200,
+      "body_fragment": "751207 B…CF-Cache-Status: HIT",
+      "expected_verdict": "endpoint_unsupported",
+      "note": "07 §8.3: OpenRouter's /v1/models is public and CANNOT be used to validate."
+    },
+    {
+      "endpoint": "api.novita.ai/v3/openai/models",
+      "http_status": 200,
+      "body_fragment": "166396 B",
+      "expected_verdict": "endpoint_unsupported",
+      "note": "02 §B.1: public, cannot be used for validation."
+    },
+    {
+      "endpoint": "api.gpt.ge/v1/models",
+      "http_status": 401,
+      "body_fragment": "未提供令牌 (request id: …)",
+      "error_type_literal": "v_api_error",
+      "expected_verdict": "unknown",
+      "note": "07 §8.3: a 401 whose body says '未提供令牌' is a probe construction error -> retry with x-api-key / x-goog-api-key / ?key="
+    },
+    {
+      "endpoint": "api.gpt.ge/v1/models",
+      "http_status": 401,
+      "body_fragment": "无效的令牌 (request id: …)",
+      "expected_verdict": "invalid"
+    },
+    {
+      "endpoint": "api.chatfire.cn/api/models",
+      "http_status": 200,
+      "body_fragment": "{\"message\":\"无权进行此操作，access token 无效\",\"success\":false}",
+      "expected_verdict": "unknown",
+      "note": "07 §8.3 row 6: relay MANAGEMENT api returns 200 with success:false - the status code is unusable, the body decides."
+    }
+  ],
+  "same_status_ambiguity": [
+    {
+      "case": "quota exhausted, OpenAI style",
+      "http_status": 429,
+      "body_fragment": "credit_balance_exhausted",
+      "expected_verdict": "quota",
+      "note": "07 §8.3: 额度耗尽 is NOT 402."
+    },
+    {
+      "case": "quota exhausted, New API style",
+      "http_status": 403,
+      "error_code_fragment": "insufficient_user_quota",
+      "body_fragment": "用户额度不足, 剩余额度: X",
+      "expected_verdict": "quota",
+      "note": "07 §8.3 铁律: 403 永不直接判失效."
+    },
+    {
+      "case": "rate limited",
+      "http_status": 429,
+      "headers": {
+        "Retry-After": "30"
+      },
+      "body_fragment": "",
+      "expected_verdict": "limited"
+    },
+    {
+      "case": "cloudflare challenge",
+      "http_status": 403,
+      "content_type": "text/html",
+      "body_fragment": "Just a moment...",
+      "expected_verdict": "blocked_by_waf",
+      "note": "02 §B.6: same 403 as a quota refusal; Content-Type plus UA behaviour differ."
+    },
+    {
+      "case": "ip / group / region restriction",
+      "http_status": 403,
+      "body_fragment": "您的 IP 不在令牌允许访问的列表中",
+      "expected_verdict": "restricted",
+      "note": "02 §B.6: a VALID key can get 403 from IP allow-lists, groups or regions."
+    },
+    {
+      "case": "wrong path",
+      "http_status": 404,
+      "body_fragment": "404 page not found",
+      "expected_verdict": "endpoint_unsupported",
+      "note": "07 §8.3: after ruling out the path (trailing slash, /v1beta/models) do NOT judge the key dead."
+    },
+    {
+      "case": "trailing slash redirect",
+      "http_status": 307,
+      "body_fragment": "body 为空",
+      "expected_verdict": "unknown",
+      "note": "02 §B.1: not following the redirect is a false positive."
+    },
+    {
+      "case": "transport failure",
+      "http_status": 0,
+      "body_fragment": "",
+      "expected_verdict": "unknown",
+      "note": "07 §8.3 largest false-positive source: 3.3% - 6.7% of 000s at 60-way concurrency (02 §B.4)."
+    },
+    {
+      "case": "server overloaded",
+      "http_status": 503,
+      "body_fragment": "server_is_overloaded",
+      "expected_verdict": "unknown"
+    }
+  ],
+  "relay_error_type_literals_observed": [
+    "v_api_error",
+    "rix_api_error",
+    "new_api_error",
+    "chatanywhere_error",
+    "api_error"
+  ],
+  "hard_rule": "07 §8.3: 中转站 error.type 由运营者自定义（实测 5 种取值），依赖字面量必然误判. 07 §5.1 P0-6 acceptance: injecting 000 / 403 / 429 must not produce a dead verdict."
+}
