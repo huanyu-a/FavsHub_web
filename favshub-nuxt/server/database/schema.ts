@@ -312,8 +312,9 @@ export const qqBindings = sqliteTable('qq_bindings', {
 // Drizzle 查询/类型层，两边如有出入以 migrate.ts 为准（docs/08 §4.1）。
 // 时间戳为**秒级**（沿爬虫语义，与站点其余表的毫秒不同），页面渲染时 ×1000；
 // post_time 例外 —— 原帖发帖时间，原文字符串（不解析、直接展示）。
+// copy_count —— 复制热度计数，仅站点本地维护（copy 端点 +1），爬虫上报不涉及。
 // 红线（07 §8.5）：keyEncrypted / keyHash 两列永不进任何读接口 SELECT、永不上页面。
-// 2026-10-08 设计变更：keyPlain 明文公开（页面可复制，原「脱敏 + 揭示」流程取消）。
+// 2026-10-08 设计变更：keyPlain 明文仅经复制专用端点下发（页面不渲染，见 docs/08）。
 // 与爬虫侧 crawler/store/db.py SCHEMA_STATEMENTS 逐字同构，改一处必须同步三处。
 export const tokenKeys = sqliteTable('token_keys', {
   id: text('id').primaryKey(),
@@ -336,6 +337,7 @@ export const tokenKeys = sqliteTable('token_keys', {
   lastProbeAt: integer('last_probe_at'),
   firstSeenAt: integer('first_seen_at'),
   postTime: text('post_time').default(''),           // 原帖发帖时间（原文字符串）
+  copyCount: integer('copy_count').notNull().default(0), // 复制热度（copy 端点维护；站点本地数据）
   dealStatus: text('deal_status').default('published'), // published | hidden | pending（pending 待管理员转正）
   note: text('note').default(''),                    // 内部诊断，不上页面
   createdAt: integer('created_at'),

@@ -88,18 +88,28 @@ export default defineEventHandler((event) => {
   const total = (db.prepare(`SELECT COUNT(*) AS total FROM token_keys WHERE ${whereClause}`)
     .get(...params) as { total: number }).total
 
-  // 排序固定一条（docs/08 §4.2，照 local_server.py:1109 的实测排序）
+  // 排序固定一条（docs/08 §4.2）：B 类（post）优先于指引；verdict 权重把「确认可用」
+  // 的行排到最前（看板的核心诉求是拿到能用的 key），同级再按收录时间倒序
   const rows = db.prepare(`
     SELECT ${KEY_FIELDS}
     FROM token_keys
     WHERE ${whereClause}
-    ORDER BY (source = 'post') DESC, last_probe_at DESC, first_seen_at DESC, id
+    ORDER BY (source = 'post') DESC,
+      CASE verdict WHEN 'valid' THEN 0 WHEN 'quota' THEN 1 WHEN 'limited' THEN 2 ELSE 3 END,
+      first_seen_at DESC, id
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as any[]
 
+  // base_url 服务端统一遮蔽 key 形态片段（与前端 displayBaseUrl 同一正则规则）：
+  // 部分站点把 key 直接写进 API 地址（URL 即 key），若原样返回，完整 key 会经
+  // Nuxt payload（__NUXT_DATA__）进入页面源码。完整 URL 只经
+  // GET /api/token-keys/:id/copy 按需下发（该端点现随 key_plain 一并返回 base_url）。
+  const KEY_LIKE_RE = /\b[A-Za-z0-9_\-]*(?:sk-|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|r8_)[A-Za-z0-9_\-]{8,}/g
   const keys = rows.map((row) => ({
     ...row,
     models: parseModels(row.models),
+    base_url: String(row.base_url || '').replace(KEY_LIKE_RE, (m: string) =>
+      m.length <= 18 ? m : `${m.slice(0, 6)}…${m.slice(-4)}`),
   }))
 
   // verdict_counts 恒为「已展示口径」全集（published、非 dead、guide 24h 内），

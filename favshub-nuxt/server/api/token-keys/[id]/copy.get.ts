@@ -11,13 +11,18 @@
  *
  * 鉴权：无（与公开列表同语义）；限频继承全局 rate-limit 中间件。
  */
-import { createError, defineEventHandler, getRouterParam } from 'h3'
+import { createError, defineEventHandler, getRouterParam, setHeader } from 'h3'
 import { getRawDb } from '../../../database'
 
 /** 与 GET /api/token-keys / 爬虫 GUIDE_WINDOW_SECONDS 同值 */
 const GUIDE_WINDOW_SECONDS = 24 * 3600
 
 export default defineEventHandler((event) => {
+  // 明文端点绝不入任何缓存（浏览器 / CDN / Nitro route cache 一律绕过）——
+  // 虽有全局 API 兜底，这里显式声明作为安全契约的一部分。
+  setHeader(event, 'Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  setHeader(event, 'Vary', 'Cookie')
+
   const id = getRouterParam(event, 'id') || ''
   if (!/^[\w-]{1,80}$/.test(id)) {
     throw createError({ statusCode: 400, data: { error: 'id 格式非法' } })
@@ -25,11 +30,12 @@ export default defineEventHandler((event) => {
 
   const guideCutoff = Math.floor(Date.now() / 1000) - GUIDE_WINDOW_SECONDS
   const row = getRawDb().prepare(
-    'SELECT key_plain, key_masked, deal_status, verdict, source, first_seen_at'
+    'SELECT key_plain, key_masked, base_url, deal_status, verdict, source, first_seen_at'
     + ' FROM token_keys WHERE id = ?',
   ).get(id) as {
     key_plain: string | null
     key_masked: string | null
+    base_url: string | null
     deal_status: string
     verdict: string
     source: string
@@ -51,5 +57,19 @@ export default defineEventHandler((event) => {
     // 无任何 key 数据的行不该出现在复制链路里（可见但不可复制）
     throw createError({ statusCode: 404, data: { error: '该行没有可复制的 Key' } })
   }
-  return { key_plain: plain || masked }
+
+  // 复制热度计数（站点本地数据，爬虫上报不涉及）：best-effort，失败不影响取 key。
+  // GET 里做写计数是浏览计数同款实践，单语句原子；limit 频率由全局中间件兜底。
+  try {
+    getRawDb().prepare('UPDATE token_keys SET copy_count = copy_count + 1 WHERE id = ?').run(id)
+  } catch {
+    // 计数失败不阻塞复制
+  }
+
+  // 完整 base_url 也在这里按需下发：列表返回的是遮蔽版（key 形态片段已打码），
+  // 「复制 API 地址」时前端来这里取完整值 —— 页面源码全程不含完整 key 形态字符串。
+  return {
+    key_plain: plain || masked,
+    base_url: String(row.base_url || ''),
+  }
 })

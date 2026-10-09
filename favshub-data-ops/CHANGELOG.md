@@ -8,6 +8,29 @@
 
 ---
 
+## [1.7.0] - 2026-10-09
+
+- **新增** 复制专用端点 `GET /api/token-keys/{id}/copy`：按需返回 `{ key_plain, base_url }` **完整值**，
+  与公开列表同一可见口径（`published`、非 `dead`、回帖指引限 24h；指引行恒 404）。
+  公开列表**不再下发 `key_plain`**，且其中 `base_url` 的 key 形态片段（「URL 即 key」的站点）
+  已服务端遮蔽 —— 页面渲染、SSR payload、页面源码全程不含完整 key 形态字符串。
+- **变更** 公开列表排序改为「B 类优先 → `valid` > `quota` > `limited` > 其他 → 收录时间倒序」，
+  可用 Key 排到最前（原排序按探测时间，有效行会被未知行挤下去）。
+- **变更** 复制热度计数 `copy_count` 由 copy 端点维护（站点本地数据，爬虫上报不涉及该列）。
+- **修正** 技能包版本与站点分发清单此前不同步（`SKILL.md` frontmatter 停在 1.5.0）—— 现已对齐，
+  版本号以本文件与 `SKILL.md` frontmatter 为准。
+
+## [1.6.0] - 2026-10-08
+
+- **变更** 「福利 Key」上报协议：上行改传 `key_plain` **明文**（供站点「复制 Key」链路）与
+  `post_time`（原帖发帖时间原文字符串）；`key_encrypted` 密文**不再过网**。
+- **新增** 对账清理 `POST /api/ai/token-keys/prune`（`delete` scope + 仅管理员，`confirm: true` 必带）：
+  每轮快照上报完成后按 `keep` 身份列表清理站点 `published` 存量 —— `dead` / 下架 / 超 24h
+  回帖指引行自动从站点消失（`hidden` / `pending` 永不删）。
+- **变更** 公开列表 `GET /api/token-keys`：恒定过滤 `dead` 行；回帖指引行仅返回收录 24h 内的
+  （与采集端 TTL 双保险）。
+- **红线** 明文 key 只在复制瞬间经专用端点下发，绝不进入页面渲染、SSR payload、日志或常规响应。
+
 ## [1.5.0] - 2026-10-08
 
 - **新增** 「福利 Key」**上报通道**文档化：采集端经 `POST /api/ai/token-keys`（`write` scope）把探测到的

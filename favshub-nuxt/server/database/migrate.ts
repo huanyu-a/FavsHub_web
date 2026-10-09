@@ -1099,9 +1099,12 @@ export function createTokenKeysSchema(db: Database.Database) {
   // 2026-10-08 设计变更（站点方需求）：key_plain 明文公开可复制（原「脱敏 +
   // 揭示」流程取消）、post_time 原帖发帖时间 —— 存量库增量补列（独立 try/catch，
   // duplicate column 视为已迁移）。
+  // 2026-10-09 复制热度：copy_count 由 copy 端点维护（GET /api/token-keys/:id/copy
+  // 每次复制 +1，站点本地数据，爬虫上报不涉及该列）。
   for (const alterSql of [
     "ALTER TABLE token_keys ADD COLUMN key_plain TEXT DEFAULT ''",
     "ALTER TABLE token_keys ADD COLUMN post_time TEXT DEFAULT ''",
+    'ALTER TABLE token_keys ADD COLUMN copy_count INTEGER NOT NULL DEFAULT 0',
   ]) {
     try {
       db.exec(alterSql)

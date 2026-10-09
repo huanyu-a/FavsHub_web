@@ -18,11 +18,12 @@
         v-if="copyable"
         type="button"
         class="keys-copy"
-        :class="{ 'is-done': copied }"
-        :title="copied ? '已复制完整 Key' : '复制完整 Key'"
+        :class="{ 'is-done': copied, 'is-failed': copyFailed }"
+        :title="copied ? '已复制完整 Key' : (copyFailed ? 'Key 已失效或下架' : '复制完整 Key')"
+        :aria-label="copied ? '已复制完整 Key' : (copyFailed ? 'Key 已失效' : '复制完整 Key')"
         @click="copyKey"
       >
-        <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+        <i :class="copied ? 'ri-check-line' : (copyFailed ? 'ri-close-line' : 'ri-file-copy-line')"></i>
       </button>
     </div>
 
@@ -33,10 +34,21 @@
     </div>
 
     <!-- B 类：API 地址（存在才渲染）+ models chips 前 3 + N（照 local_server.py:1076-1083）。
-         base_url 有时把 key 写进路径/query（URL 即 key），展示时同样遮蔽 key 段 -->
+         base_url 有时把 key 写进路径/query（URL 即 key）：展示走服务端遮蔽版，
+         完整地址经 copy 端点按需复制（与 Key 同一链路） -->
     <div v-if="!isGuide && props.keyRow.base_url" class="keys-baseurl">
       <span class="keys-baseurl-label">API 地址</span>
       <span class="keys-baseurl-value">{{ displayBaseUrl }}</span>
+      <button
+        type="button"
+        class="keys-copy"
+        :class="{ 'is-done': baseCopied }"
+        :title="baseCopied ? '已复制 API 地址' : '复制 API 地址'"
+        :aria-label="baseCopied ? '已复制 API 地址' : '复制 API 地址'"
+        @click="copyBaseUrl"
+      >
+        <i :class="baseCopied ? 'ri-check-line' : 'ri-clipboard-line'"></i>
+      </button>
     </div>
     <div v-if="!isGuide && visibleModels.length" class="keys-models">
       <span v-for="m in visibleModels" :key="m" class="keys-chip">{{ m }}</span>
@@ -78,16 +90,17 @@
         <i class="ri-chat-3-line"></i>去论坛回复领取
       </a>
 
-      <!-- B 类：主按钮「复制完整 Key」（明文仅进剪贴板，不在页面渲染） -->
+      <!-- B 类：主按钮「复制完整 Key」（明文仅进剪贴板，不在页面渲染；失效行给红反馈） -->
       <button
         v-else-if="!isGuide && copyable"
         type="button"
         class="keys-copy-main"
-        :class="{ 'is-done': copied }"
+        :class="{ 'is-done': copied, 'is-failed': copyFailed }"
+        :aria-label="copyFailed ? 'Key 已失效' : '复制完整 Key'"
         @click="copyKey"
       >
-        <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
-        {{ copied ? '已复制' : '复制 Key' }}
+        <i :class="copied ? 'ri-check-line' : (copyFailed ? 'ri-close-line' : 'ri-file-copy-line')"></i>
+        {{ copied ? '已复制' : (copyFailed ? 'Key 已失效' : '复制 Key') }}
       </button>
     </footer>
   </article>
@@ -142,20 +155,36 @@ const displayBaseUrl = computed(() => {
 /** 可复制：凡有脱敏形态的 B 类行都可复制（明文由 copy 端点按需下发） */
 const copyable = computed(() => !!props.keyRow.key_masked)
 
-/** 复制状态反馈（1.6s 后复位）；clipboard API 不可用时降级 execCommand */
+/** 复制状态反馈（1.6s 后复位）；clipboard API 不可用时降级 execCommand。
+    copyFailed：行已下架/失效（copy 端点 404）——按钮短暂变「已失效」而非无响应 */
 const copied = ref(false)
+const copyFailed = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
-async function copyKey() {
-  if (copied.value) return
-  let text = ''
+function settleFeedback(done: boolean) {
+  copied.value = done
+  copyFailed.value = !done
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => { copied.value = false; copyFailed.value = false }, 1600)
+}
+
+/** 从 copy 端点取剪贴板数据（key_plain + 完整 base_url）；行不可见时抛错 */
+async function fetchCopyPayload(): Promise<{ key_plain: string, base_url: string } | null> {
   try {
-    // 完整明文只在点击瞬间经 GET /api/token-keys/:id/copy 获取，不进任何渲染状态
-    const res = await $fetch<{ key_plain: string }>(`/api/token-keys/${props.keyRow.id}/copy`)
-    text = res?.key_plain || ''
+    const res = await $fetch<{ key_plain: string, base_url: string }>(`/api/token-keys/${props.keyRow.id}/copy`)
+    return res || null
   } catch {
+    return null
+  }
+}
+
+async function copyKey() {
+  if (copied.value || copyFailed.value) return
+  const payload = await fetchCopyPayload()
+  const text = payload?.key_plain || ''
+  if (!text) {
+    settleFeedback(false)
     return
   }
-  if (!text) return
   let ok = false
   try {
     await navigator.clipboard.writeText(text)
@@ -175,9 +204,43 @@ async function copyKey() {
     }
   }
   if (ok) {
-    copied.value = true
-    clearTimeout(copiedTimer)
-    copiedTimer = setTimeout(() => { copied.value = false }, 1600)
+    settleFeedback(true)
+  }
+}
+
+/** 复制 API 地址（完整 base_url；列表返回的是遮蔽版，完整值同样经 copy 端点按需下发） */
+const baseCopied = ref(false)
+let baseCopiedTimer: ReturnType<typeof setTimeout> | undefined
+async function copyBaseUrl() {
+  if (baseCopied.value) return
+  const payload = await fetchCopyPayload()
+  const url = payload?.base_url || ''
+  if (!url) {
+    settleFeedback(false)
+    return
+  }
+  let ok = false
+  try {
+    await navigator.clipboard.writeText(url)
+    ok = true
+  } catch {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+    } catch {
+      ok = false
+    }
+  }
+  if (ok) {
+    baseCopied.value = true
+    clearTimeout(baseCopiedTimer)
+    baseCopiedTimer = setTimeout(() => { baseCopied.value = false }, 1600)
   }
 }
 
@@ -270,7 +333,10 @@ const postTimeText = computed(() => {
   return `原帖 ${m ? `${m[1]} ${m[2]}` : raw}`
 })
 
-onUnmounted(() => clearTimeout(copiedTimer))
+onUnmounted(() => {
+  clearTimeout(copiedTimer)
+  clearTimeout(baseCopiedTimer)
+})
 </script>
 
 <style scoped>
@@ -392,6 +458,10 @@ onUnmounted(() => clearTimeout(copiedTimer))
 .keys-copy.is-done {
   color: var(--success);
   border-color: var(--success);
+}
+.keys-copy.is-failed {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 .keys-copy:focus-visible {
   outline: 2px solid var(--primary);
@@ -572,6 +642,10 @@ onUnmounted(() => clearTimeout(copiedTimer))
 .keys-copy-main.is-done {
   background: color-mix(in srgb, var(--success) 90%, transparent);
   border-color: var(--success);
+}
+.keys-copy-main.is-failed {
+  background: color-mix(in srgb, var(--danger) 90%, transparent);
+  border-color: var(--danger);
 }
 .keys-copy-main:focus-visible {
   outline: 2px solid var(--primary);

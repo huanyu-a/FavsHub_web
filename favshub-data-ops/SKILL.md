@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.5.0
+version: 1.7.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -204,19 +204,27 @@ curl -sI -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
 ### 福利 Key
 
 ```
-POST /api/ai/token-keys   { key_hash, base_url?, key_masked?, key_encrypted?, provider?, models?,
-                            source?, confidence?, verdict?, source_id?, source_tid?, source_url?,
-                            source_title?, consecutive_failures?, last_probe_at?, first_seen_at?,
-                            note?, dry_run? }              # 上报快照（write）
+POST /api/ai/token-keys   { key_hash, base_url?, key_masked?, key_plain?, post_time?, provider?,
+                            models?, source?, confidence?, verdict?, source_id?, source_tid?,
+                            source_url?, source_title?, consecutive_failures?, last_probe_at?,
+                            first_seen_at?, note?, dry_run? }   # 上报快照（write）
+POST /api/ai/token-keys/prune   { keep: [{key_hash, base_url}, …], confirm: true }  # 对账清理（delete，仅管理员）
+GET  /api/token-keys            # 公开脱敏列表（无需令牌）
+GET  /api/token-keys/{id}/copy  # 复制专用：{ key_plain, base_url } 完整值（无需令牌）
 ```
 
 - **用途**：采集端（爬虫 / 探测器）把「福利 Key」的最新探测快照上报到站点；服务端按
   `(key_hash, base_url)` **幂等 upsert** —— 已存在则更新探测结论，不存在则新建（重复上报不产生重复行）
 - **审核语义**：普通用户令牌上报 → `pending`（待审）；**管理员令牌上报 → 直接 `published`**
+- **2026-10-08 协议变更**：上报改传 `key_plain` **明文**（供站点「复制 Key」链路）与 `post_time`
+  （原帖发帖时间原文字符串）；`key_encrypted` 密文**不再过网**（上行传了也会被忽略）
 - **公开展示**：仅 `published` 行进入公开脱敏列表 `GET /api/token-keys`（**无需令牌**，
-  14 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
-  source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at`）；
-  `pending`（待审）与 `hidden`（下架）永不外流
+  15 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
+  source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at / post_time`；
+  `base_url` 中的 key 形态片段已服务端遮蔽）；`pending`（待审）与 `hidden`（下架）永不外流
+- **给用户提供完整 Key / API 地址**：调 `GET /api/token-keys/{id}/copy`（与列表同可见口径：
+  `published`、非 `dead`、回帖指引限 24h；指引行恒 404），响应 `{ key_plain, base_url }`
+  —— 明文 key 只在此响应出现，**取到后直接交给用户，不要写入日志或过程输出**
 - `verdict` 枚举：`valid` 有效 | `quota` 额度耗尽 | `limited` 限次 | `dead` 失效 |
   `unknown` | `restricted` | `blocked_by_waf` | `endpoint_unsupported`
 - **时间戳为秒**：`first_seen_at` / `last_probe_at` 等沿采集端语义存**秒**
