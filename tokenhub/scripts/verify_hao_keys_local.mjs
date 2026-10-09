@@ -4,11 +4,11 @@
  * /tokens/keys feature (acceptance subset A9-A14 of
  * docs/08-hao站keys页接入设计.md). Executed by the pipeline gate as:
  *
- *   node D:/project/wwwroot/tokenhub/scripts/verify_hao_keys_local.mjs
+ *   node D:/project/wwwroot/FavsHub_web/tokenhub/scripts/verify_hao_keys_local.mjs
  *
  * Exit code 0 = every check passed, 1 = at least one check failed or the
  * server could not be started. stdout carries a <=50-line summary only; all
- * details go to D:/project/wwwroot/tokenhub/scripts/verify_hao_keys_local.log
+ * details go to D:/project/wwwroot/FavsHub_web/tokenhub/scripts/verify_hao_keys_local.log
  * (rewritten on every run).
  *
  * stdlib only. Credential red line: nothing captured from the child server
@@ -27,7 +27,7 @@ import fs from 'node:fs';
 // ---- fixed absolute paths (subprocess cwd must never be assumed) ----
 const SERVER_ENTRY = 'D:/project/wwwroot/FavsHub_web/favshub-nuxt/.output/server/index.mjs';
 const SERVER_CWD = 'D:/project/wwwroot/FavsHub_web/favshub-nuxt';
-const LOG_PATH = 'D:/project/wwwroot/tokenhub/scripts/verify_hao_keys_local.log';
+const LOG_PATH = 'D:/project/wwwroot/FavsHub_web/tokenhub/scripts/verify_hao_keys_local.log';
 
 const HOST = '127.0.0.1';
 const PORT_CANDIDATES = [3100, 3101, 3102]; // 3100 first; 3101/3102 only on occupancy

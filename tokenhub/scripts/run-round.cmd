@@ -7,7 +7,7 @@ REM local, its DB snapshot is uploaded, and the server pushes to the site over
 REM loopback with the admin-bound PAT stored in the server-side .env.
 REM NOTE: keep this file ASCII-only -- cmd.exe parses it as GBK/ANSI here.
 setlocal
-cd /d D:\project\wwwroot\tokenhub
+cd /d D:\project\wwwroot\FavsHub_web\tokenhub
 set PY=C:\ProgramData\anaconda3\envs\python\python.exe
 set SSH=C:\Windows\System32\OpenSSH\ssh.exe
 set SCP=C:\Windows\System32\OpenSSH\scp.exe

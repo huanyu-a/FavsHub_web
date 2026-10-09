@@ -418,7 +418,7 @@ export default defineAiHandler('write', async (event, token) => {
 
 | 库 | 路径 | 依据 |
 |---|---|---|
-| 源（只读） | `D:\project\wwwroot\tokenhub\crawler\data\tokenhub.db` | 本会话以 `file:...?mode=ro` URI 实际只读打开查询过（§0.1） |
+| 源（只读） | `D:\project\wwwroot\FavsHub_web\tokenhub\crawler\data\tokenhub.db`（2026-10-09 前为 `D:\project\wwwroot\tokenhub\...`，见 §10.8） | 本会话以 `file:...?mode=ro` URI 实际只读打开查询过（§0.1） |
 | 目标（读写） | `D:\project\wwwroot\FavsHub_web\favshub-nuxt\data\favshub.db` | `nuxt.config.ts:39` `dbPath: './data/favshub.db'` → `initDatabase` 里 `resolve(dbPath)`（server/database/index.ts:41）相对进程 cwd，dev 下即仓库根；`NUXT_DB_PATH` 可覆盖（CLAUDE.md 环境变量表）。**现场 `ls data/`：目前只有 `favicons/`，favshub.db 尚不存在**——桥脚本自举建库（下）；脚本两默认路径为其常量 `DEFAULT_SOURCE_DB`/`DEFAULT_TARGET_DB`（绝对路径，子进程 cwd 不可假设），`--source`/`--db` 可覆盖 |
 
 时序建议：先 `pnpm dev` 跑一次让 Nitro 建出全量 favshub.db，再跑桥；但桥不依赖此前提——目标库不存在时自举建库也能工作（FavsHub 首次启动 migrate 全部 `IF NOT EXISTS`，互不冲突）。WAL 多进程并发由 FavsHub 侧 `busy_timeout=5000`（index.ts:54）兜底；最稳妥的用法仍是 dev 服务停着跑桥。`--dry-run` 语义（--help 实测）：「count only, never write the target DB (a missing target is simulated in memory, an existing one is attached read-only)」。
@@ -467,7 +467,7 @@ python scripts/sync_to_favshub_local.py [--dry-run] [--source PATH] [--db PATH] 
 
 **脚本形态（现场核实）**：Node ESM、stdlib only。不带参数运行时由脚本**自行拉起被测服务器**：入口固定 `D:/project/wwwroot/FavsHub_web/favshub-nuxt/.output/server/index.mjs`（:28，**即 `pnpm build` 的产物**，cwd 固定 favshub-nuxt 仓库根 :29）、端口候选 3100/3101/3102（:33）、就绪轮询 90s（:34）→ 断言 → 杀进程；详细日志全量重写 `scripts/verify_hao_keys_local.log`（:30），server 子进程输出**落盘前先过 PLAIN_KEY_RE 脱敏**（:56-65 的 JS 移植），日志只记计数/布尔/形状，绝不记 key 值、key_hash、密文或 cookie。`--self-test` 跑纯 helper（无网络无子进程，**本会话实跑 16/16 PASS**）。
 
-**门禁运行方式**：`pnpm build`（先产出 `.output/`）→ `node D:/project/wwwroot/tokenhub/scripts/verify_hao_keys_local.mjs`；exit 0 = 全过。
+**门禁运行方式**：`pnpm build`（先产出 `.output/`）→ `node D:/project/wwwroot/FavsHub_web/tokenhub/scripts/verify_hao_keys_local.mjs`；exit 0 = 全过。
 
 ### 6.1 断言清单全集（设计口径 A1-A18）与脚本当前覆盖
 
@@ -742,3 +742,22 @@ Doubao、ERNIE、Hunyuan）+ 7 条中文别名（深度求索 / 通义千问 / �
 `TokenKeyCard.vue` 的 models chips 去掉 `!isGuide` 条件——指引行同样渲染（模型名来自
 公开标题，正是「值不值得去回帖」的决策信息；此前指引行把已提取的 models 静默丢弃，
 4 行里只显示 2 行，观感等同 bug）。移动端 390px 实测：`flex-wrap` 生效、无溢出。
+
+### 10.8 2026-10-09 留痕（爬虫工程并入 FavsHub_web 仓库）
+
+**① 整合**：`D:\project\wwwroot\tokenhub` 以 `git subtree`（前缀 `tokenhub/`，无 squash，
+完整保留 8 提交历史）并入 FavsHub_web `main`；现工程根为
+`D:\project\wwwroot\FavsHub_web\tokenhub`。活数据随之平移：
+`crawler/data/`（tokenhub.db + 快照 + 备份）与 `crawler/.env`（FERNET_KEY）为
+gitignore 运行时文件，手工搬移（不进 git）。docs/08 与 `sync_to_favshub_local.py`、
+`verify_hao_keys_local.mjs`、`run-round.cmd` 中的**功能性**绝对路径已改新址；
+docs/01–07 与 §10.5 等处的旧路径为历史留痕，照旧不改。
+
+**② 计划任务**：`tokenhub-crawler` 定时任务（每 3h）动作由
+`cmd /c D:\project\wwwroot\tokenhub\scripts\run-round.cmd` 改为
+`cmd /c D:\project\wwwroot\FavsHub_web\tokenhub\scripts\run-round.cmd`；迁移期间
+先 Disable、验证一轮后再 Enable。
+
+**③ 注意**：FavsHub_web 为公开仓库，并入后**爬虫代码与文档将随 `main` 的下次
+push 公开发布**（原先 tokenhub 刻意保持纯本地）。如需保持爬虫私有，应改为
+「物理移动 + `tokenhub/` 写进 FavsHub_web/.gitignore」或把 FavsHub_web 转私有。
