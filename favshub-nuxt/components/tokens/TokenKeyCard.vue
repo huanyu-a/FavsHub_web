@@ -33,7 +33,7 @@
       <span>key 需在原帖回复后可见，点击下方链接去论坛回复领取</span>
     </div>
 
-    <!-- B 类：API 地址（存在才渲染）+ models chips 前 3 + N（照 local_server.py:1076-1083）。
+    <!-- B 类：API 地址（存在才渲染）。
          base_url 有时把 key 写进路径/query（URL 即 key）：展示走服务端遮蔽版，
          完整地址经 copy 端点按需复制（与 Key 同一链路） -->
     <div v-if="!isGuide && props.keyRow.base_url" class="keys-baseurl">
@@ -50,7 +50,10 @@
         <i :class="baseCopied ? 'ri-check-line' : 'ri-clipboard-line'"></i>
       </button>
     </div>
-    <div v-if="!isGuide && visibleModels.length" class="keys-models">
+    <!-- models chips 前 3 + N（照 local_server.py:1076-1083）。C 类指引行同样渲染：
+         模型名来自公开的帖子标题，不含任何 key 数据，且正是「值不值得去回帖」的
+         决策信息（2026-10-09：指引行此前把已提取的 models 静默丢弃）。 -->
+    <div v-if="visibleModels.length" class="keys-models">
       <span v-for="m in visibleModels" :key="m" class="keys-chip">{{ m }}</span>
       <span v-if="restModelCount > 0" class="keys-chip is-more">+{{ restModelCount }}</span>
     </div>
