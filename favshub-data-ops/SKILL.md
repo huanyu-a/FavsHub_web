@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.7.1
+version: 1.8.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -211,6 +211,8 @@ POST /api/ai/token-keys   { key_hash, base_url?, key_masked?, key_plain?, post_t
 POST /api/ai/token-keys/prune   { keep: [{key_hash, base_url}, …], confirm: true }  # 对账清理（delete，仅管理员）
 GET  /api/token-keys            # 公开脱敏列表（无需令牌）
 GET  /api/token-keys/{id}/copy  # 复制专用：{ key_plain, base_url } 完整值（无需令牌）
+POST /api/token-keys/{id}/vote  { vote: 'up' | 'down' }   # 可用性投票（无需令牌）
+GET  /api/token-keys/my-votes?ids=a,b,c                   # 我的投票方向（无需令牌）
 ```
 
 - **用途**：采集端（爬虫 / 探测器）把「福利 Key」的最新探测快照上报到站点；服务端按
@@ -218,14 +220,24 @@ GET  /api/token-keys/{id}/copy  # 复制专用：{ key_plain, base_url } 完整�
 - **审核语义**：普通用户令牌上报 → `pending`（待审）；**管理员令牌上报 → 直接 `published`**
 - **2026-10-08 协议变更**：上报改传 `key_plain` **明文**（供站点「复制 Key」链路）与 `post_time`
   （原帖发帖时间原文字符串）；`key_encrypted` 密文**不再过网**（上行传了也会被忽略）
-- **公开展示**：仅 `published` 行进入公开脱敏列表 `GET /api/token-keys`（**无需令牌**，
-  16 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
+- **公开展示**：仅 `published` 行进入公开脱敏列表 `GET /api/token-keys`（**无需令牌**）——
+  18 字段白名单：`id / key_masked / verdict / confidence / provider / base_url / models / source /
   source_id / source_tid / source_url / source_title / first_seen_at / last_probe_at / post_time /
-  copy_count`（`copy_count` 为复制热度，站点本地计数，非敏感）；
-  `base_url` 中的 key 形态片段已服务端遮蔽）；`pending`（待审）与 `hidden`（下架）永不外流
+  copy_count / vote_up / vote_down`（`copy_count` 为复制热度，`vote_up`/`vote_down` 为可用性投票计数，
+  均为站点本地计数，非敏感）；列表**不含** `my_vote`（按指纹的 per-user 数据，见下方投票一节）；
+  `base_url` 中的 key 形态片段已服务端遮蔽；`pending`（待审）与 `hidden`（下架）永不外流
 - **给用户提供完整 Key / API 地址**：调 `GET /api/token-keys/{id}/copy`（与列表同可见口径：
   `published`、非 `dead`、回帖指引限 24h；指引行恒 404），响应 `{ key_plain, base_url }`
   —— 明文 key 只在此响应出现，**取到后直接交给用户，不要写入日志或过程输出**
+- **可用性投票**（2026-10-10 新增，**无需令牌/登录**，浏览器/助手均可直接调）：
+  `POST /api/token-keys/{id}/vote`，body `{ vote: 'up' | 'down' }`（👍 还能用 / 👎 不可用）。
+  一人一票（按访客指纹：登录用户与游客同口径）：重复投**同向 = 取消**，投**反向 = 改票**；
+  响应 `{ success, my_vote: 'up'|'down'|null, vote_up, vote_down }`。
+  可见性与列表同口径，不可见行一律 404；限频每身份 120 次/小时，游客同 IP 同 key 最多计 3 票
+  （超出静默无效，响应仍 success）。幂等可重试。
+  `GET /api/token-keys/my-votes?ids=<逗号分隔，≤50>` 批量查当前访客在各 key 上的投票方向
+  （`{ votes: { <id>: 'up'|'down' } }`，未投的不在结果里）；列表响应不含 `my_vote`，
+  需要高亮时用本端点补拉。
 - `verdict` 枚举：`valid` 有效 | `quota` 额度耗尽 | `limited` 限次 | `dead` 失效 |
   `unknown` | `restricted` | `blocked_by_waf` | `endpoint_unsupported` |
   `tls_invalid` TLS 异常（中转站证书过期/自签，请求死在握手，与凭证无关）
