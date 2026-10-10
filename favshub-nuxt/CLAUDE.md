@@ -226,7 +226,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   - 游客额外限「同一 IP 对同一 key 最多 3 票」，超出**静默无效**（不报错）；身份级限频 120 次/小时
   - 计数 `vote_up` / `vote_down` 为缓存列，统一由 `syncKeyVoteCounters(db, keyId)` 在事务内重算，勿手工 ±1
   - 投票端点复用列表可见口径（`published` + 非 `dead` + 回帖指引 24h 内），不可见行一律 **404**（不区分「不存在」与「已下架」）
-  - `my_vote` **不**进列表响应（该接口走 CDN `max-age=300`），由 `GET /api/token-keys/my-votes` 客户端挂载后批量补拉（`no-store` + `Vary: Cookie`）
+  - `my_vote` **不**进列表响应（列表按「公开资源共享缓存」语义设计：`routeRules` 声明 `public, max-age=300`，但容器 nginx 的 API 段另加 `private, no-cache`，实际不落共享缓存），由 `GET /api/token-keys/my-votes` 客户端挂载后批量补拉（`no-store` + `Vary: Cookie`）
   - 爬虫 `upsertTokenKey` 的 UPDATE / INSERT **不含**投票列 → 每轮上报不会清零投票；`pruneTokenKeys` 删行时级联清理 `token_key_votes`
 
 ### AI 数据操作通道（PAT）
