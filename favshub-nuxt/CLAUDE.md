@@ -310,4 +310,4 @@ curl -s https://hao.bx9y.com.cn/api/health
 - **CSS 缓存**：`layouts/default.vue` / `admin.vue` 的 `useHead` 上 `?v=`
 - **CI**：功能提交不必 bump `VERSION`
 - **密钥**：勿提交 `DEPLOY.md`、密码、JWT secret
-- **部署 skill 仅本机**：`.workbuddy/skills/favshub-nuxt-deploy/` 内含服务器 IP、部署路径、SSH 私钥路径等本机专属信息，**只能留在本机**，不得移出 `.workbuddy/` 或提交（`.workbuddy/` 已 gitignore）。对外分发的技能包是仓库根的 `favshub-data-ops/`，两者不是一回事
+- **部署 skill 仅本机**：本机部署要点在同机 skill `bt-docker-reverse-proxy-deploy`（`%USERPROFILE%\.workbuddy\skills\`）与 `favshub-nuxt/DEPLOY.md`，内含服务器 IP、部署路径、SSH 私钥路径等本机专属信息，**只能留在本机**，不得提交。对外分发的技能包是仓库根的 `favshub-data-ops/`，两者不是一回事
