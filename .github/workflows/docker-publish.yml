@@ -34,12 +34,13 @@ jobs:
         with:
           version: latest
 
+      # 刻意不启用 setup-node 的 pnpm 缓存：lockfile 在子目录时，其 post 步骤会因
+      # pnpm store 目录不存在而报 "Path(s) specified ... do(es) not exist"，使整个
+      # run 显示失败（镜像其实已推送成功），掩盖真实故障。缓存收益约 1 分钟，不值。
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
-          cache-dependency-path: favshub-nuxt/pnpm-lock.yaml
 
       - name: Install dependencies
         working-directory: favshub-nuxt
