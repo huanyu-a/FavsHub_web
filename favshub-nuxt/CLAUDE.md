@@ -285,15 +285,21 @@ CI：仅 `VERSION` 推送 `main`（或 `workflow_dispatch`）→ `ghcr.io/<owner
 快速参考（细节与密码见本地 `DEPLOY.md`）：
 
 ```bash
-git push origin main
-# 发镜像时：
+# 发版（功能提交不必 bump VERSION）
 echo "1.0.X" > VERSION && git add VERSION && git commit -m "chore: bump VERSION to 1.0.X" && git push
-gh run list --limit 1
-# 可选本地：pnpm build && bash build.sh；docker tag/save | gzip；服务器 load + compose up
-curl -s http://<SERVER>:3090/api/health
+gh run list --limit 1 && gh run watch <run-id> --exit-status     # 约 4 分钟，全部步骤应 success
+
+# 服务器（compose 是 pull_policy: if_not_present，必须显式 pull）
+cd /www/dk_project/dk_app && docker compose pull favshub && docker compose up -d --remove-orphans
+curl -s https://hao.bx9y.com.cn/api/health
 ```
 
-注意：Windows 部署优先原生 SSH（`C:\Windows\System32\OpenSSH\ssh.exe`）；`docker load` 后直接 `compose up`，避免无谓 `rmi` 重拉大层。
+注意：
+
+- 服务器 dockerd 走本机 mihomo 代理（`/etc/systemd/system/docker.service.d/http-proxy.conf`）—— ghcr.io 境内直连会卡死；改代理配置需 `systemctl daemon-reload && systemctl restart docker`，**会重启该机全部 20 个容器**
+- GHCR 包须已授予本仓库 Write 权限（包设置 → Manage Actions access），否则 CI 报 `permission_denied: write_package`
+- 离线兜底：本地 podman build → `save --format docker-archive` → scp → 服务器 `docker load` + `compose up`（**勿**先 `rmi`）
+- 验证走域名 `https://hao.bx9y.com.cn`（3090 未对公网放行）
 
 ## 开发注意事项
 
