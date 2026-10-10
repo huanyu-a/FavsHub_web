@@ -36,11 +36,15 @@ const VERDICTS = [
 
 /** 白名单字段 = SELECT 列清单；key_encrypted / key_hash / key_plain 等敏感列不在其列。
  *  copy_count 为复制热度计数（站点本地维护，copy 端点 +1），非敏感：用于卡片上的
- *  社交证明「已复制 N 次」，与 keys.vue / TokenKeyCard 的 ITokenKeyRow 同步。 */
+ *  社交证明「已复制 N 次」，与 keys.vue / TokenKeyCard 的 ITokenKeyRow 同步。
+ *  vote_up / vote_down 为可用性投票计数（站点本地维护，key-votes.ts 在事务内重算），
+ *  同为公开非敏感数据：卡片上的「可用 / 不可用」按钮展示。投票方向（my_vote）与
+ *  访客身份相关，**不在此接口**返回（本接口走 CDN 公开缓存），由客户端挂载后经
+ *  GET /api/token-keys/my-votes 批量补拉。 */
 const KEY_FIELDS = [
   'id', 'key_masked', 'verdict', 'confidence', 'provider', 'base_url', 'models', 'source',
   'source_id', 'source_tid', 'source_url', 'source_title', 'first_seen_at', 'last_probe_at', 'post_time',
-  'copy_count',
+  'copy_count', 'vote_up', 'vote_down',
 ].join(', ')
 
 /** 回帖指引行收录窗口（秒），与爬虫 prune_expired_guide_rows / push GUIDE_WINDOW_SECONDS 同值 */

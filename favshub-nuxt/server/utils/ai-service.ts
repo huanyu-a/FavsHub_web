@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { createError } from 'h3'
 import { normalizeUrl } from './bookmark-labels'
+import { deleteKeyVotesForKeys } from './key-votes'
 import {
   validateDealPayload,
   newDealId,
@@ -1382,6 +1383,9 @@ export function pruneTokenKeys(db: DB, userId: number, keep: TokenKeyIdentity[])
       db.prepare('DELETE FROM token_keys WHERE id = ?').run(r.id)
     }
     deleted = stale.length
+    // 级联清理可用性投票（token_key_votes 无外键，不会自动级联；对照 deal 删除时
+    // 清理游客投票的先例）。best-effort：旧库表未迁移时不阻断对账清理。
+    deleteKeyVotesForKeys(db, stale.map(r => r.id))
   })()
 
   return { deleted, keep_count: known.size }

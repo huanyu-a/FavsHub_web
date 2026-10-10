@@ -70,6 +70,36 @@
     </div>
 
     <footer class="keys-foot">
+      <!-- 可用性投票（2026-10-10，对照白嫖通告「还能用 / 已失效」投票）：
+           B 类行才有真实 key 可判断可用性，C 类指引行不显示。
+           一人一票、可改可撤；列表接口走 CDN 公开缓存不含 my_vote，
+           故由父组件（keys.vue）挂载后经 /api/token-keys/my-votes 批量补拉传入。 -->
+      <div v-if="!isGuide" class="keys-votes">
+        <button
+          type="button"
+          class="keys-vote is-up"
+          :class="{ 'is-mine': myVote === 'up' }"
+          :disabled="voting"
+          :aria-pressed="myVote === 'up'"
+          :title="myVote === 'up' ? '点击取消「可用」投票' : '标记为可用（无需登录）'"
+          @click="castVote('up')"
+        >
+          <i :class="myVote === 'up' ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'"></i>
+          <span class="keys-vote-count">{{ voteUp }}</span>
+        </button>
+        <button
+          type="button"
+          class="keys-vote is-down"
+          :class="{ 'is-mine': myVote === 'down' }"
+          :disabled="voting"
+          :aria-pressed="myVote === 'down'"
+          :title="myVote === 'down' ? '点击取消「不可用」投票' : '标记为不可用（无需登录）'"
+          @click="castVote('down')"
+        >
+          <i :class="myVote === 'down' ? 'ri-thumb-down-fill' : 'ri-thumb-down-line'"></i>
+          <span class="keys-vote-count">{{ voteDown }}</span>
+        </button>
+      </div>
       <a
         v-if="safeSourceUrl"
         class="keys-source"
@@ -125,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 
 interface ITokenKeyRow {
   id: string
@@ -145,10 +175,15 @@ interface ITokenKeyRow {
   post_time: string
   /** 复制热度（站点本地计数，copy 端点 +1）；非敏感，用于社交证明 */
   copy_count?: number
+  /** 可用性投票计数（站点本地维护，key-votes.ts 事务内重算）；非敏感 */
+  vote_up?: number
+  vote_down?: number
 }
 
 const props = defineProps<{
   keyRow: ITokenKeyRow
+  /** 当前访客的投票方向（父组件批量补拉后传入；null/undefined = 未投或未知） */
+  myVote?: 'up' | 'down' | null
 }>()
 
 /** C 类（回帖指引）行没有 key，主体与脚部整体换形 */
@@ -174,6 +209,44 @@ const displayBaseUrl = computed(() => {
 })
 /** 可复制：凡有脱敏形态的 B 类行都可复制（明文由 copy 端点按需下发） */
 const copyable = computed(() => !!props.keyRow.key_masked)
+
+// ── 可用性投票（2026-10-10）────────────────────────────────────
+// 计数以服务端为权威：初值取列表响应（CDN 缓存 5 分钟），投票后用响应值覆盖；
+// 父组件刷新（翻页 / 筛选）导致 props 变化时同步，避免本地值与服务端漂移。
+const voteUp = ref(Number(props.keyRow.vote_up || 0))
+const voteDown = ref(Number(props.keyRow.vote_down || 0))
+const myVote = ref<'up' | 'down' | null>(props.myVote ?? null)
+const voting = ref(false)
+
+watch(() => props.keyRow.vote_up, (v) => { voteUp.value = Number(v || 0) })
+watch(() => props.keyRow.vote_down, (v) => { voteDown.value = Number(v || 0) })
+watch(() => props.myVote, (v) => { myVote.value = v ?? null })
+
+/** 投票 / 取消 / 改票：服务端返回权威计数与 my_vote（同方向再点 = 取消）。
+ *  失败（限频 429 / 已下架 404）静默不改本地状态 —— 用户可重试，不弹错误打断浏览。 */
+async function castVote(direction: 'up' | 'down') {
+  if (voting.value) return
+  voting.value = true
+  try {
+    const res = await $fetch<{
+      success: boolean
+      my_vote: 'up' | 'down' | null
+      vote_up: number
+      vote_down: number
+    }>(`/api/token-keys/${props.keyRow.id}/vote`, {
+      method: 'POST',
+      body: { vote: direction },
+      credentials: 'include',
+    })
+    myVote.value = res?.my_vote ?? null
+    voteUp.value = Number(res?.vote_up || 0)
+    voteDown.value = Number(res?.vote_down || 0)
+  } catch {
+    // 静默失败（不改变本地状态）
+  } finally {
+    voting.value = false
+  }
+}
 
 /** 复制状态反馈（1.6s 后复位）；clipboard API 不可用时降级 execCommand。
     copyFailed：行已下架/失效（copy 端点 404）——按钮短暂变「已失效」而非无响应 */
@@ -730,6 +803,49 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 .keys-copy-main i { font-size: 13px; }
+
+/* ── 可用性投票按钮：👍 可用 / 👎 不可用（对照白嫖通告投票按钮的 up/down 色语义） ── */
+.keys-votes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.keys-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  border: 0.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.keys-vote i { font-size: 13px; }
+.keys-vote.is-up i { color: var(--success); }
+.keys-vote.is-down i { color: var(--danger); }
+.keys-vote:hover:not(:disabled) { background: var(--surface-hover); }
+.keys-vote:active:not(:disabled) { background: var(--surface-active); }
+.keys-vote:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.keys-vote:disabled { opacity: 0.6; cursor: not-allowed; }
+/* 已投高亮：与 TokenDealDetail 的 vote-btn.active 同色语义（绿=可用 / 红=不可用） */
+.keys-vote.is-up.is-mine {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  color: var(--success);
+}
+.keys-vote.is-down.is-mine {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+}
+.keys-vote-count { font-weight: 600; }
 
 /* ── 移动端：主按钮整行、时间行可换行（768px 与 keys 页断点一致） ── */
 @media (max-width: 480px) {

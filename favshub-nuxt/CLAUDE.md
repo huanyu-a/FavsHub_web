@@ -134,6 +134,7 @@ collection_imports                 # 导入到用户空间
 `prompt_review_requests`（migrate 原始 SQL，可能不在 Drizzle schema）  
 `settings`（`user_id` PK，`id=0` 系统默认）· `search_engines` · `system_config`  
 `token_deals` / `token_deal_votes` / `token_deal_reviews`（Token 白嫖通告，见「产品域行为」）  
+`token_keys` / `token_key_votes`（福利 Key 快照与可用性投票，见「产品域行为」；**时间戳为秒**，其余表为毫秒）  
 `api_tokens` / `ai_audit_logs`（AI 数据操作 PAT 与审计，见「AI 数据操作通道」）
 
 提示词与提示词文件夹 **ID 是字符串**（时间戳+随机后缀）→ 路由**不要** `parseInt`。
@@ -167,6 +168,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/collections/*` | 精选集 CRUD、订阅、导入、书签引用 | 混合 |
 | `/api/prompts/*`、`/api/tags/*` | 提示词、版本、审核申请 | 登录 |
 | `/api/token-deals/*` | Token 通告：列表 / 详情 / 发布 / 改删 / 投票 / 评测 / 导入 / 置顶 | 混合 |
+| `/api/token-keys/*` | 福利 Key：公开脱敏列表 / 复制明文 / 可用性投票 / 我的投票 | 无（投票按指纹身份） |
 | `/api/sync/*` | 扩展书签 / favicon 同步 | 登录 |
 | `/api/favicon?domain=` | favicon 服务端代理 + 本地缓存（SSRF 防护） | 无 |
 | `/api/settings/*` | 用户设置 | 登录 |
@@ -213,6 +215,19 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 计数：`vote_up` / `vote_down` / `rating_sum` / `rating_count` 为缓存列，统一由 `syncDealCounters(db, id)` 在 `db.transaction` 内重算，勿在各接口里手工 ±1
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）
+
+### 福利 Key（`/tokens/keys`）
+
+- 前台 `/tokens/keys`（公开脱敏列表 + 状态/服务商筛选 + 卡片复制）；数据由采集端经 `POST /api/ai/token-keys` 按 `key_hash + base_url` 幂等 upsert，`POST /api/ai/token-keys/prune` 对账清理
+- 列表白名单 = `server/api/token-keys/index.get.ts` 的 `KEY_FIELDS`；`key_plain` / `key_hash` / `key_encrypted` / `error_message_raw` **绝不进入**任何 SELECT、响应或日志（明文只在 `GET /api/token-keys/:id/copy` 按需下发）
+- **时间戳为秒**（采集端语义），页面渲染时 ×1000；`copy_count` 为复制热度（copy 端点 +1）
+- 可用性投票（2026-10-10，`server/utils/key-votes.ts`）：👍 可用 / 👎 不可用，**无需登录**，身份走指纹（登录 `fp:u<id>` / 游客 cookie+UA）
+  - 一人一票（`UNIQUE(key_id, fingerprint)`）：同向再点 = **取消**，反向 = **改票**
+  - 游客额外限「同一 IP 对同一 key 最多 3 票」，超出**静默无效**（不报错）；身份级限频 120 次/小时
+  - 计数 `vote_up` / `vote_down` 为缓存列，统一由 `syncKeyVoteCounters(db, keyId)` 在事务内重算，勿手工 ±1
+  - 投票端点复用列表可见口径（`published` + 非 `dead` + 回帖指引 24h 内），不可见行一律 **404**（不区分「不存在」与「已下架」）
+  - `my_vote` **不**进列表响应（该接口走 CDN `max-age=300`），由 `GET /api/token-keys/my-votes` 客户端挂载后批量补拉（`no-store` + `Vary: Cookie`）
+  - 爬虫 `upsertTokenKey` 的 UPDATE / INSERT **不含**投票列 → 每轮上报不会清零投票；`pruneTokenKeys` 删行时级联清理 `token_key_votes`
 
 ### AI 数据操作通道（PAT）
 

@@ -143,6 +143,7 @@
             v-for="k in keys"
             :key="k.id"
             :key-row="k"
+            :my-vote="myVotes[k.id] || null"
           />
         </div>
 
@@ -160,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import TokenKeyCard from '~/components/tokens/TokenKeyCard.vue'
 import BackToTop from '~/components/BackToTop.vue'
 
@@ -186,6 +187,9 @@ interface ITokenKeyRow {
   last_probe_at: number | null
   post_time: string
   copy_count: number
+  /** 可用性投票计数（站点本地维护，key-votes.ts 事务内重算）；非敏感 */
+  vote_up: number
+  vote_down: number
 }
 
 interface IPagination {
@@ -251,6 +255,35 @@ const verdictCounts = computed(() => data.value?.verdict_counts || {})
 const validCount = computed(() => verdictCounts.value.valid || 0)
 const unknownCount = computed(() => verdictCounts.value.unknown || 0)
 const hasFilter = computed(() => !!(verdict.value || provider.value))
+
+// ── 可用性投票（2026-10-10）────────────────────────────────────
+// 列表接口走 CDN 公开缓存（public, max-age=300）且与登录态零相关，不含 my_vote；
+// 卡片高亮由这里在挂载后批量补拉一次（每页一条请求），避免 per-user 数据污染
+// 共享缓存（对照 copy 端点「按需下发明文」的同款思路）。
+const myVotes = ref<Record<string, 'up' | 'down'>>({})
+
+async function loadMyVotes() {
+  const ids = keys.value.map((k) => k.id).filter(Boolean)
+  if (!ids.length) {
+    myVotes.value = {}
+    return
+  }
+  try {
+    const res = await $fetch<{ votes: Record<string, 'up' | 'down'> }>('/api/token-keys/my-votes', {
+      query: { ids: ids.join(',') },
+      credentials: 'include',
+    })
+    myVotes.value = res?.votes || {}
+  } catch {
+    // 补拉失败不影响浏览：卡片按「未投」渲染，投票后仍能正确回显
+    myVotes.value = {}
+  }
+}
+
+// 仅客户端：SSR 阶段无 cookie 语义差异可言，且挂载后拉取可与页面数据解耦
+onMounted(loadMyVotes)
+// 翻页 / 筛选导致列表变化后重拉（useFetch 的 query 变化 → data 变化）
+watch(keys, () => { loadMyVotes() })
 
 /** 数据截至：行内最大 last_probe_at，无探测数据时取最早 first_seen_at（docs/08 §3.2 ②） */
 const lastUpdatedText = computed(() => {

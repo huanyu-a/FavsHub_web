@@ -1101,10 +1101,15 @@ export function createTokenKeysSchema(db: Database.Database) {
   // duplicate column 视为已迁移）。
   // 2026-10-09 复制热度：copy_count 由 copy 端点维护（GET /api/token-keys/:id/copy
   // 每次复制 +1，站点本地数据，爬虫上报不涉及该列）。
+  // 2026-10-10 可用性投票：vote_up / vote_down 为缓存计数列（站点本地数据，由
+  // key-votes.ts 在事务内重算；爬虫 upsertTokenKey 的 UPDATE/INSERT 均不含这两列，
+  // 不会被爬虫覆盖），供卡片上的「可用 / 不可用」投票按钮展示。
   for (const alterSql of [
     "ALTER TABLE token_keys ADD COLUMN key_plain TEXT DEFAULT ''",
     "ALTER TABLE token_keys ADD COLUMN post_time TEXT DEFAULT ''",
     'ALTER TABLE token_keys ADD COLUMN copy_count INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE token_keys ADD COLUMN vote_up INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE token_keys ADD COLUMN vote_down INTEGER NOT NULL DEFAULT 0',
   ]) {
     try {
       db.exec(alterSql)
@@ -1148,12 +1153,35 @@ export function createTokenKeysSchema(db: Database.Database) {
     console.error('[DB] 创建 reveal_log 失败:', err.message)
   }
 
+  // 2026-10-10 可用性投票（对照 token_deal_guest_votes 的游客投票表）：key 页为
+  // 纯匿名公开页（列表接口与登录态零相关以允许 CDN 缓存），投票身份统一走
+  // 指纹（登录用户指纹 fp:u<id> / 游客 cookie+UA），故只需一张表。
+  // 独立 try/catch，绝不并入上方大 exec 块（迁移铁律）。
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_key_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_id TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        ip_hash TEXT DEFAULT '',
+        vote TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(key_id, fingerprint)
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_key_votes 失败:', err.message)
+  }
+
   // 索引逐条独立 try/catch —— 单条失败不影响其余（血泪教训见上方 has_sync 注释）
   const tokenKeysIndexes = [
     'CREATE INDEX IF NOT EXISTS idx_token_keys_verdict ON token_keys(verdict)',
     'CREATE INDEX IF NOT EXISTS idx_token_keys_status ON token_keys(deal_status)',
     'CREATE INDEX IF NOT EXISTS idx_probe_log_probed_at ON probe_log(probed_at)',
     'CREATE INDEX IF NOT EXISTS idx_probe_log_credential ON probe_log(credential_id)',
+    'CREATE INDEX IF NOT EXISTS idx_token_key_votes_key ON token_key_votes(key_id)',
+    'CREATE INDEX IF NOT EXISTS idx_token_key_votes_ip ON token_key_votes(key_id, ip_hash)',
   ]
   for (const sql of tokenKeysIndexes) {
     try {
