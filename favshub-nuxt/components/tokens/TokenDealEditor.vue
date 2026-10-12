@@ -451,9 +451,12 @@ function onTurnstileExpired() {
 }
 
 /** 挂件加载/渲染失败（境内无代理最常见）：能降级就降级，别把访客挡在门外 */
-function onTurnstileFail(_reason: string) {
+function onTurnstileFail(reason: string) {
   turnstileToken.value = ''
-  challengeNote.value = '人机验证组件加载失败，正在切换为算术题…'
+  // 110200 = 该域名不在挂件的允许列表里（Cloudflare 后台需加域名或换挂件）
+  challengeNote.value = reason.includes('110200')
+    ? '人机验证未对当前域名开放，已切换为算术题'
+    : '人机验证组件加载失败，正在切换为算术题…'
   loadChallenge(true)
 }
 

@@ -31,7 +31,12 @@ onMounted(async () => {
       theme: 'auto',
       callback: (token: string) => emit('success', token),
       'expired-callback': () => emit('expired'),
-      'error-callback': () => emit('fail', '人机验证组件出错'),
+      // code 是 Cloudflare 的错误码：110200 = 域名未授权（需在 Cloudflare 后台给挂件加域名），
+      // 透传给父组件，UI 上能直接看出「为什么降级」而不是笼统的加载失败
+      'error-callback': (code?: string) => {
+        console.warn('[Turnstile] 挂件报错:', code)
+        emit('fail', `人机验证组件出错${code ? `（${code}）` : ''}`)
+      },
     })
   } catch (err: any) {
     emit('fail', err?.message || '人机验证组件渲染失败')
