@@ -62,6 +62,19 @@ pnpm dev            # 开发模式（改代码自动重建）
    `favshub-ext/.output/chrome-mv3/`  
    （`pnpm dev` 时以 WXT 实际输出目录为准）
 
+> ⚠️ **这个目录就是浏览器里插件本体所在处**：`pnpm build` 会整体覆盖它，
+> 把它当"构建垃圾"删掉或移动，`chrome://extensions` 里的插件会**立刻失效**。
+> 仓库清理时只清日志 / 缓存，**不要动** `favshub-ext/.wxt/` 与 `.output/`。
+>
+> 另外，浏览器记录的是**绝对路径**：仓库搬过位置（例如从 Windows 盘符挪进 WSL）后，
+> 旧注册会指向不存在的目录而报错 —— 此时在 `chrome://extensions` 里移除旧项、
+> 按上面路径重新「加载已解压的扩展程序」即可。若浏览器不方便直接读 WSL 路径，
+> 可把产物复制到本机固定目录再加载（PowerShell，路径按需替换）：
+>
+> ```powershell
+> robocopy "\\wsl.localhost\Ubuntu\home\<用户>\...\favshub-ext\.output\chrome-mv3" "$env:USERPROFILE\FavsHub-Ext\chrome-mv3" /MIR
+> ```
+
 **Firefox：**
 
 ```bash

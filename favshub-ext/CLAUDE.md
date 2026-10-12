@@ -25,7 +25,10 @@ pnpm test             # vitest 单测（本机 pnpm run 受限时直跑 ./node_m
 
 - Chrome 加载：`favshub-ext/.output/chrome-mv3/`（开发产物路径以 WXT 输出为准）。
 - 改代码后需 `pnpm build`（或 dev 热更）并在 `chrome://extensions` 重新加载。
-- `.wxt/`、`.output/` 自动生成，**勿手改**。
+- `.wxt/`、`.output/` 自动生成，**勿手改**；更**勿当构建垃圾清理** ——
+  `.output/chrome-mv3/` 是浏览器「加载已解压的扩展程序」直接指向的目录（插件本体），
+  删掉会让本机插件立刻失效。浏览器记的是**绝对路径**，仓库换位置后需在
+  `chrome://extensions` 重新加载，或把产物复制到固定目录再加载。
 - `tsconfig.json` 继承 `.wxt/tsconfig.json`；克隆后必须先 `pnpm install`。
 - 本机若 `pnpm run` 报 `cmd.exe EACCES` / ELIFECYCLE，直接调用 `./node_modules/.bin/<命令>`。
 

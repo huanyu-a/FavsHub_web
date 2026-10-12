@@ -72,4 +72,7 @@ pnpm compile                                    # 类型检查
 
 - **改哪个子项目，就以该目录下的 `CLAUDE.md` 为准**；本文件只保留大图。
 - 勿提交：`favshub-nuxt/data/`、JWT secret、`DEPLOY.md` 中的密钥与密码。
+- **清理仓库时勿删扩展构建目录**：`favshub-ext/.output/chrome-mv3/`（及 `.wxt/`）是浏览器
+  加载未打包扩展的**实际目录**，删掉会让本机插件立刻失效 —— 它不算"构建垃圾"。
+  网站侧的 `favshub-nuxt/.output`、`.nuxt` 才是可安全清理、能随时重建的产物。
 - 跨仓改动（扩展协议 ↔ 同步 API）需两边一起改并自测。
