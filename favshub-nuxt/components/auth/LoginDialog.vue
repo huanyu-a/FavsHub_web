@@ -53,15 +53,19 @@
               @expired="onTurnstileExpired"
               @fail="onTurnstileFail"
             />
+            <!-- 分支互斥：挂件态 / 挂件出错 / 配置获取失败 / 通道关闭 / 加载中，不会同时出现两条提示 -->
             <p v-if="challengeFailed" class="challenge-note">
               {{ challengeFailed }}
               <button type="button" class="challenge-retry" @click="retryChallenge">重新加载验证</button>
             </p>
-            <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeMessage }}</p>
-            <p v-if="challengeRetryable" class="challenge-note">
-              <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
-            </p>
-            <p v-else class="challenge-note">正在加载人机验证…</p>
+            <template v-else-if="challengeProvider !== 'turnstile'">
+              <p v-if="challengeRetryable" class="challenge-note">
+                {{ challengeMessage }}
+                <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
+              </p>
+              <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeMessage }}</p>
+              <p v-else class="challenge-note">正在加载人机验证…</p>
+            </template>
           </div>
           <button type="submit" class="submit-btn" :disabled="loading || registerBlocked">
             {{ loading ? '注册中...' : '注册' }}
