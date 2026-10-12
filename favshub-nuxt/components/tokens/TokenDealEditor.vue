@@ -48,7 +48,7 @@
                 </template>
                 <button v-else type="button" class="tde-btn ghost" @click="loadChallenge">加载校验题</button>
               </div>
-              <span class="field-hint">游客提交无需登录；提交后同样由管理员审核，通过后公开展示。</span>
+              <span class="field-hint">游客提交无需登录，同一 IP 每天限 1 条；提交后同样由管理员审核，通过后公开展示。</span>
             </div>
           </fieldset>
 
@@ -340,7 +340,7 @@ const headSub = computed(() => {
   if (isProposal.value) {
     return '只提交你改动的字段，由通告作者或管理员审核通过后生效。'
   }
-  if (isGuest.value) return '游客提交无需登录，答对校验题即可提交；通过管理员审核后公开展示。'
+  if (isGuest.value) return '游客提交无需登录（同一 IP 每天限 1 条），答对校验题即可提交；通过管理员审核后公开展示。'
   if (isAdmin.value) return '管理员发布将直接上线，无需审核。'
   if (isEdit.value) return '作者编辑即刻生效；通告曾被驳回时会重新进入待审队列。'
   return '提交后由管理员审核，通过后公开展示。'

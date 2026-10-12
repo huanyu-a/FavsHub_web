@@ -271,6 +271,7 @@ export function createTables(db: Database.Database) {
   createGuestReviewTable(db)
   createReviewMarkTable(db)
   createGuestVoteTable(db)
+  createGuestSubmitQuotaTable(db)
 }
 
 /**
@@ -308,6 +309,42 @@ function createGuestVoteTable(db: Database.Database) {
     `)
   } catch (err: any) {
     console.error('[DB] 创建 token_deal_guest_votes 表失败:', err.message)
+  }
+}
+
+/**
+ * 游客提交配额表 `guest_submit_quota` —— 「同一 IP 每天最多提交 1 条通告」。
+ *
+ * 背景：/tokens 的游客发布通道原先只有「每 IP 每小时 3 条」的**内存**限频 ——
+ * 进程重启即清零，且回答不了「今天还能不能发」。待审队列是管理员的人工成本，
+ * 按 IP 每天 1 条可把洪刷拦在最外层，也不影响正常访客（一天发一条白嫖通告足矣）。
+ *
+ * 设计要点：
+ *   1. **独立建表** —— 与其余游客表同规，不并入 `createTables()` 的多语句 exec 块
+ *      （块内任一语句失败会静默中断其后全部建表）。
+ *   2. **只存一行摘要**（`ip_hash` 主键 + `last_at`），不存历史流水：配额判定只需要
+ *      「最近一次成功提交的时间」，行数随 IP 数有界，判定 O(1)。
+ *   3. **`ip_hash` 是摘要**（`digest('ip:' + ip)`，与游客评测/投票同一口径），
+ *      不落明文 IP，不可逆、不构成个人信息存储。
+ *   4. **只在落库成功后占用** —— 配额写入与 `token_deals` INSERT 同事务，
+ *      字段/人机校验失败都不消耗配额（游客不会因一次手滑被锁 24 小时）。
+ *   5. **过期清理** —— 窗口 24h，启动时清掉 7 天前的行（留着无用，且避免无界增长）。
+ */
+function createGuestSubmitQuotaTable(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS guest_submit_quota (
+        ip_hash TEXT PRIMARY KEY,
+        last_at INTEGER NOT NULL
+      );
+    `)
+    const stale = db.prepare('DELETE FROM guest_submit_quota WHERE last_at < ?')
+      .run(Date.now() - 7 * 24 * 60 * 60 * 1000) as { changes: number }
+    if (stale.changes > 0) {
+      console.log(`[DB] 清理 guest_submit_quota 过期行 ${stale.changes} 条`)
+    }
+  } catch (err: any) {
+    console.error('[DB] 创建 guest_submit_quota 表失败:', err.message)
   }
 }
 

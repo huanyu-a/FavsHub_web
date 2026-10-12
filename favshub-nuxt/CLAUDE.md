@@ -133,7 +133,8 @@ collection_imports                 # 导入到用户空间
 `users` · `folders` · `prompt_folders` / `prompts` / `tags` / `prompt_tags` / `prompt_versions`  
 `prompt_review_requests`（migrate 原始 SQL，可能不在 Drizzle schema）  
 `settings`（`user_id` PK，`id=0` 系统默认）· `search_engines` · `system_config`  
-`token_deals` / `token_deal_votes` / `token_deal_reviews`（Token 白嫖通告，见「产品域行为」）  
+`token_deals` / `token_deal_votes` / `token_deal_reviews` / `guest_submit_quota`
+（Token 白嫖通告与游客提交配额，见「产品域行为」）  
 `token_keys` / `token_key_votes`（福利 Key 快照与可用性投票，见「产品域行为」；**时间戳为秒**，其余表为毫秒）  
 `api_tokens` / `ai_audit_logs`（AI 数据操作 PAT 与审计，见「AI 数据操作通道」）
 
@@ -208,6 +209,10 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 
 - 前台 `/tokens`（公开列表 + 筛选 + 详情弹层）；后台 `/admin/token-deals`（审核队列）
 - 发布：登录用户可发，落库 `status='pending'`；仅作者（`mine=1`）与管理员可见待审核项
+- 游客发布（未登录）：昵称 + 人机校验 + 内容过滤，落库 `user_id=0`（种子系统用户 `_system`）
+  + `guest_name` / `guest_fingerprint`；**同一 IP 每天限 1 条**（`guest_submit_quota` 表，
+  滚动 24h 窗口；配额行与通告行**同事务**写入，校验失败不占配额），另有每指纹在审上限 3 条、
+  同领取地址去重。管理员/登录用户不受此限
 - 审核：管理员通过 / 驳回；驳回写 `reject_reason`，**匿名读驳回详情返回 403**，作者可读并可编辑重提
 - 投票：一人一票（`UNIQUE(deal_id, user_id)`）——重复投同向 = **取消**，投反向 = 改票
 - 评测：一人一评（`UNIQUE(deal_id, user_id)`）——重复提交为**更新**（不新增计数）；`rating` 限 1-5，越界 400
