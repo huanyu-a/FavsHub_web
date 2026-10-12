@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const body = await readBody(event)
 
-  const result = submitGuestReview(getRawDb(), event, id, body)
+  const result = await submitGuestReview(getRawDb(), event, id, body)
   if (!result.ok) {
     throw createError({ statusCode: result.status, data: { error: result.error } })
   }

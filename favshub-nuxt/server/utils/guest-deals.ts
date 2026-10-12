@@ -18,14 +18,14 @@
  *
  * ## 防滥用四层（与游客评测同源）
  *
- *   1. 人机校验 —— HMAC 签名算术题，一题一用（consumeGuestChallenge）
+ *   1. 人机校验 —— Cloudflare Turnstile 优先，挂件加载失败回落算术题（assertHumanCheck）
  *   2. 内容过滤 —— 灌水 / 广告黑名单（hasGuestSpam）+ validateDealPayload 字段校验
  *   3. 限频 —— **同一 IP 每天 1 条**（DB 持久化，重启不丢）
  *      + 每指纹在审通告上限 + 同地址去重
  *   4. 后置审核 —— 默认 pending，管理员通过后才公开
  */
 import type Database from 'better-sqlite3'
-import { consumeGuestChallenge, guestIdentity, GUEST_LIMITS, hasGuestSpam } from './guest-reviews'
+import { assertHumanCheck, guestIdentity, GUEST_LIMITS, hasGuestSpam } from './guest-reviews'
 import { newDealId, validateDealPayload, type DealPayload } from './token-deals'
 
 type DB = Database.Database
@@ -73,7 +73,7 @@ function quotaErrorText(waitMs: number): string {
  * 顺序要点：字段校验与配额查询都无副作用且廉价，排在前面；
  * 人机校验是一次性消耗，故放在配额之后 —— 配额就够拒的请求不浪费一道题。
  */
-export function submitGuestDeal(db: DB, event: any, body: any): GuestDealResult {
+export async function submitGuestDeal(db: DB, event: any, body: any): Promise<GuestDealResult> {
   // ── 1. 字段级校验（与登录用户同一套规则）──
   const validated = validateDealPayload(body)
   if (!validated.ok) {
@@ -96,8 +96,8 @@ export function submitGuestDeal(db: DB, event: any, body: any): GuestDealResult 
     return { ok: false, status: 429, error: quotaErrorText(quotaWait) }
   }
 
-  // ── 4. 人机校验（答对即作废）──
-  const challengeError = consumeGuestChallenge(body?.challenge_token, body?.challenge_answer)
+  // ── 4. 人机校验（Turnstile 优先；算术题答对即作废）──
+  const challengeError = await assertHumanCheck(event, body)
   if (challengeError) return { ok: false, status: 400, error: challengeError }
 
   // ── 5. 内容过滤：灌水 / 广告黑名单 ──

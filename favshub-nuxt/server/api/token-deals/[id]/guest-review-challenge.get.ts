@@ -5,11 +5,14 @@
  * 为防止脚本刷评，提交前需先答一道算术题 —— 答案以 HMAC 签名令牌下发，
  * **服务端不存 session**，零依赖、零外部服务，重启也不影响在途挑战。
  *
- * 返回：{ question: '3 + 7 = ?', token: '<签名令牌>', expires_in: 600 }
- * 提交时把 token 与答案一并回传即可。
+ * 按站点配置下发 Turnstile 或算术题（?fallback=1 在允许降级时要算术题）：
+ *   - { provider: 'turnstile', site_key, fallback_available }
+ *   - { provider: 'math', question, token, expires_in }
+ * 提交时把对应凭据一并回传即可。
  */
+import { getQuery } from 'h3'
 import { getRawDb } from '../../../database'
-import { createGuestChallenge } from '../../../utils/guest-reviews'
+import { issueHumanChallenge } from '../../../utils/guest-reviews'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -23,5 +26,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 
-  return createGuestChallenge()
+  const { fallback } = getQuery(event)
+  return issueHumanChallenge(String(fallback ?? '') === '1')
 })

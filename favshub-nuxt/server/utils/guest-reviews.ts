@@ -20,7 +20,8 @@
  *
  * ## 防滥用四层
  *
- *   1. **人机校验** —— 服务端出算术题，答案以 HMAC 签名令牌下发，无需 session 与外部服务
+ *   1. **人机校验** —— Cloudflare Turnstile 优先（见 `./turnstile`），未配置或挂件加载
+ *      失败时回落到 HMAC 签名算术题（一题一用），两种方式都不需要 session
  *   2. **双层限频** —— 每 IP 每小时 N 条 + 每 IP 每通告终身 1 条（后者靠指纹去重实现）
  *   3. **内容过滤** —— 长度、链接数、灌水词
  *   4. **后置审核** —— 默认 pending，作者/管理员审核
@@ -33,6 +34,7 @@ import { normalizeViewer as normalizeViewerLocal } from './deal-edits'
 import { isUserAdmin as isUserAdminLocal } from './ai-service'
 import { optionalAuth } from './auth'
 import { checkRateLimit, getClientIP } from './rate-limit'
+import { getTurnstileConfig, verifyTurnstileToken } from './turnstile'
 import { avatarUrl, digest, encryptQQ, isValidQQ } from './avatar'
 import { getSecret } from './jwt'
 
@@ -173,6 +175,48 @@ export function consumeGuestChallenge(token: unknown, answerRaw: unknown): strin
   return null
 }
 
+// ─── 人机校验统一入口（发布通告 / 发表评测共用）────────────────
+
+export type HumanChallenge =
+  | { provider: 'turnstile'; site_key: string; fallback_available: boolean }
+  | { provider: 'math'; question: string; token: string; expires_in: number }
+
+/**
+ * 下发人机校验方式：Turnstile 开启时让前端渲染挂件，否则给一道算术题。
+ *
+ * forceMath 由前端在挂件加载失败时带 `?fallback=1` 触发，仅在允许降级时生效；
+ * 不允许降级时仍返回 Turnstile，前端据此提示访客检查网络而不是偷偷放行。
+ */
+export function issueHumanChallenge(forceMath = false): HumanChallenge {
+  const cfg = getTurnstileConfig()
+  if (cfg.enabled && !(forceMath && cfg.mathFallback)) {
+    return { provider: 'turnstile', site_key: cfg.siteKey, fallback_available: cfg.mathFallback }
+  }
+  return { provider: 'math', ...createGuestChallenge() }
+}
+
+/**
+ * 校验游客提交的人机凭据。
+ *
+ * 带 `turnstile_token` 走 Cloudflare；没带且允许降级时走算术题。
+ * **关闭降级后「没带 Turnstile 令牌」的请求一律拒绝** —— 否则脚本只要不带
+ * turnstile_token 就能永远走算术题，等于没升级。
+ *
+ * @returns null 表示通过；否则返回给用户看的错误文案
+ */
+export async function assertHumanCheck(event: any, body: any): Promise<string | null> {
+  const cfg = getTurnstileConfig()
+  if (cfg.enabled) {
+    const token = String(body?.turnstile_token ?? '').trim()
+    if (token) {
+      const result = await verifyTurnstileToken(token, getClientIP(event))
+      return result.ok ? null : result.message
+    }
+    if (!cfg.mathFallback) return '请先完成人机验证'
+  }
+  return consumeGuestChallenge(body?.challenge_token, body?.challenge_answer)
+}
+
 // ─── 内容过滤 ───────────────────────────────────────────────────
 
 /**
@@ -304,12 +348,12 @@ export interface GuestReviewInput {
  * 注意「已通过」的评测**不允许覆盖** —— 否则同一人可反复改内容绕过审核留痕；
  * 若确需修改，应联系管理员，或等被驳回后重新提交。
  */
-export function submitGuestReview(
+export async function submitGuestReview(
   db: DB,
   event: any,
   rawDealId: unknown,
   body: GuestReviewInput,
-): EditOpResult<{ review: any; created: boolean; message: string }> {
+): Promise<EditOpResult<{ review: any; created: boolean; message: string }>> {
   const dealId = String(rawDealId ?? '').trim()
   if (!dealId) return { ok: false, status: 400, error: '通告 ID 不能为空' }
 
@@ -319,8 +363,8 @@ export function submitGuestReview(
     return { ok: false, status: 404, error: '通告不存在' }
   }
 
-  // ── 1. 人机校验 ──
-  const challengeError = consumeGuestChallenge(body?.challenge_token, body?.challenge_answer)
+  // ── 1. 人机校验（Turnstile 优先，未配置时回落算术题）──
+  const challengeError = await assertHumanCheck(event, body)
   if (challengeError) return { ok: false, status: 400, error: challengeError }
 
   // ── 2. 字段校验 ──

@@ -19,6 +19,8 @@ export default defineEventHandler(async (event) => {
   for (const { key, value } of rows) {
     systemData[key] = value
   }
+  // 机密项不回显（沿用 jwtSecret 的约定）：显示「已设置」，写回时按此值跳过
+  if (systemData.turnstile_secret_key) systemData.turnstile_secret_key = '已设置'
 
   return {
     adminUsers,

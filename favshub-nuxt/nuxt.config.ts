@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 // CSP 区分 dev/prod：dev 模式 HMR 需要 unsafe-eval，生产构建（Nuxt 3.15+）已不需要
 const isDev = process.env.NODE_ENV !== 'production'
-const scriptSrc = `'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://hm.baidu.com`
+const scriptSrc = `'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://hm.baidu.com https://challenges.cloudflare.com`
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -82,7 +82,9 @@ export default defineNuxtConfig({
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
         // hm.baidu.com：百度统计；img/connect 已允许 https 外链图标与接口；
         // blob: 允许分享卡片预览 <img> 加载 canvas.toBlob 生成的对象 URL
-        'Content-Security-Policy': `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`,
+        // challenges.cloudflare.com：游客通道的 Turnstile 人机校验（挂件脚本 + iframe +
+        //   组件内部请求），三处都要放行，否则脚本被 CSP 拒绝后只能回落算术题
+        'Content-Security-Policy': `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`,
         // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
         'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',
         // HTML 浏览器缓存 60s（按用户），共享层不存储

@@ -27,6 +27,8 @@ export const SYSTEM_ONLY_KEYS = [
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
   // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
   'qq_bot_transport', 'qq_outbox_path',
+  // 人机校验（Cloudflare Turnstile；密钥为空时自动回落算术题）
+  'turnstile_enabled', 'turnstile_site_key', 'turnstile_secret_key', 'turnstile_math_fallback',
 ]
 
 /**
@@ -80,4 +82,14 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   qq_admin_qq: '',
   qq_bot_transport: 'onebot',
   qq_outbox_path: '',
+  // 人机校验（Cloudflare Turnstile）
+  // turnstile_enabled：总开关；site_key / secret_key 任一为空时强制视为关闭
+  // turnstile_site_key：Cloudflare 后台挂件的「站点密钥」，会下发给前端
+  // turnstile_secret_key：挂件的「密钥」，仅服务端使用，接口不回显
+  // turnstile_math_fallback：挂件加载失败（境内无代理等）时允许回落算术题；
+  //   关闭后「没带 turnstile_token」的请求一律拒绝，强度最高但可能挡住部分访客
+  turnstile_enabled: 'false',
+  turnstile_site_key: '',
+  turnstile_secret_key: '',
+  turnstile_math_fallback: 'true',
 }

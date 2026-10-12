@@ -27,6 +27,8 @@ export default defineEventHandler(async (event) => {
   for (const [key, value] of Object.entries(data)) {
     // 仅允许写入预定义的系统配置 key，防止写入任意键
     if (!SYSTEM_ONLY_KEYS.includes(key)) continue
+    // 机密项：GET 回显的是「已设置」占位符，空值/占位符都代表「保持现状」，不覆盖
+    if (key === 'turnstile_secret_key' && (String(value ?? '') === '' || String(value) === '已设置')) continue
     upsert.run(key, String(value ?? ''), now)
   }
 

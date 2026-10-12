@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   // ── 游客通道：无有效登录令牌 ──
   if (!role) {
-    const result = submitGuestDeal(db, event, body)
+    const result = await submitGuestDeal(db, event, body)
     if (!result.ok) {
       throw createError({ statusCode: result.status, data: { error: result.error } })
     }

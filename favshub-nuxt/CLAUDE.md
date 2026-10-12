@@ -209,7 +209,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 
 - 前台 `/tokens`（公开列表 + 筛选 + 详情弹层）；后台 `/admin/token-deals`（审核队列）
 - 发布：登录用户可发，落库 `status='pending'`；仅作者（`mine=1`）与管理员可见待审核项
-- 游客发布（未登录）：昵称 + 人机校验 + 内容过滤，落库 `user_id=0`（种子系统用户 `_system`）
+- 游客发布（未登录）：昵称 + 人机校验（见下）+ 内容过滤，落库 `user_id=0`（种子系统用户 `_system`）
   + `guest_name` / `guest_fingerprint`；**同一 IP 每天限 1 条**（`guest_submit_quota` 表，
   滚动 24h 窗口；配额行与通告行**同事务**写入，校验失败不占配额），另有每指纹在审上限 3 条、
   同领取地址去重。管理员/登录用户不受此限
@@ -220,6 +220,32 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 计数：`vote_up` / `vote_down` / `rating_sum` / `rating_count` 为缓存列，统一由 `syncDealCounters(db, id)` 在 `db.transaction` 内重算，勿在各接口里手工 ±1
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）
+
+#### 游客人机校验（2026-10-12 升级为 Cloudflare Turnstile）
+
+游客发布通告（`POST /api/token-deals`）与游客评测（`POST /api/token-deals/[id]/guest-reviews`）
+**共用同一套人机校验**，入口只有两个函数（`server/utils/guest-reviews.ts`）：
+
+| 函数 | 作用 |
+|------|------|
+| `issueHumanChallenge(forceMath?)` | 挑战端点下发校验方式：Turnstile 优先，未启用时给算术题 |
+| `assertHumanCheck(event, body)` | 提交时校验：`body.turnstile_token` 走 Cloudflare，否则走算术题 |
+
+- **Turnstile 侧**（`server/utils/turnstile.ts`）：前端渲染挂件拿一次性令牌（`body.turnstile_token`），
+  服务端带 `remoteip` 调 `challenges.cloudflare.com/turnstile/v0/siteverify`（8s 超时），只认 `success`；
+  **网络失败一律不放行**（放行等于关掉校验）。令牌**一次性且 300s 过期**，前端每次提交后必须
+  `reset()` 换新，否则重试必然报 `timeout-or-duplicate`
+- **算术题降级**（原有 HMAC 签名题）：`turnstile_math_fallback=true` 时，前端挂件加载失败会带
+  `?fallback=1` 要一道算术题；**关闭降级后「没带 `turnstile_token`」的请求一律拒绝** ——
+  否则脚本不带该字段就能永远走算术题，等于没升级
+- **配置**（`system_config`，后台「人机校验」卡片）：`turnstile_enabled` / `turnstile_site_key` /
+  `turnstile_secret_key` / `turnstile_math_fallback`。**site key 或 secret 任一为空时强制视为未启用**
+  （防止配错就卡死整条游客通道）。`GET /api/admin/config` 把私钥回显为 `已设置` 占位符，
+  PUT 收到空值或该占位符时**跳过写入**，不会用占位符覆盖真密钥
+- **CSP 必须放行**（`nuxt.config.ts` 的 `/**` 头）：`script-src` 与 `frame-src` 都要有
+  `https://challenges.cloudflare.com`（`connect-src` 已有 `https:`）。**漏了 CSP 时挂件脚本被浏览器
+  拒绝、`window.turnstile` 始终 undefined，游客通道会静默退化成算术题** —— 改完 CSP 务必在真浏览器里
+  确认挂件真的渲染出来了，只看接口返回 `provider: turnstile` 不算验证通过
 
 ### 福利 Key（`/tokens/keys`）
 
