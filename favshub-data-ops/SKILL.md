@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.8.0
+version: 1.8.1
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -246,7 +246,9 @@ GET  /api/token-keys/my-votes?ids=a,b,c                   # 我的投票方向�
 - 支持 `dry_run: true` 预演；响应返回 `{ token_key: {…白名单字段, deal_status}, upserted, status, message }`
 - **绝对红线**：明文 key、`key_hash`、`key_encrypted` **绝不出现在任何日志、报告或响应正文**；
   上报报错时也只会返回通用校验错误，不会回显敏感值
-- 该通道暂无对应 MCP 工具（REST 专用）；`describe` 的 `endpoints` 清单会同步列出
+- 该通道**没有** MCP 工具，`describe` 的 `endpoints` 清单也**未登记**它（REST 专用）——
+  按本节端点直接调用即可，不要因为 describe 里看不到就以为端点不存在；上报/对账/列表/投票的
+  完整命令见 `examples.md` 的「福利 Key」一节
 
 ### 盘点
 

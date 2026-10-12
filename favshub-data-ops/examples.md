@@ -182,7 +182,7 @@ curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
 
 ---
 
-## 7.5 更新通告（部分更新，不必删除重建）
+## 8. 更新通告（部分更新，不必删除重建）
 
 修改通告的某个字段时**不要删除重建** —— 删除不可逆，且会丢失投票与评测记录。
 `PUT` 是**部分更新**：只传要改的字段，其余字段自动保持原值。
@@ -231,7 +231,7 @@ curl -s -X PUT -H "$AUTH" -H 'Content-Type: application/json' \
 
 ---
 
-## 7.6 修改他人（含管理员）创建的通告 —— 修改建议流程
+## 9. 修改他人（含管理员）创建的通告 —— 修改建议流程
 
 站点规则：**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核后才生效。**
 普通用户对管理员通告**没有直接编辑权，也不需要管理员令牌** —— 提交一条修改建议即可。
@@ -284,7 +284,7 @@ curl -s -X POST -H "$ADMIN_AUTH" -H 'Content-Type: application/json' \
 
 ---
 
-## 7.7 生成通告分享卡片
+## 10. 生成通告分享卡片
 
 把通告渲染成 **900×1200 的竖版图片**，适合发到群聊/朋友圈。
 卡片内容与网页端「分享通告」按钮产出的**完全一致**（服务端复用同一份绘制逻辑）。
@@ -324,7 +324,61 @@ curl -sI -H "Authorization: Bearer $FAVSHUB_AI_TOKEN" \
 
 ---
 
-## 8. MCP 通道调用
+## 11. 福利 Key（上报 / 对账 / 列表 / 复制 / 投票）
+
+采集端（爬虫 / 探测器）把探测快照上报到站点，站点按 `(key_hash, base_url)` **幂等 upsert** —— 重复上报不产生重复行。
+普通令牌上报 → `pending` 待审；**管理员令牌上报 → 直接 `published`**。
+
+```bash
+# 上报一条快照（write scope，支持 dry_run 预演）
+curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  "$BASE/api/ai/token-keys" \
+  -d '{
+    "key_hash": "sha256:...",
+    "base_url": "https://api.example.com/v1",
+    "key_plain": "sk-...",
+    "key_masked": "sk-****abcd",
+    "post_time": "2026-10-12 10:30",
+    "provider": "example",
+    "models": ["gpt-4o-mini"],
+    "source": "linuxdo",
+    "confidence": 0.8,
+    "verdict": "valid",
+    "source_id": "12345",
+    "source_tid": "67890",
+    "source_url": "https://example.com/thread/12345",
+    "source_title": "【福利】免费额度",
+    "last_probe_at": 1791789000
+  }'
+
+# 对账清理（delete scope + 仅管理员，confirm 必带）：只保留 keep 中的身份，其余 published 行删除
+curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  "$BASE/api/ai/token-keys/prune" \
+  -d '{ "keep": [ { "key_hash": "sha256:...", "base_url": "https://api.example.com/v1" } ], "confirm": true }'
+```
+
+**公开侧（无需令牌，浏览器 / 助手都能直接调）**：
+
+```bash
+curl -s "$BASE/api/token-keys"                      # 脱敏列表（18 字段白名单，恒定过滤 dead 行）
+curl -s "$BASE/api/token-keys/1234/copy"            # { key_plain, base_url } 完整值（仅复制瞬间下发）
+curl -s -X POST "$BASE/api/token-keys/1234/vote" \
+  -H 'Content-Type: application/json' -d '{ "vote": "up" }'    # 👍 还能用 / 👎 不可用
+curl -s "$BASE/api/token-keys/my-votes?ids=1234,5678"          # 批量查当前访客投票方向（≤50）
+```
+
+要点：
+
+- **时间戳为秒**（`first_seen_at` / `last_probe_at` / `post_time` 沿采集端语义），站点其余表是毫秒，不要混用。
+- `verdict` 枚举：`valid` / `quota` / `limited` / `dead` / `unknown` / `restricted` / `blocked_by_waf` / `endpoint_unsupported` / `tls_invalid`。
+- 投票**一人一票**（按访客指纹）：重复投同向 = **取消**，反向 = **改票**；身份级限频 120 次/小时，游客同 IP 同 key 最多计 3 票（超出静默无效）。
+- 未 `published`（`pending` / `hidden`）的行永不出现在公开列表；不可见行一律 `404`，与「不存在」不区分。
+- **红线**：明文 key、`key_hash`、`key_encrypted` **绝不写入日志、报告或回答正文**；`copy` 取到的明文直接交给用户。
+- 该通道**没有** MCP 工具，`describe` 的 `endpoints` 也未登记 —— 按本节端点直接调用。
+
+---
+
+## 12. MCP 通道调用
 
 ```bash
 # 握手
@@ -349,7 +403,7 @@ curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
 
 ---
 
-## 9.5 检查并更新技能自身
+## 13. 检查并更新技能自身
 
 技能包带版本号。站点提供公开清单（**无需令牌**），含全部文件正文。
 
@@ -396,7 +450,7 @@ console.log("已更新到 v" + m.version + "（" + n + " 个文件）");
 
 ---
 
-## 10. 错误排查对照
+## 14. 错误排查对照
 
 | 现象 | 原因 | 处理 |
 |---|---|---|

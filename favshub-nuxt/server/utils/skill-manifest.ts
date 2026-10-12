@@ -7,12 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.8.0",
-  site_version: "1.0.16",
+  version: "1.8.1",
+  site_version: "1.0.24",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**新增** 「福利 Key」可用性投票端点（无需令牌）：`POST /api/token-keys/{id}/vote` （body `{ vote: 'up' | 'down' }`，同向再投 = 取消，反向 = 改票）与 `GET /api/token-keys/my-votes?ids=…`（批量查当前访客投票方向，≤50）。 身份走访客指纹（登录 `fp:u<id>` / 游客 cookie+UA），限频 120 次/小时， 游客同 IP 同 key 最多计 3 票；可见性与公开列表同口径，不可见行 404。",
-  "**变更** 公开列表字段白名单 16 → **18**：新增 `vote_up` / `vote_down` 两个投票计数列 （站点本地计数）；列表不含 `my_vote`，需要高亮时用 `my-votes` 端点补拉。"
+  "**修正** 「福利 Key」一节曾声称 `describe` 的 `endpoints` 清单会列出上报端点，实际服务端未登记 （`describe` 只覆盖书签 / 文件夹 / 提示词 / 标签 / 通告 / MCP 等路径）—— 改为准确表述： 该通道为 REST 专用、无 MCP 工具且不在 describe 清单内，按文档端点直接调用。",
+  "**新增** `examples.md` 补「福利 Key」完整示例：快照上报（幂等 upsert、`dry_run`）、 对账清理 `prune`（`delete` + 管理员 + `confirm`）、公开列表 / 复制 / 投票 / `my-votes`， 并写明秒级时间戳、`verdict` 枚举、投票取消与改票语义、明文红线。",
+  "**优化** `examples.md` 小节编号改为连续整数（原 7.5 / 7.6 / 7.7 / 9.5 跳号），便于按号引用。"
 ],
 } as const

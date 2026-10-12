@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.7-blue" alt="版本" />
+  <img src="https://img.shields.io/badge/version-1.0.24-blue" alt="版本" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker" alt="Docker" />
 </p>
 
@@ -77,9 +77,17 @@
 
 - 汇总各家大模型 API 的免费额度与中转福利，按品质、地区、来源筛选  
 - 登录后可发布通告，经管理员审核后公开  
-- 一人一票 + 一人一评：可点赞、可打分写评测，重复提交视为更新  
+- 未登录也能提交（游客通道）：填昵称 + 过 Cloudflare 人机校验，**同一 IP 每天 1 条**；校验服务不可用时**直接拒绝提交**（fail-closed，无降级通道）  
+- 一人一票 + 一人一评：可点赞、可打分写评测，重复提交视为更新；评测另有限频（每用户 20 条/小时、每 IP 40 条/小时）与广告内容过滤  
 - 支持按热度 / 评分 / 临期排序；管理员可置顶优质通告  
-- **一键分享卡片**：详情页「分享」生成竖版 3:4 信息卡 PNG（含渠道信息与详情页二维码），三种风格可切换（杂志 / 终端 / 暖阳），移动端可长按保存到相册  
+- **一键分享卡片**：详情页「分享」生成竖版 3:4 信息卡 PNG（含渠道信息与详情页二维码），六种风格可切换（海报 / 杂志 / 终端 / 陶土 / 喜报 / 卡券，默认海报），移动端可长按保存到相册  
+
+### 福利 Key 共享（`/tokens/keys`）
+
+- 公开的脱敏 Key 列表：按状态（有效 / 额度耗尽 / 限次 / 失效）、服务商、模型、来源筛选  
+- 一键复制完整 Key 与 API 地址（明文只在复制瞬间下发，列表与页面源码不含明文）  
+- 👍 / 👎 可用性投票：无需登录，一人一票（同向再点 = 取消，反向 = 改票）  
+- 数据由采集端经 AI 接口按 `key_hash + base_url` 幂等上报，见下文「AI 数据操作（API 令牌）」  
 
 ### AI 数据操作（API 令牌）
 
@@ -134,9 +142,9 @@
 ### 环境要求
 
 - **Docker 部署**：Docker + Docker Compose  
-- **本机开发 / 预览**：Node.js ≥ 20 且 **< 22**、pnpm ≥ 9
+- **本机开发 / 预览**：Node.js ≥ 20、pnpm ≥ 9
 
-> ⚠️ Node.js 22+ 与 better-sqlite3 原生模块不兼容（NODE_MODULE_VERSION mismatch）。开发必须用 Node 20 或 21；Docker 镜像已锁定 `node:20-alpine`。  
+> Docker 镜像固定 `node:20-alpine`；本机开发在 Node 20 与 Node 24 上均实测通过（`better-sqlite3` 12.x 提供对应预编译包）。若换 Node 大版本后报 `NODE_MODULE_VERSION` 不匹配，重跑一次 `pnpm install` 重编译原生模块即可。  
 
 ### 方式 A：Docker（日常自托管推荐）
 
@@ -148,11 +156,11 @@ docker compose up -d
 
 浏览器打开：**http://localhost:3090**
 
-1. 打开站点 → 注册账号（第一人 = 管理员；Docker 首次部署还会预置 `admin_favs`，随机密码见 `data/.initial-password`）  
+1. 打开站点 → 注册账号（Docker 首次部署会预置管理员 `admin_favs`，随机密码见 `data/.initial-password`；仅当站内无任何管理员时，第一个注册用户才会兜底提权）  
 2. 登录后在首页 / 设置中调整主题与书签  
 3. 需要同步浏览器书签时，安装 [扩展](../favshub-ext/README.md) 并填写本站地址
 4. 站点图标默认从各站点抓取并本地化（存 `data/favicons/`，属运行时数据、不入库）；首次部署后可在 **后台 → 书签管理 → 批量下载图标** 批量补齐
-5. 生产环境请先阅读 [DEPLOY.md](DEPLOY.md)（SSH、镜像仓库、升级流程）
+5. 生产环境部署要点：HTTPS + 反向代理、显式设置 `NUXT_JWT_SECRET`、定期备份 `data/`；升级前先备份再拉新镜像（含密码与 IP 的本机 runbook 为本地 `DEPLOY.md`，不入库）
 
 数据目录默认映射到 `./data`（数据库、JWT 密钥、备份、本地化图标 `data/favicons` 等）。**请定期备份 `data/`。**
 
@@ -169,11 +177,11 @@ pnpm preview      # 预览生产构建
 
 首次启动会自动创建 `data/favshub.db` 与 JWT 密钥文件。
 
-更完整的环境变量、备份与升级说明见 [部署文档](DEPLOY.md)。
+更完整的环境变量、备份与升级说明见下文[部署](#部署)一节。
 
 ## 部署
 
-详细部署流程见 [DEPLOY.md](DEPLOY.md)（本目录内的本地文档，含服务器密码，已 gitignore、不入库）。本节仅概述核心概念。
+公开仓库不含服务器与密码细节；本节概述部署核心概念（含密码与 IP 的本机 runbook 为 `DEPLOY.md`，已 gitignore，**不在仓库内**）。
 
 ### Docker Compose 要点
 
@@ -203,6 +211,7 @@ curl -s http://localhost:3090/api/health
 | `NUXT_CORS_ORIGIN` | 允许的跨域来源 | 开发默认 `http://localhost:3000`；上线改为你的站点源 |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔） | 空；内置 `admin_favs` 已足够，仅特殊场景需要 |
 | `NUXT_TRUST_PROXY` | 是否信任反向代理的客户端 IP | `false`；前面有 Nginx 等再按需开启 |
+| `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | 默认 `https://hao.bx9y.com.cn`，自托管请改成自己的域名 |
 
 ### 备份与升级
 
@@ -274,6 +283,7 @@ python3 sync-nexus.py --newapi-db /your/one-api.db --eval-dir /your/eval_api --d
 - 密码 bcrypt 存储；最小长度可在系统配置中调整（默认约 8 位）  
 - JWT 可配置过期时间（默认约 7 天）  
 - 生产环境隐藏详细 5xx 信息；favicon 拉取有 SSRF 限制  
+- **人机校验（Turnstile）**：游客发布 / 游客评测 / 注册走 Cloudflare Turnstile；密钥留空、脚本加载失败、令牌过期或复用、校验服务不可达 —— 一律**拒绝提交**（fail-closed，无降级通道）。站点域名需加入 Cloudflare 挂件的 Hostnames 白名单，否则挂件报 `110200`  
 - **API 令牌**：明文只返回一次、库中仅存 SHA-256 哈希；令牌只能操作所属账号的数据，删除权限仅管理员可签发；AI 接口有独立限频并记录审计日志（不记录请求内容）  
 - 建议：HTTPS、强 `NUXT_JWT_SECRET`、限制 CORS、定期备份  
 

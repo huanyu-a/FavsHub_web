@@ -5,7 +5,7 @@
 <h1 align="center">FavsHub</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.7-green" alt="版本" />
+  <img src="https://img.shields.io/badge/version-1.0.24-green" alt="版本" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker" alt="Docker" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
   <img src="https://img.shields.io/badge/ext-AGPL--3.0-red" alt="扩展 AGPL-3.0" />
@@ -31,6 +31,8 @@ FavsHub 由 **网站**、可选的 **浏览器扩展**，以及可选的 **AI �
 | 用 Google / 百度 / ChatGPT 等一键搜、对比搜 | 顶部搜索栏（约 29 款引擎） |
 | 浏览官方/公开导航合集，订阅或导入到自己的书签 | **精选集** |
 | 管理 AI 提示词、版本与协作修改 | **PromptPro** |
+| 找免费的大模型 API 额度、看别人写的评测 | **Token 白嫖通告**（`/tokens`） |
+| 复制公开共享的福利 Key、标记还能不能用 | **福利 Key**（`/tokens/keys`） |
 | 把浏览器里的书签同步到网站 | **FavsHub 扩展** |
 | 让 AI 助手直接帮你批量整理数据 | **AI 技能包**（`favshub-data-ops/`） |
 | 自己改主题、壁纸、布局；管理自己的数据 | 设置与 `/admin` 后台 |
@@ -99,7 +101,7 @@ docker compose up -d
 
 浏览器打开 **http://localhost:3090**。
 
-- 首次部署会自动创建内置管理员 `admin_favs`（随机密码写入 `favshub-nuxt/data/.initial-password`，登录请立即改密）；此外第一个注册的用户也会成为**管理员**。
+- 首次部署会自动创建内置管理员 `admin_favs`（随机密码写入 `favshub-nuxt/data/.initial-password`，登录请立即改密）。新注册账号默认是普通用户；**仅当站内不存在任何管理员**时，第一个注册用户才会兜底提权（防站点锁死）。
 - 数据默认落在 `favshub-nuxt/data/`，容器重启不会丢。
 - 更完整的部署、备份、环境变量见 [网站文档 · 部署](favshub-nuxt/README.md#部署)。
 
