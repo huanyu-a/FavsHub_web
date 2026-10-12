@@ -228,24 +228,28 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 
 | 函数 | 作用 |
 |------|------|
-| `issueHumanChallenge(forceMath?)` | 挑战端点下发校验方式：Turnstile 优先，未启用时给算术题 |
-| `assertHumanCheck(event, body)` | 提交时校验：`body.turnstile_token` 走 Cloudflare，否则走算术题 |
+| `issueHumanChallenge()` | 挑战端点下发校验方式：`{provider:'turnstile',site_key}` 或 `{provider:'disabled',message}` |
+| `assertHumanCheck(event, body)` | 提交时校验：只认 `body.turnstile_token` 过 siteverify，其余一律拒绝 |
+
+**策略：失败即拒绝（fail-closed），没有任何降级通道**（2026-10-12 二次调整，原算术题降级已整体移除）。
+挂件脚本加载失败、令牌缺失/过期/复用、siteverify 网络异常或超时、校验不通过 —— 全部返回可读错误并拒绝提交。
+代价：境内无代理访客（加载不出 `challenges.cloudflare.com`）**无法**提交游客通告/评测，这是刻意取舍；
+`turnstile_enabled=false` 或密钥留空时游客通道整体关闭，同样不放行。前端 `TurnstileBox` 暴露
+`retry()`，失败后给访客一个「重新加载验证」入口（`loadTurnstileScript` 失败时会摘掉坏掉的 script 标签，重试才有效）。
 
 - **Turnstile 侧**（`server/utils/turnstile.ts`）：前端渲染挂件拿一次性令牌（`body.turnstile_token`），
   服务端带 `remoteip` 调 `challenges.cloudflare.com/turnstile/v0/siteverify`（8s 超时），只认 `success`；
   **网络失败一律不放行**（放行等于关掉校验）。令牌**一次性且 300s 过期**，前端每次提交后必须
   `reset()` 换新，否则重试必然报 `timeout-or-duplicate`
-- **算术题降级**（原有 HMAC 签名题）：`turnstile_math_fallback=true` 时，前端挂件加载失败会带
-  `?fallback=1` 要一道算术题；**关闭降级后「没带 `turnstile_token`」的请求一律拒绝** ——
-  否则脚本不带该字段就能永远走算术题，等于没升级
 - **配置**（`system_config`，后台「人机校验」卡片）：`turnstile_enabled` / `turnstile_site_key` /
-  `turnstile_secret_key` / `turnstile_math_fallback`。**site key 或 secret 任一为空时强制视为未启用**
+  `turnstile_secret_key`。**site key 或 secret 任一为空时强制视为未启用**
   （防止配错就卡死整条游客通道）。`GET /api/admin/config` 把私钥回显为 `已设置` 占位符，
   PUT 收到空值或该占位符时**跳过写入**，不会用占位符覆盖真密钥
 - **CSP 必须放行**（`nuxt.config.ts` 的 `/**` 头）：`script-src` 与 `frame-src` 都要有
   `https://challenges.cloudflare.com`（`connect-src` 已有 `https:`）。**漏了 CSP 时挂件脚本被浏览器
-  拒绝、`window.turnstile` 始终 undefined，游客通道会静默退化成算术题** —— 改完 CSP 务必在真浏览器里
-  确认挂件真的渲染出来了，只看接口返回 `provider: turnstile` 不算验证通过
+  拒绝、`window.turnstile` 始终 undefined，游客会被直接挡住提交（fail-closed）** —— 改完 CSP 务必在真浏览器里
+  确认挂件真的渲染出来了，只看接口返回 `provider: turnstile` 不算验证通过。另外 Cloudflare 挂件要求
+  **当前域名在该挂件的 Hostnames 白名单里**，否则挂件报 `110200` 且拿不到令牌（挂件在 Cloudflare 后台加域名即可）
 
 ### 福利 Key（`/tokens/keys`）
 

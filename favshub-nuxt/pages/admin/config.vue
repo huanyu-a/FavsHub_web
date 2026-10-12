@@ -90,7 +90,7 @@
       <div v-if="isAdmin" class="card">
         <div class="card-header"><h3>人机校验（游客通道）</h3></div>
         <div class="card-body">
-          <p class="hint">游客发通告与游客评测共用。开启后前端渲染 Cloudflare Turnstile 挂件，服务端拿一次性令牌调 siteverify 复核；未开启时沿用算术题。挂件脚本来自 challenges.cloudflare.com，境内无代理访客可能加载失败。</p>
+          <p class="hint">游客发通告与游客评测共用。开启后前端渲染 Cloudflare Turnstile 挂件，服务端拿一次性令牌调 siteverify 复核。</p>
           <div class="toggle-row">
             <label>启用 Turnstile</label>
             <label class="switch">
@@ -100,20 +100,13 @@
           </div>
           <div class="fg"><label>站点密钥 Site Key</label>
             <input v-model="turnstile.turnstile_site_key" placeholder="0x4AAAAAAA…（Cloudflare 后台「站点密钥」）" @input="saveTurnstile">
-            <small>会下发给浏览器渲染挂件；两个密钥任一为空时视为未启用</small>
+            <small>会下发给浏览器渲染挂件；两个密钥任一为空时视为未启用（游客通道关闭）</small>
           </div>
           <div class="fg"><label>私钥 Secret Key</label>
             <input v-model="turnstile.turnstile_secret_key" type="password" placeholder="粘贴 Cloudflare 后台「密钥」" @focus="onSecretFocus" @input="saveTurnstile">
             <small>仅服务端使用，接口不回显；留空表示不修改已保存的私钥</small>
           </div>
-          <div class="toggle-row">
-            <label>组件加载失败时回落算术题</label>
-            <label class="switch">
-              <input type="checkbox" v-model="turnstile.turnstile_math_fallback" @change="saveTurnstile">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <p class="hint">开启回落可保证无代理访客仍能提交；关闭后强度最高，但没通过挂件的游客将无法提交。</p>
+          <p class="hint">安全策略：<strong>失败即拒绝</strong>，不做任何降级。挂件脚本加载失败、令牌缺失或过期、siteverify 不可用、校验不通过 —— 一律拒绝提交。因此境内无代理访客（加载不出 challenges.cloudflare.com）将无法提交游客通告/评测；这是刻意的取舍，需要放行时只能改用其他可达的人机校验方案。</p>
         </div>
       </div>
 
@@ -303,7 +296,6 @@ const turnstile = reactive({
   turnstile_site_key: '',
   // 回填的是接口给的「已设置」占位符；未改动时按掩码跳过，不会覆盖真实私钥
   turnstile_secret_key: '',
-  turnstile_math_fallback: true,
 })
 let tsTimer: any = null
 /** 回填的是「已设置」占位符：聚焦即清空，避免用户在占位符后面接着输入把私钥写坏 */
@@ -322,7 +314,6 @@ function saveTurnstile() {
             turnstile_enabled: String(turnstile.turnstile_enabled),
             turnstile_site_key: turnstile.turnstile_site_key,
             turnstile_secret_key: turnstile.turnstile_secret_key,
-            turnstile_math_fallback: String(turnstile.turnstile_math_fallback),
           },
         },
       })
@@ -367,7 +358,6 @@ security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       turnstile.turnstile_enabled = s.turnstile_enabled === 'true'
       turnstile.turnstile_site_key = s.turnstile_site_key || ''
       turnstile.turnstile_secret_key = s.turnstile_secret_key || ''
-      turnstile.turnstile_math_fallback = s.turnstile_math_fallback !== 'false'
     }
   } catch {}
 })

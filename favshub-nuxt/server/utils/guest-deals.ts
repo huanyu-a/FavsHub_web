@@ -18,7 +18,7 @@
  *
  * ## 防滥用四层（与游客评测同源）
  *
- *   1. 人机校验 —— Cloudflare Turnstile 优先，挂件加载失败回落算术题（assertHumanCheck）
+ *   1. 人机校验 —— Cloudflare Turnstile，失败即拒绝（assertHumanCheck）
  *   2. 内容过滤 —— 灌水 / 广告黑名单（hasGuestSpam）+ validateDealPayload 字段校验
  *   3. 限频 —— **同一 IP 每天 1 条**（DB 持久化，重启不丢）
  *      + 每指纹在审通告上限 + 同地址去重
@@ -89,14 +89,14 @@ export async function submitGuestDeal(db: DB, event: any, body: any): Promise<Gu
   }
 
   // ── 3. 每日配额预检（同一 IP 每天 1 条）──
-  // 刻意放在人机校验之前：配额判定只是一次廉价查询，先拦下就不消耗一次性校验题。
+  // 刻意放在人机校验之前：配额判定只是一次廉价查询，先拦下就不必让访客白过一遍人机校验。
   const { ipHash, fingerprint } = guestIdentity(event, null)
   const quotaWait = guestQuotaBlocked(db, ipHash)
   if (quotaWait !== null) {
     return { ok: false, status: 429, error: quotaErrorText(quotaWait) }
   }
 
-  // ── 4. 人机校验（Turnstile 优先；算术题答对即作废）──
+  // ── 4. 人机校验（Turnstile；失败即拒绝）──
   const challengeError = await assertHumanCheck(event, body)
   if (challengeError) return { ok: false, status: 400, error: challengeError }
 

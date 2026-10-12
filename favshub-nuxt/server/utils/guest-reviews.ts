@@ -20,14 +20,14 @@
  *
  * ## 防滥用四层
  *
- *   1. **人机校验** —— Cloudflare Turnstile 优先（见 `./turnstile`），未配置或挂件加载
- *      失败时回落到 HMAC 签名算术题（一题一用），两种方式都不需要 session
+ *   1. **人机校验** —— Cloudflare Turnstile（见 `./turnstile`），**失败即拒绝**；
+ *      未配置或关闭时游客通道整体关闭，不留算术题等降级旁路
  *   2. **双层限频** —— 每 IP 每小时 N 条 + 每 IP 每通告终身 1 条（后者靠指纹去重实现）
  *   3. **内容过滤** —— 长度、链接数、灌水词
  *   4. **后置审核** —— 默认 pending，作者/管理员审核
  */
 import type Database from 'better-sqlite3'
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { getCookie, getHeader, setCookie } from 'h3'
 import { canReviewDeal, syncDealCounters, type EditOpResult } from './token-deals'
 import { normalizeViewer as normalizeViewerLocal } from './deal-edits'
@@ -36,7 +36,6 @@ import { optionalAuth } from './auth'
 import { checkRateLimit, getClientIP } from './rate-limit'
 import { getTurnstileConfig, verifyTurnstileToken } from './turnstile'
 import { avatarUrl, digest, encryptQQ, isValidQQ } from './avatar'
-import { getSecret } from './jwt'
 
 type DB = Database.Database
 
@@ -53,8 +52,6 @@ export const GUEST_LIMITS = {
   links: 2,
   /** 每 IP 每小时的提交上限 */
   perIpPerHour: 3,
-  /** 人机校验令牌有效期 */
-  challengeTtlMs: 10 * 60 * 1000,
   /** 每通告每 IP 最多保留的评测数（去重维度：deal + ip） */
   perDealPerIp: 1,
 } as const
@@ -68,153 +65,42 @@ const SPAM_PATTERNS = [
   /(博彩|赌场|色情|代开发票|办证)/,
 ]
 
-// ─── 人机校验 ───────────────────────────────────────────────────
-
-interface ChallengePayload {
-  /** 正确答案 */
-  a: number
-  /** 过期时间戳 */
-  e: number
-  /** 一次性随机数（防重放，虽无 session 但可配合限频降低价值） */
-  n: string
-}
-
-/** 校验令牌签名（复用 digest 派生密钥，按用途分离） */
-function challengeKey(): Buffer {
-  return createHmac('sha256', getSecret()).update('favshub:guest-challenge:v1').digest()
-}
-
-/**
- * 已用过的校验题 nonce —— 保证**一题只用一次**。
- *
- * 令牌本身无状态（服务端不存 session），若允许重复使用，脚本解一次题就能反复提交。
- * 配合 IP 限频（3 条/小时）已能挡住大部分滥用，这里再加一道「答题即作废」，
- * 让每次提交都必须真正重新解题。内存 Map + 定期清理，重启即失效（可接受：
- * 重启后旧令牌最多还能用一次，影响可忽略）。
- */
-const usedNonces = new Map<string, number>()
-
-function markNonceUsed(nonce: string, expiresAt: number): void {
-  usedNonces.set(nonce, expiresAt)
-  // 惰性清理：条目数超阈值时清掉已过期的，避免无界增长
-  if (usedNonces.size > 5000) {
-    const now = Date.now()
-    for (const [n, exp] of usedNonces) {
-      if (exp < now) usedNonces.delete(n)
-    }
-  }
-}
-
-function signChallenge(payload: ChallengePayload): string {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  const sig = createHmac('sha256', challengeKey()).update(body).digest('base64url').slice(0, 24)
-  return `${body}.${sig}`
-}
-
-function verifyChallenge(token: string): ChallengePayload | null {
-  try {
-    const idx = token.lastIndexOf('.')
-    if (idx <= 0) return null
-    const body = token.slice(0, idx)
-    const sig = token.slice(idx + 1)
-    const expect = createHmac('sha256', challengeKey()).update(body).digest('base64url').slice(0, 24)
-    // 定长比较防时序侧信道
-    const a = Buffer.from(sig)
-    const b = Buffer.from(expect)
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as ChallengePayload
-    if (typeof payload?.a !== 'number' || typeof payload?.e !== 'number') return null
-    if (Date.now() > payload.e) return null
-    return payload
-  } catch {
-    return null
-  }
-}
-
-/**
- * 生成一道算术题。答案随令牌签名下发，服务端不存状态 ——
- * 零依赖、零 session，重启也不影响在途挑战。
- */
-export function createGuestChallenge(): { question: string; token: string; expires_in: number } {
-  const a = 2 + Math.floor(Math.random() * 8)
-  const b = 2 + Math.floor(Math.random() * 8)
-  // 随机加减，避免「只会加法」被脚本批量刷
-  const plus = Math.random() < 0.5
-  const left = plus ? a : Math.max(a, b)
-  const right = plus ? b : Math.min(a, b)
-  const answer = plus ? left + right : left - right
-
-  const token = signChallenge({
-    a: answer,
-    e: Date.now() + GUEST_LIMITS.challengeTtlMs,
-    n: randomBytes(6).toString('hex'),
-  })
-
-  return {
-    question: `${left} ${plus ? '+' : '−'} ${right} = ?`,
-    token,
-    expires_in: Math.floor(GUEST_LIMITS.challengeTtlMs / 1000),
-  }
-}
-
-/**
- * 校验并消费一道游客人机校验题（答对即作废，防脚本解一题反复提交）。
- *
- * 供多个游客提交通道共用（评测 / 发布通告）：校验签名 → 比对答案 → 一次性 nonce。
- * 返回 null 表示通过；否则返回给用户看的错误文案（含「校验」二字，前端据此刷新题目）。
- */
-export function consumeGuestChallenge(token: unknown, answerRaw: unknown): string | null {
-  const tokenStr = String(token ?? '')
-  if (!tokenStr) return '请先完成人机校验'
-  const challenge = verifyChallenge(tokenStr)
-  if (!challenge) return '校验已过期，请刷新后重试'
-  const answer = Number(answerRaw)
-  if (!Number.isInteger(answer) || answer !== challenge.a) return '校验答案不正确'
-  if (usedNonces.has(challenge.n)) return '校验已使用，请重新获取题目'
-  markNonceUsed(challenge.n, challenge.e)
-  return null
-}
-
-// ─── 人机校验统一入口（发布通告 / 发表评测共用）────────────────
+// ─── 人机校验（发布通告 / 发表评测共用）─────────────────────────
 
 export type HumanChallenge =
-  | { provider: 'turnstile'; site_key: string; fallback_available: boolean }
-  | { provider: 'math'; question: string; token: string; expires_in: number }
+  | { provider: 'turnstile'; site_key: string }
+  | { provider: 'disabled'; message: string }
 
 /**
- * 下发人机校验方式：Turnstile 开启时让前端渲染挂件，否则给一道算术题。
+ * 下发人机校验方式。
  *
- * forceMath 由前端在挂件加载失败时带 `?fallback=1` 触发，仅在允许降级时生效；
- * 不允许降级时仍返回 Turnstile，前端据此提示访客检查网络而不是偷偷放行。
+ * 只可能有两种结果：Turnstile 已配置 → 前端渲染挂件；未配置/已关闭 → 游客通道关闭。
+ * **没有算术题降级**：挂件加载失败或校验不通过一律拒绝，
+ * 避免刷量脚本改走兜底通道（那等于没做校验）。
  */
-export function issueHumanChallenge(forceMath = false): HumanChallenge {
+export function issueHumanChallenge(): HumanChallenge {
   const cfg = getTurnstileConfig()
-  if (cfg.enabled && !(forceMath && cfg.mathFallback)) {
-    return { provider: 'turnstile', site_key: cfg.siteKey, fallback_available: cfg.mathFallback }
+  if (!cfg.enabled) {
+    return { provider: 'disabled', message: '人机校验未启用，暂不接受游客提交' }
   }
-  return { provider: 'math', ...createGuestChallenge() }
+  return { provider: 'turnstile', site_key: cfg.siteKey }
 }
 
 /**
- * 校验游客提交的人机凭据。
+ * 校验游客提交的人机凭据（fail-closed）。
  *
- * 带 `turnstile_token` 走 Cloudflare；没带且允许降级时走算术题。
- * **关闭降级后「没带 Turnstile 令牌」的请求一律拒绝** —— 否则脚本只要不带
- * turnstile_token 就能永远走算术题，等于没升级。
+ * 唯一通过路径：带有效 `turnstile_token` 且通过 Cloudflare siteverify。
+ * 未配置密钥、没带令牌、令牌过期或复用、siteverify 网络异常/超时 —— 全部拒绝。
  *
  * @returns null 表示通过；否则返回给用户看的错误文案
  */
 export async function assertHumanCheck(event: any, body: any): Promise<string | null> {
   const cfg = getTurnstileConfig()
-  if (cfg.enabled) {
-    const token = String(body?.turnstile_token ?? '').trim()
-    if (token) {
-      const result = await verifyTurnstileToken(token, getClientIP(event))
-      return result.ok ? null : result.message
-    }
-    if (!cfg.mathFallback) return '请先完成人机验证'
-  }
-  return consumeGuestChallenge(body?.challenge_token, body?.challenge_answer)
+  if (!cfg.enabled) return '人机校验未启用，暂不接受游客提交'
+  const token = String(body?.turnstile_token ?? '').trim()
+  if (!token) return '请先完成人机验证'
+  const result = await verifyTurnstileToken(token, getClientIP(event))
+  return result.ok ? null : result.message
 }
 
 // ─── 内容过滤 ───────────────────────────────────────────────────
@@ -336,8 +222,8 @@ export interface GuestReviewInput {
   qq: unknown
   rating: unknown
   content: unknown
-  challenge_token: unknown
-  challenge_answer: unknown
+  /** Cloudflare Turnstile 一次性令牌（前端挂件通过后回传） */
+  turnstile_token: unknown
 }
 
 /**
@@ -363,7 +249,7 @@ export async function submitGuestReview(
     return { ok: false, status: 404, error: '通告不存在' }
   }
 
-  // ── 1. 人机校验（Turnstile 优先，未配置时回落算术题）──
+  // ── 1. 人机校验（Turnstile；失败即拒绝，无降级）──
   const challengeError = await assertHumanCheck(event, body)
   if (challengeError) return { ok: false, status: 400, error: challengeError }
 

@@ -6,10 +6,11 @@
  *   - 管理员：直接上线；
  *   - 登录用户：进入 pending，待管理员审核；
  *   - **游客（未登录）**：走游客通道（guest-deals.ts，需昵称 + 人机校验），
- *     同样落库 pending，待管理员审核 —— 防滥用由「校验题 + 限频 + 内容过滤 + 后置审核」兜底。
+ *     同样落库 pending，待管理员审核 —— 防滥用由「人机校验 + 限频 + 内容过滤 + 后置审核」兜底。
  *
- * 游客额外字段：{ nickname, challenge_token, challenge_answer }，登录用户的请求体里
- * 出现这些字段时会被忽略（字段级校验只读白名单）。
+ * 游客额外字段：{ nickname, turnstile_token }（Cloudflare Turnstile 一次性令牌），
+ * 登录用户的请求体里出现这些字段时会被忽略（字段级校验只读白名单）。
+ * 令牌缺失 / 过期 / 校验失败 / siteverify 不可用 → 一律拒绝（fail-closed，无降级通道）。
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'

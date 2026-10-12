@@ -3,8 +3,8 @@
  *
  * ## 为什么需要
  *
- * 原先只有 HMAC 签名算术题（`guest-reviews.ts` 的 createGuestChallenge）：
- * 题目是 2~9 的加减法，脚本写两行代码就能批量解，防不住刷量。
+ * 原先只有 HMAC 签名算术题：题目是 2~9 的加减法，脚本写两行代码就能批量解，
+ * 防不住刷量（该实现已整体移除，见下方「失败即拒绝」）。
  * Turnstile 由 Cloudflare 在浏览器侧做行为判分，服务端只发一次 siteverify，
  * 强度高得多，且不改变「游客无需登录」的产品形态。
  *
@@ -14,13 +14,13 @@
  *   - 前端拿 site key 渲染挂件，用户通过后拿到一次性 token
  *   - 服务端把 token + secret + remoteip 送 siteverify，只认 `success`
  *
- * ## 境内可达性
+ * ## 失败即拒绝（fail-closed）
  *
  * 挂件脚本来自 challenges.cloudflare.com，境内无代理访客可能加载失败。
- * 因此 `turnstile_math_fallback` 打开时允许回落到算术题（前端组件加载失败
- * 或超时后自动带 `?fallback=1` 重新要一道算术题），避免把访客彻底挡在门外。
- * 注意：降级开着时，刷量脚本也可以选择降级通道，实际强度取决于算术题；
- * 确认访客都能加载挂件后，可关闭降级以获得完整强度。
+ * 这里**刻意不留任何降级旁路**：脚本加载失败、令牌缺失、siteverify 网络异常、
+ * 校验不通过 —— 一律拒绝提交（返回可读文案，前端提示重试）。
+ * 理由：算术题两行代码就能批量解，只要它作为兜底通道存在，整体强度就退化到算术题水平。
+ * 关闭 `turnstile_enabled`（或任一密钥留空）时游客通道整体关闭，同样不放行。
  */
 import { getConfig } from './config'
 
@@ -32,11 +32,9 @@ export interface TurnstileConfig {
   enabled: boolean
   siteKey: string
   secretKey: string
-  /** 挂件加载失败时是否允许回落算术题 */
-  mathFallback: boolean
 }
 
-/** 读取 Turnstile 配置；密钥不全时 enabled 恒为 false（避免配错就卡死全站游客通道） */
+/** 读取 Turnstile 配置；密钥不全时 enabled 恒为 false —— 此时游客通道整体关闭（不放行） */
 export function getTurnstileConfig(): TurnstileConfig {
   const siteKey = getConfig('turnstile_site_key').trim()
   const secretKey = getConfig('turnstile_secret_key').trim()
@@ -44,7 +42,6 @@ export function getTurnstileConfig(): TurnstileConfig {
     enabled: getConfig('turnstile_enabled') === 'true' && !!siteKey && !!secretKey,
     siteKey,
     secretKey,
-    mathFallback: getConfig('turnstile_math_fallback') !== 'false',
   }
 }
 
@@ -64,7 +61,7 @@ export async function verifyTurnstileToken(token: unknown, remoteIp: string): Pr
   if (!tokenStr) return { ok: false, reason: 'missing', message: '请先完成人机验证' }
 
   const cfg = getTurnstileConfig()
-  if (!cfg.enabled) return { ok: false, reason: 'failed', message: '人机校验未启用，请刷新页面重试' }
+  if (!cfg.enabled) return { ok: false, reason: 'failed', message: '人机校验未启用，暂不接受游客提交' }
 
   const form = new URLSearchParams({ secret: cfg.secretKey, response: tokenStr })
   if (remoteIp) form.set('remoteip', remoteIp)

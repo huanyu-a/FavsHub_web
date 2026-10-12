@@ -6,9 +6,11 @@
  *   qq?: string,               // 可选，仅用于取 QQ 头像（服务端加密存储，绝不明文外泄）
  *   rating: 1-5,
  *   content: string,           // 最长 1000 字
- *   challenge_token: string,   // 人机校验令牌（来自 guest-review-challenge）
- *   challenge_answer: number,  // 人机校验答案
+ *   turnstile_token: string,   // Cloudflare Turnstile 一次性令牌（来自挂件，必填）
  * }
+ *
+ * 人机校验 fail-closed：令牌缺失 / 过期 / 复用 / 校验失败 / siteverify 不可用
+ * 一律拒绝提交，没有算术题降级通道。
  *
  * 评测**默认 pending**，由通告作者或管理员审核通过后才公开并计入评分。
  *

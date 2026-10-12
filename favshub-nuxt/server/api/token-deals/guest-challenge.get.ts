@@ -1,19 +1,15 @@
 /**
  * GET /api/token-deals/guest-challenge — 游客发布通告的人机校验
  *
- * 按站点配置决定下发方式：
- *   - Turnstile 已启用 → { provider: 'turnstile', site_key, fallback_available }，
- *     前端渲染挂件并把 token 随提交回传（body.turnstile_token）
- *   - 否则 → { provider: 'math', question, token, expires_in }，答案在签名令牌里，
- *     前端把 token 与答案回传（body.challenge_token / challenge_answer）
+ * 按站点配置下发：
+ *   - Turnstile 已配置 → { provider: 'turnstile', site_key }
+ *     前端渲染挂件，用户通过后把一次性令牌随提交回传（body.turnstile_token）
+ *   - 未配置/已关闭 → { provider: 'disabled', message }
+ *     游客通道整体关闭，前端直接提示不可提交
  *
- * 前端挂件加载失败时可带 ?fallback=1 主动要一道算术题（仅「允许降级」时生效）。
+ * 没有算术题降级通道：挂件加载失败即拒绝，不给刷量脚本留旁路。
  * 服务端零 session、零外部状态，重启不影响在途挑战。
  */
-import { getQuery } from 'h3'
 import { issueHumanChallenge } from '../../utils/guest-reviews'
 
-export default defineEventHandler((event) => {
-  const { fallback } = getQuery(event)
-  return issueHumanChallenge(String(fallback ?? '') === '1')
-})
+export default defineEventHandler(() => issueHumanChallenge())

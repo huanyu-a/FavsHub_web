@@ -33,7 +33,7 @@
             <div class="tde-field">
               <span class="field-label">人机校验 <em>*</em></span>
               <div class="guest-challenge">
-                <!-- Turnstile 优先；挂件加载不出来时自动回落算术题，访客不会卡死 -->
+                <!-- fail-closed：挂件失败即拒绝提交，不提供算术题降级通道 -->
                 <TurnstileBox
                   v-if="challengeProvider === 'turnstile'"
                   ref="turnstileRef"
@@ -42,23 +42,11 @@
                   @expired="onTurnstileExpired"
                   @fail="onTurnstileFail"
                 />
-                <template v-else>
-                  <template v-if="challenge.question">
-                    <span class="challenge-q">{{ challenge.question }}</span>
-                    <input
-                      v-model="challengeAnswer"
-                      type="text"
-                      inputmode="numeric"
-                      class="challenge-input"
-                      placeholder="答案"
-                    >
-                    <button type="button" class="challenge-refresh" title="换一题" @click="loadChallenge()">
-                      <i class="ri-refresh-line"></i>
-                    </button>
-                  </template>
-                  <button v-else type="button" class="tde-btn ghost" @click="loadChallenge()">加载校验题</button>
-                </template>
+                <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeDisabledText }}</p>
                 <p v-if="challengeNote" class="challenge-note">{{ challengeNote }}</p>
+                <button v-if="challengeFailed" type="button" class="challenge-retry" @click="retryTurnstile">
+                  <i class="ri-refresh-line"></i> 重新加载验证
+                </button>
               </div>
               <span class="field-hint">游客提交无需登录，同一 IP 每天限 1 条；提交后同样由管理员审核，通过后公开展示。</span>
             </div>
@@ -261,7 +249,7 @@
           <button
             type="button"
             class="tde-btn primary"
-            :disabled="saving || (isProposal && changedFields.length === 0)"
+            :disabled="saving || guestSubmitBlocked || (isProposal && changedFields.length === 0)"
             @click="submit"
           >
             <i :class="saving ? 'ri-loader-4-line spin' : 'ri-check-line'"></i>
@@ -352,7 +340,7 @@ const headSub = computed(() => {
   if (isProposal.value) {
     return '只提交你改动的字段，由通告作者或管理员审核通过后生效。'
   }
-  if (isGuest.value) return '游客提交无需登录（同一 IP 每天限 1 条），答对校验题即可提交；通过管理员审核后公开展示。'
+  if (isGuest.value) return '游客提交无需登录（同一 IP 每天限 1 条），通过人机校验即可提交；通过管理员审核后公开展示。'
   if (isAdmin.value) return '管理员发布将直接上线，无需审核。'
   if (isEdit.value) return '作者编辑即刻生效；通告曾被驳回时会重新进入待审队列。'
   return '提交后由管理员审核，通过后公开展示。'
@@ -403,45 +391,49 @@ const comment = ref('')
 
 // ── 游客身份（isGuest 时生效）──
 const guestNickname = ref('')
-const challenge = ref({ question: '', token: '' })
-const challengeAnswer = ref('')
-// 人机校验方式：turnstile（Cloudflare）优先，math（算术题）为降级通道
-const challengeProvider = ref<'turnstile' | 'math'>('math')
+// 人机校验方式：loading（配置未返回，先不挂载挂件，避免空 site key 触发误报）
+// / turnstile（Cloudflare 挂件）/ disabled（未启用，游客通道关闭）
+const challengeProvider = ref<'loading' | 'turnstile' | 'disabled'>('loading')
 const turnstileSiteKey = ref('')
 const turnstileToken = ref('')
 const challengeNote = ref('')
+const challengeFailed = ref(false)
+const challengeDisabledText = ref('')
 const turnstileRef = ref<any>(null)
 
+/** 游客通道被挡（未启用 / 挂件失败 / 还没通过验证）时禁用提交按钮 */
+const guestSubmitBlocked = computed(() =>
+  isGuest.value && (challengeProvider.value !== 'turnstile' || challengeFailed.value || !turnstileToken.value),
+)
+
 /**
- * 获取人机校验凭据。
- * 按服务端配置决定下发 Turnstile 还是算术题；挂件加载失败时带 fallback=1
- * 再要一道算术题（服务端关闭了降级时仍会返回 Turnstile，不偷偷放行）。
+ * 获取人机校验方式（fail-closed）。
+ * Turnstile 已配置 → 渲染挂件；未配置/已关闭 → 游客通道关闭，直接提示不可提交。
+ * 没有算术题降级：挂件失败就挡住提交，不给刷量脚本留旁路。
  */
-async function loadChallenge(forceMath = false) {
-  challengeAnswer.value = ''
+async function loadChallenge() {
   turnstileToken.value = ''
+  challengeFailed.value = false
+  challengeNote.value = ''
   try {
-    const res = await $fetch<any>(
-      '/api/token-deals/guest-challenge',
-      forceMath ? { query: { fallback: 1 } } : {},
-    )
-    if (res?.provider === 'turnstile' && !forceMath) {
+    const res = await $fetch<any>('/api/token-deals/guest-challenge')
+    if (res?.provider === 'turnstile') {
       challengeProvider.value = 'turnstile'
       turnstileSiteKey.value = String(res.site_key || '')
-      challenge.value = { question: '', token: '' }
     } else {
-      challengeProvider.value = 'math'
-      challenge.value = { question: res?.question || '', token: res?.token || '' }
+      challengeProvider.value = 'disabled'
+      challengeDisabledText.value = res?.message || '人机校验未启用，暂不接受游客提交'
     }
   } catch {
-    challengeProvider.value = 'math'
-    challenge.value = { question: '', token: '' }
+    challengeProvider.value = 'disabled'
+    challengeDisabledText.value = '人机校验配置获取失败，请刷新页面重试'
   }
 }
 
 function onTurnstileSuccess(token: string) {
   turnstileToken.value = token
   challengeNote.value = ''
+  challengeFailed.value = false
 }
 
 /** 令牌 300s 过期：提示重新验证（挂件会自动重置） */
@@ -450,14 +442,24 @@ function onTurnstileExpired() {
   challengeNote.value = '人机验证已过期，请重新点击验证'
 }
 
-/** 挂件加载/渲染失败（境内无代理最常见）：能降级就降级，别把访客挡在门外 */
+/**
+ * 挂件加载/渲染/校验失败：**不降级**，挡住提交并给出重试入口。
+ * 110200 = 该域名不在挂件允许列表里（需在 Cloudflare 后台给挂件加域名）
+ */
 function onTurnstileFail(reason: string) {
   turnstileToken.value = ''
-  // 110200 = 该域名不在挂件的允许列表里（Cloudflare 后台需加域名或换挂件）
+  challengeFailed.value = true
   challengeNote.value = reason.includes('110200')
-    ? '人机验证未对当前域名开放，已切换为算术题'
-    : '人机验证组件加载失败，正在切换为算术题…'
-  loadChallenge(true)
+    ? '人机验证未对当前域名开放，暂时无法提交（需站长在 Cloudflare 后台授权本站域名）'
+    : `${reason || '人机验证组件加载失败'}，暂时无法提交，请检查网络后重试`
+}
+
+/** 重新加载挂件（脚本加载失败时已移除坏标签，可重试） */
+function retryTurnstile() {
+  challengeFailed.value = false
+  challengeNote.value = ''
+  turnstileToken.value = ''
+  turnstileRef.value?.retry?.()
 }
 
 /** 令牌一次性：提交后必须重置换新，否则重试必然报「已过期」 */
@@ -602,12 +604,12 @@ async function submit() {
   // ── 发布 / 编辑自己的通告（游客走同一端点的游客通道）──
   if (isGuest.value) {
     if (!guestNickname.value.trim()) { errorText.value = '请填写昵称'; return }
-    if (challengeProvider.value === 'turnstile') {
-      if (!turnstileToken.value) { errorText.value = '请先完成人机验证'; return }
-    } else {
-      if (!challenge.value.token) { errorText.value = '请先加载并完成人机校验'; return }
-      if (!challengeAnswer.value.trim()) { errorText.value = '请填写人机校验答案'; return }
+    if (challengeProvider.value === 'disabled') {
+      errorText.value = challengeDisabledText.value || '人机校验未启用，暂不接受游客提交'
+      return
     }
+    if (challengeFailed.value) { errorText.value = '人机验证未就绪，请点击「重新加载验证」'; return }
+    if (!turnstileToken.value) { errorText.value = '请先完成人机验证'; return }
   }
 
   saving.value = true
@@ -615,12 +617,7 @@ async function submit() {
     const body: Record<string, any> = { ...cur }
     if (isGuest.value) {
       body.nickname = guestNickname.value.trim()
-      if (challengeProvider.value === 'turnstile') {
-        body.turnstile_token = turnstileToken.value
-      } else {
-        body.challenge_token = challenge.value.token
-        body.challenge_answer = Number(challengeAnswer.value.trim())
-      }
+      body.turnstile_token = turnstileToken.value
     }
 
     const res = await $fetch<{ success: boolean; message?: string }>(
@@ -636,14 +633,9 @@ async function submit() {
   } catch (err: any) {
     const errMsg = String(err?.data?.error || '')
     errorText.value = errMsg || err?.message || '提交失败，请稍后重试'
-    if (challengeProvider.value === 'turnstile') {
-      // 令牌一次性：失败也必须换新，否则用户点重试必然又报过期
-      resetTurnstile()
-      if (errMsg.includes('人机验证')) challengeNote.value = errMsg
-    } else if (errMsg.includes('校验')) {
-      // 校验题是一次性的（答题即消耗），失败后换一题避免重复提交同一答案
-      loadChallenge()
-    }
+    // 令牌一次性：失败也必须换新，否则用户点重试必然又报过期
+    resetTurnstile()
+    if (errMsg.includes('人机验证')) challengeNote.value = errMsg
   } finally {
     saving.value = false
   }
@@ -680,7 +672,7 @@ onMounted(() => {
   // 快照原始值 —— 提案模式据此算 diff（必须放在表单填充之后）
   original.value = currentPatch()
 
-  // 游客模式：预取人机校验题，省去一次手动点击
+  // 游客模式：预取人机校验方式（Turnstile 挂件 / 通道关闭），省去一次手动点击
   if (isGuest.value) loadChallenge()
 })
 
@@ -1052,6 +1044,25 @@ onUnmounted(() => {
 }
 .challenge-refresh:hover { background: var(--surface-hover); color: var(--primary); }
 .challenge-refresh:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* 挂件加载失败时的重试入口（fail-closed：失败即挡住提交，不降级） */
+.challenge-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.challenge-retry:hover { background: var(--surface-hover); color: var(--primary); }
+.challenge-retry:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
