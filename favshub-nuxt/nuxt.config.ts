@@ -83,7 +83,7 @@ export default defineNuxtConfig({
         // hm.baidu.com：百度统计；img/connect 已允许 https 外链图标与接口；
         // blob: 允许分享卡片预览 <img> 加载 canvas.toBlob 生成的对象 URL
         // challenges.cloudflare.com：游客通道的 Turnstile 人机校验（挂件脚本 + iframe +
-        //   组件内部请求），三处都要放行，否则脚本被 CSP 拒绝后只能回落算术题
+        //   组件内部请求），三处都要放行 —— 脚本被 CSP 拒绝后挂件起不来，游客会被直接挡住提交（fail-closed）
         'Content-Security-Policy': `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hm.baidu.com https:; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';`,
         // 请求浏览器发送系统色彩偏好（auto 模式首屏精确）
         'Accept-CH': 'Sec-CH-Prefers-Color-Scheme',

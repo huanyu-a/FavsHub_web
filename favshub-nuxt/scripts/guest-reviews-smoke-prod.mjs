@@ -13,6 +13,11 @@
  * 用法（在服务器上跑，BASE 指第 2 层 nginx 权威源）：
  *   BASE=http://127.0.0.1:3090 SMOKE_JWT_ADMIN=<管理员 JWT> node guest-reviews-smoke-prod.mjs
  *
+ * ⚠️ Turnstile：生产用**真实密钥**，脚本无法自行过挂件。完整链路需
+ *    `SMOKE_TURNSTILE_TOKEN=<令牌[,令牌...]>`（令牌一次性且 300s 过期，每次提交消耗一个，
+ *    从浏览器 DevTools 的 `cf-turnstile-response` 里取）；不传则只跑「拒绝路径」用例
+ *    （挑战端点契约 / 缺令牌 / 旧算术题凭据 / 伪造令牌），随后清理临时通告退出。
+ *
  * JWT 签发（容器内，需 NUXT_JWT_SECRET）：
  *   docker exec <app容器> node -e '
  *     const c=require("crypto"), b64=o=>Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -29,6 +34,16 @@
 const BASE = process.env.BASE || 'http://127.0.0.1:3090'
 const JWT = process.env.SMOKE_JWT_ADMIN
 const TAG = '__pv'
+
+const TOKEN_POOL = (process.env.SMOKE_TURNSTILE_TOKEN || '').split(',').map(x => x.trim()).filter(Boolean)
+const TEST_KEY_RE = /^[123]x0{8,}/
+let isTestKey = false
+let tokenCursor = 0
+
+/** 取一个 Turnstile 令牌（真实密钥环境由外部传入，一次性；测试密钥环境不适用本脚本） */
+function nextToken() {
+  return tokenCursor < TOKEN_POOL.length ? TOKEN_POOL[tokenCursor++] : ''
+}
 
 let pass = 0, fail = 0
 const failures = []
@@ -104,6 +119,17 @@ const QQ2 = '87654321'
 const auth = { authorization: `Bearer ${JWT}` }
 let dealId = null
 
+/** 无法继续时：先删掉临时通告再收尾，避免在生产留下残留 */
+async function bail(msg) {
+  console.log(msg)
+  if (dealId) {
+    await req('DELETE', `/api/token-deals/${dealId}`, { headers: auth, expect: 200 })
+    console.log(`  已清理临时通告 ${dealId}`)
+  }
+  console.log(`\n══ 结果：${pass} 通过 / ${fail} 失败（部分用例跳过）══`)
+  process.exit(fail ? 1 : 0)
+}
+
 async function main() {
   if (!JWT) { console.error('缺少 SMOKE_JWT_ADMIN'); process.exit(1) }
   console.log(`\n基准地址: ${BASE}`)
@@ -127,15 +153,40 @@ async function main() {
   if (!dealId) { console.log('无法建临时通告，终止'); process.exit(1) }
   console.log(`  临时通告: ${dealId}`)
 
-  // ── 1. 人机校验端点 ──
+  // ── 1. 人机校验端点（fail-closed：只下发 Turnstile，算术题已整体移除）──
   console.log('\n══ 1. 人机校验端点 ══')
   const ch = await req('GET', `/api/token-deals/${dealId}/guest-review-challenge`, { expect: 200 })
-  ok(typeof ch.data?.question === 'string' && ch.data.question.length > 0, '返回题目')
-  ok(typeof ch.data?.token === 'string' && ch.data.token.includes('.'), '返回签名令牌')
-  eq(ch.data?.expires_in, 600, '有效期 600 秒')
-  const payload = JSON.parse(Buffer.from(ch.data.token.split('.')[0], 'base64url').toString())
+  eq(ch.data?.provider, 'turnstile', '下发 Turnstile')
+  ok(typeof ch.data?.site_key === 'string' && ch.data.site_key.length > 10, '返回 site_key')
+  ok(!('question' in (ch.data || {})), '★ 不再下发题目（算术题已移除）')
+  ok(!('token' in (ch.data || {})), '★ 不再下发签名令牌')
+  ok(!('fallback_available' in (ch.data || {})), '★ 不再有降级开关')
 
   await req('GET', '/api/token-deals/__no_such__/guest-review-challenge', { expect: 404 })
+
+  // 拒绝路径（任何环境都必须成立）：缺令牌 / 只带旧算术题凭据
+  const gDeny = jar(nextIp())
+  const noTok = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+    body: { nickname: `${TAG}_notoken`, rating: 5, content: `${TAG} 缺令牌应被拒。` },
+    jar: gDeny, expect: 400,
+  })
+  ok(String(noTok.data?.error || '').includes('人机验证'), '★ 缺令牌被拒')
+  const oldMath = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+    body: {
+      nickname: `${TAG}_oldmath`, rating: 5, content: `${TAG} 旧算术题凭据应被拒。`,
+      challenge_token: 'x.y', challenge_answer: 1,
+    },
+    jar: gDeny, expect: 400,
+  })
+  ok(!!oldMath.data?.error, '★ 旧算术题凭据被拒（旧通道已移除）')
+
+  isTestKey = TEST_KEY_RE.test(String(ch.data?.site_key || ''))
+  const tok1 = nextToken()
+  if (!tok1) {
+    await bail('  ⏭ 未提供 SMOKE_TURNSTILE_TOKEN（生产真实密钥无法自动过挂件），跳过提交链路。\n'
+      + '     已覆盖：挑战端点契约 + 缺令牌/旧凭据拒绝路径。\n'
+      + '     需要完整链路：SMOKE_TURNSTILE_TOKEN=<令牌>（一次性，多个用逗号分隔）。')
+  }
 
   // ── 2. 提交游客评测（含 QQ 头像）──
   console.log('\n══ 2. 提交游客评测 ══')
@@ -143,7 +194,7 @@ async function main() {
   const body1 = {
     nickname: `${TAG}_guest`, qq: QQ, rating: 5,
     content: `${TAG} 生产验证用评测内容。`,
-    challenge_token: ch.data.token, challenge_answer: payload.a,
+    turnstile_token: tok1,
   }
   const sub = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, { body: body1, jar: g1, expect: 200 })
   ok(sub.data?.success === true, '提交成功')
@@ -162,45 +213,39 @@ async function main() {
   // ── 3. 人机校验边界 ──
   console.log('\n══ 3. 人机校验边界 ══')
   const g2 = jar(nextIp())
-  const reuse = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-    body: { ...body1, nickname: `${TAG}_reuse` }, jar: g2, expect: 400,
-  })
-  ok(String(reuse.data?.error || '').includes('已使用'), '★ 令牌不可重复使用')
+  // 复用/伪造令牌：真实密钥下由 Cloudflare 拒绝（timeout-or-duplicate / invalid-input-response）
+  if (!isTestKey) {
+    const reuse = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+      body: { ...body1, nickname: `${TAG}_reuse` }, jar: g2, expect: 400,
+    })
+    ok(!!reuse.data?.error, '★ 令牌不可重复使用')
+    const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+      body: { ...body1, nickname: `${TAG}_forge`, turnstile_token: 'forged.token.value' },
+      jar: g2, expect: 400,
+    })
+    ok(!!forged.data?.error, '伪造令牌被拒')
+  } else {
+    console.log('  ⏭ 测试密钥（always-pass）下跳过复用/伪造令牌断言')
+  }
 
-  const ch2 = await req('GET', `/api/token-deals/${dealId}/guest-review-challenge`, { expect: 200 })
-  const wrong = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-    body: { ...body1, nickname: `${TAG}_wrong`, challenge_token: ch2.data.token, challenge_answer: 999999 },
-    jar: g2, expect: 400,
-  })
-  ok(String(wrong.data?.error || '').includes('不正确'), '错答被拒')
-
-  const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-    body: {
-      ...body1, nickname: `${TAG}_forge`,
-      challenge_token: ch2.data.token.split('.')[0] + '.AAAAAAAAAAAAAAAAAAAAAAAA',
-      challenge_answer: 1,
-    },
-    jar: g2, expect: 400,
-  })
-  ok(!!forged.data?.error, '伪造令牌被拒')
-
-  const ch3 = await req('GET', `/api/token-deals/${dealId}/guest-review-challenge`, { expect: 200 })
-  const p3 = JSON.parse(Buffer.from(ch3.data.token.split('.')[0], 'base64url').toString())
+  // 非法 QQ：过了人机校验仍应被字段校验拒绝
+  const tok2 = nextToken()
+  if (!tok2) await bail('  ⏭ 令牌已用尽，跳过非法 QQ 用例。')
   const badQQ = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-    body: { ...body1, nickname: `${TAG}_badqq`, qq: 'abc', challenge_token: ch3.data.token, challenge_answer: p3.a },
+    body: { ...body1, nickname: `${TAG}_badqq`, qq: 'abc', turnstile_token: tok2 },
     jar: g2, expect: 400,
   })
   ok(String(badQQ.data?.error || '').includes('QQ'), '非法 QQ 号被拒')
 
   // ── 4. 同访客覆盖（cookie 身份）──
   console.log('\n══ 4. 同访客覆盖 ══')
-  const ch4 = await req('GET', `/api/token-deals/${dealId}/guest-review-challenge`, { expect: 200 })
-  const p4 = JSON.parse(Buffer.from(ch4.data.token.split('.')[0], 'base64url').toString())
+  const tok3 = nextToken()
+  if (!tok3) await bail('  ⏭ 令牌已用尽，跳过同访客覆盖用例。')
   const ov = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
     body: {
       nickname: `${TAG}_guest`, qq: QQ2, rating: 3,
       content: `${TAG} 覆盖后内容。`,
-      challenge_token: ch4.data.token, challenge_answer: p4.a,
+      turnstile_token: tok3,
     },
     jar: g1, expect: 200,
   })
