@@ -16,20 +16,15 @@
 const BASE = process.env.SMOKE_BASE || 'http://127.0.0.1:3000'
 
 /**
- * Turnstile 令牌来源（fail-closed：人机校验没有降级通道）：
- *   - 目标环境用 Cloudflare **测试密钥**（site_key 形如 1x00000000000000000000AA）时，
- *     always-pass 密钥会放行任意令牌 → 用占位令牌即可跑完整链路；
- *   - 目标环境用**真实密钥**时脚本无法自行产出令牌（需真人过挂件）→ 用
- *     SMOKE_TURNSTILE_TOKEN=<令牌[,令牌...]> 传入（令牌一次性，每次提交消耗一个），
- *     不传则只跑「拒绝路径」用例。
+ * Turnstile 令牌来源（fail-closed：没有降级通道，也没有测试密钥旁路）：
+ * 目标环境必须用 Cloudflare **真实密钥**，令牌只能由真人过挂件产出 —— 用
+ * SMOKE_TURNSTILE_TOKEN=<令牌[,令牌...]> 传入（令牌一次性且 300s 过期，每次提交消耗一个）；
+ * 不传则只跑「拒绝路径」用例。官方测试密钥已被服务端判定为未启用（恒真放行 = 没有校验）。
  */
 const TOKEN_POOL = (process.env.SMOKE_TURNSTILE_TOKEN || '').split(',').map(s => s.trim()).filter(Boolean)
-const TEST_KEY_RE = /^[123]x0{8,}/
-let isTestKey = false
 let tokenCursor = 0
 
 function nextToken() {
-  if (isTestKey) return 'XXXX.DUMMY.TOKEN.XXXX'
   return tokenCursor < TOKEN_POOL.length ? TOKEN_POOL[tokenCursor++] : ''
 }
 
@@ -127,6 +122,11 @@ async function main() {
   // 不存在的通告 → 404
   await req('GET', '/api/token-deals/__no_such_deal__/guest-review-challenge', { expect: 404 })
 
+  if (ch.data?.provider !== 'turnstile') {
+    bail('  ⏭ 目标环境未启用 Turnstile：未配置密钥，或配置的是 Cloudflare 官方测试密钥（服务端已判定为未启用）。\n'
+      + '     游客通道整体关闭属 fail-closed 预期行为，但冒烟无法继续。')
+  }
+
   // 拒绝路径（任何环境都必须成立）：缺令牌 / 只带旧算术题凭据
   const jarDeny = makeJar()
   const noTok = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
@@ -143,14 +143,12 @@ async function main() {
   })
   ok(!!oldMath.data?.error, '★ 旧算术题凭据被拒（旧通道已移除）')
 
-  isTestKey = TEST_KEY_RE.test(String(ch.data?.site_key || ''))
   const tok1 = nextToken()
   if (!tok1) {
-    bail('  ⏭ 目标环境使用真实 Turnstile 密钥，脚本无法产出令牌（需真人过挂件）。\n'
+    bail('  ⏭ 目标环境用真实 Turnstile 密钥，脚本无法自行产出令牌（需真人过挂件）。\n'
       + '     已覆盖：挑战端点契约 + 缺令牌/旧凭据拒绝路径。\n'
-      + '     需要完整链路：SMOKE_TURNSTILE_TOKEN=<令牌>（可逗号分隔多个，一次性），或改跑测试密钥环境。')
+      + '     需要完整链路：SMOKE_TURNSTILE_TOKEN=<令牌>（可逗号分隔多个，一次性）。')
   }
-  if (isTestKey) console.log('  令牌：测试密钥环境 → 使用占位令牌（always-pass 必过）')
 
   // ── 2. 提交游客评测（含 QQ 头像）──
   console.log('\n══ 2. 提交游客评测 ══')
@@ -184,16 +182,12 @@ async function main() {
   // ── 3. 人机校验边界 ──
   console.log('\n══ 3. 人机校验边界 ══')
   const jarB = makeJar()
-  // 伪造令牌：真实密钥下 siteverify 拒绝；测试密钥是 always-pass，只能跳过（由 Cloudflare 侧保证）
-  if (!isTestKey) {
-    const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-      body: { ...submitBody, nickname: '__smoke_forge', turnstile_token: 'forged.token.value' },
-      jar: jarB, expect: 400,
-    })
-    ok(!!forged.data?.error, '伪造令牌被拒')
-  } else {
-    console.log('  ⏭ 测试密钥（always-pass）下跳过伪造令牌断言')
-  }
+  // 伪造令牌：真实密钥下 siteverify 必然拒绝
+  const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+    body: { ...submitBody, nickname: '__smoke_forge', turnstile_token: 'forged.token.value' },
+    jar: jarB, expect: 400,
+  })
+  ok(!!forged.data?.error, '伪造令牌被拒')
 
   // 非法 QQ：过了人机校验仍应被字段校验拒绝
   const tok2 = nextToken()

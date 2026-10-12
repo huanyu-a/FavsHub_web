@@ -17,6 +17,7 @@
  *    `SMOKE_TURNSTILE_TOKEN=<令牌[,令牌...]>`（令牌一次性且 300s 过期，每次提交消耗一个，
  *    从浏览器 DevTools 的 `cf-turnstile-response` 里取）；不传则只跑「拒绝路径」用例
  *    （挑战端点契约 / 缺令牌 / 旧算术题凭据 / 伪造令牌），随后清理临时通告退出。
+ *    官方测试密钥不可用：服务端已判定其恒真放行，直接视为未启用（游客通道关闭）。
  *
  * JWT 签发（容器内，需 NUXT_JWT_SECRET）：
  *   docker exec <app容器> node -e '
@@ -36,11 +37,9 @@ const JWT = process.env.SMOKE_JWT_ADMIN
 const TAG = '__pv'
 
 const TOKEN_POOL = (process.env.SMOKE_TURNSTILE_TOKEN || '').split(',').map(x => x.trim()).filter(Boolean)
-const TEST_KEY_RE = /^[123]x0{8,}/
-let isTestKey = false
 let tokenCursor = 0
 
-/** 取一个 Turnstile 令牌（真实密钥环境由外部传入，一次性；测试密钥环境不适用本脚本） */
+/** 取一个 Turnstile 令牌（生产用真实密钥，只能由外部传入；令牌一次性且 300s 过期） */
 function nextToken() {
   return tokenCursor < TOKEN_POOL.length ? TOKEN_POOL[tokenCursor++] : ''
 }
@@ -164,6 +163,11 @@ async function main() {
 
   await req('GET', '/api/token-deals/__no_such__/guest-review-challenge', { expect: 404 })
 
+  if (ch.data?.provider !== 'turnstile') {
+    await bail('  ⏭ 目标环境未启用 Turnstile：未配置密钥，或配置的是 Cloudflare 官方测试密钥（服务端已判定为未启用）。\n'
+      + '     游客通道整体关闭属 fail-closed 预期行为，但冒烟无法继续。')
+  }
+
   // 拒绝路径（任何环境都必须成立）：缺令牌 / 只带旧算术题凭据
   const gDeny = jar(nextIp())
   const noTok = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
@@ -180,7 +184,6 @@ async function main() {
   })
   ok(!!oldMath.data?.error, '★ 旧算术题凭据被拒（旧通道已移除）')
 
-  isTestKey = TEST_KEY_RE.test(String(ch.data?.site_key || ''))
   const tok1 = nextToken()
   if (!tok1) {
     await bail('  ⏭ 未提供 SMOKE_TURNSTILE_TOKEN（生产真实密钥无法自动过挂件），跳过提交链路。\n'
@@ -213,20 +216,16 @@ async function main() {
   // ── 3. 人机校验边界 ──
   console.log('\n══ 3. 人机校验边界 ══')
   const g2 = jar(nextIp())
-  // 复用/伪造令牌：真实密钥下由 Cloudflare 拒绝（timeout-or-duplicate / invalid-input-response）
-  if (!isTestKey) {
-    const reuse = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-      body: { ...body1, nickname: `${TAG}_reuse` }, jar: g2, expect: 400,
-    })
-    ok(!!reuse.data?.error, '★ 令牌不可重复使用')
-    const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
-      body: { ...body1, nickname: `${TAG}_forge`, turnstile_token: 'forged.token.value' },
-      jar: g2, expect: 400,
-    })
-    ok(!!forged.data?.error, '伪造令牌被拒')
-  } else {
-    console.log('  ⏭ 测试密钥（always-pass）下跳过复用/伪造令牌断言')
-  }
+  // 复用/伪造令牌：由 Cloudflare 拒绝（timeout-or-duplicate / invalid-input-response）
+  const reuse = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+    body: { ...body1, nickname: `${TAG}_reuse` }, jar: g2, expect: 400,
+  })
+  ok(!!reuse.data?.error, '★ 令牌不可重复使用')
+  const forged = await req('POST', `/api/token-deals/${dealId}/guest-reviews`, {
+    body: { ...body1, nickname: `${TAG}_forge`, turnstile_token: 'forged.token.value' },
+    jar: g2, expect: 400,
+  })
+  ok(!!forged.data?.error, '伪造令牌被拒')
 
   // 非法 QQ：过了人机校验仍应被字段校验拒绝
   const tok2 = nextToken()

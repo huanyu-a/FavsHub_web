@@ -243,7 +243,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   `reset()` 换新，否则重试必然报 `timeout-or-duplicate`
 - **配置**（`system_config`，后台「人机校验」卡片）：`turnstile_enabled` / `turnstile_site_key` /
   `turnstile_secret_key`。**site key 或 secret 任一为空时强制视为未启用**
-  （防止配错就卡死整条游客通道）。`GET /api/admin/config` 把私钥回显为 `已设置` 占位符，
+  （防止配错就卡死整条游客通道）；**Cloudflare 官方测试密钥（`1x`/`2x`/`3x` 开头的 site key 或
+  secret）同样强制视为未启用** —— 测试密钥在任意域名恒返回 `success:true`，误配即静默放行、
+  等于没有校验（2026-10-12 安全审查 M2），`getTurnstileConfig()` 里用 `TEST_KEY_RE` 拦截。`GET /api/admin/config` 把私钥回显为 `已设置` 占位符，
   PUT 收到空值或该占位符时**跳过写入**，不会用占位符覆盖真密钥
 - **CSP 必须放行**（`nuxt.config.ts` 的 `/**` 头）：`script-src` 与 `frame-src` 都要有
   `https://challenges.cloudflare.com`（`connect-src` 已有 `https:`）。**漏了 CSP 时挂件脚本被浏览器

@@ -34,12 +34,28 @@ export interface TurnstileConfig {
   secretKey: string
 }
 
-/** 读取 Turnstile 配置；密钥不全时 enabled 恒为 false —— 此时游客通道整体关闭（不放行） */
+/**
+ * Cloudflare 官方测试密钥（site key / secret 形如 `1x000…AA`）。
+ *
+ * 测试密钥在**任意域名**下都恒返回 `success:true`（接受 dummy token）：一旦误配到生产，
+ * 挑战端点照常返回 provider=turnstile、挂件照常渲染、提交照常 200 —— 看起来全都正常，
+ * 实际等于没有校验（静默放行），与 fail-closed 相悖。故直接判定为未启用（游客通道关闭）。
+ * 参考：https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+ */
+const TEST_KEY_RE = /^[123]x0{8,}/
+let warnedTestKey = false
+
+/** 读取 Turnstile 配置；密钥不全或为官方测试密钥时 enabled 恒为 false —— 游客通道整体关闭（不放行） */
 export function getTurnstileConfig(): TurnstileConfig {
   const siteKey = getConfig('turnstile_site_key').trim()
   const secretKey = getConfig('turnstile_secret_key').trim()
+  const testKey = TEST_KEY_RE.test(siteKey) || TEST_KEY_RE.test(secretKey)
+  if (testKey && !warnedTestKey) {
+    warnedTestKey = true
+    console.warn('[Turnstile] 检测到 Cloudflare 官方测试密钥（恒真放行），已判定为未启用 —— 游客通道关闭')
+  }
   return {
-    enabled: getConfig('turnstile_enabled') === 'true' && !!siteKey && !!secretKey,
+    enabled: getConfig('turnstile_enabled') === 'true' && !!siteKey && !!secretKey && !testKey,
     siteKey,
     secretKey,
   }

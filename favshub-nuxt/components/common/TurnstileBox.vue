@@ -17,6 +17,8 @@ const emit = defineEmits<{
 const box = ref<HTMLElement | null>(null)
 let api: any = null
 let widgetId: string | null = null
+/** retry() 是否正在进行：防连点并发渲染 */
+let mounting = false
 
 async function mount() {
   try {
@@ -55,12 +57,15 @@ function reset() {
 
 /** 重新加载挂件：脚本加载失败时 loadTurnstileScript 已移除坏标签，可直接重试 */
 function retry() {
+  // 连点守卫：并发 render 会让 widgetId 被覆盖，前一个 widget 再也 remove 不掉（泄漏）
+  if (mounting) return
+  mounting = true
   if (api && widgetId) {
     try { api.remove(widgetId) } catch { /* 忽略 */ }
   }
   widgetId = null
   if (box.value) box.value.innerHTML = ''
-  mount()
+  mount().finally(() => { mounting = false })
 }
 
 onBeforeUnmount(() => {

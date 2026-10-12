@@ -1002,7 +1002,7 @@ onUnmounted(() => {
 .tde-btn.primary:active:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
 .spin { animation: modal-spin 1s linear infinite; }
 
-/* 游客身份：人机校验行（挑战题 + 答案输入 + 换一题） */
+/* 游客身份：人机校验行（Turnstile 挂件 / 未启用提示 / 失败重试） */
 .challenge-note {
   margin: 6px 0 0;
   font-size: 12px;
@@ -1013,39 +1013,6 @@ onUnmounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.challenge-q {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-/* 覆写 .tde-field input[type=text] 的 width:100%，让答案输入框在行内自适应 */
-.guest-challenge input.challenge-input {
-  width: auto;
-  flex: 1 1 110px;
-  min-width: 0;
-  max-width: 160px;
-}
-.challenge-refresh {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  border: 0.5px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  color: var(--text-tertiary);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.challenge-refresh:hover { background: var(--surface-hover); color: var(--primary); }
-.challenge-refresh:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
 }
 /* 挂件加载失败时的重试入口（fail-closed：失败即挡住提交，不降级） */
 .challenge-retry {

@@ -100,13 +100,13 @@
           </div>
           <div class="fg"><label>站点密钥 Site Key</label>
             <input v-model="turnstile.turnstile_site_key" placeholder="0x4AAAAAAA…（Cloudflare 后台「站点密钥」）" @input="saveTurnstile">
-            <small>会下发给浏览器渲染挂件；两个密钥任一为空时视为未启用（游客通道关闭）</small>
+            <small>会下发给浏览器渲染挂件；两个密钥任一为空、或填的是 Cloudflare 官方测试密钥（1x/2x/3x 开头），一律视为未启用（游客通道关闭）</small>
           </div>
           <div class="fg"><label>私钥 Secret Key</label>
             <input v-model="turnstile.turnstile_secret_key" type="password" placeholder="粘贴 Cloudflare 后台「密钥」" @focus="onSecretFocus" @input="saveTurnstile">
             <small>仅服务端使用，接口不回显；留空表示不修改已保存的私钥</small>
           </div>
-          <p class="hint">安全策略：<strong>失败即拒绝</strong>，不做任何降级。挂件脚本加载失败、令牌缺失或过期、siteverify 不可用、校验不通过 —— 一律拒绝提交。因此境内无代理访客（加载不出 challenges.cloudflare.com）将无法提交游客通告/评测；这是刻意的取舍，需要放行时只能改用其他可达的人机校验方案。</p>
+          <p class="hint">安全策略：<strong>失败即拒绝</strong>，不做任何降级。挂件脚本加载失败、令牌缺失或过期、siteverify 不可用、校验不通过 —— 一律拒绝提交。因此境内无代理访客（加载不出 challenges.cloudflare.com）将无法提交游客通告/评测；这是刻意的取舍，需要放行时只能改用其他可达的人机校验方案。另：Cloudflare 官方<strong>测试密钥</strong>（<code>1x</code>/<code>2x</code>/<code>3x</code> 开头）在任意域名都恒返回校验通过，等于没有校验，服务端已直接判定为未启用。</p>
         </div>
       </div>
 
