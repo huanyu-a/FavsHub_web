@@ -20,7 +20,7 @@
  *
  * ## 防滥用四层
  *
- *   1. **人机校验** —— Cloudflare Turnstile（见 `./turnstile`），**失败即拒绝**；
+ *   1. **人机校验** —— Cloudflare Turnstile（见 `./human-check`），**失败即拒绝**；
  *      未配置或关闭时游客通道整体关闭，不留算术题等降级旁路
  *   2. **双层限频** —— 每 IP 每小时 N 条 + 每 IP 每通告终身 1 条（后者靠指纹去重实现）
  *   3. **内容过滤** —— 长度、链接数、灌水词
@@ -34,7 +34,8 @@ import { normalizeViewer as normalizeViewerLocal } from './deal-edits'
 import { isUserAdmin as isUserAdminLocal } from './ai-service'
 import { optionalAuth } from './auth'
 import { checkRateLimit, getClientIP } from './rate-limit'
-import { getTurnstileConfig, verifyTurnstileToken } from './turnstile'
+import { assertHumanCheck } from './human-check'
+import { hasSpamText } from './spam'
 import { avatarUrl, digest, encryptQQ, isValidQQ } from './avatar'
 
 type DB = Database.Database
@@ -56,53 +57,6 @@ export const GUEST_LIMITS = {
   perDealPerIp: 1,
 } as const
 
-/** 灌水/广告词黑名单（命中即拒，不做模糊匹配以免误伤正常表达） */
-const SPAM_PATTERNS = [
-  /加\s*(微信|VX|vx|QQ|qq|群)/,
-  /(免费|大量|专业)\s*(代|刷|接)\s*(充|单|量)/,
-  /http[^\s]{0,4}:\/\/[^\s]*\.(?:top|xyz|icu|buzz|click)\b/i,
-  /(点击|访问)\s*下方?\s*(链接|广告)/,
-  /(博彩|赌场|色情|代开发票|办证)/,
-]
-
-// ─── 人机校验（发布通告 / 发表评测共用）─────────────────────────
-
-export type HumanChallenge =
-  | { provider: 'turnstile'; site_key: string }
-  | { provider: 'disabled'; message: string }
-
-/**
- * 下发人机校验方式。
- *
- * 只可能有两种结果：Turnstile 已配置 → 前端渲染挂件；未配置/已关闭 → 游客通道关闭。
- * **没有算术题降级**：挂件加载失败或校验不通过一律拒绝，
- * 避免刷量脚本改走兜底通道（那等于没做校验）。
- */
-export function issueHumanChallenge(): HumanChallenge {
-  const cfg = getTurnstileConfig()
-  if (!cfg.enabled) {
-    return { provider: 'disabled', message: '人机校验未启用，暂不接受游客提交' }
-  }
-  return { provider: 'turnstile', site_key: cfg.siteKey }
-}
-
-/**
- * 校验游客提交的人机凭据（fail-closed）。
- *
- * 唯一通过路径：带有效 `turnstile_token` 且通过 Cloudflare siteverify。
- * 未配置密钥、没带令牌、令牌过期或复用、siteverify 网络异常/超时 —— 全部拒绝。
- *
- * @returns null 表示通过；否则返回给用户看的错误文案
- */
-export async function assertHumanCheck(event: any, body: any): Promise<string | null> {
-  const cfg = getTurnstileConfig()
-  if (!cfg.enabled) return '人机校验未启用，暂不接受游客提交'
-  const token = String(body?.turnstile_token ?? '').trim()
-  if (!token) return '请先完成人机验证'
-  const result = await verifyTurnstileToken(token, getClientIP(event))
-  return result.ok ? null : result.message
-}
-
 // ─── 内容过滤 ───────────────────────────────────────────────────
 
 /**
@@ -118,16 +72,8 @@ function validateGuestContent(content: string): string | null {
   const links = content.match(/https?:\/\//gi)?.length ?? 0
   if (links > GUEST_LIMITS.links) return `内容中链接过多（最多 ${GUEST_LIMITS.links} 个）`
 
-  for (const re of SPAM_PATTERNS) {
-    if (re.test(content)) return '内容包含疑似广告或违规信息，请修改后重试'
-  }
+  if (hasSpamText(content)) return '内容包含疑似广告或违规信息，请修改后重试'
   return null
-}
-
-/** 文本命中灌水/广告黑名单（供游客通告等其它游客通道复用） */
-export function hasGuestSpam(text: string): boolean {
-  if (!text) return false
-  return SPAM_PATTERNS.some(re => re.test(text))
 }
 
 // ─── 序列化 ─────────────────────────────────────────────────────

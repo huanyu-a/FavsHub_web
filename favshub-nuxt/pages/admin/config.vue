@@ -98,6 +98,14 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div class="toggle-row">
+            <label>注册也需人机校验</label>
+            <label class="switch">
+              <input type="checkbox" v-model="turnstile.register_turnstile_enabled" @change="saveTurnstile">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p class="hint">关闭后注册不再校验。注册是「登录用户评测即时公开、无审核」的唯一入口，关掉等于把那条通道敞开；仅在本站访客加载不出 Cloudflare 挂件时临时关闭，并配合「关闭注册」或调低注册限频。</p>
           <div class="fg"><label>站点密钥 Site Key</label>
             <input v-model="turnstile.turnstile_site_key" placeholder="0x4AAAAAAA…（Cloudflare 后台「站点密钥」）" @input="saveTurnstile">
             <small>会下发给浏览器渲染挂件；两个密钥任一为空、或填的是 Cloudflare 官方测试密钥（1x/2x/3x 开头），一律视为未启用（游客通道关闭）</small>
@@ -293,6 +301,7 @@ function saveQqBot() {
 // ── 人机校验（Cloudflare Turnstile）─────
 const turnstile = reactive({
   turnstile_enabled: false,
+  register_turnstile_enabled: true,
   turnstile_site_key: '',
   // 回填的是接口给的「已设置」占位符；未改动时按掩码跳过，不会覆盖真实私钥
   turnstile_secret_key: '',
@@ -312,6 +321,7 @@ function saveTurnstile() {
         body: {
           data: {
             turnstile_enabled: String(turnstile.turnstile_enabled),
+            register_turnstile_enabled: String(turnstile.register_turnstile_enabled),
             turnstile_site_key: turnstile.turnstile_site_key,
             turnstile_secret_key: turnstile.turnstile_secret_key,
           },
@@ -356,6 +366,7 @@ security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       qqBot.qq_bot_transport = s.qq_bot_transport || 'onebot'
       qqBot.qq_outbox_path = s.qq_outbox_path || ''
       turnstile.turnstile_enabled = s.turnstile_enabled === 'true'
+      turnstile.register_turnstile_enabled = s.register_turnstile_enabled !== 'false'
       turnstile.turnstile_site_key = s.turnstile_site_key || ''
       turnstile.turnstile_secret_key = s.turnstile_secret_key || ''
     }

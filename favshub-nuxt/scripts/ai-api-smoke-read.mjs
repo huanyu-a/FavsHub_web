@@ -9,11 +9,16 @@
 //   6. 审计日志（落库、状态码、无明文与请求体泄露）
 //
 // 用法:
-//   1) 准备临时库（**切勿指向生产库**），并确保开放注册：
+//   1) 准备临时库（**切勿指向生产库**），并确保开放注册、关闭注册人机校验：
 //        sqlite3 data/favshub.db ".backup data-test/ai-smoke.db"
 //        sqlite3 data-test/ai-smoke.db \
 //          "INSERT INTO system_config(key,value) VALUES('allow_registration','true')
-//             ON CONFLICT(key) DO UPDATE SET value='true';"
+//             ON CONFLICT(key) DO UPDATE SET value='true';
+//           INSERT INTO system_config(key,value) VALUES('register_turnstile_enabled','false')
+//             ON CONFLICT(key) DO UPDATE SET value='false';"
+//
+//      注册通道默认要求 Cloudflare Turnstile（fail-closed）—— 脚本拿不到真令牌，
+//      必须显式关掉 register_turnstile_enabled，否则第 1 节的注册必然 400。
 //   2) 启动被测服务（注意 NUXT_ADMIN_USERS 与 NUXT_TRUST_PROXY 两项）：
 //        NUXT_DB_PATH=/tmp/favshub-ai-smoke.db \
 //        NUXT_JWT_SECRET=smoke-secret-key \

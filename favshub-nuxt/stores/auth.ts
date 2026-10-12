@@ -83,11 +83,14 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * 注册
+     *
+     * `turnstileToken`：站点开启「注册需人机校验」时必填（服务端 fail-closed，缺令牌直接 400）。
+     * 令牌**一次性且 300s 过期** —— 注册失败后要重新过一遍挂件再提交。
      */
-    async register(username: string, password: string, email?: string, nickname?: string) {
+    async register(username: string, password: string, email?: string, nickname?: string, turnstileToken?: string) {
       const res = await $fetch<{ token?: string; user: AuthUser }>('/api/auth/register', {
         method: 'POST',
-        body: { username, password, email, nickname },
+        body: { username, password, email, nickname, turnstile_token: turnstileToken || undefined },
         credentials: 'include',
       })
       this.user = res.user

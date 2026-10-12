@@ -215,21 +215,30 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   同领取地址去重。管理员/登录用户不受此限
 - 审核：管理员通过 / 驳回；驳回写 `reject_reason`，**匿名读驳回详情返回 403**，作者可读并可编辑重提
 - 投票：一人一票（`UNIQUE(deal_id, user_id)`）——重复投同向 = **取消**，投反向 = 改票
-- 评测：一人一评（`UNIQUE(deal_id, user_id)`）——重复提交为**更新**（不新增计数）；`rating` 限 1-5，越界 400
+- 评测：一人一评（`UNIQUE(deal_id, user_id)`）——重复提交为**更新**（不新增计数）；`rating` 限 1-5，越界 400。
+  登录用户评测（即时公开、无审核）自 2026-10-12 起同样有限频（每用户 20/h、每 IP 40/h）与广告黑名单过滤
 - 置顶：**仅管理员**（普通用户 403）；删除：作者或管理员
 - 计数：`vote_up` / `vote_down` / `rating_sum` / `rating_count` 为缓存列，统一由 `syncDealCounters(db, id)` 在 `db.transaction` 内重算，勿在各接口里手工 ±1
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）
 
-#### 游客人机校验（2026-10-12 升级为 Cloudflare Turnstile）
+#### 人机校验（2026-10-12 升级为 Cloudflare Turnstile）
 
-游客发布通告（`POST /api/token-deals`）与游客评测（`POST /api/token-deals/[id]/guest-reviews`）
-**共用同一套人机校验**，入口只有两个函数（`server/utils/guest-reviews.ts`）：
+游客发布通告（`POST /api/token-deals`）、游客评测（`POST /api/token-deals/[id]/guest-reviews`）与
+**注册**（`POST /api/auth/register`）**共用同一套人机校验**，入口只有两个函数
+（`server/utils/human-check.ts`）：
 
 | 函数 | 作用 |
 |------|------|
-| `issueHumanChallenge()` | 挑战端点下发校验方式：`{provider:'turnstile',site_key}` 或 `{provider:'disabled',message}` |
-| `assertHumanCheck(event, body)` | 提交时校验：只认 `body.turnstile_token` 过 siteverify，其余一律拒绝 |
+| `issueHumanChallenge(opts?)` | 挑战端点下发校验方式：`{provider:'turnstile',site_key}` 或 `{provider:'disabled',message}`（`opts.disabledMessage` 可换措辞） |
+| `assertHumanCheck(event, body, opts?)` | 提交时校验：只认 `body.turnstile_token` 过 siteverify，其余一律拒绝 |
+
+- **注册通道**（2026-10-12 安全审查 M1）：挑战端点 `GET /api/auth/register-challenge`，
+  开关 `register_turnstile_enabled`（默认 `true`）。**开放注册曾让「登录用户评测即时公开、无审核」
+  成为绕过游客人机校验的后门**（脚本按 10 账号/分钟注册再灌评分）；登录评测现已补限频
+  （`LIMITS.reviewPerUserPerHour` / `reviewPerIpPerHour`）+ 与游客同一份广告黑名单
+  （`server/utils/spam.ts`）。关掉该开关只建议在「访客加载不出挂件」时临时用，且应配合
+  `allow_registration=false` 或调低注册限频 —— 否则等于把注册通道敞开
 
 **策略：失败即拒绝（fail-closed），没有任何降级通道**（2026-10-12 二次调整，原算术题降级已整体移除）。
 挂件脚本加载失败、令牌缺失/过期/复用、siteverify 网络异常或超时、校验不通过 —— 全部返回可读错误并拒绝提交。
@@ -242,7 +251,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   **网络失败一律不放行**（放行等于关掉校验）。令牌**一次性且 300s 过期**，前端每次提交后必须
   `reset()` 换新，否则重试必然报 `timeout-or-duplicate`
 - **配置**（`system_config`，后台「人机校验」卡片）：`turnstile_enabled` / `turnstile_site_key` /
-  `turnstile_secret_key`。**site key 或 secret 任一为空时强制视为未启用**
+  `turnstile_secret_key` / `register_turnstile_enabled`。**site key 或 secret 任一为空时强制视为未启用**
   （防止配错就卡死整条游客通道）；**Cloudflare 官方测试密钥（`1x`/`2x`/`3x` 开头的 site key 或
   secret）同样强制视为未启用** —— 测试密钥在任意域名恒返回 `success:true`，误配即静默放行、
   等于没有校验（2026-10-12 安全审查 M2），`getTurnstileConfig()` 里用 `TEST_KEY_RE` 拦截。`GET /api/admin/config` 把私钥回显为 `已设置` 占位符，

@@ -175,6 +175,27 @@ async function reportOnebot({ message_type, user_id, group_id, raw_message, toke
 
 // ── 应用进程管理 ────────────────────────────────────────────
 
+/**
+ * 关闭「注册人机校验」（2026-10-12 起默认开启，fail-closed）
+ *
+ * 本脚本自建临时库并靠 `/api/auth/register` 造账号；Turnstile 是纯浏览器挂件，
+ * 脚本拿不到令牌 → 不关掉的话注册必然 400。库里没有 system_config 行时按默认值 true 处理，
+ * 所以这里必须显式写 false。
+ */
+function disableRegisterChallenge(dbPath) {
+  const requireFromRoot = createRequire(join(ROOT, 'package.json'))
+  const Database = requireFromRoot('better-sqlite3')
+  const db = new Database(dbPath)
+  try {
+    db.prepare(
+      "INSERT INTO system_config(key,value) VALUES('register_turnstile_enabled','false') " +
+      "ON CONFLICT(key) DO UPDATE SET value='false'"
+    ).run()
+  } finally {
+    db.close()
+  }
+}
+
 let appProcess = null
 
 /**
@@ -273,6 +294,7 @@ async function main() {
   log('▶ 启动应用（PORT=3211，临时库 data/e2e-qqbot-<时间戳>.db）')
   await startApp(dbPath)
   ok('应用已就绪')
+  disableRegisterChallenge(dbPath)
 
   // a. 注册 e2eadmin / alice / bob 并登录
   log('▶ a. 注册并登录 e2eadmin / alice / bob')

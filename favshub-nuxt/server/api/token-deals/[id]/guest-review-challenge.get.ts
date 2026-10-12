@@ -12,7 +12,7 @@
  */
 import { getRouterParams } from 'h3'
 import { getRawDb } from '../../../database'
-import { issueHumanChallenge } from '../../../utils/guest-reviews'
+import { issueHumanChallenge } from '../../../utils/human-check'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)

@@ -6,6 +6,7 @@ import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
 import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 import { getConfigInt, getConfig } from '../../utils/config'
+import { assertHumanCheck } from '../../utils/human-check'
 
 export default defineEventHandler(async (event) => {
   const ip = getClientIP(event)
@@ -42,6 +43,21 @@ export default defineEventHandler(async (event) => {
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username)
   if (existing) {
     throw createError({ statusCode: 409, data: { error: '注册失败，请更换用户名或稍后重试' } })
+  }
+
+  // 人机校验（fail-closed）：开放注册曾被用来批量注册 → 再灌登录评测（登录评测即时公开、
+  // 无审核），等于绕过游客通道的人机校验。这里挡的是注册机器人本身。
+  // 后台「人机校验」卡片可关（register_turnstile_enabled=false）；关掉后本通道不再校验。
+  //
+  // 放在全部字段/存在性校验之后、落库之前：前面的校验失败不会消耗一次性令牌
+  // （令牌一次性且 300s 过期，重复提交必然 timeout-or-duplicate）。
+  if (getConfig('register_turnstile_enabled') !== 'false') {
+    const challengeError = await assertHumanCheck(event, body, {
+      disabledMessage: '人机校验未启用，暂时无法注册，请联系管理员',
+    })
+    if (challengeError) {
+      throw createError({ statusCode: 400, data: { error: challengeError } })
+    }
   }
 
   // 自助注册默认不授予管理员权限。

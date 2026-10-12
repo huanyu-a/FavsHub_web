@@ -10,6 +10,6 @@
  * 没有算术题降级通道：挂件加载失败即拒绝，不给刷量脚本留旁路。
  * 服务端零 session、零外部状态，重启不影响在途挑战。
  */
-import { issueHumanChallenge } from '../../utils/guest-reviews'
+import { issueHumanChallenge } from '../../utils/human-check'
 
 export default defineEventHandler(() => issueHumanChallenge())

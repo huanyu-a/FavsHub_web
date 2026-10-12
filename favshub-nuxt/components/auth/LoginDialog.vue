@@ -43,7 +43,24 @@
             <label>密码</label>
             <input v-model="regForm.password" type="password" required autocomplete="new-password" minlength="8" placeholder="至少 8 位">
           </div>
-          <button type="submit" class="submit-btn" :disabled="loading">
+          <div class="form-group">
+            <label>人机验证</label>
+            <TurnstileBox
+              v-if="challengeProvider === 'turnstile'"
+              ref="turnstileRef"
+              :site-key="challengeSiteKey"
+              @success="onTurnstileSuccess"
+              @expired="onTurnstileExpired"
+              @fail="onTurnstileFail"
+            />
+            <p v-if="challengeFailed" class="challenge-note">
+              {{ challengeFailed }}
+              <button type="button" class="challenge-retry" @click="retryChallenge">重新加载验证</button>
+            </p>
+            <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeMessage }}</p>
+            <p v-else class="challenge-note">正在加载人机验证…</p>
+          </div>
+          <button type="submit" class="submit-btn" :disabled="loading || registerBlocked">
             {{ loading ? '注册中...' : '注册' }}
           </button>
         </form>
@@ -75,6 +92,59 @@ if (regConfig.value) {
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', email: '', password: '' })
 
+// ── 注册人机校验（与游客通道同一套 Cloudflare Turnstile；fail-closed）──
+// 只在切到注册 tab 时才加载挂件脚本，避免登录页每次都去请求 challenges.cloudflare.com
+const challengeProvider = ref<'loading' | 'turnstile' | 'disabled'>('loading')
+const challengeSiteKey = ref('')
+const challengeMessage = ref('')
+const challengeFailed = ref('')
+const turnstileToken = ref('')
+const turnstileRef = ref<{ reset: () => void; retry: () => void } | null>(null)
+/** 未拿到令牌 / 挂件出错 / 通道关闭 → 一律挡住提交（服务端同样 fail-closed） */
+const registerBlocked = computed(() =>
+  challengeProvider.value !== 'turnstile' || !!challengeFailed.value || !turnstileToken.value,
+)
+
+async function loadChallenge() {
+  challengeProvider.value = 'loading'
+  challengeFailed.value = ''
+  turnstileToken.value = ''
+  try {
+    const res = await $fetch<{ provider: string; site_key?: string; message?: string }>('/api/auth/register-challenge')
+    if (res?.provider === 'turnstile' && res.site_key) {
+      challengeSiteKey.value = res.site_key
+      challengeProvider.value = 'turnstile'
+    } else {
+      challengeMessage.value = res?.message || '人机校验未启用，暂时无法注册'
+      challengeProvider.value = 'disabled'
+    }
+  } catch (err: any) {
+    challengeMessage.value = err?.data?.error || '人机校验加载失败，请刷新页面重试'
+    challengeProvider.value = 'disabled'
+  }
+}
+
+function onTurnstileSuccess(token: string) {
+  turnstileToken.value = token
+  challengeFailed.value = ''
+}
+function onTurnstileExpired() {
+  turnstileToken.value = ''
+}
+function onTurnstileFail(reason: string) {
+  turnstileToken.value = ''
+  challengeFailed.value = reason
+}
+function retryChallenge() {
+  challengeFailed.value = ''
+  turnstileRef.value?.retry()
+}
+
+// 切到注册 tab 且还没加载过 → 拉一次校验方式
+watch(tab, (t) => {
+  if (t === 'register' && challengeProvider.value === 'loading') loadChallenge()
+})
+
 function switchTab(t: 'login' | 'register') {
   tab.value = t
   errorMsg.value = ''
@@ -94,15 +164,24 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
+  if (registerBlocked.value) {
+    errorMsg.value = challengeProvider.value === 'disabled'
+      ? (challengeMessage.value || '人机校验未启用，暂时无法注册')
+      : (challengeFailed.value || '请先完成人机验证')
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    await authStore.register(regForm.username, regForm.password, regForm.email || undefined)
+    await authStore.register(regForm.username, regForm.password, regForm.email || undefined, undefined, turnstileToken.value)
     await router.replace('/admin')
   } catch (err: any) {
     errorMsg.value = err?.data?.error || err?.message || '注册失败'
   } finally {
     loading.value = false
+    // 令牌一次性：无论成败都作废换新，否则再次提交必然报 timeout-or-duplicate
+    turnstileToken.value = ''
+    turnstileRef.value?.reset()
   }
 }
 </script>
@@ -303,4 +382,24 @@ async function handleRegister() {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.challenge-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: left;
+}
+.challenge-retry {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.challenge-retry:hover { background: var(--surface-hover); }
+.challenge-retry:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 </style>

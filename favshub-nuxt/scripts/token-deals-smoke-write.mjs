@@ -9,6 +9,11 @@
 //   1) 启动被测服务（务必用库副本，勿指向生产库）:
 //      NUXT_DB_PATH="<临时库路径>" NUXT_JWT_SECRET="smoke-secret-key" \
 //        PORT=3210 HOST=127.0.0.1 node .output/server/index.mjs
+//      **并先关掉「注册人机校验」**（2026-10-12 起默认开启，fail-closed；脚本拿不到 Turnstile 令牌）:
+//        sqlite3 "<临时库路径>" \
+//          "INSERT INTO system_config(key,value) VALUES('register_turnstile_enabled','false')
+//             ON CONFLICT(key) DO UPDATE SET value='false';"
+//      漏了这一步会在第 1 节直接 FATAL 退出（提示同上）。
 //   2) node scripts/token-deals-smoke-write.mjs [baseUrl]
 //
 // 幂等: 账号已存在时自动回退为登录，可重复运行。
@@ -60,6 +65,12 @@ async function ensureAuth(client, username, nickname) {
     body: JSON.stringify({ username, password: PWD, nickname }),
   })
   if (r.status === 200) return { status: 200, isAdmin: r.json?.user?.is_admin, registered: true }
+  if (r.status === 400 && /人机验证|无法注册/.test(r.json?.error || '')) {
+    console.error('\n[FATAL] 注册被「注册人机校验」拦截：' + (r.json?.error || ''))
+    console.error('  请在临时库里执行（脚本无法代劳 —— 它只拿到 baseUrl，没有 dbPath）：')
+    console.error("    sqlite3 \"<临时库路径>\" \"INSERT INTO system_config(key,value) VALUES('register_turnstile_enabled','false') ON CONFLICT(key) DO UPDATE SET value='false';\"")
+    process.exit(1)
+  }
   if (r.status === 409) {
     const l = await client.req('/api/auth/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },

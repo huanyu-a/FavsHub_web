@@ -29,6 +29,7 @@ export const SYSTEM_ONLY_KEYS = [
   'qq_bot_transport', 'qq_outbox_path',
   // 人机校验（Cloudflare Turnstile；密钥为空时视为未启用 —— 游客通道整体关闭，无降级）
   'turnstile_enabled', 'turnstile_site_key', 'turnstile_secret_key',
+  'register_turnstile_enabled',
 ]
 
 /**
@@ -90,4 +91,8 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   turnstile_enabled: 'false',
   turnstile_site_key: '',
   turnstile_secret_key: '',
+  // register_turnstile_enabled：注册通道是否也要过 Turnstile（默认开）。
+  // 关闭后注册不再校验 —— 仅为站点主在「境内访客加载不出挂件」时留的退路，
+  // 此时挡注册机器人要靠 allow_registration 关闭注册或 rate_limit_register_max。
+  register_turnstile_enabled: 'true',
 }

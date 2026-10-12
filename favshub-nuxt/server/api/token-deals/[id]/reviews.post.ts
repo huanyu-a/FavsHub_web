@@ -7,9 +7,17 @@
 import { getRawDb } from '../../../database'
 import { requireAuth } from '../../../utils/auth'
 import { syncDealCounters, LIMITS } from '../../../utils/token-deals'
+import { checkRateLimit, getClientIP } from '../../../utils/rate-limit'
+import { hasSpamText } from '../../../utils/spam'
 
 export default defineEventHandler(async (event) => {
   const user = requireAuth(event)
+
+  // 限频：登录评测即时公开且无审核，缺这道闸时「批量注册 → 灌评分」几乎无成本
+  // （游客评测反而有限频 + 内容过滤）。重复提交按更新计，故额度放宽。
+  checkRateLimit(`review:u${user.id}`, LIMITS.reviewPerUserPerHour, 3_600_000)
+  checkRateLimit(`review:ip:${getClientIP(event)}`, LIMITS.reviewPerIpPerHour, 3_600_000)
+
   const { id } = getRouterParams(event)
   const body = await readBody(event)
 
@@ -24,6 +32,10 @@ export default defineEventHandler(async (event) => {
   }
   if (content.length > LIMITS.reviewContent) {
     throw createError({ statusCode: 400, data: { error: `评测内容不能超过 ${LIMITS.reviewContent} 字` } })
+  }
+  // 与游客评测同一份广告/灌水黑名单（登录用户同样能批量注册出来）
+  if (hasSpamText(content)) {
+    throw createError({ statusCode: 400, data: { error: '内容包含疑似广告或违规信息，请修改后重试' } })
   }
 
   const db = getRawDb()

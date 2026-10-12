@@ -19,13 +19,15 @@
  * ## 防滥用四层（与游客评测同源）
  *
  *   1. 人机校验 —— Cloudflare Turnstile，失败即拒绝（assertHumanCheck）
- *   2. 内容过滤 —— 灌水 / 广告黑名单（hasGuestSpam）+ validateDealPayload 字段校验
+ *   2. 内容过滤 —— 灌水 / 广告黑名单（hasSpamText）+ validateDealPayload 字段校验
  *   3. 限频 —— **同一 IP 每天 1 条**（DB 持久化，重启不丢）
  *      + 每指纹在审通告上限 + 同地址去重
  *   4. 后置审核 —— 默认 pending，管理员通过后才公开
  */
 import type Database from 'better-sqlite3'
-import { assertHumanCheck, guestIdentity, GUEST_LIMITS, hasGuestSpam } from './guest-reviews'
+import { guestIdentity, GUEST_LIMITS } from './guest-reviews'
+import { assertHumanCheck } from './human-check'
+import { hasSpamText } from './spam'
 import { newDealId, validateDealPayload, type DealPayload } from './token-deals'
 
 type DB = Database.Database
@@ -102,7 +104,7 @@ export async function submitGuestDeal(db: DB, event: any, body: any): Promise<Gu
 
   // ── 5. 内容过滤：灌水 / 广告黑名单 ──
   const spamText = [d.provider, d.title, d.quota, d.note, d.models.join(' ')].join('\n')
-  if (hasGuestSpam(spamText)) {
+  if (hasSpamText(spamText)) {
     return { ok: false, status: 400, error: '内容包含疑似广告或违规信息，请修改后重试' }
   }
 

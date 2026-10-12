@@ -41,6 +41,10 @@ export const LIMITS = {
   models: 20,
   modelName: 60,
   reviewContent: 1000,
+  /** 登录用户评测限频（每用户每小时）—— 补的是「批量注册 → 灌评测」这条路 */
+  reviewPerUserPerHour: 20,
+  /** 登录用户评测限频（每 IP 每小时）—— 多账号同源刷量兜底 */
+  reviewPerIpPerHour: 40,
 } as const
 
 /** 是否为合法的 http(s) 地址 */
