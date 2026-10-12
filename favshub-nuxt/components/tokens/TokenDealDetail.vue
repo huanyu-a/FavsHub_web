@@ -361,6 +361,9 @@
                     @fail="onTurnstileFail"
                   />
                   <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeDisabledText }}</p>
+                  <p v-if="challengeRetryable" class="challenge-note">
+                    <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
+                  </p>
                   <p v-if="challengeNote" class="challenge-note">{{ challengeNote }}</p>
                   <button v-if="challengeFailed" type="button" class="challenge-retry" @click="retryTurnstile">
                     <i class="ri-refresh-line"></i> 重新加载验证
@@ -738,6 +741,8 @@ const turnstileToken = ref('')
 const challengeNote = ref('')
 const challengeFailed = ref(false)
 const challengeDisabledText = ref('')
+/** 仅「挑战配置获取失败」为真：给一个「重试加载」按钮（通道未启用时无从重试） */
+const challengeRetryable = ref(false)
 const turnstileRef = ref<any>(null)
 
 /** 游客通道被挡（未启用 / 挂件失败 / 还没通过验证）时禁用提交按钮 */
@@ -923,6 +928,7 @@ async function loadChallenge() {
   turnstileToken.value = ''
   challengeFailed.value = false
   challengeNote.value = ''
+  challengeRetryable.value = false
   try {
     const res = await $fetch<any>(
       `/api/token-deals/${props.dealId}/guest-review-challenge`,
@@ -938,6 +944,7 @@ async function loadChallenge() {
   } catch (err: any) {
     challengeProvider.value = 'disabled'
     challengeDisabledText.value = '人机校验配置获取失败，请刷新页面重试'
+    challengeRetryable.value = true
     toast(err?.data?.error || '人机校验配置获取失败', 'err')
   }
 }

@@ -58,6 +58,9 @@
               <button type="button" class="challenge-retry" @click="retryChallenge">重新加载验证</button>
             </p>
             <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeMessage }}</p>
+            <p v-if="challengeRetryable" class="challenge-note">
+              <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
+            </p>
             <p v-else class="challenge-note">正在加载人机验证…</p>
           </div>
           <button type="submit" class="submit-btn" :disabled="loading || registerBlocked">
@@ -100,6 +103,8 @@ const challengeMessage = ref('')
 const challengeFailed = ref('')
 const turnstileToken = ref('')
 const turnstileRef = ref<{ reset: () => void; retry: () => void } | null>(null)
+/** 仅「挑战配置获取失败」为真：此时给一个「重试加载」按钮（通道未启用时无从重试） */
+const challengeRetryable = ref(false)
 /** 未拿到令牌 / 挂件出错 / 通道关闭 → 一律挡住提交（服务端同样 fail-closed） */
 const registerBlocked = computed(() =>
   challengeProvider.value !== 'turnstile' || !!challengeFailed.value || !turnstileToken.value,
@@ -108,6 +113,7 @@ const registerBlocked = computed(() =>
 async function loadChallenge() {
   challengeProvider.value = 'loading'
   challengeFailed.value = ''
+  challengeRetryable.value = false
   turnstileToken.value = ''
   try {
     const res = await $fetch<{ provider: string; site_key?: string; message?: string }>('/api/auth/register-challenge')
@@ -121,6 +127,7 @@ async function loadChallenge() {
   } catch (err: any) {
     challengeMessage.value = err?.data?.error || '人机校验加载失败，请刷新页面重试'
     challengeProvider.value = 'disabled'
+    challengeRetryable.value = true
   }
 }
 

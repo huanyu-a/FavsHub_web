@@ -258,7 +258,11 @@ async function main() {
   // f. 投递脚本语法校验（本机无 python 则跳过）
   console.log('▶ f. python -m py_compile 校验 qq-outbox-deliver.py')
   {
-    const py = spawnSync('python', ['-m', 'py_compile', join(ROOT, 'scripts', 'qq-outbox-deliver.py')], { encoding: 'utf8' })
+    const args = ['-m', 'py_compile', join(ROOT, 'scripts', 'qq-outbox-deliver.py')]
+    // python 常因环境而不可用（Ubuntu 默认没有 /usr/bin/python；有的机器是未授权别名 → EACCES），
+    // 所以只要 spawn 失败就退到 python3
+    let py = spawnSync('python', args, { encoding: 'utf8' })
+    if (py.error) py = spawnSync('python3', args, { encoding: 'utf8' })
     if (py.error && /ENOENT/.test(String(py.error.code))) {
       console.log('  ⚠ 本机无 python，跳过语法校验（服务器侧手动验证）')
     } else if (py.status !== 0) {
