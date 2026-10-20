@@ -110,7 +110,8 @@ export async function submitGuestDeal(db: DB, event: any, body: any): Promise<Gu
 
   // 同一领取地址已有待审 / 已通过的通告 → 拒绝重复发布（驳回的不算，允许修正后重提）
   const dup = db.prepare(`
-    SELECT id FROM token_deals WHERE url = ? AND status IN ('pending', 'approved') LIMIT 1
+    SELECT id FROM token_deals WHERE url = ? AND status IN ('pending', 'approved')
+      AND deleted_at IS NULL LIMIT 1
   `).get(d.url) as { id: string } | undefined
   if (dup) {
     return { ok: false, status: 409, error: '该领取地址已有通告（待审或已通过），请勿重复发布' }
@@ -119,6 +120,7 @@ export async function submitGuestDeal(db: DB, event: any, body: any): Promise<Gu
   // 每指纹在审通告上限 —— 单个访客最多同时挂 N 条待审
   const pendingCount = (db.prepare(
     "SELECT COUNT(*) AS c FROM token_deals WHERE guest_fingerprint = ? AND status = 'pending'"
+      + ' AND deleted_at IS NULL'
   ).get(fingerprint) as { c: number }).c
   if (pendingCount >= GUEST_DEAL_LIMITS.pendingPerFingerprint) {
     return {

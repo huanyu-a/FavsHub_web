@@ -51,6 +51,10 @@
             <div class="stat-group-item"><span class="sgi-label">待审</span><span class="sgi-value orange">{{ stats.tokenDeals?.pending || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">已发布</span><span class="sgi-value green">{{ stats.tokenDeals?.approved || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">驳回</span><span class="sgi-value">{{ stats.tokenDeals?.rejected || 0 }}</span></div>
+            <div class="stat-group-item">
+              <span class="sgi-label">已失效</span>
+              <span class="sgi-value red">{{ stats.tokenDeals?.invalidTotal || 0 }}</span>
+            </div>
           </div>
         </div>
       </div>

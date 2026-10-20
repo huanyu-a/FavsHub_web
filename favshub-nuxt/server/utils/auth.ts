@@ -39,6 +39,23 @@ export function isAdminUser(user: { username: string; is_admin?: number | boolea
 }
 
 /**
+ * 按用户 id 判定是否管理员（无 H3 event 的场景用；与 requireAdmin / isAdminUser 同口径）。
+ * `user_id = 0` 是游客/系统用户（`_system`），永不视为管理员。
+ */
+export function isAdminUserById(userId: number | null | undefined): boolean {
+  if (!userId || userId <= 0) return false
+  try {
+    const row = getRawDb()
+      .prepare('SELECT username, is_admin FROM users WHERE id = ?')
+      .get(userId) as { username: string; is_admin: number | null } | undefined
+    if (!row) return false
+    return isAdminUser(row)
+  } catch {
+    return false
+  }
+}
+
+/**
  * 从 H3 event 中提取 token 并验证
  * 优先级：Authorization header > httpOnly cookie
  * @returns 已验证的用户信息，或 null（无 token 时）

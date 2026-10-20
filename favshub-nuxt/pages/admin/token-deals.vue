@@ -21,7 +21,11 @@
       </div>
       <div class="stat-card">
         <div class="value blue">{{ counts.all }}</div>
-        <div class="label">总计</div>
+        <div class="label">总计（在架）</div>
+      </div>
+      <div class="stat-card">
+        <div class="value red">{{ counts.invalid_total }}</div>
+        <div class="label">已失效</div>
       </div>
     </div>
 
@@ -35,6 +39,9 @@
       <button :class="{ active: tab === 'deals' && status === 'approved' }" @click="switchStatus('approved')">已通过</button>
       <button :class="{ active: tab === 'deals' && status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
       <button :class="{ active: tab === 'deals' && status === 'all' }" @click="switchStatus('all')">全部</button>
+      <button :class="{ active: tab === 'invalid' }" @click="switchTab('invalid')">
+        已失效<span v-if="counts.invalid_total" class="tab-badge">{{ counts.invalid_total }}</span>
+      </button>
       <button :class="{ active: tab === 'edits' }" @click="switchTab('edits')">
         修改建议<span v-if="editTotal" class="tab-badge">{{ editTotal }}</span>
       </button>
@@ -177,7 +184,107 @@
       </div>
     </div>
 
-    <div v-else class="card">
+    <!-- ── 已失效 Tab：被删除 / 判定失效 / 已过期（对外一律不可见，仅管理员可见） ── -->
+    <div v-else-if="tab === 'invalid'" class="card">
+      <div class="card-header">
+        <h3>已失效通告</h3>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="lifecycle-filter">
+            <button
+              v-for="opt in LIFECYCLE_FILTERS"
+              :key="opt.value"
+              :class="{ active: lifecycleFilter === opt.value }"
+              @click="setLifecycleFilter(opt.value)"
+            >
+              {{ opt.label }} {{ lifecycleCount(opt.value) }}
+            </button>
+          </div>
+          <button class="btn btn-ghost btn-sm" :disabled="invalidLoading" @click="loadInvalid">刷新</button>
+        </div>
+      </div>
+
+      <p class="card-hint">
+        此处条目对前台列表、详情直达链接、AI 通道与分享卡片一律不可见。
+        「恢复」后按原审核状态重新上架；「彻底删除」不可恢复，仅在数据长期无人认领时使用。
+      </p>
+
+      <div v-if="invalidLoading" class="empty-state">加载中...</div>
+      <div v-else-if="invalidDeals.length === 0" class="empty-state">
+        {{ lifecycleFilter === 'all' ? '暂无已失效通告' : '该分类下暂无条目' }}
+      </div>
+
+      <table v-else>
+        <thead>
+          <tr>
+            <th style="width: 150px;">服务商</th>
+            <th>标题</th>
+            <th style="width: 120px;">失效类型</th>
+            <th style="width: 150px;">失效 / 删除时间</th>
+            <th style="width: 110px;">社区反馈</th>
+            <th style="width: 100px;">发布者</th>
+            <th style="width: 210px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="d in invalidDeals" :key="d.id">
+            <td>
+              <span class="provider-name">{{ d.provider }}</span>
+              <span class="badge" :class="statusBadgeClass(d.status)">{{ STATUS_LABELS[d.status] || d.status }}</span>
+            </td>
+            <td>
+              <div class="cell-title">{{ d.title }}</div>
+              <div class="cell-sub">{{ d.quota || '—' }}<template v-if="d.expires_at"> · 有效期至 {{ formatTime(d.expires_at) }}</template></div>
+            </td>
+            <td>
+              <span class="lifecycle-tag" :class="'lc-' + d.lifecycle">{{ LIFECYCLE_LABELS[d.lifecycle] }}</span>
+              <div v-if="d.invalid_reason_label" class="cell-sub">{{ d.invalid_reason_label }}</div>
+            </td>
+            <td>
+              {{ formatTime(d.invalid_at || d.deleted_at || d.expires_at || d.updated_at) }}
+              <div v-if="d.deleted_at && d.deleted_by" class="cell-sub">操作者 #{{ d.deleted_by }}</div>
+            </td>
+            <td>
+              <div class="cell-votes">
+                <span class="vote-up"><i class="ri-thumb-up-line"></i>{{ d.vote_up }}</span>
+                <span class="vote-down"><i class="ri-thumb-down-line"></i>{{ d.vote_down }}</span>
+              </div>
+              <div class="cell-sub">{{ ratingText(d) }}</div>
+            </td>
+            <td>
+              <span v-if="d.user_id === 0" class="guest-tag">游客</span>
+              {{ d.nickname || d.username || '-' }}
+            </td>
+            <td class="actions">
+              <template v-if="d.lifecycle === 'deleted'">
+                <button class="btn btn-primary btn-sm" :disabled="lifecycleBusy" @click="restoreItem(d, 'restore_delete')">恢复</button>
+                <button class="btn btn-danger btn-sm" :disabled="lifecycleBusy" @click="purgeItem(d)">彻底删除</button>
+              </template>
+              <template v-else-if="d.lifecycle === 'invalid'">
+                <button class="btn btn-primary btn-sm" :disabled="lifecycleBusy" @click="restoreItem(d, 'restore_invalid')">撤销失效</button>
+                <button class="btn btn-ghost btn-sm" :disabled="lifecycleBusy" @click="restoreItem(d, 'set_permanent')">设为永久</button>
+                <button class="btn btn-ghost btn-sm" @click="openEdit(d)">编辑</button>
+              </template>
+              <template v-else>
+                <button class="btn btn-primary btn-sm" :disabled="lifecycleBusy" @click="restoreItem(d, 'extend')">续期 30 天</button>
+                <button class="btn btn-ghost btn-sm" :disabled="lifecycleBusy" @click="restoreItem(d, 'set_permanent')">设为永久</button>
+                <button class="btn btn-danger btn-sm" :disabled="lifecycleBusy" @click="markInvalid(d)">标记失效</button>
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div v-if="invalidTotalPages > 1" class="pagination">
+        <button :disabled="invalidPage <= 1" @click="invalidPage--; loadInvalid()">上一页</button>
+        <span>第 {{ invalidPage }} / {{ invalidTotalPages }} 页（共 {{ invalidTotal }} 条）</span>
+        <button :disabled="invalidPage >= invalidTotalPages" @click="invalidPage++; loadInvalid()">下一页</button>
+      </div>
+    </div>
+
+    <!-- ── 通告队列（默认 Tab） ──
+         必须写成 v-else-if="tab === 'deals'"：这条链的根是上面的 edits 的 v-if，
+         若用 v-else 则切到「游客评测」时这里也会一起渲染，与 guests 面板叠在一起。 -->
+    <div v-else-if="tab === 'deals'" class="card">
       <div class="card-header">
         <h3>{{ tabTitle }}</h3>
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -348,7 +455,11 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const status = ref<'pending' | 'approved' | 'rejected' | 'all'>('pending')
 const deals = ref<any[]>([])
-const counts = reactive({ pending: 0, approved: 0, rejected: 0, all: 0 })
+const counts = reactive({
+  pending: 0, approved: 0, rejected: 0, all: 0,
+  // 已失效三维（互斥）+ 合计，见 admin/token-deals/index.get.ts
+  expired: 0, invalid: 0, deleted: 0, invalid_total: 0,
+})
 const loading = ref(false)
 const submitting = ref(false)
 const page = ref(1)
@@ -357,7 +468,7 @@ const total = ref(0)
 const searchQuery = ref('')
 
 // ── 修改建议 Tab ──
-const tab = ref<'deals' | 'edits' | 'guests'>('deals')
+const tab = ref<'deals' | 'edits' | 'guests' | 'invalid'>('deals')
 const edits = ref<any[]>([])
 const editTotal = ref(0)
 const editsLoading = ref(false)
@@ -447,11 +558,146 @@ function switchStatus(next: typeof status.value) {
   loadDeals()
 }
 
-function switchTab(next: 'deals' | 'edits' | 'guests') {
+function switchTab(next: 'deals' | 'edits' | 'guests' | 'invalid') {
   tab.value = next
   if (next === 'edits') loadEdits()
   else if (next === 'guests') loadGuests()
+  else if (next === 'invalid') loadInvalid()
   else loadDeals()
+}
+
+// ── 已失效面板（被删除 / 判定失效 / 已过期）────────────────
+type LifecycleFilter = 'all' | 'expired' | 'invalid' | 'deleted'
+
+const LIFECYCLE_FILTERS: { value: LifecycleFilter; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'expired', label: '已过期' },
+  { value: 'invalid', label: '判定失效' },
+  { value: 'deleted', label: '已删除' },
+]
+const LIFECYCLE_LABELS: Record<string, string> = {
+  expired: '已过期',
+  invalid: '判定失效',
+  deleted: '已删除',
+  live: '正常',
+}
+
+const invalidDeals = ref<any[]>([])
+const invalidLoading = ref(false)
+const invalidPage = ref(1)
+const invalidTotal = ref(0)
+const lifecycleFilter = ref<LifecycleFilter>('all')
+const lifecycleBusy = ref(false)
+const invalidPageSize = 20
+
+const invalidTotalPages = computed(() => Math.max(1, Math.ceil(invalidTotal.value / invalidPageSize)))
+
+function lifecycleCount(v: LifecycleFilter): number {
+  if (v === 'all') return counts.invalid_total
+  if (v === 'expired') return counts.expired
+  if (v === 'invalid') return counts.invalid
+  return counts.deleted
+}
+
+function setLifecycleFilter(v: LifecycleFilter) {
+  lifecycleFilter.value = v
+  invalidPage.value = 1
+  loadInvalid()
+}
+
+async function loadInvalid() {
+  invalidLoading.value = true
+  try {
+    const params = new URLSearchParams({
+      view: 'invalid',
+      lifecycle: lifecycleFilter.value,
+      page: String(invalidPage.value),
+      limit: String(invalidPageSize),
+    })
+    if (searchQuery.value) params.append('search', searchQuery.value)
+
+    const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
+    invalidDeals.value = r.deals || []
+    invalidTotal.value = r.pagination?.total || 0
+    if (r.counts) Object.assign(counts, r.counts)
+  } catch (e: any) {
+    showMessage('加载已失效通告失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+    invalidDeals.value = []
+    invalidTotal.value = 0
+  } finally {
+    invalidLoading.value = false
+  }
+}
+
+/** 恢复 / 续期 / 改永久 / 撤销失效 —— 统一走 restore 端点 */
+async function restoreItem(d: any, action: 'restore_delete' | 'restore_invalid' | 'extend' | 'set_permanent') {
+  if (!import.meta.client || lifecycleBusy.value) return
+  if (action === 'extend') {
+    const ok = confirm(`将「${d.title}」的有效期延长 30 天，并重新对外展示？`)
+    if (!ok) return
+  }
+  lifecycleBusy.value = true
+  try {
+    const body: any = { action }
+    if (action === 'extend') body.expires_at = Date.now() + 30 * 24 * 60 * 60 * 1000
+    const r = await $fetch<any>(`/api/admin/token-deals/${d.id}/restore`, {
+      method: 'POST',
+      body,
+      ...getAuthOpts(),
+    })
+    showMessage((r?.changes || []).join('；') || '已处理')
+    await loadInvalid()
+  } catch (e: any) {
+    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    lifecycleBusy.value = false
+  }
+}
+
+/** 手动标记失效（下架但保留数据，可撤销） */
+async function markInvalid(d: any) {
+  if (!import.meta.client || lifecycleBusy.value) return
+  if (!confirm(`将「${d.title}」标记为失效并从公开列表下架？（可撤销，不会删除数据）`)) return
+  lifecycleBusy.value = true
+  try {
+    const r = await $fetch<any>(`/api/admin/token-deals/${d.id}/restore`, {
+      method: 'POST',
+      body: { action: 'mark_invalid', reason: 'manual' },
+      ...getAuthOpts(),
+    })
+    showMessage((r?.changes || []).join('；') || '已标记失效')
+    await loadInvalid()
+  } catch (e: any) {
+    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    lifecycleBusy.value = false
+  }
+}
+
+/** 彻底删除（物理）—— 二次确认，文案强调不可恢复 */
+async function purgeItem(d: any) {
+  if (!import.meta.client || lifecycleBusy.value) return
+  const typed = prompt(
+    `彻底删除不可恢复，将连同投票 / 评测 / 修改建议一并清除。\n确认请回复「${d.provider}」（服务商名）：`,
+  )
+  if (typed !== d.provider) {
+    if (typed !== null) showMessage('服务商名不匹配，已取消', 'error')
+    return
+  }
+  lifecycleBusy.value = true
+  try {
+    await $fetch(`/api/admin/token-deals/${d.id}/purge`, {
+      method: 'DELETE',
+      body: { confirm: true },
+      ...getAuthOpts(),
+    })
+    showMessage('已彻底删除')
+    await loadInvalid()
+  } catch (e: any) {
+    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    lifecycleBusy.value = false
+  }
 }
 
 // ── 修改建议 ──────────────────────────────────────────────
@@ -702,16 +948,18 @@ function openEdit(d: any) {
 function onEdited() {
   editVisible.value = false
   editingDeal.value = null
-  loadDeals()
+  if (tab.value === 'invalid') loadInvalid()
+  else loadDeals()
 }
 
 async function removeDeal(d: any) {
   if (!import.meta.client) return
-  if (!confirm(`确定删除通告「${d.provider} · ${d.title}」？\n将同时删除其投票与评测记录，操作不可恢复。`)) return
+  if (!confirm(`确定删除通告「${d.provider} · ${d.title}」？\n删除后前台立即不可见，投票与评测会保留，可在「已失效」Tab 恢复。`)) return
   try {
     await $fetch(`/api/token-deals/${d.id}`, { method: 'DELETE', ...getAuthOpts() })
-    showMessage('已删除')
-    await loadDeals()
+    showMessage('已删除（可在「已失效」Tab 恢复）')
+    if (tab.value === 'invalid') await loadInvalid()
+    else await loadDeals()
   } catch (e: any) {
     showMessage('删除失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
   }
@@ -730,6 +978,62 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ── 已失效面板 ───────────────────────────────────── */
+.lifecycle-filter {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+.lifecycle-filter button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lifecycle-filter button:hover {
+  color: var(--text-primary);
+}
+.lifecycle-filter button.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.lifecycle-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.lifecycle-tag.lc-expired {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+.lifecycle-tag.lc-invalid {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}
+.lifecycle-tag.lc-deleted {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.card-hint {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .tab-badge {
   display: inline-block;
   margin-left: 6px;

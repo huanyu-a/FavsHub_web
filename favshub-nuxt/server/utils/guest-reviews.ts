@@ -101,9 +101,9 @@ function serializeGuestReview(row: any) {
   }
 }
 
-/** 取通告（含作者），不存在返回 null */
+/** 取通告（含作者），不存在或已软删除返回 null */
 function loadDeal(db: DB, dealId: string) {
-  return db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
+  return db.prepare('SELECT * FROM token_deals WHERE id = ? AND deleted_at IS NULL').get(dealId) as any
 }
 
 /**
@@ -353,7 +353,7 @@ export function listReviewableGuestReviews(
   const page = Math.max(1, parseInt(query?.page as string) || 1)
   const offset = (page - 1) * limit
 
-  const where = ["g.status = 'pending'", '(g.user_id IS NULL OR g.user_id != d.user_id)']
+  const where = ["g.status = 'pending'", '(g.user_id IS NULL OR g.user_id != d.user_id)', 'd.deleted_at IS NULL']
   const params: any[] = []
   if (!viewer.isAdmin) {
     where.push('d.user_id = ?')
@@ -391,7 +391,7 @@ export function listReviewableGuestReviews(
 export function guestReviewPendingCount(db: DB, rawViewer: any): number {
   const viewer = normalizeViewerLocal(rawViewer)
   if (!viewer) return 0
-  const where = ["g.status = 'pending'", '(g.user_id IS NULL OR g.user_id != d.user_id)']
+  const where = ["g.status = 'pending'", '(g.user_id IS NULL OR g.user_id != d.user_id)', 'd.deleted_at IS NULL']
   const params: any[] = []
   if (!viewer.isAdmin) {
     where.push('d.user_id = ?')

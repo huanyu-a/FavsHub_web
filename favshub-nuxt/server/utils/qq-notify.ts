@@ -299,7 +299,9 @@ function unescapeCqText(text: string): string {
 function countPendingDeals(): number {
   try {
     const db = getRawDb()
-    const row = db.prepare("SELECT COUNT(*) AS c FROM token_deals WHERE status = 'pending'").get() as { c: number } | undefined
+    const row = db.prepare(
+      "SELECT COUNT(*) AS c FROM token_deals WHERE status = 'pending' AND deleted_at IS NULL"
+    ).get() as { c: number } | undefined
     return row?.c ?? 0
   } catch {
     return 0

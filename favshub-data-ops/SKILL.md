@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.8.1
+version: 1.8.2
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -153,7 +153,11 @@ POST   /api/ai/token-deal-edits/:id/review { action: 'approve'|'reject', reason?
 DELETE /api/ai/token-deal-edits/:id       # 撤回自己的待审建议（write）
 ```
 
-- 列表默认返回公开的已审核通告 + 自己发布的全部（含待审核）
+- 列表默认返回**公开可见**的已审核通告 + 自己发布的全部（含待审核，但不含已删除）
+- **已过期 / 判定失效 / 已删除的通告对 AI 接口不可见**：详情、投票、评测、建议、分享卡片一律 404，
+  不要指望「先 GET 再改」能救回这类条目 —— 处置权在站点管理员的「已失效」面板
+- **`DELETE` 是软删除**：前台立即消失，投票 / 评测 / 修改建议全部保留，管理员可恢复；
+  重复删除返回 404。物理清除只能由管理员在后台执行
 - 管理员发布直接上线（`approved`）；普通用户发布进入待审核（`pending`）
 - `region`: `cn` | `global`；`quality`: 上上品 | 上品 | 中品 | 下品 | 下下品；`source_tag`: `official` | `relay` | `community`
 - **`PUT` 是部分更新**：只传要改的字段，未传字段保持原值 —— 改标题不必回填其余字段

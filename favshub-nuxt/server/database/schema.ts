@@ -257,6 +257,11 @@ export const tokenDeals = sqliteTable('token_deals', {
   guestFingerprint: text('guest_fingerprint').default(''), // 游客身份指纹（待审上限去重）
   status: text('status').default('pending'),     // pending|approved|rejected
   rejectReason: text('reject_reason').default(''),
+  // 生命周期（与审核状态正交）：软删除 + 显式失效状态机
+  deletedAt: integer('deleted_at'),              // 非空 = 已软删除（可恢复）
+  deletedBy: integer('deleted_by'),              // 删除操作者 users.id（0 = 游客自助）
+  invalidAt: integer('invalid_at'),              // 非空 = 已失效，对外不可见
+  invalidReason: text('invalid_reason').default(''), // expired|votes|manual
   voteUp: integer('vote_up').default(0),         // 缓存计数
   voteDown: integer('vote_down').default(0),
   ratingSum: integer('rating_sum').default(0),

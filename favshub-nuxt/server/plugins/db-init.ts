@@ -5,6 +5,7 @@
 import { initDatabase, closeDatabase, getRawDb } from '../database'
 import { initializeDatabase } from '../database/migrate'
 import { initJwtSecret } from '../utils/jwt'
+import { archiveExpiredDeals } from '../utils/token-deals'
 
 export default defineNitroPlugin(() => {
   const config = useRuntimeConfig()
@@ -18,6 +19,16 @@ export default defineNitroPlugin(() => {
   // 3. 执行数据库迁移（建表、增量迁移、索引、种子数据）
   const rawDb = getRawDb()
   initializeDatabase(rawDb)
+
+  // 3.1 过期通告归档：把「已通过但有效期已过」的条目落成 invalid(expired)，
+  // 使后台「已失效」面板的「已过期」统计与失效时间准确（公开列表不依赖它，运行时另判一次）。
+  // 启动时跑一次即可 —— 无定时任务，后台进入「已失效」面板时也会再跑（见 admin 端点）。
+  try {
+    const archived = archiveExpiredDeals(rawDb)
+    if (archived > 0) console.log(`[Init] 已归档过期通告 ${archived} 条`)
+  } catch (err: any) {
+    console.warn('[Init] 过期通告归档失败（忽略）:', err?.message || err)
+  }
 
   console.log('[Init] FavsHub Nuxt 服务已启动')
 

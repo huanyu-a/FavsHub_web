@@ -16,6 +16,7 @@
 import { defineAiHandler } from '../../../../utils/ai-auth'
 import { getRawDb } from '../../../../database'
 import { isUserAdmin } from '../../../../utils/ai-service'
+import { isPubliclyVisible } from '../../../../utils/token-deals'
 import { getFaviconDir } from '../../../../utils/favicon-dir'
 import { join } from 'node:path'
 import { getRouterParams, getQuery, setResponseHeaders, createError } from 'h3'
@@ -84,6 +85,9 @@ export default defineAiHandler('read', async (event, token) => {
   const isAdmin = isUserAdmin(db, token.user_id)
   if (row.status !== 'approved' && !isOwner && !isAdmin) {
     throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
+  }
+  if (!isPubliclyVisible(row) && !isOwner && !isAdmin) {
+    throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
   }
 
   const config = useRuntimeConfig(event)

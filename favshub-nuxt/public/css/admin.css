@@ -32,6 +32,7 @@
 .stat-card .value.green { color: var(--primary); }
 .stat-card .value.purple { color: var(--accent-purple); }
 .stat-card .value.orange { color: var(--accent-yellow); }
+.stat-card .value.red { color: var(--danger); }
 
 /* 表格卡片 */
 .card { background: var(--surface-raised); border-radius: 10px; box-shadow: var(--shadow-sm); }
@@ -403,6 +404,7 @@ tr:hover { background: var(--surface-hover); }
 .sgi-value.green { color: var(--primary); }
 .sgi-value.purple { color: var(--accent-purple); }
 .sgi-value.orange { color: var(--accent-yellow); }
+.sgi-value.red { color: var(--danger); }
 
 /* --- 仪表盘数据导出（index） --- */
 .export-section { margin-bottom: 28px; }

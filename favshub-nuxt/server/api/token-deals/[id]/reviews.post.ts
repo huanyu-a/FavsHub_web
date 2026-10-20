@@ -5,8 +5,8 @@
  * 一人一评：重复提交视为更新。写入后在同一事务内重算主表缓存计数。
  */
 import { getRawDb } from '../../../database'
-import { requireAuth } from '../../../utils/auth'
-import { syncDealCounters, LIMITS } from '../../../utils/token-deals'
+import { isAdminUserById, requireAuth } from '../../../utils/auth'
+import { findWritableDeal, syncDealCounters, LIMITS } from '../../../utils/token-deals'
 import { checkRateLimit, getClientIP } from '../../../utils/rate-limit'
 import { hasSpamText } from '../../../utils/spam'
 
@@ -39,9 +39,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getRawDb()
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(id)
-  if (!deal) {
-    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
+  // 可见性闸门：已删除 / 已失效 / 已过期的通告不接收新评测（避免「已失效却继续收好评」）
+  const gate = findWritableDeal(db, id, { isAdmin: isAdminUserById(user.id) })
+  if (!gate.ok) {
+    throw createError({ statusCode: gate.status, data: { error: gate.error } })
   }
 
   const now = Date.now()

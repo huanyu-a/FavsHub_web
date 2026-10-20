@@ -7,6 +7,7 @@
 import { getRawDb } from '../../../database'
 import { getAuthRole } from '../../../utils/auth'
 import { normalizeUrl } from '../../../utils/bookmark-labels'
+import { isPubliclyVisible } from '../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -24,6 +25,13 @@ export default defineEventHandler(async (event) => {
   }
   if (deal.status !== 'approved' && deal.user_id !== user.id && !isAdmin) {
     throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
+  }
+  if (deal.deleted_at) {
+    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
+  }
+  // 已失效 / 已过期不给导入（领取地址大概率已不可用，导成书签只会留死链）
+  if (deal.user_id !== user.id && !isAdmin && !isPubliclyVisible(deal)) {
+    throw createError({ statusCode: 404, data: { error: '通告已失效或已过期，暂不可导入' } })
   }
 
   const url = normalizeUrl(deal.url)

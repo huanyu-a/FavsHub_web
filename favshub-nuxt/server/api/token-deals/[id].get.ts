@@ -7,6 +7,7 @@
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
+import { isPubliclyVisible, INVALID_REASON_LABELS } from '../../utils/token-deals'
 import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
 import { myVoteFor } from '../../utils/deal-votes'
@@ -81,6 +82,15 @@ export default defineEventHandler(async (event) => {
   const isOwner = !!role && role.user.id === row.user_id
   const isAdmin = !!role?.isAdmin
 
+  // 生命周期可见性：
+  //   - 已删除：除管理员外一律 404（与列表 mine=1 隐藏已删除保持同一口径；
+  //     作者想恢复需找管理员，防止被下架内容被作者自行「复活」）；
+  //   - 已失效 / 已过期：作者与管理员仍可打开（作者需据此续期），对外 404。
+  // 统一 404 而不区分「不存在」与「已下架」，避免向外部泄露条目存在性。
+  if ((row.deleted_at && !isAdmin) || (!isPubliclyVisible(row) && !isOwner && !isAdmin)) {
+    throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
+  }
+
   if (row.status !== 'approved' && !isOwner && !isAdmin) {
     throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
   }
@@ -118,6 +128,9 @@ export default defineEventHandler(async (event) => {
       ...row,
       models: parseModels(row.models),
       is_expired: !!row.expires_at && row.expires_at < Date.now(),
+      is_deleted: !!row.deleted_at,
+      is_invalid: !!row.invalid_at,
+      invalid_reason_label: row.invalid_at ? (INVALID_REASON_LABELS[row.invalid_reason] || '已失效') : '',
       is_owner: isOwner,
       can_edit: isOwner || isAdmin,
       can_moderate: isAdmin,

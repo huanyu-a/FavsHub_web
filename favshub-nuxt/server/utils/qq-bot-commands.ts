@@ -98,24 +98,39 @@ function latestDeals(args: string): string {
   const parsed = parseInt(args.trim(), 10)
   const n = Math.min(Math.max(Number.isNaN(parsed) ? 5 : parsed, 1), 10)
   const db = getRawDb()
+  // 公开口径：已删除 / 已失效 / 已过期的通告不进播报（与前台列表一致）
   const rows = db.prepare(
-    "SELECT title, provider, vote_up FROM token_deals WHERE status = 'approved' ORDER BY created_at DESC LIMIT ?"
-  ).all(n) as { title: string; provider: string; vote_up: number }[]
+    "SELECT title, provider, vote_up FROM token_deals WHERE status = 'approved'"
+      + ' AND deleted_at IS NULL AND invalid_at IS NULL'
+      + ' AND (expires_at IS NULL OR expires_at > ?)'
+      + ' ORDER BY created_at DESC LIMIT ?'
+  ).all(Date.now(), n) as { title: string; provider: string; vote_up: number }[]
   if (!rows.length) return '📭 暂无已发布通告'
   const lines = rows.map((r, i) => `${i + 1}. ${escapeCqText(r.title)} · ${escapeCqText(r.provider)} · ▲${r.vote_up ?? 0}`)
   return `📢 最新通告：\n${lines.join('\n')}`
 }
 
-/** 通告统计 — 已发布总数 + 今日新增（公开口径） */
+/** 通告统计 — 在架总数 + 今日新增 + 已下架（公开口径，2026-10-20） */
 function dealStats(): string {
   const db = getRawDb()
-  const total = (db.prepare("SELECT COUNT(*) AS c FROM token_deals WHERE status = 'approved'").get() as { c: number }).c
+  // 位置参数：可见条件里的 now 与「已下架」条件里的 now 各自独立绑定，勿混用具名参数
+  const visibleWhere = "status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL"
+    + ' AND (expires_at IS NULL OR expires_at > ?)'
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
+  const dayStart = startOfDay.getTime()
+  const now = Date.now()
+  const total = (db.prepare(
+    `SELECT COUNT(*) AS c FROM token_deals WHERE ${visibleWhere}`
+  ).get(now) as { c: number }).c
   const today = (db.prepare(
-    "SELECT COUNT(*) AS c FROM token_deals WHERE status = 'approved' AND created_at >= ?"
-  ).get(startOfDay.getTime()) as { c: number }).c
-  return `📊 通告统计：已发布 ${total} 条，今日新增 ${today} 条`
+    `SELECT COUNT(*) AS c FROM token_deals WHERE ${visibleWhere} AND created_at >= ?`
+  ).get(now, dayStart) as { c: number }).c
+  const hidden = (db.prepare(
+    'SELECT COUNT(*) AS c FROM token_deals WHERE deleted_at IS NOT NULL OR invalid_at IS NOT NULL'
+      + ' OR (expires_at IS NOT NULL AND expires_at <= ?)'
+  ).get(now) as { c: number }).c
+  return `📊 通告统计：在架 ${total} 条，今日新增 ${today} 条，已下架 ${hidden} 条`
 }
 
 // ── 个人指令（仅私聊）───────────────────────────────────────
@@ -124,10 +139,21 @@ function dealStats(): string {
 function myDeals(userId: number): string {
   const db = getRawDb()
   const rows = db.prepare(
-    'SELECT title, status FROM token_deals WHERE user_id = ? ORDER BY created_at DESC LIMIT 5'
-  ).all(userId) as { title: string; status: string }[]
+    'SELECT title, status, deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals'
+      + ' WHERE user_id = ? ORDER BY created_at DESC LIMIT 5'
+  ).all(userId) as {
+    title: string; status: string; deleted_at: number | null
+    invalid_at: number | null; invalid_reason: string; expires_at: number | null
+  }[]
   if (!rows.length) return '📭 你还没有投稿过通告'
-  const lines = rows.map(r => `· ${escapeCqText(r.title)}（${DEAL_STATUS_LABELS[r.status] || r.status}）`)
+  const now = Date.now()
+  const lines = rows.map((r) => {
+    let label = DEAL_STATUS_LABELS[r.status] || r.status
+    if (r.deleted_at) label = '已删除'
+    else if (r.invalid_at) label = r.invalid_reason === 'expired' ? '已过期' : '已失效'
+    else if (r.expires_at && r.expires_at <= now) label = '已过期'
+    return `· ${escapeCqText(r.title)}（${label}）`
+  })
   return `📮 我的投稿（最近 ${rows.length} 条）：\n${lines.join('\n')}`
 }
 
@@ -176,17 +202,26 @@ function pendingSummary(): string {
   let edits = 0
   let prompts = 0
   let guest = 0
+  let invalid = 0
   try {
-    deals = (db.prepare("SELECT COUNT(*) AS c FROM token_deals WHERE status = 'pending'").get() as { c: number }).c
+    // 待审队列都不含已软删除条目；建议 / 评测的关联通告同样要未删除
+    deals = (db.prepare(
+      "SELECT COUNT(*) AS c FROM token_deals WHERE status = 'pending' AND deleted_at IS NULL"
+    ).get() as { c: number }).c
     edits = (db.prepare(`
       SELECT COUNT(*) AS c FROM token_deal_edits e JOIN token_deals d ON d.id = e.deal_id
-      WHERE e.status = 'pending' AND e.user_id != d.user_id
+      WHERE e.status = 'pending' AND e.user_id != d.user_id AND d.deleted_at IS NULL
     `).get() as { c: number }).c
     prompts = (db.prepare("SELECT COUNT(*) AS c FROM prompt_review_requests WHERE status = 'pending'").get() as { c: number }).c
     guest = (db.prepare(`
       SELECT COUNT(*) AS c FROM token_deal_guest_reviews g JOIN token_deals d ON d.id = g.deal_id
-      WHERE g.status = 'pending' AND (g.user_id IS NULL OR g.user_id != d.user_id)
+      WHERE g.status = 'pending' AND (g.user_id IS NULL OR g.user_id != d.user_id) AND d.deleted_at IS NULL
     `).get() as { c: number }).c
+    // 已失效（已过期 / 判定失效 / 已删除）—— 管理员在后台「已失效」Tab 处置
+    invalid = (db.prepare(
+      'SELECT COUNT(*) AS c FROM token_deals WHERE deleted_at IS NOT NULL OR invalid_at IS NOT NULL'
+        + ' OR (expires_at IS NOT NULL AND expires_at <= ?)'
+    ).get(Date.now()) as { c: number }).c
   } catch { /* 表未迁移时按 0 处理 */ }
   return [
     '📋 当前待审：',
@@ -194,6 +229,7 @@ function pendingSummary(): string {
     `· 待审修改建议：${edits} 条`,
     `· 待审提示词审核：${prompts} 条`,
     `· 待审游客评测：${guest} 条`,
+    `· 已失效通告：${invalid} 条（后台「已失效」Tab 可恢复 / 续期）`,
   ].join('\n')
 }
 
@@ -209,7 +245,9 @@ function reviewByPrefix(action: 'approve' | 'reject', args: string): string {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(prefix)) return '⚠️ ID 前缀格式不正确'
 
   const db = getRawDb()
-  const rows = db.prepare("SELECT id FROM token_deals WHERE id LIKE ? ESCAPE '\\'").all(escapeLike(prefix) + '%') as { id: string }[]
+  const rows = db.prepare(
+    "SELECT id FROM token_deals WHERE id LIKE ? ESCAPE '\\' AND deleted_at IS NULL"
+  ).all(escapeLike(prefix) + '%') as { id: string }[]
   if (rows.length === 0) return '⚠️ 未匹配到通告，请检查 ID 前缀'
   if (rows.length > 1) return `⚠️ 前缀「${prefix}」匹配到 ${rows.length} 条通告，请加长前缀`
 

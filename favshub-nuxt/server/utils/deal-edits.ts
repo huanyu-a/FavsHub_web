@@ -87,9 +87,9 @@ function serializeEdit(row: any, deal: any) {
   }
 }
 
-/** 取通告（含作者信息），不存在返回 null */
+/** 取通告（含作者信息），不存在或已软删除返回 null */
 function loadDeal(db: DB, dealId: string) {
-  return db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
+  return db.prepare('SELECT * FROM token_deals WHERE id = ? AND deleted_at IS NULL').get(dealId) as any
 }
 
 /** 读提案并附带提案人 / 审核人 / 所属通告 */
@@ -261,7 +261,8 @@ export function listReviewableEdits(
   const offset = (page - 1) * limit
 
   // 排除自己给自己的通告提的提案：那类由本人直接编辑更自然，留在待审队列里纯属噪音
-  const where = ["e.status = 'pending'", 'e.user_id != d.user_id']
+  // 已软删除的通告不进队列（提案已无意义；恢复后自然重新出现）
+  const where = ["e.status = 'pending'", 'e.user_id != d.user_id', 'd.deleted_at IS NULL']
   const params: any[] = []
   if (!viewer.isAdmin) {
     where.push('d.user_id = ?')

@@ -67,15 +67,36 @@ export default defineEventHandler(async (event) => {
         (SELECT COUNT(*) FROM search_engines) as searchEngines,
         (SELECT COUNT(*) FROM users) as users,
         (SELECT COUNT(*) FROM users WHERE is_admin = 1) as adminUsers,
-        (SELECT COUNT(*) FROM token_deals) as tokenDealsTotal,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'pending') as tokenDealsPending,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'approved') as tokenDealsApproved,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'rejected') as tokenDealsRejected,
+        -- 生命周期三类互斥（与 admin/token-deals 的 P_DELETED / P_INVALID / P_EXPIRED 同口径）：
+        --   已删除 > 判定失效 > 已过期（归档后 invalid_reason='expired' 仍归“过期”）
+        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL
+           AND invalid_at IS NULL
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsTotal,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'pending' AND deleted_at IS NULL
+           AND invalid_at IS NULL
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsPending,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'approved' AND deleted_at IS NULL
+           AND invalid_at IS NULL
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsApproved,
+        (SELECT COUNT(*) FROM token_deals WHERE status = 'rejected' AND deleted_at IS NULL
+           AND invalid_at IS NULL
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsRejected,
+        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NOT NULL) as tokenDealsDeleted,
+        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL AND invalid_at IS NOT NULL
+           AND COALESCE(invalid_reason, '') <> 'expired') as tokenDealsInvalid,
+        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL
+           AND (invalid_reason = 'expired' OR (invalid_at IS NULL AND expires_at IS NOT NULL
+             AND expires_at <= CAST(strftime('%s','now') AS INTEGER) * 1000))) as tokenDealsExpired,
         (SELECT COUNT(*) FROM prompt_review_requests WHERE status = 'pending') as promptReviewsPending,
         (SELECT COUNT(*) FROM token_deal_edits e JOIN token_deals d ON d.id = e.deal_id
-          WHERE e.status = 'pending' AND e.user_id != d.user_id) as dealEditsPending,
+          WHERE e.status = 'pending' AND e.user_id != d.user_id AND d.deleted_at IS NULL) as dealEditsPending,
         (SELECT COUNT(*) FROM token_deal_guest_reviews g JOIN token_deals d ON d.id = g.deal_id
-          WHERE g.status = 'pending' AND (g.user_id IS NULL OR g.user_id != d.user_id)) as guestReviewsPending
+          WHERE g.status = 'pending' AND (g.user_id IS NULL OR g.user_id != d.user_id)
+            AND d.deleted_at IS NULL) as guestReviewsPending
     `).get() as any
     result.searchEngines = sysStats.searchEngines
     result.users = sysStats.users
@@ -89,6 +110,13 @@ export default defineEventHandler(async (event) => {
       pending: sysStats.tokenDealsPending,
       approved: sysStats.tokenDealsApproved,
       rejected: sysStats.tokenDealsRejected,
+      invalid: sysStats.tokenDealsInvalid,
+      expired: sysStats.tokenDealsExpired,
+      deleted: sysStats.tokenDealsDeleted,
+      /** 「已失效」面板总数（已过期 + 判定失效 + 已删除，三者互斥） */
+      invalidTotal: (sysStats.tokenDealsInvalid || 0)
+        + (sysStats.tokenDealsExpired || 0)
+        + (sysStats.tokenDealsDeleted || 0),
     }
     result.promptReviews = { pending: sysStats.promptReviewsPending }
     result.dealEdits = { pending: sysStats.dealEditsPending }

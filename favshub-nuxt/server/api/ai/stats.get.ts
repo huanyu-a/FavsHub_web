@@ -21,8 +21,8 @@ export default defineAiHandler('read', async (_event, token) => {
       prompts_trashed: one('SELECT COUNT(*) AS c FROM prompts WHERE user_id = ? AND deleted_at IS NOT NULL', uid),
       prompt_folders: one('SELECT COUNT(*) AS c FROM prompt_folders WHERE user_id = ?', uid),
       tags: one('SELECT COUNT(*) AS c FROM tags WHERE user_id = ?', uid),
-      token_deals: one('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ?', uid),
-      token_deals_pending: one("SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ? AND status = 'pending'", uid),
+      token_deals: one('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ? AND deleted_at IS NULL', uid),
+      token_deals_pending: one("SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ? AND status = 'pending' AND deleted_at IS NULL", uid),
     },
     recent: {
       bookmarks: db.prepare('SELECT id, title, url, created_at FROM bookmarks WHERE user_id = ? ORDER BY created_at DESC LIMIT 5').all(uid),

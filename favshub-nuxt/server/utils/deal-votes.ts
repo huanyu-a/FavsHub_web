@@ -33,8 +33,9 @@
 import type Database from 'better-sqlite3'
 import { guestIdentity, optionalAuthLoose } from './guest-reviews'
 import { checkRateLimit } from './rate-limit'
-import { syncDealCounters } from './token-deals'
+import { evaluateDealVoteInvalidation, findWritableDeal, syncDealCounters } from './token-deals'
 import type { EditOpResult } from './token-deals'
+import { isAdminUserById } from './auth'
 
 type DB = Database.Database
 
@@ -74,10 +75,16 @@ export function toggleDealVote(
   const vote = normalizeVote(rawVote)
   if (!vote) return { ok: false, status: 400, error: '投票取值必须是 up 或 down' }
 
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(dealId)
-  if (!deal) return { ok: false, status: 404, error: '通告不存在' }
-
   const viewer = optionalAuthLoose(event)
+
+  // 可见性闸门：已删除 / 已失效 / 已过期对外一律冻结（作者删除后也须经管理员恢复）
+  // allowVotesInvalid：因投票失效的条目仍可投票（否则阈值一触发就锁死，负票再也撤不掉）
+  const gate = findWritableDeal(db, dealId, {
+    isAdmin: isAdminUserById(viewer?.id ?? null),
+    allowVotesInvalid: true,
+  })
+  if (!gate.ok) return gate
+
   const { fingerprint, ipHash } = guestIdentity(event, viewer?.id ?? null)
 
   // 限频键用指纹而非 IP —— 身份粒度更准，且不受「同一出口网络多人共用」影响
@@ -147,6 +154,8 @@ export function toggleDealVote(
       }
 
       syncDealCounters(db, dealId)
+      // 投票否决阈值判定（真实投票才评估 —— 种子数据不进这条路径，见函数注释）
+      evaluateDealVoteInvalidation(db, dealId)
     })()
   } catch (err: any) {
     console.error('投票失败:', err)

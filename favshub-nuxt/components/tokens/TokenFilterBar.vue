@@ -51,7 +51,7 @@ const SORT_OPTIONS = [
   { value: 'latest', label: '最新' },
   { value: 'hot', label: '最热' },
   { value: 'rating', label: '高分' },
-  { value: 'expiring', label: '即将过期' },
+  { value: 'expiring', label: '临期（7 天内）' },
 ]
 
 // 与 server/utils/token-deals.ts 的 QUALITY_LEVELS / SOURCE_TAGS 保持一致

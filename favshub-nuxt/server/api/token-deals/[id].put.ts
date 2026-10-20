@@ -13,7 +13,7 @@
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
-import { validateDealPayload } from '../../utils/token-deals'
+import { clearDealInvalid, validateDealPayload } from '../../utils/token-deals'
 import { notifyTokenDealRePending } from '../../utils/qq-notify'
 
 export default defineEventHandler(async (event) => {
@@ -28,7 +28,8 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
   const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
-  if (!deal) {
+  if (!deal || deal.deleted_at) {
+    // 已删除的通告不可编辑（恢复走管理员端点）
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (deal.user_id !== user.id && !isAdmin) {
@@ -63,6 +64,17 @@ export default defineEventHandler(async (event) => {
   } catch (err: any) {
     console.error('编辑 Token 白嫖通告失败:', err)
     throw createError({ statusCode: 500, data: { error: err.message || '编辑失败' } })
+  }
+
+  // 续期：作者把有效期往后延（或改为永久）后，撤销因过期而失效的条目 ——
+  // 「expired」是客观到期事实，续期即消除该事实；`votes` / `manual` 两类失效不受编辑影响。
+  if (deal.invalid_at && deal.invalid_reason === 'expired'
+      && (!d.expiresAt || d.expiresAt > Date.now())) {
+    try {
+      clearDealInvalid(db, id)
+    } catch (err: any) {
+      console.warn('[token-deals] 续期后撤销失效失败（忽略）:', err?.message || err)
+    }
   }
 
   // QQ 机器人通知：被驳回的通告修改后重新进入待审（fire-and-forget，绝不阻断主请求）

@@ -26,6 +26,7 @@
  */
 import type Database from 'better-sqlite3'
 import { guestIdentity, optionalAuthLoose } from './guest-reviews'
+import { findWritableDeal } from './token-deals'
 import { checkRateLimit } from './rate-limit'
 import type { EditOpResult } from './token-deals'
 
@@ -90,8 +91,9 @@ export function toggleReviewMark(
   if (!dealId) return { ok: false, status: 400, error: '通告 ID 不能为空' }
   if (!reviewId) return { ok: false, status: 400, error: '评测 ID 不能为空' }
 
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(dealId)
-  if (!deal) return { ok: false, status: 404, error: '通告不存在' }
+  // 可见性闸门：已删除 / 已失效 / 已过期的通告，评测打标一并冻结
+  const gate = findWritableDeal(db, dealId)
+  if (!gate.ok) return gate
 
   const ownerDealId = resolveVisibleReview(db, dealId, reviewId)
   if (!ownerDealId) return { ok: false, status: 404, error: '评测不存在' }

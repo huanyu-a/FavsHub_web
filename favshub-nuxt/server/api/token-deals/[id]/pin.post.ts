@@ -12,10 +12,15 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => ({} as any))
 
   const db = getRawDb()
-  const deal = db.prepare('SELECT id, pinned FROM token_deals WHERE id = ?').get(id) as
-    { id: string; pinned: number } | undefined
+  const deal = db.prepare(
+    'SELECT id, pinned, deleted_at, invalid_at, expires_at FROM token_deals WHERE id = ?'
+  ).get(id) as { id: string; pinned: number; deleted_at: number | null; invalid_at: number | null; expires_at: number | null } | undefined
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
+  }
+  // 置顶一条不可见的通告只会污染首页顶部排序，直接拒绝
+  if (deal.deleted_at || deal.invalid_at || (deal.expires_at && deal.expires_at <= Date.now())) {
+    throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
   }
 
   const next = typeof body?.pinned === 'boolean'

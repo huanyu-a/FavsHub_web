@@ -26,6 +26,7 @@ import {
   validateDealPatch,
   diffDealPatch,
   normalizeModels,
+  softDeleteDeal,
 } from './token-deals'
 import {
   submitDealEdit,
@@ -646,8 +647,14 @@ export function deleteTag(db: DB, userId: number, rawId: unknown, body: any) {
 /** 列表：公开的 approved 通告 + 自己发布的全部（含 pending / rejected） */
 export function listTokenDeals(db: DB, userId: number, query: any) {
   const { limit, page, offset } = paging(query, 50)
-  const where: string[] = [`(td.status = 'approved' OR td.user_id = ?)`]
-  const params: any[] = [userId]
+  // 公开部分与前台同口径：已删除 / 已失效 / 已过期的 approved 通告不再喂给 AI
+  // （否则「前台不显示」的目标会被 AI 通道绕过）。
+  // mine=true 时自己发布的条目仍可见（与 Web 端 mine=1 一致），但已删除的不给。
+  const where: string[] = [
+    `((td.status = 'approved' AND td.deleted_at IS NULL AND td.invalid_at IS NULL`
+      + ` AND (td.expires_at IS NULL OR td.expires_at > ?)) OR (td.user_id = ? AND td.deleted_at IS NULL))`,
+  ]
+  const params: any[] = [Date.now(), userId]
 
   if (query?.mine === 'true' || query?.mine === true) where.push('td.user_id = ?'), params.push(userId)
   if (query?.region) { where.push('td.region = ?'); params.push(String(query.region)) }
@@ -733,7 +740,7 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
   if (!id) fail(400, '通告 ID 不能为空')
 
   const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
-  if (!deal) fail(404, '通告不存在')
+  if (!deal || deal.deleted_at) fail(404, '通告不存在')
 
   const isAdmin = isUserAdmin(db, userId)
   if (deal.user_id !== userId && !isAdmin) {
@@ -826,23 +833,16 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
 export function deleteTokenDeal(db: DB, userId: number, rawId: unknown, body: any) {
   if (body?.confirm !== true) fail(400, '删除操作必须携带 confirm:true')
   const id = String(rawId)
-  const deal = db.prepare('SELECT id, user_id, title FROM token_deals WHERE id = ?').get(id) as any
-  if (!deal) fail(404, '通告不存在')
+  const deal = db.prepare('SELECT id, user_id, title, deleted_at FROM token_deals WHERE id = ?').get(id) as any
+  if (!deal || deal.deleted_at) fail(404, '通告不存在')
   if (deal.user_id !== userId && !isUserAdmin(db, userId)) fail(403, '无权删除此通告')
 
-  if (body?.dry_run === true) return { dry_run: true, changes: { delete: { id, title: deal.title } } }
+  if (body?.dry_run === true) {
+    return { dry_run: true, changes: { delete: { id, title: deal.title } } }
+  }
 
-  db.transaction(() => {
-    db.prepare('DELETE FROM token_deal_votes WHERE deal_id = ?').run(id)
-    db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(id)
-    db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(id)
-    db.prepare('DELETE FROM token_deal_guest_reviews WHERE deal_id = ?').run(id)
-    // 评测打标：review_id 跨两张表故无 FK，必须显式清理，否则留下孤儿打标行
-    db.prepare('DELETE FROM token_deal_review_marks WHERE deal_id = ?').run(id)
-    // 游客投票：同样无 FK（游客没有 users 行），不显式清理即留下孤儿票
-    db.prepare('DELETE FROM token_deal_guest_votes WHERE deal_id = ?').run(id)
-    db.prepare('DELETE FROM token_deals WHERE id = ?').run(id)
-  })()
+  // 软删除（与 Web 端点同语义）：明细保留、可恢复；物理删除只走后台 purge 端点
+  if (!softDeleteDeal(db, id, userId)) fail(409, '通告已被删除')
 
   return { success: true, deleted: { id, title: deal.title } }
 }
@@ -874,7 +874,7 @@ export function submitTokenDealEdit(db: DB, userId: number, rawDealId: unknown, 
     if (!dealId) fail(400, '通告 ID 不能为空')
 
     const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
-    if (!deal) fail(404, '通告不存在')
+    if (!deal || deal.deleted_at) fail(404, '通告不存在')
 
     const isReviewer = viewer.isAdmin || deal.user_id === userId
     if (deal.status !== 'approved' && !isReviewer) fail(404, '通告不存在')

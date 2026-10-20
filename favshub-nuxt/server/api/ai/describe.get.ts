@@ -22,7 +22,7 @@ export default defineAiHandler('read', async (_event, token) => {
     folders: (db.prepare('SELECT COUNT(*) AS c FROM folders WHERE user_id = ?').get(token.user_id) as any).c,
     prompts: (db.prepare('SELECT COUNT(*) AS c FROM prompts WHERE user_id = ? AND deleted_at IS NULL').get(token.user_id) as any).c,
     tags: (db.prepare('SELECT COUNT(*) AS c FROM tags WHERE user_id = ?').get(token.user_id) as any).c,
-    token_deals: (db.prepare('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ?').get(token.user_id) as any).c,
+    token_deals: (db.prepare('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ? AND deleted_at IS NULL').get(token.user_id) as any).c,
   }
 
   return {
@@ -66,6 +66,7 @@ export default defineAiHandler('read', async (_event, token) => {
       token_deals_status: '管理员发布的通告直接上线（approved）；普通用户发布进入待审核（pending）。',
       patch_semantics: '更新端点（PUT）一律为**部分更新**：只传需要修改的字段，未传字段保持原值。无需先 GET 再回填全部字段。',
       deal_edits: '**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核。** 修改他人通告必须走建议通道（POST /api/ai/token-deals/:id/edits 或工具 submit_token_deal_edit），不能直接 UPDATE；作者是本人通告的审核人，可直接改自己的（PUT），编辑即刻生效。审核权限 = 通告作者或管理员，管理员可审核所有用户的建议。建议通过前通告内容不受影响。',
+      deal_delete: '删除通告为**软删除**：置 deleted_at 后前台立即不可见，投票 / 评测 / 修改建议全部保留，管理员可在后台恢复。已删除的通告再删除返回 404。',
       card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。六种风格：poster（夜幕鎏金海报，默认）/ magazine / neon / clay / blast / voucher。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
     },
 
@@ -121,8 +122,13 @@ export default defineAiHandler('read', async (_event, token) => {
           quality: '上上品 | 上品 | 中品 | 下品 | 下下品', source_tag: 'official | relay | community',
           expires_at: '毫秒时间戳或 null（null=永久）', note: '字符串，可空，≤500',
           status: 'pending | approved | rejected', pinned: '0/1，仅管理员可置顶',
+          deleted_at: '毫秒时间戳或 null；非 null 表示已软删除（后台可恢复）',
+          deleted_by: '整数或 null，执行删除的用户 id',
+          invalid_at: '毫秒时间戳或 null；非 null 表示已失效（下架）',
+          invalid_reason: "'' | expired（到期）| votes（社区投票判定）| manual（管理员判定）",
         },
-        note: '列表默认返回公开的 approved 通告 + 自己发布的全部（含 pending）。',
+        note: '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
+          + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。',
       },
       token_deal_edits: {
         table: 'token_deal_edits',

@@ -47,6 +47,27 @@
         </div>
 
         <div v-else-if="deal" class="tdd-body">
+          <!-- 生命周期提示：已失效 / 已过期 / 已删除（仅作者与管理员能打开这类条目） -->
+          <div v-if="deal.is_deleted || deal.is_invalid || deal.is_expired" class="tdd-status is-invalid">
+            <i class="ri-forbid-2-line"></i>
+            <div>
+              <strong>
+                {{ deal.is_deleted ? '已删除' : (deal.is_invalid ? (deal.invalid_reason_label || '已失效') : '已过期') }}
+              </strong>
+              <p v-if="deal.is_deleted">
+                该通告已从公开列表移除，投票、评测与修改建议均已保留。恢复请联系管理员。
+              </p>
+              <p v-else-if="deal.is_invalid">
+                该通告已被判定失效，不再对外展示，也不再接收新的投票与评测。
+                <template v-if="deal.is_owner">如为误判，可联系管理员复核。</template>
+              </p>
+              <p v-else>
+                有效期已结束，该通告不再对外展示。
+                <template v-if="deal.can_edit">编辑并把有效期延后即可重新上架。</template>
+              </p>
+            </div>
+          </div>
+
           <!-- 审核状态提示 -->
           <div v-if="deal.status !== 'approved'" class="tdd-status" :class="`is-${deal.status}`">
             <i :class="deal.status === 'pending' ? 'ri-time-line' : 'ri-close-circle-line'"></i>
@@ -605,6 +626,9 @@ interface ITokenDeal {
   username?: string
   nickname?: string
   is_expired?: boolean
+  is_invalid?: boolean
+  is_deleted?: boolean
+  invalid_reason_label?: string
   is_owner?: boolean
   can_edit?: boolean
   can_moderate?: boolean
@@ -1469,6 +1493,7 @@ onUnmounted(() => {
 .tdd-status p { margin: 0; }
 .tdd-status.is-pending { background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--warning); }
 .tdd-status.is-rejected { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.tdd-status.is-invalid { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
 
 .tdd-title {
   margin: 0 0 16px;

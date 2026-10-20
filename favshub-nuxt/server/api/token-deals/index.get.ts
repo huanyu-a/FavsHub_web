@@ -8,7 +8,7 @@
  */
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
-import { escapeLike } from '../../utils/token-deals'
+import { escapeLike, publicVisibleClause } from '../../utils/token-deals'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -80,11 +80,13 @@ export default defineEventHandler(async (event) => {
     if (!user) {
       throw createError({ statusCode: 401, data: { error: '未登录' } })
     }
-    whereClause = 'd.user_id = ?'
+    // 「我的通告」保留过期 / 失效条目（作者要能看见以便续期或申诉），但自己已删除的不再显示
+    whereClause = 'd.user_id = ? AND d.deleted_at IS NULL'
     params.push(user.id)
   } else {
-    // 公开列表只展示审核通过的通告
+    // 公开列表：审核通过、未删除、未失效、未过期（2026-10-20 展示优化）
     whereClause = "d.status = 'approved'"
+    whereClause += publicVisibleClause('d', params)
   }
 
   if (search) {
@@ -153,10 +155,14 @@ export default defineEventHandler(async (event) => {
         }
       : null
 
+    const now = Date.now()
     return {
       ...rest,
       models: parseModels(row.models),
-      is_expired: !!row.expires_at && row.expires_at < Date.now(),
+      is_expired: !!row.expires_at && row.expires_at < now,
+      is_invalid: !!row.invalid_at,
+      // 走到这里的公开行一定可见（SQL 已过滤），mine=1 时才可能为 true
+      is_hidden: !!row.deleted_at || !!row.invalid_at || (!!row.expires_at && row.expires_at < now),
       nexus,
     }
   })

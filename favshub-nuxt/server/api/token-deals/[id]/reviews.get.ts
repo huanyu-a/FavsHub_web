@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   const offset = (page - 1) * limit
 
   const db = getRawDb()
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ?').get(id)
+  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ? AND deleted_at IS NULL').get(id)
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }

@@ -21,8 +21,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getRawDb()
-  const deal = db.prepare('SELECT id, status FROM token_deals WHERE id = ?').get(id) as any
-  if (!deal || deal.status !== 'approved') {
+  const deal = db.prepare(
+    'SELECT id, status, deleted_at, invalid_at, expires_at FROM token_deals WHERE id = ?'
+  ).get(id) as any
+  if (!deal || deal.status !== 'approved' || deal.deleted_at
+      || deal.invalid_at || (deal.expires_at && deal.expires_at <= Date.now())) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 

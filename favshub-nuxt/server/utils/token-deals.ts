@@ -418,3 +418,216 @@ export function reviewDealById(dealId: string, action: DealReviewAction, reason:
 
   return { ok: true, deal }
 }
+
+// ════════════════════════════════════════════════════════════════
+// 通告生命周期 —— 失效状态机 + 软删除
+//
+// ## 为什么要与 status 分开
+//
+// `status`（pending/approved/rejected）是**审核**状态，由人工流转；而「过期 / 失效 /
+// 已删除」是**生命周期**状态，随时间与社区投票自动变化。两者混在一个字段里会互相覆盖
+// （过期把 approved 改掉，就再也说不出「它曾经审核通过」），故新增独立列：
+//
+//   deleted_at / deleted_by   —— 软删除（可恢复），「被删除」从此可追溯
+//   invalid_at / invalid_reason —— 失效（expired | votes | manual），非空即对外不可见
+//
+// ## 失效来源（三处写入）
+//
+//   1. expired —— `archiveExpiredDeals()` 把 `expires_at` 已过的 approved 行归档
+//   2. votes   —— 投票否决阈值（`evaluateDealVoteInvalidation()`，仅在真实投票时评估）
+//   3. manual  —— 管理员在后台「已失效」面板手动标记
+//
+// **不在 `syncDealCounters` 里评估投票阈值**：种子数据会灌入演示票，
+// 若在计数重算时评估，首次启动就会把演示通告整批判为失效。
+// ════════════════════════════════════════════════════════════════
+
+/** 失效原因枚举 */
+export const INVALID_REASONS = ['expired', 'votes', 'manual'] as const
+export type InvalidReason = (typeof INVALID_REASONS)[number]
+
+/** 失效原因中文标签（后台展示） */
+export const INVALID_REASON_LABELS: Record<string, string> = {
+  expired: '已过期',
+  votes: '社区判定失效',
+  manual: '管理员判定失效',
+}
+
+/**
+ * 投票否决阈值：负票数下限 + 负票占比。
+ *
+ * 设绝对下限是**误杀保护** —— 一条刚发布的通告被 1 个人点了「已失效」不该消失；
+ * 3 票 + 60% 是两个都满足才触发，宁可漏判（留给管理员手动），不可错杀。
+ */
+export const INVALID_VOTE_RULE = {
+  /** 触发所需的最少负票数 */
+  minDownVotes: 3,
+  /** 负票占（正+负）的最低比例 */
+  minDownRatio: 0.6,
+} as const
+
+/**
+ * 公开可见口径（与 `status='approved'` 配合）：未删除 + 未失效 + 未过期。
+ *
+ * 过期在这里**运行时判一次**（而不只依赖归档任务），保证到点即不可见，
+ * 不因归档任务未跑而漏出。params 按 `?` 出现顺序追加。
+ */
+export function publicVisibleClause(alias: string, params: any[], now = Date.now()): string {
+  params.push(now)
+  return ` AND ${alias}.deleted_at IS NULL AND ${alias}.invalid_at IS NULL`
+    + ` AND (${alias}.expires_at IS NULL OR ${alias}.expires_at > ?)`
+}
+
+/** 单条通告是否对外可见（内存判断，供端点对已查出的行做二次校验） */
+export function isPubliclyVisible(
+  deal: { deleted_at?: number | null; invalid_at?: number | null; expires_at?: number | null } | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!deal) return false
+  if (deal.deleted_at) return false
+  if (deal.invalid_at) return false
+  if (deal.expires_at && deal.expires_at <= now) return false
+  return true
+}
+
+/** 软删除：置 deleted_at，明细表（投票/评测/建议/打标）全部保留，可恢复 */
+export function softDeleteDeal(db: Database.Database, dealId: string, actorId: number): boolean {
+  const res = db.prepare(
+    'UPDATE token_deals SET deleted_at = ?, deleted_by = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+  ).run(Date.now(), actorId, Date.now(), dealId)
+  return res.changes > 0
+}
+
+/** 恢复软删除 */
+export function restoreDeletedDeal(db: Database.Database, dealId: string): boolean {
+  const res = db.prepare(
+    'UPDATE token_deals SET deleted_at = NULL, deleted_by = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
+  ).run(Date.now(), dealId)
+  return res.changes > 0
+}
+
+/** 标记失效（管理员手动 / 过期归档 / 投票判定共用） */
+export function markDealInvalid(
+  db: Database.Database,
+  dealId: string,
+  reason: InvalidReason,
+  at = Date.now(),
+): boolean {
+  const res = db.prepare(
+    'UPDATE token_deals SET invalid_at = ?, invalid_reason = ?, updated_at = ? WHERE id = ? AND invalid_at IS NULL'
+  ).run(at, reason, Date.now(), dealId)
+  return res.changes > 0
+}
+
+/** 撤销失效（恢复对外展示）；`expired` 类需同时延长有效期，由调用方先改 expires_at */
+export function clearDealInvalid(db: Database.Database, dealId: string): boolean {
+  const res = db.prepare(
+    "UPDATE token_deals SET invalid_at = NULL, invalid_reason = '', updated_at = ? WHERE id = ? AND invalid_at IS NOT NULL"
+  ).run(Date.now(), dealId)
+  return res.changes > 0
+}
+
+/**
+ * 过期归档：把「已通过、未删除、未失效、有效期已过」的通告置为 invalid(expired)。
+ *
+ * 幂等 —— 已失效/已删除的行不会被重复改写；`invalid_at` 取到期时刻而非当前时刻，
+ * 使后台「失效时间」列反映真实的到期时间。返回归档条数。
+ */
+export function archiveExpiredDeals(db: Database.Database, now = Date.now()): number {
+  try {
+    const res = db.prepare(`
+      UPDATE token_deals
+      SET invalid_at = COALESCE(expires_at, ?), invalid_reason = 'expired'
+      WHERE status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL
+        AND expires_at IS NOT NULL AND expires_at <= ?
+    `).run(now, now)
+    return res.changes
+  } catch (err: any) {
+    console.warn('[token-deals] 过期归档失败（忽略）:', err?.message || err)
+    return 0
+  }
+}
+
+/**
+ * 投票否决判定：真实投票落库后调用（**不要**放进 syncDealCounters，理由见上方注释）。
+ *
+ * 语义可逆：票可以改可以撤，故当负票回落到阈值以下时自动撤销 `votes` 类失效；
+ * `manual` / `expired` 两类不被投票影响（人工判定与到期事实不该被投票覆盖）。
+ */
+export function evaluateDealVoteInvalidation(db: Database.Database, dealId: string): void {
+  try {
+    const row = db.prepare(
+      'SELECT vote_up, vote_down, invalid_reason, invalid_at FROM token_deals WHERE id = ?'
+    ).get(dealId) as { vote_up: number; vote_down: number; invalid_reason: string; invalid_at: number | null } | undefined
+    if (!row) return
+
+    const up = row.vote_up || 0
+    const down = row.vote_down || 0
+    const total = up + down
+    const hit = down >= INVALID_VOTE_RULE.minDownVotes
+      && total > 0
+      && down / total >= INVALID_VOTE_RULE.minDownRatio
+
+    const currentReason = row.invalid_at ? row.invalid_reason : ''
+    if (hit && (!currentReason || currentReason === 'votes')) {
+      if (!currentReason) markDealInvalid(db, dealId, 'votes')
+    } else if (!hit && currentReason === 'votes') {
+      clearDealInvalid(db, dealId)
+    }
+  } catch (err: any) {
+    console.warn('[token-deals] 投票失效判定失败（忽略）:', err?.message || err)
+  }
+}
+
+/**
+ * 彻底删除（物理）：仅在管理员「彻底清除」时调用。
+ * 明细表显式清理 —— 不依赖 FK 级联（CLI / 部分连接默认 foreign_keys=OFF，级联会静默失效）。
+ */
+export function purgeDealPermanently(db: Database.Database, dealId: string): void {
+  db.transaction(() => {
+    db.prepare('DELETE FROM token_deal_votes WHERE deal_id = ?').run(dealId)
+    db.prepare('DELETE FROM token_deal_reviews WHERE deal_id = ?').run(dealId)
+    db.prepare('DELETE FROM token_deal_edits WHERE deal_id = ?').run(dealId)
+    db.prepare('DELETE FROM token_deal_guest_reviews WHERE deal_id = ?').run(dealId)
+    // 评测打标：review_id 跨两张表故无 FK，必须显式清理，否则留下孤儿打标行
+    db.prepare('DELETE FROM token_deal_review_marks WHERE deal_id = ?').run(dealId)
+    // 游客投票：同样无 FK（游客没有 users 行），不显式清理即留下孤儿票
+    db.prepare('DELETE FROM token_deal_guest_votes WHERE deal_id = ?').run(dealId)
+    db.prepare('DELETE FROM token_deals WHERE id = ?').run(dealId)
+  })()
+}
+
+/**
+ * 写入口（投票 / 评测 / 建议 / 打标 / 置顶 / 导入）的可见性闸门。
+ *
+ * 规则：
+ *   - 通告不存在 或 已删除 → 一律 404（管理员也不给写，恢复走 restore 端点）；
+ *   - 已失效 / 已过期 → 对普通访客 404（冻结交互，避免「已失效却继续收好评」的矛盾数据），
+ *     管理员放行（要能在后台对失效条目做数据维护）。
+ *
+ * `allowVotesInvalid`（仅投票入口用）：因社区投票而失效的条目仍可继续投票 ——
+ * 否则阈值一旦触发就自我锁定，负票再也撤不掉，「降到阈值以下自动恢复」这条可逆语义
+ * 就永远走不到。人工判定（manual）与到期（expired）不放开，投票不该推翻这两类事实。
+ */
+export function findWritableDeal(
+  db: Database.Database,
+  dealId: string,
+  opts: { isAdmin?: boolean; allowVotesInvalid?: boolean } = {},
+): { ok: true; deal: Record<string, any> } | { ok: false; status: number; error: string } {
+  const deal = db.prepare(
+    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'
+  ).get(dealId) as Record<string, any> | undefined
+
+  if (!deal || deal.deleted_at) {
+    return { ok: false, status: 404, error: '通告不存在' }
+  }
+  if (!opts.isAdmin && !isPubliclyVisible(deal)) {
+    const votesOnly = opts.allowVotesInvalid
+      && !!deal.invalid_at
+      && deal.invalid_reason === 'votes'
+      && !(deal.expires_at && deal.expires_at <= Date.now())
+    if (!votesOnly) {
+      return { ok: false, status: 404, error: '通告已失效或已过期，暂不可操作' }
+    }
+  }
+  return { ok: true, deal }
+}

@@ -521,6 +521,15 @@ export function runMigrations(db: Database.Database) {
   // 用于「待审上限」去重；user_id 固定为 0，即种子系统用户 _system，满足外键约束）
   ensureColumn(db, 'token_deals', 'guest_name', "ALTER TABLE token_deals ADD COLUMN guest_name TEXT DEFAULT ''")
   ensureColumn(db, 'token_deals', 'guest_fingerprint', "ALTER TABLE token_deals ADD COLUMN guest_fingerprint TEXT DEFAULT ''")
+  // 2026-10-20 通告生命周期（失效 / 软删除）：与「审核状态 status」正交的一组列。
+  //   deleted_at / deleted_by —— 删除由物理 DELETE 改软删除，使「被删除」可追溯、
+  //     投票与评测历史不再随删除丢失（原物理删除会连根清掉明细，无法回看）。
+  //   invalid_at / invalid_reason —— 显式失效状态机（expired | votes | manual），
+  //     非空即对外不可见；由过期归档、投票否决阈值与管理员手动三处写入。
+  ensureColumn(db, 'token_deals', 'deleted_at', 'ALTER TABLE token_deals ADD COLUMN deleted_at INTEGER DEFAULT NULL')
+  ensureColumn(db, 'token_deals', 'deleted_by', 'ALTER TABLE token_deals ADD COLUMN deleted_by INTEGER DEFAULT NULL')
+  ensureColumn(db, 'token_deals', 'invalid_at', 'ALTER TABLE token_deals ADD COLUMN invalid_at INTEGER DEFAULT NULL')
+  ensureColumn(db, 'token_deals', 'invalid_reason', "ALTER TABLE token_deals ADD COLUMN invalid_reason TEXT DEFAULT ''")
 
   // 删除旧的 category_name 列（SQLite 需要重建表）
   try {
@@ -836,6 +845,15 @@ export function createIndexes(db: Database.Database) {
     `)
   } catch (err: any) {
     console.error('[DB] 创建性能索引失败:', err.message)
+  }
+
+  // 通告可见性索引：公开列表恒定 WHERE status='approved' AND deleted_at IS NULL
+  // AND invalid_at IS NULL AND (expires_at IS NULL OR expires_at > now)。
+  // 独立 try/catch —— 迁移铁律：不并入上方大 exec 块，单条失败不带走其后语句。
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_td_visible ON token_deals(status, deleted_at, invalid_at, expires_at)')
+  } catch (err: any) {
+    console.warn('[DB] 通告可见性索引创建失败（不影响其他索引）:', err.message)
   }
 
   createTokenDealEditIndexes(db)

@@ -94,7 +94,8 @@ docs/screenshots/      # 文档截图（非 public）
 - 书签：列表 + 文件夹，两级筛选、树形、图标
 - 提示词：列表 + 文件夹 + 标签 + 历史 + 审核
 - 搜索引擎：CRUD + 用户提交审核
-- Token 通告：待审核队列 + 通过 / 驳回（含驳回原因）+ 置顶（`admin/token-deals`）
+- Token 通告：待审核队列 + 通过 / 驳回（含驳回原因）+ 置顶 + **已失效面板**（`admin/token-deals`，
+  「已失效」Tab 汇总已过期 / 判定失效 / 已删除三类，可恢复、续期、改永久、彻底删除）
 - 备份：手动 + 每日定时 + 百度网盘（见 `admin/backup`）
 
 ## 数据模型
@@ -168,7 +169,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/bookmarks/*`、`/api/folders/*` | 个人书签与文件夹 | 登录 |
 | `/api/collections/*` | 精选集 CRUD、订阅、导入、书签引用 | 混合 |
 | `/api/prompts/*`、`/api/tags/*` | 提示词、版本、审核申请 | 登录 |
-| `/api/token-deals/*` | Token 通告：列表 / 详情 / 发布 / 改删 / 投票 / 评测 / 导入 / 置顶 | 混合 |
+| `/api/token-deals/*` | Token 通告：列表 / 详情 / 发布 / 改删（软删除）/ 投票 / 评测 / 导入 / 置顶 | 混合 |
+| `/api/admin/token-deals/:id/restore` | 恢复删除 / 撤销失效 / 标记失效 / 续期 / 改永久（管理员，支持 `dry_run`） | 管理员 |
+| `/api/admin/token-deals/:id/purge` | 彻底删除通告及其明细（物理删除，须 `{confirm:true}`） | 管理员 |
 | `/api/token-keys/*` | 福利 Key：公开脱敏列表 / 复制明文 / 可用性投票 / 我的投票 | 无（投票按指纹身份） |
 | `/api/sync/*` | 扩展书签 / favicon 同步 | 登录 |
 | `/api/favicon?domain=` | favicon 服务端代理 + 本地缓存（SSRF 防护） | 无 |
@@ -217,10 +220,44 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 投票：一人一票（`UNIQUE(deal_id, user_id)`）——重复投同向 = **取消**，投反向 = 改票
 - 评测：一人一评（`UNIQUE(deal_id, user_id)`）——重复提交为**更新**（不新增计数）；`rating` 限 1-5，越界 400。
   登录用户评测（即时公开、无审核）自 2026-10-12 起同样有限频（每用户 20/h、每 IP 40/h）与广告黑名单过滤
-- 置顶：**仅管理员**（普通用户 403）；删除：作者或管理员
+- 置顶：**仅管理员**（普通用户 403）；删除：作者或管理员 —— **软删除**（见下「生命周期」）
 - 计数：`vote_up` / `vote_down` / `rating_sum` / `rating_count` 为缓存列，统一由 `syncDealCounters(db, id)` 在 `db.transaction` 内重算，勿在各接口里手工 ±1
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）
+
+#### 生命周期：已过期 / 判定失效 / 已删除（2026-10-20）
+
+状态机与 `status`（审核态）**正交**，四列全部是毫秒时间戳或空：
+
+| 列 | 含义 |
+|----|------|
+| `deleted_at` / `deleted_by` | 软删除：谁在何时删的。恢复后按原审核态重新上架 |
+| `invalid_at` / `invalid_reason` | 失效：`expired`（到期）/ `votes`（社区投票判定）/ `manual`（管理员判定） |
+
+三类互斥，优先级 **已删除 > 判定失效 > 已过期**；「已过期」既指归档后
+`invalid_reason='expired'`，也指到期未归档（`invalid_at IS NULL AND expires_at <= now`）——
+判定逻辑的单一真源在 `admin/token-deals/index.get.ts` 的 `P_DELETED / P_INVALID / P_EXPIRED / P_LIVE`
+与 `classify()`，改口径只改这里。
+
+- **对外不可见**：公开列表、详情直达、投票 / 评测 / 建议 / 打标 / 置顶 / 导入 / 分享卡片，
+  对不可见条目**统一 404**（不是 403 —— 403 会泄露「这条存在」）。规则集中在
+  `publicVisibleClause()` / `isPubliclyVisible()` / `findWritableDeal()`（`utils/token-deals.ts`）。
+- **例外（作者视角）**：自己的**过期 / 失效**通告仍可打开详情（据此续期），列表走 `mine=1`；
+  但**已删除**的除管理员外一律 404 —— 恢复是管理员动作，防止被下架内容被作者自行「复活」。
+- **自动失效**：`archiveExpiredDeals()`（`db-init` 启动时 + 打开后台失效面板时各跑一次，幂等）
+  把到期行写成 `invalid_at = COALESCE(expires_at, now)`、`invalid_reason='expired'`，
+  使后台「失效时间」是真实到期时刻而非打开页面的时刻；投票阈值
+  `INVALID_VOTE_RULE = {minDownVotes:3, minDownRatio:0.6}` 由 `evaluateDealVoteInvalidation()`
+  在**真实投票后**判定（**不要放进 `syncDealCounters`** —— 种子数据带演示负票会被误判）。
+- **可逆性**：投票类失效在负票回落到阈值以下时自动撤销，且这类条目仍允许继续投票
+  （`findWritableDeal(..., {allowVotesInvalid:true})`，否则阈值一触发就自我锁死、负票再也撤不掉）；
+  `manual` / `expired` 不被投票推翻。续期或改永久只清除 `expired` 类。
+- **后台端点**：`GET /api/admin/token-deals?view=invalid[&lifecycle=expired|invalid|deleted]`、
+  `POST /api/admin/token-deals/:id/restore`（`{action: restore_delete|restore_invalid|mark_invalid|extend|set_permanent}`，
+  支持 `dry_run`）、`DELETE /api/admin/token-deals/:id/purge`（**物理删除**，必须 `{confirm:true}`，
+  显式清理 6 张明细表，不依赖 FK 级联）。审核队列（`view=queue`）只含在架条目，与失效面板互不重叠。
+- **AI / MCP / QQ**：`/api/ai/token-deals` 列表同样按上面口径过滤，删除即软删除；
+  QQ 机器人待审汇总额外报「已失效 N 条」。
 
 #### 人机校验（2026-10-12 升级为 Cloudflare Turnstile）
 

@@ -85,7 +85,7 @@ const TOOLS: ToolDef[] = [
           prompts: one('SELECT COUNT(*) AS c FROM prompts WHERE user_id = ? AND deleted_at IS NULL'),
           prompts_trashed: one('SELECT COUNT(*) AS c FROM prompts WHERE user_id = ? AND deleted_at IS NOT NULL'),
           tags: one('SELECT COUNT(*) AS c FROM tags WHERE user_id = ?'),
-          token_deals: one('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ?'),
+          token_deals: one('SELECT COUNT(*) AS c FROM token_deals WHERE user_id = ? AND deleted_at IS NULL'),
         },
       }
     },
@@ -222,7 +222,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_token_deals',
     scope: 'read',
-    description: '查询 Token 白嫖通告（公开的已审核通告 + 自己发布的全部）。',
+    description: '查询 Token 白嫖通告（公开可见的已审核通告 + 自己发布的全部）。已失效 / 已过期 / 已删除的通告不会返回。',
     inputSchema: obj({ q: str('关键词（匹配服务商或标题）'), region: str('cn | global'), quality: str('上上品 | 上品 | 中品 | 下品 | 下下品'), mine: bool('仅自己发布的'), limit: num('每页条数，默认 50'), page: num('页码') }),
     run: (db, token, args) => listTokenDeals(db, token.user_id, args || {}),
   },
@@ -243,7 +243,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'delete_token_deal',
     scope: 'delete',
-    description: '删除 Token 白嫖通告（作者或管理员）。必须携带 confirm:true。',
+    description: '删除 Token 白嫖通告（作者或管理员）。必须携带 confirm:true。软删除：前台立即不可见，投票/评测保留，管理员可恢复。',
     inputSchema: obj({ id: str('通告 ID（必填）'), confirm: CONFIRM, dry_run: DRY_RUN }, ['id', 'confirm']),
     run: (db, token, args) => deleteTokenDeal(db, token.user_id, args?.id, args || {}),
   },

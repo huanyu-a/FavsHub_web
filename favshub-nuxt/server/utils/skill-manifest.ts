@@ -7,13 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.8.1",
-  site_version: "1.0.24",
+  version: "1.8.2",
+  site_version: "1.0.26",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**修正** 「福利 Key」一节曾声称 `describe` 的 `endpoints` 清单会列出上报端点，实际服务端未登记 （`describe` 只覆盖书签 / 文件夹 / 提示词 / 标签 / 通告 / MCP 等路径）—— 改为准确表述： 该通道为 REST 专用、无 MCP 工具且不在 describe 清单内，按文档端点直接调用。",
-  "**新增** `examples.md` 补「福利 Key」完整示例：快照上报（幂等 upsert、`dry_run`）、 对账清理 `prune`（`delete` + 管理员 + `confirm`）、公开列表 / 复制 / 投票 / `my-votes`， 并写明秒级时间戳、`verdict` 枚举、投票取消与改票语义、明文红线。",
-  "**优化** `examples.md` 小节编号改为连续整数（原 7.5 / 7.6 / 7.7 / 9.5 跳号），便于按号引用。"
+  "**变更** 通告列表改为「公开可见」口径：**已过期 / 判定失效 / 已删除的通告不再返回**， 详情 / 投票 / 评测 / 建议 / 分享卡片对这类条目统一 404（此前过期通告仍会出现在列表里， 甚至能继续收票与评测，产生「已失效却评分很高」的矛盾数据）。",
+  "**变更** `DELETE /api/ai/token-deals/:id` 改为**软删除**语义：前台立即不可见、投票与评测保留、 管理员可恢复，重复删除返回 404；物理清除仅限管理后台。响应仍为 `{ success: true }`， 旧调用不受影响，但「删了就一定没了」的假设不再成立。",
+  "**新增** `describe` 的 `token_deals` 字段字典补充 `deleted_at` / `deleted_by` / `invalid_at` / `invalid_reason`（`expired` | `votes` | `manual`）与 `deal_delete` 语义说明， 便于 AI 客户端区分「审核未过」与「已下架」。"
 ],
 } as const
