@@ -6,7 +6,8 @@ qq-outbox-deliver.py — FavsHub QQ 机器人 outbox 投递器（宿主机 cron 
   容器内的 FavsHub（server/utils/qq-notify.ts transport='outbox'）把出站通知以「一条消息一个
   JSON 文件」写入挂载卷的 spool 目录（write <name>.tmp → rename 发布，原子可见）；
   本脚本由宿主机 cron 周期性拉起：逐个读取 spool 文件 → 调用 `hermes send` 投递（官方 QQ /
-  钉钉通道）→ 成功删除文件；失败则 attempts+1 回写（原子替换），超过上限或超过保留时长后丢弃。
+  钉钉通道）→ 成功删除文件；失败则 attempts+1 回写（原子替换），超过上限或超过保留时长后丢弃；
+  平台明确判定为永久性失败（无权限 / 请求不合法）的一次即丢，不做 10 次无用重试。
   目录内文件天然隔离读写竞态（消费端只碰已发布的 <id>.json，生产者从不改名已发布文件）。
 
 hermes send 约定：`--json` 输出恒为单个 JSON 对象；投递失败也返回 exit 0（error 在 stdout JSON 里），
@@ -35,6 +36,20 @@ BATCH = int(os.environ.get("FAVSHUB_OUTBOX_BATCH", "20"))  # 单次最多投递�
 SEND_TIMEOUT = 30
 
 LOCK = "/tmp/qq-outbox-deliver.lock"
+
+# 永久性失败特征：平台明确说「没有权限 / 请求本身不合法」时，重试 10 次也不会好，
+# 只会白占队列并把日志刷成噪音（QQ 官方机器人群主动消息 = 40034105 无权限 就是这类）。
+# 命中即丢弃，并把原因留在日志里，便于一次性定位配置问题。
+PERMANENT_MARKERS = (
+    "无权限", "权限不足", "not allowed", "forbidden",
+    "400", "401", "403", "404", "bad request", "invalid",
+    "unsupported", "not found", "chat not found", "blocked",
+)
+
+
+def is_permanent(detail: str) -> bool:
+    d = (detail or "").lower()
+    return any(m in d for m in PERMANENT_MARKERS)
 
 
 def log(msg: str) -> None:
@@ -93,6 +108,10 @@ def handle(path: str, name: str, now: float) -> None:
     if ok:
         os.remove(path)
         log(f"[outbox] ✓ {target} | {text[:40]}… | {detail}")
+        return
+    if is_permanent(detail):
+        os.remove(path)
+        log(f"[outbox] ✗ 永久失败（不重试），丢弃：{target} | {text[:40]} | {detail}")
         return
     attempts = int(entry.get("attempts") or 0) + 1
     entry["attempts"] = attempts

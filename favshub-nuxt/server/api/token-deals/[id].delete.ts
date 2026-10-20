@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
 
   // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
   try {
-    notifyTokenDealDeleted(deal.title)
+    notifyTokenDealDeleted(deal)
   } catch (err: any) {
     console.warn('[QQBot] 通告删除通知入队失败（忽略）:', err?.message || err)
   }

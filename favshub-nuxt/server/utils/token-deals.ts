@@ -415,9 +415,9 @@ export function reviewDealById(dealId: string, action: DealReviewAction, reason:
 
   try {
     if (action === 'approve') {
-      notifyTokenDealApproved(deal.title, deal.user_id)
+      notifyTokenDealApproved(deal, deal.user_id)
     } else {
-      notifyTokenDealRejected(deal.title, deal.user_id, finalReason)
+      notifyTokenDealRejected(deal, deal.user_id, finalReason)
     }
   } catch (err: any) {
     console.warn('[QQBot] 通告审核通知入队失败（忽略）:', err?.message || err)

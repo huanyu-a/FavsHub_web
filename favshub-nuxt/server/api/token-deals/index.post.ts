@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     }
     // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
     try {
-      notifyTokenDealPending(result.data.title, `游客·${result.data.nickname}`)
+      notifyTokenDealPending(result.data, `游客·${result.data.nickname}`)
     } catch (err: any) {
       console.warn('[QQBot] 通告提交通知入队失败（忽略）:', err?.message || err)
     }
@@ -81,9 +81,9 @@ export default defineEventHandler(async (event) => {
   // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
   try {
     if (isAdmin) {
-      notifyTokenDealPublished(d.title)
+      notifyTokenDealPublished(d)
     } else {
-      notifyTokenDealPending(d.title, user.username)
+      notifyTokenDealPending(d, user.username)
     }
   } catch (err: any) {
     console.warn('[QQBot] 通告提交通知入队失败（忽略）:', err?.message || err)

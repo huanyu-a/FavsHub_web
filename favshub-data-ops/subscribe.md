@@ -98,13 +98,15 @@ python3 ~/favshub-poll.py --init --site {BASE} --target qqbot:123456789 --label 
 ### 第 3 步：交给 cron
 
 ```cron
-*/10 * * * * python3 /你的绝对路径/favshub-poll.py >> /你的绝对路径/favshub-poll.log 2>&1
+*/2 * * * * python3 /你的绝对路径/favshub-poll.py >> /你的绝对路径/favshub-poll.log 2>&1
 ```
 
 > cron 不做 `~` 展开，两个路径都要写全；`python3` 也建议写成 `command -v python3` 得到的绝对路径
 > （cron 的 `PATH` 很窄，找不到命令时任务会静默失败）。
 
-10 分钟一次足够（站点侧限 60 次/小时/IP）。**不要**写成 `* * * * *`：通告不是秒级数据。
+节奏怎么选：站点侧限 **60 次/小时/IP**，`*/2` = 30 次/小时，是「够快又不会撞限流」的档位；
+`*/10` 会把延迟拉到十几分钟（发布后要等一阵群里才看到）。**不要**写成 `* * * * *`（60 次/小时恰好顶格，
+多机部署或手动补跑就会 429）。通告不是秒级数据，`*/2`～`*/5` 都合理。
 
 ### 第 4 步：自检
 
@@ -185,6 +187,20 @@ def http_json(url, payload=None, timeout=TIMEOUT):
         return e.code, body
     except Exception as e:
         raise RuntimeError(f"请求失败：{e}")
+
+
+def render_for(target, ev):
+    """按通道挑格式：钉钉群机器人支持 Markdown，QQ 官方机器人只吃纯文本。
+
+    事件同时带两个字段：
+      - ``text``     单行纯文本（≤200 字，``【上新】服务商｜标题｜额度｜链接``）
+      - ``markdown`` 多行富文本（标题 / 加粗 / 列表 / 可点链接，字段更全）
+    把 ``**`` 之类的符号发到 QQ 官方机器人上会原样显示，观感很差，所以按目标前缀分流。
+    """
+    md = ev.get("markdown") or ""
+    if str(target).lower().startswith("dingtalk") and md:
+        return md
+    return ev.get("text") or md
 
 
 def hermes_send(target, text):
@@ -272,7 +288,7 @@ def cmd_run(args):
 
     sent = 0
     for ev in events:
-        text = ev.get("text") or ""
+        text = render_for(st["target"], ev)
         if not text:
             continue
         if st["sent_today"] + sent >= DAILY_CAP:
@@ -347,9 +363,61 @@ if __name__ == "__main__":
 - **`hermes send --json` 的退出码不可信**：失败也返回 0，成功与否只看 JSON 的 `success`。
 - **每日上限**（默认 20 条）：站点一下子变了 40 条时，不再逐条刷屏，改成一条摘要。
 
+## 格式与平台差异（为什么钉钉比 QQ 快）
+
+事件里有**两套渲染结果**，按目标通道自己挑：
+
+| 字段 | 形态 | 适合 |
+|---|---|---|
+| `text` | 单行、≤200 字 | QQ 官方机器人、短信类窄通道 |
+| `markdown` | 多行、含标题 / 加粗 / 列表 / 可点链接 | 钉钉群机器人、Telegram(MarkdownV2 除外) 等富文本通道 |
+
+`markdown` 的样子（上新事件）：
+
+```markdown
+🆕 **【上新】某服务商**
+> 注册送 40 美元额度，每日签到再得 10 美元
+
+- 额度 40 美元/月（签到 +10）
+- 模型 Claude / GPT-4o
+- 到期 11-20
+- 中品
+- 海外
+
+领取：https://example.com/redeem
+
+[查看通告](https://example.com/tokens?deal=xxx)
+```
+
+`updated` / `renewed` 事件改成差异列表（`- 额度 40 美元 → 80 美元`），`offline` 只给「已下架 + 原因」。
+
+### 两个平台根本不是同一种投递方式
+
+| | 钉钉群机器人 | QQ 官方机器人 |
+|---|---|---|
+| 接口 | 自定义机器人 **webhook**，一条 HTTPS POST | OpenAPI：先取 `app_access_token`，再调 `/v2/groups/{openid}/messages` |
+| 主动推送 | 无限制（受频率策略约束，20 条/分钟） | **群聊主动消息需要单独开通权限**；未开通时返回 `40034105 主动消息失败, 无权限` |
+| 典型延迟 | 1～3 秒 | 群：收不到；私聊（c2c）有主动额度，通常也是几秒 |
+| Markdown | 支持（`msgtype=markdown`） | 不支持，只吃纯文本 |
+
+所以「钉钉收到、QQ 很久没动静」通常**不是脚本慢**，而是 QQ 群主动消息被平台拒了。三条出路：
+
+1. 给机器人开通「群主动消息」权限（企业主体、需审核）；
+2. 换 **OneBot 协议端**（NapCat / Lagrange 等）走 QQ 协议收发，没有官方主动消息限制；
+3. 退回**被动回复**：机器人在群里被 @ 后 5 分钟内用 `msg_id` 回复 —— 适合「有人问才答」，不适合订阅推送。
+
+排错先手跑一条，看 JSON 里的 `error`：
+
+```bash
+hermes send -t qqbot:<群 openid> --json "通道自检"
+# {"success": false, "error": {"message": "QQBot send failed: channel=400 c2c=400 group=400"}}
+```
+
+拿到 400 就基本可以按上面第 1/2 条处理；`success: true` 才是通道通了。
+
 ## 事件类型与文案
 
-`/api/token-deals/changes` 返回的事件已经是**渲染好的中文句子**（`text` 字段），可以直接发：
+`/api/token-deals/changes` 返回的事件已经是**渲染好的中文句子**（`text` 单行、`markdown` 多行），可以直接发：
 
 | kind | 中文 | 触发 |
 |---|---|---|
@@ -360,6 +428,7 @@ if __name__ == "__main__":
 | `pinned` | 置顶 / 取消置顶 | 默认**不**订阅，需要时在 `filters.kinds` 里显式加上 |
 
 **下架事件只带标题和原因**（不带额度、模型、领取链接）—— 内容已消失，不该继续被分发。
+事件里的 `markdown` 同理：脱敏事件（`deal_redacted: true`）连富文本也只渲染标题。
 
 ## 排错
 

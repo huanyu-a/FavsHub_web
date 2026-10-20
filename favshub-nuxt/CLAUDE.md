@@ -317,7 +317,10 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   `offline` 要求 `wasPublished(before)`（审核通过 + 未软删 + 未失效，**故意不看 `expires_at`**，
   否则到期归档这一事件永远发不出去）；其余类型要求 `nowPublic && status==='approved'`。
   `updated` 无实质差异则不写。
-- **`text` 不落库**：只存 `snapshot`（公开字段）+ `meta.changes`（差异结构），文案在读取时渲染
+- **两套渲染并存**：`text`（单行 ≤200 字，QQ 官方机器人只吃纯文本）+ `markdown`（多行富文本：
+  标题 / 字段列表 / 领取与官网地址 / 可点详情链接，钉钉等富文本通道用）。脱敏事件（`deal_redacted`）
+  的 `markdown` 不推可点链接，只留一句「已下架」说明。
+- **`text` / `markdown` 都不落库**：只存 `snapshot`（公开字段）+ `meta.changes`（差异结构），文案在读取时渲染
   —— 站点换域名时链接跟着变。`offline` 的 `snapshot` 走 `offlineSnapshot()` 只留
   `id/provider/title/expires_at/share_path`：下架后额度 / 模型 / 领取链接不该再从公开流里读到。
 - **事件写入永不回滚业务事务**：整体包在 try/catch 里，失败只 warn。

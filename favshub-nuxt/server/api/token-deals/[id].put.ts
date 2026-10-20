@@ -94,7 +94,7 @@ export default defineEventHandler(async (event) => {
   // QQ 机器人通知：被驳回的通告修改后重新进入待审（fire-and-forget，绝不阻断主请求）
   if (status === 'pending' && deal.status === 'rejected') {
     try {
-      notifyTokenDealRePending(d.title)
+      notifyTokenDealRePending(d)
     } catch (err: any) {
       console.warn('[QQBot] 通告回待审通知入队失败（忽略）:', err?.message || err)
     }

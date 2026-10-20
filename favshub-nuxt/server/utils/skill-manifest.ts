@@ -7,12 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.9.2",
-  site_version: "1.0.36",
+  version: "1.9.3",
+  site_version: "1.0.37",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**新增** 白嫖通告的人工核验时间轴：列表条目多出 `verified_at` / `verify_age_days` / `verify_stale` / `verify_note` 四个**只读**派生字段（AI 令牌写了也不会生效，核验只能站长操作，`verified_by` 不下发）。",
-  "**建议** 推荐资源时优先「最近核验 + 社区投票健康」的条目，并如实转述核验日期； `verify_stale=true` 只表示「超过 30 天没复核」，通告仍然可用可见，别当成失效。"
+  "**新增** 订阅事件多出 `markdown` 字段（多行富文本：标题、加粗、字段列表、可点链接）， 与原有的单行 `text` 并存 —— 钉钉群机器人发 `markdown`，QQ 官方机器人发 `text`。",
+  "**建议** `subscribe.md` 的 cron 从 `*/10` 收到 `*/2`（站点限 60 次/小时/IP，`*/2` 只占 30 次）， 延迟从十几分钟压到两分钟级。",
+  "**说明** 补「钉钉 vs QQ 官方机器人」投递模式差异：钉钉是 webhook 主动推送， QQ 群主动消息需要单独开通权限（未开通返回 `40034105 主动消息失败, 无权限`）， 并给出三条替代路径（申请权限 / OneBot 协议端 / 被动回复）。"
 ],
 } as const

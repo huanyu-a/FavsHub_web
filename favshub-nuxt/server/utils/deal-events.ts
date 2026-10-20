@@ -90,6 +90,8 @@ export interface DealEventSnapshot {
   title: string
   url: string
   quota: string
+  /** 领取地址（公开字段；下架 / 脱敏快照会把它剔掉） */
+  call_url: string
   models: string[]
   region: string
   quality: string
@@ -108,6 +110,7 @@ export function buildDealSnapshot(deal: any): DealEventSnapshot {
     title: String(deal?.title ?? ''),
     url: String(deal?.url ?? ''),
     quota: String(deal?.quota ?? ''),
+    call_url: String(deal?.call_url ?? ''),
     models: parseDealModels(deal?.models),
     region: String(deal?.region ?? ''),
     quality: String(deal?.quality ?? ''),
@@ -137,7 +140,10 @@ export interface DealEventView {
   reason: string
   reason_label: string
   created_at: number
+  /** 单行纯文本（≤200 字）：QQ 官方机器人等只吃纯文本的通道用 */
   text: string
+  /** 多行 Markdown：钉钉群机器人 / 网站 feed 等支持富文本的通道用 */
+  markdown: string
   /** 字段级差异（仅 updated / renewed 有：`额度 100 刀 → 200 刀` 的结构化版本） */
   changes: FieldDiff[]
   deal: DealEventSnapshot
@@ -152,7 +158,7 @@ export interface FieldDiff {
   to: any
 }
 
-/** 单行文案：QQ / 群消息友好，≤ 200 字 */
+/** 单行文案：QQ / 群消息友好，≤ 200 字（富文本用 renderDealEventMarkdown） */
 export function renderDealEventText(
   kind: string,
   reason: string,
@@ -184,6 +190,71 @@ export function renderDealEventText(
   if (snap.expires_at) parts.push(`到期 ${formatEventDay(snap.expires_at)}`)
   parts.push(link)
   return clip(parts.join('｜'), 200)
+}
+
+/** 事件类型的视觉锚点（纯文本与 Markdown 共用一套，避免两边观感不一致） */
+function eventEmoji(kind: string, reason: string): string {
+  if (kind === 'online') return reason === 'restored' ? '🔄' : '🆕'
+  if (kind === 'offline') return '🗑️'
+  if (kind === 'updated') return '✏️'
+  if (kind === 'renewed') return '⏳'
+  if (kind === 'pinned') return reason === 'unpin' ? '📍' : '📌'
+  return '🔔'
+}
+
+/**
+ * 富文本（Markdown）文案 —— 给支持 Markdown 的通道用（钉钉群机器人、Web feed 预览）。
+ *
+ * QQ 官方机器人只吃纯文本，Markdown 会原样显示成 `**`，那边继续用 `text`。
+ * 只渲染公开快照里已有的字段；`offline` 与脱敏快照走最小信息，不会漏出额度 / 领取链接。
+ */
+export function renderDealEventMarkdown(
+  kind: string,
+  reason: string,
+  snap: DealEventSnapshot,
+  opts: { baseUrl?: string; changes?: FieldDiff[]; redacted?: boolean } = {},
+): string {
+  const label = kind === 'online' && reason === 'restored'
+    ? '恢复上架'
+    : (kind === 'pinned' && reason === 'unpin' ? '取消置顶' : (DEAL_EVENT_LABELS[kind] || kind))
+  const base = String(opts.baseUrl || '').replace(/\/+$/, '')
+  const link = base ? `${base}${snap.share_path}` : snap.share_path
+  const provider = clip(snap.provider, 20) || '未知来源'
+  const lines = [`${eventEmoji(kind, reason)} **【${label}】${provider}**`, `> ${clip(snap.title, 60)}`]
+
+  if (kind === 'offline') {
+    const why = OFFLINE_REASON_LABELS[reason] || INVALID_REASON_LABELS[reason] || ''
+    lines.push('', why ? `- 状态：已下架（${why}）` : '- 状态：已下架')
+    if (snap.expires_at) lines.push(`- 原到期：${formatEventDay(snap.expires_at)}`)
+    return lines.join('\n')
+  }
+
+  if (kind === 'updated' || kind === 'renewed') {
+    const diffs = (opts.changes || []).map(renderDiff).filter(Boolean)
+    if (diffs.length) lines.push('', ...diffs.map(d => `- ${d}`))
+    lines.push('', `[查看通告](${link})`)
+    return lines.join('\n')
+  }
+
+  // online / pinned：把能公开的字段一次说全，省得点进去才知道额度多少
+  const facts: string[] = []
+  if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
+  if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
+  if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)
+  if (snap.quality) facts.push(clip(snap.quality, 12))
+  if (snap.region) facts.push(snap.region === 'global' ? '海外' : '国内')
+  if (snap.rating) facts.push(`评分 ${snap.rating}`)
+  if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
+  // 领取地址是「现在还能不能薅」的关键，官网地址放其后做核对
+  if (snap.call_url) lines.push('', `领取：${snap.call_url}`)
+  if (snap.url) lines.push('', `官网：${snap.url}`)
+  if (opts.redacted) {
+    // 通告此刻已不可见：不推可点链接（点进去是 404），只留一句说明
+    lines.push('', '_该通告已从站点下架或失效，详情页不再可访问。_')
+    return lines.join('\n')
+  }
+  lines.push('', `[查看通告](${link})`)
+  return lines.join('\n')
 }
 
 /** 单条差异的中文渲染：`额度 100 → 200`、`模型 Claude/GPT → Claude` */
@@ -288,6 +359,7 @@ export function toEventView(row: DealEventRow, opts: { baseUrl?: string } = {}):
     reason_label: OFFLINE_REASON_LABELS[row.reason] || INVALID_REASON_LABELS[row.reason] || '',
     created_at: row.created_at,
     text: renderDealEventText(row.kind, row.reason, snap, { baseUrl: opts.baseUrl, changes }),
+    markdown: renderDealEventMarkdown(row.kind, row.reason, snap, { baseUrl: opts.baseUrl, changes }),
     changes,
     deal: snap,
   }
@@ -332,6 +404,7 @@ export function publicEventViews(
     view.changes = []
     // 文案也按脱敏后的快照重渲染，避免里面残留额度 / 链接
     view.text = renderDealEventText(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl })
+    view.markdown = renderDealEventMarkdown(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl, redacted: true })
     view.deal_redacted = true
     return view
   })

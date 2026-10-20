@@ -401,41 +401,104 @@ export function getBoundQQ(userId: number): string {
 
 // ── 通告事件 ────────────────────────────────────────────────
 
+/** 截断（群消息里长字段只留前 n 字） */
+function clipText(text: unknown, n: number): string {
+  const t = String(text ?? '').trim()
+  return t.length > n ? t.slice(0, n - 1) + '…' : t
+}
+
+/**
+ * 通告摘要行：`服务商｜额度 xxx` —— 只有标题的群通知几乎无法判断要不要点，
+ * 至少把「谁的、给多少」摆在标题下一行。
+ */
+function dealFacts(deal: any): string {
+  const bits: string[] = []
+  const provider = clipText(deal?.provider, 20)
+  if (provider) bits.push(escapeCqText(provider))
+  const quota = clipText(deal?.quota, 26)
+  if (quota) bits.push(`额度 ${escapeCqText(quota)}`)
+  // 行里的 models 可能是已解析数组，也可能是库里的 JSON 字符串
+  let models: string[] = []
+  if (Array.isArray(deal?.models)) models = deal.models.map((m: any) => String(m))
+  else if (typeof deal?.models === 'string' && deal.models.trim().startsWith('[')) {
+    try { models = (JSON.parse(deal.models) as any[]).map(String) } catch { models = [] }
+  }
+  const modelText = clipText(models.join('/'), 30)
+  if (modelText) bits.push(`模型 ${escapeCqText(modelText)}`)
+  return bits.join('｜')
+}
+
+/** 通告详情链接（站点基址来自 runtimeConfig.public.baseUrl，缺省时只给站内路径） */
+function dealLink(deal: any): string {
+  const id = String(deal?.id ?? '').trim()
+  if (!id) return ''
+  let base = ''
+  try {
+    base = String(useRuntimeConfig().public?.baseUrl || '').replace(/\/+$/, '')
+  } catch { /* runtimeConfig 不可用（脚本/测试环境）时只给路径 */ }
+  return `${base}/tokens?deal=${encodeURIComponent(id)}`
+}
+
+/** 拼「标题 + 摘要 + 链接」三行式正文 */
+function dealBody(deal: any, opts: { withLink?: boolean } = {}): string {
+  const title = escapeCqText(String(deal?.title ?? ''))
+  const facts = dealFacts(deal)
+  const link = opts.withLink === false ? '' : dealLink(deal)
+  return [facts, link].filter(Boolean).join('\n')
+}
+
 /** 新通告待审 → 群（@管理员） */
-export function notifyTokenDealPending(title: string, submitter: string): void {
+export function notifyTokenDealPending(deal: any, submitter: string): void {
+  const title = String(deal?.title ?? '')
   if (!allowNotify('deal-pending', title)) return
-  queuePendingNotice(`📥 新通告待审：《${escapeCqText(title)}》（提交人：${escapeCqText(submitter)}），当前待审 ${countPendingDeals()} 条`)
+  const lines = [
+    `📥 新通告待审：《${escapeCqText(title)}》`,
+    dealBody(deal, { withLink: false }),
+    `提交人：${escapeCqText(submitter)}，当前待审 ${countPendingDeals()} 条`,
+  ].filter(Boolean)
+  queuePendingNotice(lines.join('\n'))
 }
 
 /** 管理员直接发布 → 群（不 @） */
-export function notifyTokenDealPublished(title: string): void {
+export function notifyTokenDealPublished(deal: any): void {
+  const title = String(deal?.title ?? '')
   if (!allowNotify('deal-published', title)) return
-  queueGroupMessage(`🆕 新通告发布：《${escapeCqText(title)}》`)
+  queueGroupMessage([`🆕 新通告发布：《${escapeCqText(title)}》`, dealBody(deal)].filter(Boolean).join('\n'))
 }
 
 /** 通告修改回待审 → 群（@管理员） */
-export function notifyTokenDealRePending(title: string): void {
+export function notifyTokenDealRePending(deal: any): void {
+  const title = String(deal?.title ?? '')
   // 这条最容易被反复触发：同一条通告 10 分钟内只提醒一次
   if (!allowNotify('deal-repending', title)) return
-  queuePendingNotice(`✏️ 通告《${escapeCqText(title)}》已修改，重新进入待审，当前待审 ${countPendingDeals()} 条`)
+  const lines = [
+    `✏️ 通告《${escapeCqText(title)}》已修改，重新进入待审`,
+    dealBody(deal),
+    `当前待审 ${countPendingDeals()} 条`,
+  ].filter(Boolean)
+  queuePendingNotice(lines.join('\n'))
 }
 
 /** 通告删除 → 群 */
-export function notifyTokenDealDeleted(title: string): void {
+export function notifyTokenDealDeleted(deal: any): void {
+  const title = String(deal?.title ?? '')
   if (!allowNotify('deal-deleted', title)) return
-  queueGroupMessage(`🗑️ 通告《${escapeCqText(title)}》已删除`)
+  // 已删除的通告点进去是 404，不带链接
+  queueGroupMessage([`🗑️ 通告《${escapeCqText(title)}》已删除`, dealBody(deal, { withLink: false })].filter(Boolean).join('\n'))
 }
 
 /** 通告审核通过 → 群 + 私聊作者（若已绑定 QQ） */
-export function notifyTokenDealApproved(title: string, authorUserId: number): void {
+export function notifyTokenDealApproved(deal: any, authorUserId: number): void {
+  const title = String(deal?.title ?? '')
   if (!allowNotify('deal-approved', title)) return
-  queueGroupMessage(`✅ 通告《${escapeCqText(title)}》已发布`)
+  queueGroupMessage([`✅ 通告《${escapeCqText(title)}》已发布`, dealBody(deal)].filter(Boolean).join('\n'))
   const qq = getBoundQQ(authorUserId)
   if (qq) queuePrivateMessage(qq, `✅ 你投稿的通告《${escapeCqText(title)}》已通过审核，感谢贡献！`)
 }
 
 /** 通告驳回 → 私聊作者（若已绑定 QQ） */
-export function notifyTokenDealRejected(title: string, authorUserId: number, reason: string): void {
+export function notifyTokenDealRejected(deal: any, authorUserId: number, reason: string): void {
+  const title = String(deal?.title ?? '')
   if (!allowNotify('deal-rejected', title)) return
   const qq = getBoundQQ(authorUserId)
   if (qq) queuePrivateMessage(qq, `❌ 你投稿的通告《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`)
