@@ -262,6 +262,10 @@ export const tokenDeals = sqliteTable('token_deals', {
   deletedBy: integer('deleted_by'),              // 删除操作者 users.id（0 = 游客自助）
   invalidAt: integer('invalid_at'),              // 非空 = 已失效，对外不可见
   invalidReason: text('invalid_reason').default(''), // expired|votes|manual
+  // 人工核验时间轴（2026-10-20）：verified_at=0 表示从未核验；verify_note 是最近一次核验备注
+  verifiedAt: integer('verified_at').default(0),
+  verifiedBy: text('verified_by').default(''),   // 核验人（管理员用户名，对外不下发）
+  verifyNote: text('verify_note').default(''),
   voteUp: integer('vote_up').default(0),         // 缓存计数
   voteDown: integer('vote_down').default(0),
   ratingSum: integer('rating_sum').default(0),
@@ -272,6 +276,19 @@ export const tokenDeals = sqliteTable('token_deals', {
   index('idx_td_status').on(table.status, table.pinned),
   index('idx_td_user').on(table.userId),
   index('idx_td_region').on(table.region, table.quality),
+  index('idx_td_verified').on(table.verifiedAt),
+])
+
+// ─── token_deal_verifications（人工核验流水，append-only）──────────
+export const tokenDealVerifications = sqliteTable('token_deal_verifications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  dealId: text('deal_id').notNull(),
+  action: text('action').notNull().default('alive'), // alive | dead | note
+  note: text('note').notNull().default(''),
+  actor: text('actor').notNull().default(''),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  index('idx_deal_verif_deal').on(table.dealId, table.createdAt),
 ])
 
 // ─── token_deal_votes（可用性投票，一人一票可改）────────────────

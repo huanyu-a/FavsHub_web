@@ -1,6 +1,7 @@
 /**
  * GET /api/admin/token-deals — 管理端通告列表（仅管理员）
- * Query: status (pending|approved|rejected|all), view (queue|invalid), search, page, limit
+ * Query: status (pending|approved|rejected|all), view (queue|invalid), verify (all|stale|ok),
+ *        search, page, limit
  *
  * 两个视图（2026-10-20「已失效」面板）：
  *   - `view=queue`（默认）：审核队列，按 `status` 分 tab，**只含在架条目**
@@ -12,7 +13,9 @@
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
-import { archiveExpiredDeals, escapeLike, INVALID_REASON_LABELS } from '../../../utils/token-deals'
+import {
+  archiveExpiredDeals, escapeLike, INVALID_REASON_LABELS, verifyStaleDays,
+} from '../../../utils/token-deals'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -63,6 +66,8 @@ export default defineEventHandler(async (event) => {
   const lifecycle = String(query.lifecycle || 'all')
   const status = String(query.status || 'pending')
   const search = String(query.search || '').trim()
+  // 待核验（2026-10-20）：在架条目里筛「超过阈值没人工核验」的，供「待核验」tab 用
+  const verifyFilter = String(query.verify || 'all')
   const page = Math.max(1, parseInt(query.page as string) || 1)
   const limit = Math.min(100, Math.max(1, parseInt(query.limit as string) || 20))
   const offset = (page - 1) * limit
@@ -92,6 +97,17 @@ export default defineEventHandler(async (event) => {
     if (status !== 'all') {
       where += ' AND d.status = ?'
       params.push(status)
+    }
+  }
+
+  if (view === 'queue' && verifyFilter !== 'all') {
+    const staleCutoff = now - verifyStaleDays() * 86400000
+    if (verifyFilter === 'stale') {
+      where += ' AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)'
+      params.push(staleCutoff)
+    } else if (verifyFilter === 'ok') {
+      where += ' AND d.verified_at IS NOT NULL AND d.verified_at > 0 AND d.verified_at >= ?'
+      params.push(staleCutoff)
     }
   }
 
@@ -126,7 +142,7 @@ export default defineEventHandler(async (event) => {
 
   const counts: Record<string, number> = {
     pending: 0, approved: 0, rejected: 0, all: 0,
-    expired: 0, invalid: 0, deleted: 0, invalid_total: 0,
+    expired: 0, invalid: 0, deleted: 0, invalid_total: 0, stale: 0,
   }
   for (const row of countRows) {
     counts[row.status] = row.count
@@ -140,6 +156,13 @@ export default defineEventHandler(async (event) => {
       SUM(CASE WHEN ${C.expired} THEN 1 ELSE 0 END) AS expired
     FROM token_deals
   `).get() as { deleted: number | null; invalid: number | null; expired: number | null } | undefined
+
+  // 待核验计数：只在架（live）且超过阈值没核验 —— 与「待核验」tab 同口径
+  const staleCount = (db.prepare(`
+    SELECT COUNT(*) AS c FROM token_deals d
+    WHERE ${L.live} AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)
+  `).get(now - verifyStaleDays() * 86400000) as { c: number } | undefined)?.c || 0
+  counts.stale = staleCount
 
   counts.deleted = lifeCounts?.deleted || 0
   counts.invalid = lifeCounts?.invalid || 0

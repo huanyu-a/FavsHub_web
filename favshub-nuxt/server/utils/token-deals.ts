@@ -6,6 +6,7 @@
  */
 import type Database from 'better-sqlite3'
 import { appendDealEvent, deleteDealEvents } from './deal-events'
+import { getConfigInt } from './config'
 import { getRawDb } from '../database'
 import { notifyTokenDealApproved, notifyTokenDealRejected } from './qq-notify'
 
@@ -538,6 +539,179 @@ export function clearDealInvalid(db: Database.Database, dealId: string): boolean
   ).run(Date.now(), dealId)
   if (res.changes > 0) appendDealEvent(db, dealId, 'online', { reason: 'restored', before })
   return res.changes > 0
+}
+
+// ════════════════════════════════════════════════════════════════
+// 人工核验（可信度时间轴，2026-10-20）
+//
+// 白嫖资源最大的坑是「早失效了还挂在列表里」。社区投票是**用户**反馈，
+// 人工核验是**站点确认「此时此刻仍然可用」**，两者互补：
+//
+//   - `token_deals.verified_at`  最近一次确认可用的时刻（0 / NULL = 从未核验）
+//   - `token_deals.verified_by`  核验人（管理员用户名，对外不下发）
+//   - `token_deals.verify_note`  最近一次核验备注（如「注册实测通过，额度到账」）
+//   - `token_deal_verifications` 核验历史（谁 / 何时 / 结论 / 备注），append-only
+//
+// 「待复核」= 超过 `deal_verify_stale_days`（默认 30 天）没核验 —— 只在前台**提示**，
+// 不改可见性（「看起来该复核」与「真的失效」必须分开，可见性仍由
+// status / deleted_at / invalid_at / expires_at 决定）。
+//
+// **核验本身不产生事件**：确认「没有变化」不该推给订阅者。只有核验判定失效
+// （action='dead' → markDealInvalid('manual')）才走既有的 offline 事件，订阅者才知道下架。
+// ════════════════════════════════════════════════════════════════
+
+/** 核验动作：可用 / 失效 / 仅追加备注 */
+export const VERIFY_ACTIONS = ['alive', 'dead', 'note'] as const
+export type VerifyAction = (typeof VERIFY_ACTIONS)[number]
+
+/** 核验动作中文标签 */
+export const VERIFY_ACTION_LABELS: Record<string, string> = {
+  alive: '核验可用',
+  dead: '核验失效',
+  note: '补充说明',
+}
+
+/** 待复核阈值（天）：可用 `deal_verify_stale_days` 覆盖，范围 7–365 */
+export function verifyStaleDays(): number {
+  try {
+    const n = getConfigInt('deal_verify_stale_days', 30)
+    return n >= 7 && n <= 365 ? n : 30
+  } catch {
+    return 30
+  }
+}
+
+/** 是否待复核（从未核验也算） */
+export function isVerifyStale(
+  deal: { verified_at?: number | null } | null | undefined,
+  now = Date.now(),
+): boolean {
+  const at = Number(deal?.verified_at || 0)
+  return !at || now - at > verifyStaleDays() * 86400000
+}
+
+/** 距上次核验的天数；从未核验返回 -1 */
+export function verifyAgeDays(
+  deal: { verified_at?: number | null } | null | undefined,
+  now = Date.now(),
+): number {
+  const at = Number(deal?.verified_at || 0)
+  if (!at) return -1
+  return Math.max(0, Math.floor((now - at) / 86400000))
+}
+
+/** 核验历史（默认最近 10 条，供详情页展示） */
+export function loadVerifications(
+  db: Database.Database,
+  dealId: string,
+  limit = 10,
+): Array<{ action: string; action_label: string; note: string; actor: string; created_at: number }> {
+  try {
+    const rows = db.prepare(
+      'SELECT action, note, actor, created_at FROM token_deal_verifications'
+      + ' WHERE deal_id = ? ORDER BY created_at DESC, id DESC LIMIT ?',
+    ).all(dealId, Math.max(1, Math.min(50, limit))) as any[]
+    return rows.map(r => ({
+      action: String(r.action || ''),
+      action_label: VERIFY_ACTION_LABELS[r.action] || '核验',
+      note: String(r.note || ''),
+      actor: String(r.actor || ''),
+      created_at: Number(r.created_at || 0),
+    }))
+  } catch {
+    return []
+  }
+}
+
+export interface VerifyResult {
+  ok: boolean
+  action: VerifyAction
+  /** 核验后该通告是否对外可见（不可见时前端要提示「先撤销失效 / 续期」） */
+  visible: boolean
+  /** 本次核验是否**新**把通告置为失效（true 才会新增 offline 事件） */
+  invalidated: boolean
+  verified_at: number
+  message: string
+}
+
+/**
+ * 执行一次人工核验。
+ *
+ * - `alive`：记录「此刻仍可用」。**不**顺手撤销失效 / 续期 —— 状态变更走既有
+ *   restore 端点（管理员看得见自己点了什么，比隐式恢复安全）。通告当前不可见时
+ *   依旧记录，但 message 里说清楚该先做什么。
+ * - `dead`：判定失效（reason=manual，幂等；已失效则不再重复发事件）。
+ * - `note`：只追加一条备注，不改 `verified_at`（备注 ≠ 核验）。
+ */
+export function verifyDeal(
+  db: Database.Database,
+  dealId: string,
+  opts: { action: VerifyAction; note?: string; actor?: string },
+): VerifyResult {
+  const now = Date.now()
+  const action = (VERIFY_ACTIONS as readonly string[]).includes(opts.action) ? opts.action : 'alive'
+  const note = String(opts.note || '').trim().slice(0, 300)
+  const actor = String(opts.actor || '').trim().slice(0, 60)
+  const base: VerifyResult = {
+    ok: false,
+    action: action as VerifyAction,
+    visible: false,
+    invalidated: false,
+    verified_at: 0,
+    message: '',
+  }
+
+  const row = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
+  if (!row) return { ...base, message: '通告不存在' }
+  if (row.deleted_at) return { ...base, message: '通告已删除，不能核验（请先恢复）' }
+
+  let invalidated = false
+  if (action === 'dead') {
+    invalidated = markDealInvalid(db, dealId, 'manual', now)
+  }
+
+  if (action === 'alive' || action === 'dead') {
+    const keepNote = note || (action === 'dead' ? '核验发现已失效' : String(row.verify_note || ''))
+    db.prepare(
+      'UPDATE token_deals SET verified_at = ?, verified_by = ?, verify_note = ?, updated_at = ? WHERE id = ?',
+    ).run(now, actor, keepNote, now, dealId)
+  }
+
+  try {
+    db.prepare(
+      'INSERT INTO token_deal_verifications (deal_id, action, note, actor, created_at) VALUES (?, ?, ?, ?, ?)',
+    ).run(dealId, action, note, actor, now)
+  } catch (err: any) {
+    // 历史表写失败不该让核验本身失败（verified_at 已落库）
+    console.warn('[token-deals] 写核验历史失败（忽略）:', err?.message || err)
+  }
+
+  const fresh = db.prepare(
+    'SELECT deleted_at, invalid_at, expires_at, verified_at FROM token_deals WHERE id = ?',
+  ).get(dealId) as any
+  const visible = isPubliclyVisible(fresh, now)
+
+  let message: string
+  if (action === 'note') {
+    message = '已追加核验备注'
+  } else if (action === 'dead') {
+    message = invalidated
+      ? '已标记失效（订阅者会收到「下架」）'
+      : '已记录核验结论（该通告此前已失效）'
+  } else if (visible) {
+    message = '已记录核验：仍可用'
+  } else {
+    message = '核验记录已保存，但该通告当前对外不可见（已失效 / 已过期）；如确认仍可用，请先「撤销失效」或「续期」'
+  }
+
+  return {
+    ok: true,
+    action: action as VerifyAction,
+    visible,
+    invalidated,
+    verified_at: action === 'note' ? Number(fresh?.verified_at || 0) : now,
+    message,
+  }
 }
 
 /**

@@ -67,6 +67,7 @@ export default defineAiHandler('read', async (_event, token) => {
       patch_semantics: '更新端点（PUT）一律为**部分更新**：只传需要修改的字段，未传字段保持原值。无需先 GET 再回填全部字段。',
       deal_edits: '**通告内容允许所有人修改，但需经「通告作者」或「管理员」审核。** 修改他人通告必须走建议通道（POST /api/ai/token-deals/:id/edits 或工具 submit_token_deal_edit），不能直接 UPDATE；作者是本人通告的审核人，可直接改自己的（PUT），编辑即刻生效。审核权限 = 通告作者或管理员，管理员可审核所有用户的建议。建议通过前通告内容不受影响。',
       deal_delete: '删除通告为**软删除**：置 deleted_at 后前台立即不可见，投票 / 评测 / 修改建议全部保留，管理员可在后台恢复。已删除的通告再删除返回 404。',
+      verify_semantics: '人工核验（verified_at / verify_note）是**站点**确认「此刻仍可用」，与社区投票（vote_up / vote_down）互补：投的是用户反馈，核的是站点事实。核验本身不产生事件、不推送订阅者；只有管理员判定失效（invalid_reason=manual）才会产生 offline 事件。`verify_stale=true` 仅表示「该复核了」，通告依旧可用可见。',
       card_render: 'GET /api/ai/token-deals/:id/card.png 返回 PNG 二进制（非 JSON），用 curl -o 落盘即可。六种风格：poster（夜幕鎏金海报，默认）/ magazine / neon / clay / blast / voucher。渲染有缓存（按通告 updated_at 失效），调试时可加 refresh=1 强制重绘。未审核通过的通告仅作者与管理员可取（403）。',
     },
 
@@ -126,9 +127,14 @@ export default defineAiHandler('read', async (_event, token) => {
           deleted_by: '整数或 null，执行删除的用户 id',
           invalid_at: '毫秒时间戳或 null；非 null 表示已失效（下架）',
           invalid_reason: "'' | expired（到期）| votes（社区投票判定）| manual（管理员判定）",
+          verified_at: '毫秒时间戳，0 = 从未人工核验（**只读**：核验只能由管理员在后台操作）',
+          verify_note: '字符串，最近一次人工核验备注（只读）',
+          verify_stale: '布尔（列表/详情派生字段）：超过 deal_verify_stale_days 天没核验',
         },
         note: '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
-          + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。',
+          + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。'
+          + '每条通告还有人工核验时间轴（verified_at / verify_stale）：`verified_at` 是站点最近一次确认「此刻仍可用」的时间，'
+          + '`verify_stale=true` 表示超过阈值（默认 30 天）没核验 —— 只是提示，不代表已失效。推荐给用户时优先推「最近核验 + 社区投票健康」的条目，并如实转述核验日期。',
       },
       token_deal_edits: {
         table: 'token_deal_edits',

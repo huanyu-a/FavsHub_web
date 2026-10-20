@@ -25,7 +25,14 @@
             {{ deal.provider }}
             <i v-if="deal.pinned" class="ri-pushpin-2-fill pin-mark" title="已置顶"></i>
           </h3>
-          <p class="deal-meta">{{ regionLabel }} · {{ sourceLabel }}</p>
+          <p class="deal-meta">
+            {{ regionLabel }} · {{ sourceLabel }}<span
+              v-if="verifyText"
+              class="deal-verify"
+              :class="verifyClass"
+              :title="verifyTitle"
+            > · {{ verifyText }}</span>
+          </p>
         </div>
       </div>
       <span class="deal-quality" :class="qualityClass">{{ deal.quality }}</span>
@@ -87,6 +94,11 @@ interface TokenDeal {
   id: string
   provider: string
   title: string
+  // 人工核验时间轴（2026-10-20）
+  verified_at?: number
+  verify_age_days?: number
+  verify_stale?: boolean
+  verify_note?: string
   url: string
   quota?: string
   models?: string[]
@@ -160,6 +172,27 @@ const expiryText = computed(() => {
   if (diff <= 0) return '已过期'
   const days = Math.ceil(diff / 86400000)
   return days <= 30 ? `${days} 天后到期` : ''
+})
+
+// 人工核验：最近一次「站点确认仍可用」的时间；待复核只提示，不代表已失效
+const verifyText = computed(() => {
+  const days = Number(props.deal.verify_age_days ?? -1)
+  if (!Number.isFinite(days) || days < 0) return props.deal.verify_stale ? '未核验' : ''
+  if (props.deal.verify_stale) return `${days} 天未核验`
+  if (days <= 0) return '今日已核验'
+  return `${days} 天前核验`
+})
+const verifyClass = computed(() => {
+  const days = Number(props.deal.verify_age_days ?? -1)
+  if (!Number.isFinite(days) || days < 0) return 'is-muted'
+  return props.deal.verify_stale ? 'is-warn' : 'is-ok'
+})
+const verifyTitle = computed(() => {
+  const note = String(props.deal.verify_note || '').trim()
+  const head = props.deal.verify_stale
+    ? '超过核验阈值（默认 30 天）没有人工核验，建议先看社区投票再使用'
+    : '站点最近一次人工核验确认仍可用'
+  return note ? `${head}｜核验备注：${note}` : head
 })
 
 const expiryWarn = computed(() => {
@@ -407,5 +440,17 @@ const expiryWarn = computed(() => {
 }
 .deal-expiry.is-warn {
   color: var(--warning);
+}
+.deal-verify {
+  font-size: 12px;
+}
+.deal-verify.is-ok {
+  color: var(--success);
+}
+.deal-verify.is-warn {
+  color: var(--warning);
+}
+.deal-verify.is-muted {
+  color: var(--text-tertiary);
 }
 </style>

@@ -29,6 +29,18 @@
           <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
       </label>
+
+      <!-- 待复核：超过核验新鲜度阈值 / 从未人工核验的通告（只提示，不代表已失效） -->
+      <button
+        type="button"
+        class="filter-chip"
+        :class="{ active: stale }"
+        :aria-pressed="stale"
+        title="只看超过核验阈值（默认 30 天）没有人工核验的通告"
+        @click="$emit('update:stale', !stale)"
+      >
+        <i class="ri-refresh-line"></i> 待复核
+      </button>
     </div>
   </div>
 </template>
@@ -38,16 +50,19 @@ defineProps<{
   sort: string
   quality: string
   sourceTag: string
+  stale: boolean
 }>()
 
 const emit = defineEmits<{
   'update:sort': [value: string]
   'update:quality': [value: string]
   'update:sourceTag': [value: string]
+  'update:stale': [value: boolean]
 }>()
 
 const SORT_OPTIONS = [
   { value: 'nexus', label: 'Nexus 实测' },
+  { value: 'verified', label: '最近核验' },
   { value: 'latest', label: '最新' },
   { value: 'hot', label: '最热' },
   { value: 'rating', label: '高分' },
@@ -140,6 +155,33 @@ function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px var(--primary-light);
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.filter-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+.filter-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.filter-chip.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+  font-weight: 600;
 }
 .sr-only {
   position: absolute;

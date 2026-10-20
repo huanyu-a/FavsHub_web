@@ -94,6 +94,13 @@
               <span class="fact-label">发布者</span>
               <span class="fact-value">{{ deal.nickname || deal.username || '匿名' }}</span>
             </div>
+            <div class="tdd-fact">
+              <span class="fact-label">最近核验</span>
+              <span class="fact-value" :class="{ 'is-warn': verifyWarn }">
+                {{ verifyText }}
+                <em v-if="verifyWarn" class="verify-hint">待复核</em>
+              </span>
+            </div>
           </div>
 
           <!-- 接入信息 -->
@@ -108,6 +115,19 @@
               <code class="row-code">{{ deal.call_url }}</code>
               <button type="button" class="tdd-btn tiny" @click="copy(deal.call_url)">复制</button>
             </div>
+          </section>
+
+          <!-- 人工核验记录：站点确认「此刻仍可用」的时间线 -->
+          <section v-if="verifications.length || deal.verify_note" class="tdd-section">
+            <h4 class="section-title"><i class="ri-shield-check-line"></i> 人工核验</h4>
+            <p v-if="deal.verify_note" class="verify-note">{{ deal.verify_note }}</p>
+            <ul class="verify-list">
+              <li v-for="(v, i) in verifications" :key="i" class="verify-item">
+                <span class="verify-action" :class="`is-${v.action}`">{{ v.action_label }}</span>
+                <span class="verify-date">{{ formatTime(v.created_at) }}</span>
+                <span v-if="v.note" class="verify-item-note">{{ v.note }}</span>
+              </li>
+            </ul>
           </section>
 
           <!-- 支持模型 -->
@@ -629,6 +649,12 @@ interface ITokenDeal {
   is_invalid?: boolean
   is_deleted?: boolean
   invalid_reason_label?: string
+  // 人工核验时间轴（2026-10-20）
+  verified_at?: number
+  verified_by?: string
+  verify_note?: string
+  verify_age_days?: number
+  verify_stale?: boolean
   is_owner?: boolean
   can_edit?: boolean
   can_moderate?: boolean
@@ -642,6 +668,15 @@ interface ITokenDeal {
     eval_total: number
     eval_avg_ms: number
   } | null
+}
+
+/** 一条核验记录 */
+interface IVerification {
+  action: string
+  action_label: string
+  note: string
+  actor: string
+  created_at: number
 }
 
 /** 单条字段差异 */
@@ -826,6 +861,20 @@ const average = computed(() => {
   return Number(((d.rating_sum || 0) / d.rating_count).toFixed(1))
 })
 
+const verifications = ref<IVerification[]>([])
+
+/** 最近核验的一句话（详情页事实行） */
+const verifyText = computed(() => {
+  const d = deal.value
+  if (!d) return '—'
+  const days = Number(d.verify_age_days ?? -1)
+  if (!Number.isFinite(days) || days < 0) return '从未核验'
+  if (days <= 0) return '今日已核验'
+  return `${days} 天前`
+})
+
+const verifyWarn = computed(() => !!deal.value?.verify_stale)
+
 const expiryText = computed(() => {
   const ts = deal.value?.expires_at
   if (!ts) return '永久有效'
@@ -886,6 +935,7 @@ async function loadDeal() {
   try {
     const data = await $fetch<{
       deal: ITokenDeal
+      verifications: IVerification[]
       edits: IEditsSummary | null
       guest_review: IGuestReview | null
       my_vote: string | null
@@ -895,6 +945,7 @@ async function loadDeal() {
       { credentials: 'include' },
     )
     deal.value = data.deal
+    verifications.value = data.verifications || []
     myVote.value = data.my_vote
     myReview.value = data.my_review
     myEdit.value = data.edits?.my_edit ?? null
@@ -2261,5 +2312,58 @@ onUnmounted(() => {
   .tdd-foot { flex-direction: column; align-items: stretch; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .tdd-foot-left, .tdd-foot-right { width: 100%; }
   .tdd-foot-left .tdd-btn, .tdd-foot-right .tdd-btn { flex: 1; justify-content: center; }
+}
+/* 人工核验（2026-10-20） */
+.fact-value.is-warn {
+  color: var(--warning);
+}
+.verify-hint {
+  margin-left: 6px;
+  font-size: 11px;
+  font-style: normal;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--warning-light, rgba(255, 159, 10, 0.12));
+  color: var(--warning);
+}
+.verify-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.verify-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.verify-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.verify-action {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+}
+.verify-action.is-alive {
+  color: var(--success);
+}
+.verify-action.is-dead {
+  color: var(--danger, #ff453a);
+}
+.verify-date {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.verify-item-note {
+  color: var(--text-tertiary);
 }
 </style>

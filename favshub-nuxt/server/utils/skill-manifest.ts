@@ -7,12 +7,12 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.9.1",
-  site_version: "1.0.34",
+  version: "1.9.2",
+  site_version: "1.0.35",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**修正** `subscribe.md` 的状态文件改用 `0600` 创建（里面存着 `sub_token`，等同密码）； 补充「凭证走 URL query 可能被反代 / 抓包日志记下」的提醒与泄露处置（退订后重建）。",
-  "**说明** 站点侧同步收紧：事件流按「当前可见性」收敛（已下架 / 失效 / 到期通告的历史 事件不再吐额度、模型与领取链接），feed 限频并拒绝共享缓存，订阅端点限频与死订阅淘汰。 游客脚本**无需改动**，但建议更新到本版本重读 `subscribe.md`。"
+  "**新增** 白嫖通告的人工核验时间轴：列表条目多出 `verified_at` / `verify_age_days` / `verify_stale` / `verify_note` 四个**只读**派生字段（AI 令牌写了也不会生效，核验只能站长操作，`verified_by` 不下发）。",
+  "**建议** 推荐资源时优先「最近核验 + 社区投票健康」的条目，并如实转述核验日期； `verify_stale=true` 只表示「超过 30 天没复核」，通告仍然可用可见，别当成失效。"
 ],
 } as const

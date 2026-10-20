@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.9.1
+version: 1.9.2
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -165,6 +165,11 @@ DELETE /api/ai/token-deal-edits/:id       # 撤回自己的待审建议（write�
 - **`PUT` 是部分更新**：只传要改的字段，未传字段保持原值 —— 改标题不必回填其余字段
 - 作者编辑已通过审核的通告会回到 `pending` 重新审核；管理员编辑保持原状态
 - `models` 若传入则**整体替换**（不是追加）
+- **人工核验字段只读**：列表每条带 `verified_at`（站点最近一次确认「此刻仍可用」的时刻，`0`=从未核验）、
+  `verify_age_days`（距今天数，`-1`=从未核验）、`verify_stale`（超过 30 天没核验）、`verify_note`（核验备注）。
+  **AI 令牌不能写这些字段**（`POST`/`PUT` 传了也会被忽略），核验只能由站长在后台操作；
+  `verified_by` 不下发。推荐资源时优先「最近核验 + 投票健康」的条目，并如实转述核验日期 ——
+  `verify_stale=true` 只是「该复核了」，不代表已失效。
 
 #### 修改他人（含管理员）创建的通告 —— 提交修改建议
 

@@ -1,6 +1,9 @@
 /**
  * GET /api/token-deals — Token 白嫖通告列表
- * Query: page, limit, search, region, quality, source_tag, sort (nexus|latest|hot|rating|expiring), mine
+ * Query: page, limit, search, region, quality, source_tag, stale, sort (nexus|latest|hot|rating|expiring|verified), mine
+ *
+ * `stale=1` 只返回「待复核」条目（超过 deal_verify_stale_days 没人工核验，含从未核验）。
+ * `sort=verified` 把最近核验过的排前面（未核验的垫底）。
  *
  * 默认排序为 `nexus`：置顶 → 已接入 Nexus 且启用 → 已接入但禁用 → 未接入，
  * 同档内按评测可用率降序、平均耗时升序。数据来自 `nexus_channels` / `nexus_deal_map`
@@ -8,7 +11,9 @@
  */
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
-import { escapeLike, publicVisibleClause } from '../../utils/token-deals'
+import {
+  escapeLike, isVerifyStale as isVerifyStaleRow, publicVisibleClause, verifyAgeDays, verifyStaleDays,
+} from '../../utils/token-deals'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -59,6 +64,7 @@ export default defineEventHandler(async (event) => {
   const sourceTag = String(query.source_tag || '').trim()
   const sort = String(query.sort || 'nexus')
   const mine = query.mine === '1' || query.mine === 'true'
+  const staleOnly = query.stale === '1' || query.stale === 'true'
 
   const db = getRawDb()
 
@@ -108,6 +114,11 @@ export default defineEventHandler(async (event) => {
     whereClause += ' AND d.source_tag = ?'
     params.push(sourceTag)
   }
+  if (staleOnly) {
+    // 待复核：从未核验（0/NULL）或超过阈值没核验。只影响「提示」，不影响可见性
+    whereClause += ' AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)'
+    params.push(Date.now() - verifyStaleDays() * 86400000)
+  }
 
   const defaultOrder = 'd.pinned DESC, d.created_at DESC'
   let orderClause = hasNexus ? NEXUS_ORDER : defaultOrder
@@ -117,6 +128,9 @@ export default defineEventHandler(async (event) => {
     orderClause = 'd.pinned DESC, (d.vote_up - d.vote_down) DESC, d.vote_up DESC, d.created_at DESC'
   } else if (sort === 'rating') {
     orderClause = 'd.pinned DESC, (CASE WHEN d.rating_count > 0 THEN CAST(d.rating_sum AS REAL) / d.rating_count ELSE 0 END) DESC, d.rating_count DESC'
+  } else if (sort === 'verified') {
+    // 最近核验优先：从未核验的垫底，其余按核验时间倒序
+    orderClause = 'd.pinned DESC, (d.verified_at IS NULL OR d.verified_at = 0) ASC, d.verified_at DESC, d.created_at DESC'
   } else if (sort === 'expiring') {
     // 永久有效（expires_at 为空）排在最后，其余按到期时间升序
     orderClause = 'd.pinned DESC, (d.expires_at IS NULL) ASC, d.expires_at ASC'
@@ -163,6 +177,12 @@ export default defineEventHandler(async (event) => {
       is_invalid: !!row.invalid_at,
       // 走到这里的公开行一定可见（SQL 已过滤），mine=1 时才可能为 true
       is_hidden: !!row.deleted_at || !!row.invalid_at || (!!row.expires_at && row.expires_at < now),
+      // 人工核验时间轴（2026-10-20）：核验人只下发到后台，公开列表不带
+      verified_at: Number(row.verified_at || 0),
+      verify_age_days: verifyAgeDays(row, now),
+      verify_stale: isVerifyStaleRow(row, now),
+      verify_note: String(row.verify_note || ''),
+      verified_by: undefined,
       nexus,
     }
   })

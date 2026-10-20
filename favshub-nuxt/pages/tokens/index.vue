@@ -72,6 +72,7 @@
         v-model:sort="sort"
         v-model:quality="quality"
         v-model:source-tag="sourceTag"
+        v-model:stale="staleOnly"
       />
 
       <!-- 加载状态：骨架屏 -->
@@ -174,6 +175,11 @@ interface ITokenDeal {
   vote_down?: number
   rating_sum?: number
   rating_count?: number
+  // 人工核验时间轴（2026-10-20）
+  verified_at?: number
+  verify_age_days?: number
+  verify_stale?: boolean
+  verify_note?: string
 }
 
 interface IPagination {
@@ -218,6 +224,7 @@ const search = ref('')
 const sort = ref('nexus')
 const quality = ref('')
 const sourceTag = ref('')
+const staleOnly = ref(false)
 const page = ref(1)
 const limit = 24
 
@@ -270,7 +277,7 @@ let searchTimeout: ReturnType<typeof setTimeout>
 
 // 服务端预取 + 客户端复用，避免 SSR 空白闪烁
 const { data, refresh, pending } = await useFetch<{ deals: ITokenDeal[]; pagination: IPagination }>('/api/token-deals', {
-  query: { page, limit, sort, quality, source_tag: sourceTag, search },
+  query: { page, limit, sort, quality, source_tag: sourceTag, search, stale: staleOnly },
   server: true,
   lazy: false,
   getCachedData: (key, nuxtApp) => nuxtApp.payload?.data?.[key],
@@ -279,7 +286,7 @@ const { data, refresh, pending } = await useFetch<{ deals: ITokenDeal[]; paginat
 const loading = computed(() => pending.value)
 const deals = computed(() => data.value?.deals || [])
 const pagination = computed(() => data.value?.pagination || { page: 1, limit, total: 0, totalPages: 1 })
-const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.value))
+const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.value || staleOnly.value))
 
 function debouncedSearch() {
   clearTimeout(searchTimeout)
@@ -343,7 +350,7 @@ function onSaved(message: string) {
 }
 
 // 翻页 / 筛选变化自动重新请求
-watch([page, sort, quality, sourceTag], () => refresh())
+watch([page, sort, quality, sourceTag, staleOnly], () => { page.value = 1; refresh() })
 
 // 从登录页跳回时自动展开发布表单；带 ?deal= 落地时自动打开对应详情弹窗
 onMounted(() => {

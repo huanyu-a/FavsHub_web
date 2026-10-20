@@ -38,6 +38,7 @@ import {
   withdrawDealEdit,
 } from './deal-edits'
 import { AI_BATCH_LIMIT } from './ai-auth'
+import { isVerifyStale, verifyAgeDays } from './token-deals'
 import { parseAdminUsers } from './auth'
 
 type DB = Database.Database
@@ -674,8 +675,14 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
       ORDER BY td.pinned DESC, td.created_at DESC LIMIT ? OFFSET ?`
   ).all(...params, limit, offset) as any[]
 
+  // 核验派生字段：AI 侧只读（不能自封核验），核验人不外泄
+  const now = Date.now()
   for (const d of deals) {
     try { d.models = JSON.parse(d.models || '[]') } catch { d.models = [] }
+    d.verified_at = Number(d.verified_at || 0)
+    d.verify_age_days = verifyAgeDays(d, now)
+    d.verify_stale = isVerifyStale(d, now)
+    delete d.verified_by
   }
 
   return { token_deals: deals, pagination: { page, limit, total } }

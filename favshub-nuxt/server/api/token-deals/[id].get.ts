@@ -7,7 +7,9 @@
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
-import { isPubliclyVisible, INVALID_REASON_LABELS } from '../../utils/token-deals'
+import {
+  isPubliclyVisible, isVerifyStale, loadVerifications, INVALID_REASON_LABELS, verifyAgeDays,
+} from '../../utils/token-deals'
 import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
 import { myVoteFor } from '../../utils/deal-votes'
@@ -134,8 +136,17 @@ export default defineEventHandler(async (event) => {
       is_owner: isOwner,
       can_edit: isOwner || isAdmin,
       can_moderate: isAdmin,
+      // 人工核验时间轴（2026-10-20）：核验人只给管理员看，公开侧只露出时间与备注
+      verified_at: Number(row.verified_at || 0),
+      verified_by: isAdmin ? String(row.verified_by || '') : '',
+      verify_note: String(row.verify_note || ''),
+      verify_age_days: verifyAgeDays(row),
+      verify_stale: isVerifyStale(row),
       nexus: loadNexusInfo(db, id),
     },
+    // 公开侧只露「何时核验过」，不露核验人（后台才看得到）
+    verifications: loadVerifications(db, id, isAdmin ? 10 : 3)
+      .map(v => (isAdmin ? v : { ...v, actor: '' })),
     edits,
     guest_review: guestReview,
     my_vote: myVote,

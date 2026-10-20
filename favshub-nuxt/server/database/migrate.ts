@@ -530,6 +530,14 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'token_deals', 'deleted_by', 'ALTER TABLE token_deals ADD COLUMN deleted_by INTEGER DEFAULT NULL')
   ensureColumn(db, 'token_deals', 'invalid_at', 'ALTER TABLE token_deals ADD COLUMN invalid_at INTEGER DEFAULT NULL')
   ensureColumn(db, 'token_deals', 'invalid_reason', "ALTER TABLE token_deals ADD COLUMN invalid_reason TEXT DEFAULT ''")
+  // 2026-10-20 人工核验时间轴：白嫖资源最怕「早失效了还挂着」，
+  // 社区投票是用户反馈，人工核验是站点确认「此刻仍可用」，两者互补。
+  //   verified_at 最近一次确认可用的时刻（0 = 从未核验）
+  //   verified_by 核验人（管理员用户名，对外不下发）
+  //   verify_note 最近一次核验备注
+  ensureColumn(db, 'token_deals', 'verified_at', 'ALTER TABLE token_deals ADD COLUMN verified_at INTEGER DEFAULT 0')
+  ensureColumn(db, 'token_deals', 'verified_by', "ALTER TABLE token_deals ADD COLUMN verified_by TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'verify_note', "ALTER TABLE token_deals ADD COLUMN verify_note TEXT DEFAULT ''")
 
   // 删除旧的 category_name 列（SQLite 需要重建表）
   try {
@@ -1700,6 +1708,45 @@ export function createQqBotSchema(db: Database.Database) {
 }
 
 /**
+ * 通告核验历史（2026-10-20）
+ *
+ * append-only 的核验流水：谁（actor）在什么时候（created_at）给出了什么结论（action）
+ * 和备注（note）。`token_deals.verified_at` 只是「最近一次核验」的物化字段，
+ * 真凭据在这里 —— 后台能回看某条通告被核验过几次、每次的结论是什么。
+ *
+ * 与事件流的区别：核验**不产生** token_deal_events（确认没变化不该推给订阅者），
+ * 只有 action='dead' 判定失效时才由 markDealInvalid 写 offline 事件。
+ */
+export function createDealVerificationsSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_verifications (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id    TEXT NOT NULL,
+        action     TEXT NOT NULL DEFAULT 'alive',
+        note       TEXT NOT NULL DEFAULT '',
+        actor      TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_verifications 失败:', err.message)
+  }
+
+  const verifyIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_deal_verif_deal ON token_deal_verifications(deal_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_deal_verif_created ON token_deal_verifications(created_at)',
+  ]
+  for (const sql of verifyIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] 核验历史索引失败:', err.message)
+    }
+  }
+}
+
+/**
  * 通告事件流 + 游客订阅（2026-10-20）
  *
  * token_deal_events：append-only 事实表，`seq` 自增即对外游标。只写「当时对外可见」的变化，
@@ -1776,6 +1823,7 @@ export function initializeDatabase(db: Database.Database) {
   createNexusSchema(db)
   createTokenKeysSchema(db)
   createQqBotSchema(db)
+  createDealVerificationsSchema(db)
   createDealEventsSchema(db)
   seedDefaults(db)
 }

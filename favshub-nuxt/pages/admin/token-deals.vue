@@ -39,6 +39,13 @@
       <button :class="{ active: tab === 'deals' && status === 'approved' }" @click="switchStatus('approved')">已通过</button>
       <button :class="{ active: tab === 'deals' && status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
       <button :class="{ active: tab === 'deals' && status === 'all' }" @click="switchStatus('all')">全部</button>
+      <button
+        :class="{ active: tab === 'deals' && verifyFilter === 'stale' }"
+        title="只看超过核验阈值（默认 30 天）没有人工核验的在架通告"
+        @click="switchVerifyStale()"
+      >
+        待核验<span v-if="counts.stale" class="tab-badge">{{ counts.stale }}</span>
+      </button>
       <button :class="{ active: tab === 'invalid' }" @click="switchTab('invalid')">
         已失效<span v-if="counts.invalid_total" class="tab-badge">{{ counts.invalid_total }}</span>
       </button>
@@ -412,10 +419,11 @@
             <th>标题</th>
             <th style="width: 110px;">分级 / 来源</th>
             <th style="width: 140px;">免费额度</th>
+            <th style="width: 130px;">核验</th>
             <th style="width: 110px;">社区反馈</th>
             <th style="width: 100px;">发布者</th>
             <th style="width: 120px;">提交时间</th>
-            <th style="width: 240px;">操作</th>
+            <th style="width: 300px;">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -444,6 +452,10 @@
               </div>
             </td>
             <td>
+              <div class="cell-sub" :class="{ 'is-warn': isStaleVerify(d) }">{{ verifyText(d) }}</div>
+              <div v-if="d.verify_note" class="cell-sub" :title="d.verify_note">{{ d.verify_note }}</div>
+            </td>
+            <td>
               <div class="cell-votes">
                 <span class="vote-up"><i class="ri-thumb-up-line"></i>{{ d.vote_up }}</span>
                 <span class="vote-down"><i class="ri-thumb-down-line"></i>{{ d.vote_down }}</span>
@@ -468,6 +480,7 @@
                 <button class="btn btn-ghost btn-sm" @click="togglePin(d)">
                   {{ d.pinned ? '取消置顶' : '置顶' }}
                 </button>
+                <button class="btn btn-ghost btn-sm" title="记录一次人工核验" @click="openVerify(d)">核验</button>
                 <button class="btn btn-ghost btn-sm" @click="openEdit(d)">编辑</button>
                 <button class="btn btn-danger btn-sm" @click="removeDeal(d)">删除</button>
               </template>
@@ -517,6 +530,42 @@
       </div>
     </Teleport>
 
+    <!-- 人工核验弹窗 -->
+    <Teleport to="body">
+      <div v-if="verifyTarget" class="modal-overlay active" @click.self="verifyTarget = null">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>人工核验</h3>
+            <button class="modal-close" @click="verifyTarget = null">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="hint">
+              「{{ verifyTarget.provider }} · {{ verifyTarget.title }}」<br>
+              核验 = 站点确认「此刻仍可用」，只更新时间轴，不会推送订阅者；
+              判定失效才会让订阅者收到「下架」。
+            </p>
+            <div class="fg">
+              <label>核验备注（可选）</label>
+              <textarea
+                v-model="verifyNote"
+                rows="3"
+                maxlength="200"
+                placeholder="如：注册实测通过，额度到账 / 领取页 502"
+              ></textarea>
+              <small>{{ verifyNote.length }} / 200</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" @click="verifyTarget = null">取消</button>
+            <button class="btn btn-primary" :disabled="submitting" @click="confirmVerify('alive')">
+              {{ submitting ? '提交中...' : '核验可用' }}
+            </button>
+            <button class="btn btn-danger" :disabled="submitting" @click="confirmVerify('dead')">判定失效</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 编辑弹窗（复用前台编辑器） -->
     <TokenDealEditor
       v-if="editVisible"
@@ -557,11 +606,17 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 const status = ref<'pending' | 'approved' | 'rejected' | 'all'>('pending')
+/** 待核验筛选：只影响「已通过」队列，与 status 正交 */
+const verifyFilter = ref<'all' | 'stale'>('all')
+const verifyTarget = ref<any>(null)
+const verifyNote = ref('')
 const deals = ref<any[]>([])
 const counts = reactive({
   pending: 0, approved: 0, rejected: 0, all: 0,
   // 已失效三维（互斥）+ 合计，见 admin/token-deals/index.get.ts
   expired: 0, invalid: 0, deleted: 0, invalid_total: 0,
+  // 待核验：在架且超过阈值没人工核验（阈值由 deal_verify_stale_days 控制，默认 30 天）
+  stale: 0,
 })
 const loading = ref(false)
 const submitting = ref(false)
@@ -596,14 +651,14 @@ const pageList = computed(() => {
   return out
 })
 
-const tabTitle = computed(() => ({
+const tabTitle = computed(() => verifyFilter.value === 'stale' ? '待核验通告（默认 30 天未核验）' : ({
   pending: '待审核通告',
   approved: '已通过通告',
   rejected: '已驳回通告',
   all: '全部通告',
 }[status.value]))
 
-const emptyText = computed(() => ({
+const emptyText = computed(() => verifyFilter.value === 'stale' ? '全部通告都核验过了，很干净' : ({
   pending: '暂无待审核通告',
   approved: '暂无已通过通告',
   rejected: '暂无已驳回通告',
@@ -634,6 +689,7 @@ async function loadDeals() {
       limit: String(pageSize),
     })
     if (searchQuery.value) params.append('search', searchQuery.value)
+    if (verifyFilter.value !== 'all') params.append('verify', verifyFilter.value)
 
     const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
     deals.value = r.deals || []
@@ -657,8 +713,60 @@ function debouncedSearch() {
 function switchStatus(next: typeof status.value) {
   tab.value = 'deals'
   status.value = next
+  verifyFilter.value = 'all'
   page.value = 1
   loadDeals()
+}
+
+/** 待核验 tab：只看在架（已通过）且超过阈值没核验的通告 */
+function switchVerifyStale() {
+  tab.value = 'deals'
+  status.value = 'approved'
+  verifyFilter.value = 'stale'
+  page.value = 1
+  loadDeals()
+}
+
+/** 距上次人工核验的天数；-1 = 从未核验 */
+function verifyDays(d: any): number {
+  const at = Number(d?.verified_at || 0)
+  if (!at) return -1
+  return Math.max(0, Math.floor((Date.now() - at) / 86400000))
+}
+function verifyText(d: any): string {
+  const days = verifyDays(d)
+  if (days < 0) return '从未核验'
+  if (days <= 0) return '今日已核验'
+  return `${days} 天前核验`
+}
+/** 与后端 verifyStaleDays() 同口径（默认 30 天；只用于配色，不参与查询） */
+function isStaleVerify(d: any): boolean {
+  const days = verifyDays(d)
+  return days < 0 || days > 30
+}
+
+function openVerify(d: any) {
+  verifyTarget.value = d
+  verifyNote.value = ''
+}
+
+async function confirmVerify(action: 'alive' | 'dead') {
+  if (!verifyTarget.value) return
+  submitting.value = true
+  try {
+    const r = await $fetch<any>(`/api/admin/token-deals/${verifyTarget.value.id}/verify`, {
+      ...getAuthOpts(),
+      method: 'POST',
+      body: { action, note: verifyNote.value },
+    })
+    showMessage(r?.message || '已记录核验', 'success')
+    verifyTarget.value = null
+    await loadDeals()
+  } catch (e: any) {
+    showMessage('核验失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
+  } finally {
+    submitting.value = false
+  }
 }
 
 function switchTab(next: 'deals' | 'edits' | 'guests' | 'invalid' | 'subs') {
@@ -802,6 +910,7 @@ async function loadInvalid() {
       limit: String(invalidPageSize),
     })
     if (searchQuery.value) params.append('search', searchQuery.value)
+    if (verifyFilter.value !== 'all') params.append('verify', verifyFilter.value)
 
     const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
     invalidDeals.value = r.deals || []

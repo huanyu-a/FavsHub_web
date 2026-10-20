@@ -271,6 +271,34 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **AI / MCP / QQ**：`/api/ai/token-deals` 列表同样按上面口径过滤，删除即软删除；
   QQ 机器人待审汇总额外报「已失效 N 条」。
 
+#### 人工核验时间轴（2026-10-20）
+
+> 白嫖资源最大的坑是「早失效了还挂在列表里」。社区投票是**用户**反馈，
+> 人工核验是**站点确认「此时此刻仍然可用」**，两者互补、互不替代。
+
+| 列 / 表 | 含义 |
+|----|------|
+| `token_deals.verified_at` | 最近一次确认可用的时刻；`0` / `NULL` = 从未核验 |
+| `token_deals.verified_by` | 核验人（管理员用户名）——**只在后台下发**，公开侧不下发 |
+| `token_deals.verify_note` | 最近一次核验备注（如「注册实测通过，额度到账」） |
+| `token_deal_verifications` | 核验流水（`action` / `note` / `actor` / `created_at`），append-only |
+
+- **写入口唯一**：`verifyDeal()`（`utils/token-deals.ts`）+ `POST /api/admin/token-deals/:id/verify`
+  （`{action: alive|dead|note, note?}`，仅管理员）。`action='dead'` 走 `markDealInvalid(..., 'manual')`，
+  幂等，且**只有真正从可见变失效那一次**会产出 `offline` 事件。
+- **核验不产生事件**：确认「没有变化」不该推给订阅者 —— `alive` / `note` 只写时间轴与流水，
+  绝不 `appendDealEvent`。想让订阅者知道下架，只有 `dead`。
+- **`alive` 不隐式恢复**：通告当前已失效 / 已过期时，`alive` 依旧记录核验事实，但**不改可见性**，
+  返回 `visible:false` 与提示文案；恢复要显式走 `restore` 端点（管理员看得见自己点了什么）。
+- **「待复核」只是提示**：`isVerifyStale()` / `verifyAgeDays()` + 配置 `deal_verify_stale_days`
+  （默认 30，范围 7–365，`SYSTEM_ONLY_KEYS`）。超阈值只影响前台/后台的**标记与筛选**
+  （`?stale=1`、后台 `?verify=stale`），**不影响可见性** —— 可见性仍由
+  `status` / `deleted_at` / `invalid_at` / `expires_at` 决定，别把两件事混在一起。
+- **派生字段**：列表/详情返回 `verified_at`、`verify_age_days`（-1 = 从未核验）、`verify_stale`、
+  `verify_note`；详情另带 `verifications`（公开侧最多 3 条且 `actor` 置空，管理员 10 条含核验人）。
+- **AI 侧**：`/api/ai/describe` 把 `verified_at` / `verify_stale` 标为**只读**字段（AI 不能自封核验），
+  并提示「优先推最近核验 + 社区投票健康」的条目。
+
 #### 通告事件流与订阅（2026-10-20）
 
 游客装技能后想让自己的 Hermes 机器人**在通告变化时收到消息**。架构选择是 **pull-first**：

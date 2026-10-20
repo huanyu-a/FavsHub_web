@@ -26,7 +26,7 @@ export const SYSTEM_ONLY_KEYS = [
   // QQ Bot（OneBot 11 / NapCat）
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
   // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
-  'qq_bot_transport', 'qq_outbox_path', 'qq_notify_max_per_hour',
+  'qq_bot_transport', 'qq_outbox_path', 'qq_notify_max_per_hour', 'deal_verify_stale_days',
   // 通告事件流（对外订阅）：见 server/utils/deal-events.ts
   'deal_events_enabled', 'deal_changes_public', 'deal_feed_enabled',
   'deal_sub_enabled', 'deal_sub_per_ip_per_day',
@@ -85,6 +85,8 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   // qq_notify_max_per_hour：出站通知配额（防止用户反复触发写路径把站点当刷屏放大器）。
   //   同一条提醒另有 10 分钟去重；机器人指令回复不占该配额。
   qq_notify_max_per_hour: '40',
+  // deal_verify_stale_days：超过这么多天没人工核验 → 前台标「待复核」（只提示，不改可见性）
+  deal_verify_stale_days: '30',
   qq_bot_enabled: 'false',
   qq_bot_group_id: '',
   qq_admin_qq: '',
