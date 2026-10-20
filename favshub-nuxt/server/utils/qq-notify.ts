@@ -290,10 +290,29 @@ export function queuePrivateMessage(qq: string, text: string, markdown?: string)
  * （入站端点恒返回 { status: 'ok' }，回复不走上报响应）。
  * 仍受总开关门控（qq_bot_enabled + qqBotHttpUrl）——入站端点已在门控之后，正常必满足。
  */
-export function queueBotReply(kind: 'group' | 'private', target: string, text: string): void {
+export function queueBotReply(kind: 'group' | 'private', target: string, text: string, markdown?: string): void {
   const t = String(target || '').trim()
   if (!t || !text) return
-  enqueue({ kind, target: t, text })
+  enqueue({ kind, target: t, text, markdown: markdown ?? toCardMarkdown(text) })
+}
+
+/**
+ * 指令回复的富文本包装：首行当标题，`·`/`•` 列表行换成 `-`，其余原样。
+ *
+ * 指令回复原本是纯文本多行（`📮 我的投稿（最近 3 条）：\n· 标题（待审）`），
+ * 在没有 markdown 的通道里就是一堆符号；包成卡片后 QQ / 钉钉都能按标题 + 列表渲染。
+ * 已经是 markdown（首行 `### `）的原文直接返回，避免二次包装。
+ */
+function toCardMarkdown(text: string): string {
+  const t = String(text || '').trim()
+  if (!t || t.startsWith('### ')) return t
+  const lines = t.split('\n')
+  const head = lines[0].replace(/[：:]\s*$/, '').trim()
+  const rest = lines.slice(1)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .map(l => (/^[·•]/.test(l) ? `- ${l.slice(1).trim()}` : l))
+  return [`### ${head}`, ...(rest.length ? ['', ...rest] : [])].join('\n')
 }
 
 // ─── 文案组装 helper ─────────────────────────────────────────
@@ -476,6 +495,19 @@ function dealFactList(deal: any): string[] {
  * 才按 markdown 卡片投递；QQ 官方机器人则由 hermes 侧嗅探 markdown 特征后改用 msg_type=2。
  * 两边共用同一份文案，故格式要同时满足两个触发条件。
  */
+function mdCard(
+  head: string,
+  title: string,
+  facts: string[] = [],
+  opts: { tail?: string; link?: string; linkLabel?: string } = {},
+): string {
+  const lines = [`### ${head}`, `**${clipText(title, 70)}**`]
+  if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
+  if (opts.tail) lines.push('', opts.tail)
+  if (opts.link) lines.push('', `[${opts.linkLabel || '查看详情'}](${opts.link})`)
+  return lines.join('\n')
+}
+
 function noticeMd(
   head: string,
   deal: any,
@@ -592,19 +624,41 @@ export function notifyTokenDealRejected(deal: any, authorUserId: number, reason:
 /** 提示词修改待审 → 群（@管理员） */
 export function notifyPromptReviewPending(title: string): void {
   if (!allowNotify('prompt-review', title)) return
-  queuePendingNotice(`📝 提示词《${escapeCqText(title)}》有新的修改审核请求，当前待审 ${countPendingPromptReviews()} 条`)
+  queuePendingNotice(
+    `📝 提示词《${escapeCqText(title)}》有新的修改审核请求，当前待审 ${countPendingPromptReviews()} 条`,
+    mdCard('📝【提示词修改待审】', `《${title}》`, [`当前待审 ${countPendingPromptReviews()} 条`], {
+      link: `${siteBase()}/admin/prompts`,
+      linkLabel: '去审核',
+    }),
+  )
 }
 
 /** 提示词审核通过 → 私聊提交人（若已绑定 QQ） */
 export function notifyPromptReviewApproved(title: string, submitterUserId: number): void {
   if (!allowNotify('prompt-approved', title)) return
   const qq = getBoundQQ(submitterUserId)
-  if (qq) queuePrivateMessage(qq, `✅ 你提交的提示词《${escapeCqText(title)}》已通过审核，感谢贡献！`)
+  if (qq) {
+    queuePrivateMessage(
+      qq,
+      `✅ 你提交的提示词《${escapeCqText(title)}》已通过审核，感谢贡献！`,
+      mdCard('✅【提示词审核通过】', `《${title}》`, [], {
+        tail: '感谢贡献，已上线到提示词库',
+        link: `${siteBase()}/prompts`,
+        linkLabel: '去提示词库看看',
+      }),
+    )
+  }
 }
 
 /** 提示词审核驳回 → 私聊提交人（若已绑定 QQ） */
 export function notifyPromptReviewRejected(title: string, submitterUserId: number, reason: string): void {
   if (!allowNotify('prompt-rejected', title)) return
   const qq = getBoundQQ(submitterUserId)
-  if (qq) queuePrivateMessage(qq, `❌ 你提交的提示词《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`)
+  if (qq) {
+    queuePrivateMessage(
+      qq,
+      `❌ 你提交的提示词《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`,
+      mdCard('❌【提示词未通过】', `《${title}》`, [], { tail: `原因：${clipText(reason, 80) || '未填写原因'}` }),
+    )
+  }
 }

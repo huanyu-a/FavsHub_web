@@ -54,6 +54,7 @@ async function poll(fn, { timeout = 6000, interval = 200, desc = '' }) {
 }
 
 // ── HTTP ────────────────────────────────────────────────────
+const BOT_TOKEN = 'e2e-bot-inbound-token'
 async function api(path, { method = 'GET', cookie, body } = {}) {
   const headers = {}
   if (cookie) headers.Cookie = cookie
@@ -130,6 +131,7 @@ async function startApp(dbPath) {
       PORT: String(APP_PORT),
       NUXT_DB_PATH: dbPath,
       NUXT_ADMIN_USERS: 'e2eadmin',
+      NUXT_QQ_BOT_ACCESS_TOKEN: BOT_TOKEN,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -253,6 +255,24 @@ async function main() {
       if (!md.includes('/tokens?deal=')) fail('发布通知 markdown 含可点详情链接', '/tokens?deal=', md)
     }
     ok('审核通过群广播 ×2（qqbot + dingtalk），未绑定用户无私聊 ✓')
+  }
+
+  // d2. 指令回复也要成卡片（入站指令 → 出站 markdown）
+  console.log('▶ d2. 入站指令「帮助」→ 回复带 markdown')
+  {
+    for (const { file } of readSpool()) unlinkSync(join(SPOOL, file))
+    const res = await fetch(`${BASE}/api/bot/onebot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BOT_TOKEN}` },
+      body: JSON.stringify({ post_type: 'message', message_type: 'private', user_id: ADMIN_TARGET, raw_message: '帮助', message_id: 90001 }),
+    })
+    if (res.status !== 200) fail('入站指令 200', 200, res.status)
+    const items = await waitSpool(1, 'spool 出现 1 条指令回复')
+    const md = String(items[0]?.entry.markdown || '')
+    if (!md.startsWith('### ')) fail('指令回复 markdown 首行 ###', '### …', md.slice(0, 40))
+    if (!String(items[0]?.entry.text || '').trim()) fail('指令回复保留纯文本兜底', '非空 text', items[0]?.entry)
+    ok(`指令回复成卡片：${md.split('\n')[0].slice(0, 30)}…`)
+    for (const { file } of readSpool()) unlinkSync(join(SPOOL, file))
   }
 
   // e. 总开关关闭 → 出站静默
