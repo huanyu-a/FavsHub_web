@@ -91,6 +91,11 @@ def handle(path: str, name: str, now: float) -> None:
         return
     target = str(entry.get("target") or "")
     text = str(entry.get("text") or "")
+    # 富文本版本：钉钉群机器人（### 触发 markdown 卡片）与 QQ 官方机器人（hermes 侧嗅探后
+    # 改发 msg_type=2）都支持；OneBot 等纯文本通道仍只用 text。
+    markdown = str(entry.get("markdown") or "")
+    if markdown and target.split(":", 1)[0].lower() in ("qqbot", "dingtalk"):
+        text = markdown
     at = str(entry.get("at") or "")
     if not target or not text:
         os.remove(path)

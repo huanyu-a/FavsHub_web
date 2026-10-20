@@ -29,6 +29,8 @@ interface QueueItem {
   kind: 'group' | 'private'
   target: string   // group_id 或 QQ 号
   text: string
+  /** 富文本版本（可选）：钉钉群机器人 / QQ 官方机器人私聊都支持 Markdown 卡片 */
+  markdown?: string
   retries: number  // 已重试次数（首次投递失败后从 0 递增）
   retryAt: number  // 最早可再次投递的时间戳（退避期间 > now，flush 跳过）
 }
@@ -143,7 +145,8 @@ function sendToOutbox(item: QueueItem): void {
     const base = `${now}-${process.pid}-${outboxSeq}`
     const tmp = join(dir, `${base}.tmp`)
     const final = join(dir, `${base}.json`)
-    const payload = { v: 1, at: iso, kind: item.kind, target, text }
+    const md = item.markdown ? unescapeCqText(item.markdown) : ''
+    const payload = { v: 1, at: iso, kind: item.kind, target, text, ...(md ? { markdown: md } : {}) }
     writeFileSync(tmp, JSON.stringify(payload) + '\n', 'utf8')
     renameSync(tmp, final) // 原子发布
   }
@@ -267,19 +270,19 @@ export function notifyQuotaState(): { sentLastHour: number; maxPerHour: number; 
 /**
  * 群消息入队：qq_bot_group_id 为空时直接丢弃
  */
-export function queueGroupMessage(text: string): void {
+export function queueGroupMessage(text: string, markdown?: string): void {
   const groupId = String(getConfig('qq_bot_group_id') || '').trim()
   if (!groupId) return
-  enqueue({ kind: 'group', target: groupId, text })
+  enqueue({ kind: 'group', target: groupId, text, markdown })
 }
 
 /**
  * 私聊消息入队
  */
-export function queuePrivateMessage(qq: string, text: string): void {
+export function queuePrivateMessage(qq: string, text: string, markdown?: string): void {
   const target = String(qq || '').trim()
   if (!target) return
-  enqueue({ kind: 'private', target, text })
+  enqueue({ kind: 'private', target, text, markdown })
 }
 
 /**
@@ -324,12 +327,13 @@ function resolveAdminQQ(): string {
  *   - outbox：群广播 + 私聊主人（qq_admin_qq 语义 = Hermes 私聊目标）。
  *     官方 QQ 群不支持机器人主动 @ 成员（「主动消息」权限另受限），DM 主人是已实测可达的提醒通道。
  */
-function queuePendingNotice(text: string): void {
+function queuePendingNotice(text: string, markdown?: string): void {
   if (isOutbox()) {
-    queueGroupMessage(text)
+    queueGroupMessage(text, markdown)
     const adminTarget = String(getConfig('qq_admin_qq') || '').trim()
-    if (adminTarget) queuePrivateMessage(adminTarget, text)
+    if (adminTarget) queuePrivateMessage(adminTarget, text, markdown)
   } else {
+    // OneBot 传输是 CQ 码文本通道，Markdown 会被原样显示，不传富文本
     queueGroupMessage(withAdminMention(text))
   }
 }
@@ -428,15 +432,62 @@ function dealFacts(deal: any): string {
   return bits.join('｜')
 }
 
-/** 通告详情链接（站点基址来自 runtimeConfig.public.baseUrl，缺省时只给站内路径） */
+/** 站点基址（runtimeConfig.public.baseUrl，缺省空串 → 只给站内路径） */
+function siteBase(): string {
+  try {
+    return String(useRuntimeConfig().public?.baseUrl || '').replace(/\/+$/, '')
+  } catch { /* runtimeConfig 不可用（脚本/测试环境）时只给路径 */ }
+  return ''
+}
+
+/** 通告详情链接 */
 function dealLink(deal: any): string {
   const id = String(deal?.id ?? '').trim()
   if (!id) return ''
-  let base = ''
-  try {
-    base = String(useRuntimeConfig().public?.baseUrl || '').replace(/\/+$/, '')
-  } catch { /* runtimeConfig 不可用（脚本/测试环境）时只给路径 */ }
-  return `${base}/tokens?deal=${encodeURIComponent(id)}`
+  return `${siteBase()}/tokens?deal=${encodeURIComponent(id)}`
+}
+
+/** 通告字段清单（Markdown 列表用，每项一条） */
+function dealFactList(deal: any): string[] {
+  const out: string[] = []
+  const provider = clipText(deal?.provider, 24)
+  if (provider) out.push(`服务商 ${provider}`)
+  const quota = clipText(deal?.quota, 40)
+  if (quota) out.push(`额度 ${quota}`)
+  let models: string[] = []
+  if (Array.isArray(deal?.models)) models = deal.models.map((m: any) => String(m))
+  else if (typeof deal?.models === 'string' && deal.models.trim().startsWith('[')) {
+    try { models = (JSON.parse(deal.models) as any[]).map(String) } catch { models = [] }
+  }
+  const modelText = clipText(models.join(' / '), 60)
+  if (modelText) out.push(`模型 ${modelText}`)
+  const expires = Number(deal?.expires_at ?? 0)
+  if (expires > 0) {
+    const d = new Date(expires)
+    out.push(`到期 ${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }
+  return out
+}
+
+/**
+ * 通知的 Markdown 版本。
+ *
+ * 首行必须是 `### ` 标题：这台机器上的钉钉插件只在消息含 `### ` / `\n---` / `<font ` 时
+ * 才按 markdown 卡片投递；QQ 官方机器人则由 hermes 侧嗅探 markdown 特征后改用 msg_type=2。
+ * 两边共用同一份文案，故格式要同时满足两个触发条件。
+ */
+function noticeMd(
+  head: string,
+  deal: any,
+  opts: { tail?: string; link?: string; linkLabel?: string } = {},
+): string {
+  const title = clipText(deal?.title, 70)
+  const lines = [`### ${head}`, `**${title}**`]
+  const facts = dealFactList(deal)
+  if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
+  if (opts.tail) lines.push('', opts.tail)
+  if (opts.link) lines.push('', `[${opts.linkLabel || '查看通告'}](${opts.link})`)
+  return lines.join('\n')
 }
 
 /** 拼「标题 + 摘要 + 链接」三行式正文 */
@@ -456,14 +507,22 @@ export function notifyTokenDealPending(deal: any, submitter: string): void {
     dealBody(deal, { withLink: false }),
     `提交人：${escapeCqText(submitter)}，当前待审 ${countPendingDeals()} 条`,
   ].filter(Boolean)
-  queuePendingNotice(lines.join('\n'))
+  const md = noticeMd('📥【新通告待审】', deal, {
+    tail: `提交人：${clipText(submitter, 20)}，当前待审 ${countPendingDeals()} 条`,
+    link: `${siteBase()}/admin/token-deals`,
+    linkLabel: '去审核',
+  })
+  queuePendingNotice(lines.join('\n'), md)
 }
 
 /** 管理员直接发布 → 群（不 @） */
 export function notifyTokenDealPublished(deal: any): void {
   const title = String(deal?.title ?? '')
   if (!allowNotify('deal-published', title)) return
-  queueGroupMessage([`🆕 新通告发布：《${escapeCqText(title)}》`, dealBody(deal)].filter(Boolean).join('\n'))
+  queueGroupMessage(
+    [`🆕 新通告发布：《${escapeCqText(title)}》`, dealBody(deal)].filter(Boolean).join('\n'),
+    noticeMd('🆕【新通告发布】', deal, { link: dealLink(deal) }),
+  )
 }
 
 /** 通告修改回待审 → 群（@管理员） */
@@ -476,7 +535,12 @@ export function notifyTokenDealRePending(deal: any): void {
     dealBody(deal),
     `当前待审 ${countPendingDeals()} 条`,
   ].filter(Boolean)
-  queuePendingNotice(lines.join('\n'))
+  const md = noticeMd('✏️【修改后重新待审】', deal, {
+    tail: `当前待审 ${countPendingDeals()} 条`,
+    link: `${siteBase()}/admin/token-deals`,
+    linkLabel: '去审核',
+  })
+  queuePendingNotice(lines.join('\n'), md)
 }
 
 /** 通告删除 → 群 */
@@ -484,16 +548,29 @@ export function notifyTokenDealDeleted(deal: any): void {
   const title = String(deal?.title ?? '')
   if (!allowNotify('deal-deleted', title)) return
   // 已删除的通告点进去是 404，不带链接
-  queueGroupMessage([`🗑️ 通告《${escapeCqText(title)}》已删除`, dealBody(deal, { withLink: false })].filter(Boolean).join('\n'))
+  queueGroupMessage(
+    [`🗑️ 通告《${escapeCqText(title)}》已删除`, dealBody(deal, { withLink: false })].filter(Boolean).join('\n'),
+    // 已删除的通告点进去是 404，不推可点链接
+    noticeMd('🗑️【通告已删除】', deal, { tail: '该通告已从站点移除，详情页不再可访问' }),
+  )
 }
 
 /** 通告审核通过 → 群 + 私聊作者（若已绑定 QQ） */
 export function notifyTokenDealApproved(deal: any, authorUserId: number): void {
   const title = String(deal?.title ?? '')
   if (!allowNotify('deal-approved', title)) return
-  queueGroupMessage([`✅ 通告《${escapeCqText(title)}》已发布`, dealBody(deal)].filter(Boolean).join('\n'))
+  queueGroupMessage(
+    [`✅ 通告《${escapeCqText(title)}》已发布`, dealBody(deal)].filter(Boolean).join('\n'),
+    noticeMd('✅【审核通过】', deal, { link: dealLink(deal), linkLabel: '查看已上架的通告' }),
+  )
   const qq = getBoundQQ(authorUserId)
-  if (qq) queuePrivateMessage(qq, `✅ 你投稿的通告《${escapeCqText(title)}》已通过审核，感谢贡献！`)
+  if (qq) {
+    queuePrivateMessage(
+      qq,
+      `✅ 你投稿的通告《${escapeCqText(title)}》已通过审核，感谢贡献！`,
+      noticeMd('✅【你的投稿已通过】', deal, { tail: '感谢贡献，已上架到站点', link: dealLink(deal) }),
+    )
+  }
 }
 
 /** 通告驳回 → 私聊作者（若已绑定 QQ） */
@@ -501,7 +578,13 @@ export function notifyTokenDealRejected(deal: any, authorUserId: number, reason:
   const title = String(deal?.title ?? '')
   if (!allowNotify('deal-rejected', title)) return
   const qq = getBoundQQ(authorUserId)
-  if (qq) queuePrivateMessage(qq, `❌ 你投稿的通告《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`)
+  if (qq) {
+    queuePrivateMessage(
+      qq,
+      `❌ 你投稿的通告《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`,
+      noticeMd('❌【你的投稿未通过】', deal, { tail: `原因：${clipText(reason, 60) || '未填写原因'}` }),
+    )
+  }
 }
 
 // ── 提示词事件 ──────────────────────────────────────────────

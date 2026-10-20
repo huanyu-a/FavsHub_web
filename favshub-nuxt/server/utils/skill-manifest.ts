@@ -7,13 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.9.3",
-  site_version: "1.0.38",
+  version: "1.9.4",
+  site_version: "1.0.39",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**新增** 订阅事件多出 `markdown` 字段（多行富文本：标题、加粗、字段列表、可点链接）， 与原有的单行 `text` 并存 —— 钉钉群机器人发 `markdown`，QQ 官方机器人发 `text`。",
-  "**建议** `subscribe.md` 的 cron 从 `*/10` 收到 `*/2`（站点限 60 次/小时/IP，`*/2` 只占 30 次）， 延迟从十几分钟压到两分钟级。",
-  "**说明** 补「钉钉 vs QQ 官方机器人」投递模式差异：钉钉是 webhook 主动推送， QQ 群主动消息需要单独开通权限（未开通返回 `40034105 主动消息失败, 无权限`）， 并给出三条替代路径（申请权限 / OneBot 协议端 / 被动回复）。"
+  "**QQ 私聊支持 Markdown**：实测 `POST /v2/users/{openid}/messages` 带 `{\"msg_type\":2,\"markdown\":{…}}` 返回 200（钉钉靠 `### ` 触发卡片，QQ 靠同一特征走 `msg_type=2`），所以 `markdown` 字段的适用平台 从「钉钉」扩到「钉钉 + QQ 私聊」；群聊仍为 `40034105 主动消息失败, 无权限`。",
+  "**投递端按目标挑格式**：outbox spool 增加可选 `markdown` 字段，消费端对 `qqbot:` / `dingtalk:` 优先用富文本、其余通道用 `text`；`hermes send` 侧嗅探 `### ` / `](` 后自动降级重试纯文本。",
+  "文档补「发之前先按目标挑格式」的自查命令与 `extra.format` 回显说明。"
 ],
 } as const

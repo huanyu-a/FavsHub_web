@@ -209,6 +209,15 @@ async function main() {
       if (!i.entry.at) fail('消息含 ISO 时间戳（消费端按时效丢弃）', '有 at', i.entry)
     }
     ok(`待审 3 条：群·QQ（${gQ.entry.text.slice(0, 26)}…）、群·钉钉、主人私聊各 1，反转义干净`)
+    // 富文本：每条都带 markdown（首行 ### 才触发钉钉卡片 / QQ msg_type=2），text 保持单行
+    for (const [label, i] of [['群·QQ', gQ], ['群·钉钉', gD], ['主人私聊', pA]]) {
+      const md = String(i.entry.markdown || '')
+      if (!md.startsWith('### ')) fail(`${label} 带 markdown 且首行是 ### 标题`, '### …', md.slice(0, 40))
+      if (!md.includes('**' + dealTitle) && !md.includes('**') ) fail(`${label} markdown 含加粗标题行`, '**…**', md.slice(0, 80))
+      if (!md.includes('[去审核](')) fail(`${label} markdown 含后台链接`, '[去审核](…', md)
+      if (String(i.entry.text).includes('\n\n')) fail(`${label} text 保持单行紧凑`, '不含空行', i.entry.text)
+    }
+    ok('待审通知均带 markdown（### 标题 + 列表 + 可点后台链接），text 仍为纯文本')
   }
   {
     const { json } = await api('/api/admin/stats', { cookie: adminCookie })
@@ -239,6 +248,9 @@ async function main() {
     for (const i of items) {
       if (i.entry.kind !== 'group') fail('审核结果只到群（本步）', 'group', i.entry.kind)
       if (!String(i.entry.text).includes('已发布') || !String(i.entry.text).includes(dealTitle)) fail('含「已发布」与标题', dealTitle, i.entry.text)
+      const md = String(i.entry.markdown || '')
+      if (!md.startsWith('### ')) fail('发布通知 markdown 首行 ###', '### …', md.slice(0, 40))
+      if (!md.includes('/tokens?deal=')) fail('发布通知 markdown 含可点详情链接', '/tokens?deal=', md)
     }
     ok('审核通过群广播 ×2（qqbot + dingtalk），未绑定用户无私聊 ✓')
   }

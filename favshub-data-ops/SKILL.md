@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.9.3
+version: 1.9.4
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。

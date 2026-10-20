@@ -370,7 +370,7 @@ if __name__ == "__main__":
 | 字段 | 形态 | 适合 |
 |---|---|---|
 | `text` | 单行、≤200 字 | QQ 官方机器人、短信类窄通道 |
-| `markdown` | 多行、含标题 / 加粗 / 列表 / 可点链接 | 钉钉群机器人、Telegram(MarkdownV2 除外) 等富文本通道 |
+| `markdown` | 多行、含标题 / 加粗 / 列表 / 可点链接 | 钉钉群机器人、**QQ 官方机器人私聊**（`msg_type=2`，实测 200）等富文本通道 |
 
 `markdown` 的样子（上新事件）：
 
@@ -398,7 +398,11 @@ if __name__ == "__main__":
 | 接口 | 自定义机器人 **webhook**，一条 HTTPS POST | OpenAPI：先取 `app_access_token`，再调 `/v2/groups/{openid}/messages` |
 | 主动推送 | 无限制（受频率策略约束，20 条/分钟） | **群聊主动消息需要单独开通权限**；未开通时返回 `40034105 主动消息失败, 无权限` |
 | 典型延迟 | 1～3 秒 | 群：收不到；私聊（c2c）有主动额度，通常也是几秒 |
-| Markdown | 支持（`msgtype=markdown`） | 不支持，只吃纯文本 |
+| Markdown | 支持（`msgtype=markdown`，本机插件靠 `### ` / `---` / `<font ` 判定是否走卡片） | **私聊支持**（`msg_type=2` + `markdown.content`）；群同样无权限 |
+
+> 私聊（c2c）实测：`POST /v2/users/{openid}/messages` 带 `{"msg_type":2,"markdown":{"content":"### …"}}`
+> 返回 200 并给出 `ROBOT1.0_…` 消息 id —— QQ 私聊也能发富文本卡片。
+> 所以**文案首行统一用 `### ` 标题**：钉钉靠它走卡片、QQ 靠它走 markdown，纯文本通道仍用 `text`。
 
 所以「钉钉收到、QQ 很久没动静」通常**不是脚本慢**，而是 QQ 群主动消息被平台拒了。三条出路：
 
@@ -409,9 +413,19 @@ if __name__ == "__main__":
 排错先手跑一条，看 JSON 里的 `error`：
 
 ```bash
+hermes send -t qqbot:<私聊 openid> --json "通道自检"
+# 成功：{"success": true, "extra": {"endpoint": "c2c", "format": "text"}}
+
+hermes send -t qqbot:<私聊 openid> --json '### 标题
+**加粗**'
+
+# 群（无权限时的样子）：
 hermes send -t qqbot:<群 openid> --json "通道自检"
 # {"success": false, "error": {"message": "QQBot send failed: channel=400 c2c=400 group=400"}}
 ```
+
+`hermes send` 侧会自动嗅探：内容含 `### ` / `\n---` / `<font ` / `](` 时先按 markdown（`msg_type=2`）发，
+失败再退回纯文本（`msg_type=0`）；返回的 `extra.format` 会告诉你实际用了哪种。
 
 拿到 400 就基本可以按上面第 1/2 条处理；`success: true` 才是通道通了。
 
