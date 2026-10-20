@@ -71,12 +71,30 @@ export interface SubscriptionRow {
 export function normalizeIpForKey(ip: unknown): string {
   const s = String(ip ?? '').trim().toLowerCase().replace(/^\[|\]$/g, '')
   if (!s) return ''
-  if (!s.includes(':')) return s
-  const bare = s.split('%')[0]
-  const groups = bare.split(':')
-  // 取前 4 组作为 /64 前缀；压缩写法（::）按实际展开不了时退化为「第一个 4 组 + 固定后缀」
-  const head = groups.slice(0, 4).filter(Boolean).join(':')
-  return head ? `${head}::/64` : bare
+  if (!s.includes(':')) return s           // IPv4：原样
+  const bare = s.split('%')[0]             // 去掉 %zone（fe80::1%eth0）
+
+  // 展开 `::` 压缩写法后再取前 4 组 —— 直接 split(':') 会把 `2001:db8::1` 的
+  // 空组丢掉，导致 `2001:db8::1` 与 `2001:db8:1::1` 落进同一个桶（不同 /64 互相挤占配额）
+  const parts = bare.split('::')
+  if (parts.length > 2) return hashKey(bare)   // 非法（多个 ::）→ 不做聚合，退回整串
+  const left = parts[0] ? parts[0].split(':') : []
+  const right = parts[1] !== undefined && parts[1] ? parts[1].split(':') : []
+  const fill = 8 - left.length - right.length
+  if (fill < 0) return hashKey(bare)
+  const groups = [...left, ...new Array(fill).fill('0'), ...right]
+    .map(g => g.padStart(4, '0'))
+
+  // IPv4 映射地址（::ffff:a.b.c.d）：按内嵌的 IPv4 限频，否则所有映射地址挤一个桶
+  if (groups.slice(0, 5).every(g => g === '0000') && groups[5] === 'ffff' && groups[7].includes('.')) {
+    return groups[7]
+  }
+  return `${groups.slice(0, 4).join(':')}::/64`
+}
+
+/** 无法解析时退回整串（不聚合），避免误伤 */
+function hashKey(s: string): string {
+  return s
 }
 
 /** 限频用的 IP 键（不是身份标识，仅用于配额） */
