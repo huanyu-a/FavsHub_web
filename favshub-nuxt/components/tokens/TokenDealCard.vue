@@ -297,7 +297,8 @@ const expiryWarn = computed(() => {
   padding: 2px 8px;
   border-radius: 6px;
   font-weight: 600;
-  background: var(--primary-soft, rgba(99, 102, 241, 0.14));
+  /* 与站点主题同源：背景走 --primary-light，文字走 --primary */
+  background: var(--primary-light);
   color: var(--primary);
 }
 .deal-quality {
