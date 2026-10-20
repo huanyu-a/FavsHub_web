@@ -191,7 +191,7 @@ async function main() {
   const dealTitle = 'Outbox 测试『标题』[CQ:test]'
   let dealId = ''
   {
-    const { res, json } = await api('/api/token-deals', { method: 'POST', cookie: aliceCookie, body: { provider: 'E2E服务商', title: dealTitle, url: 'https://example.com/outbox', quota: '测试额度' } })
+    const { res, json } = await api('/api/token-deals', { method: 'POST', cookie: aliceCookie, body: { provider: 'E2E服务商', title: dealTitle, url: 'https://example.com/outbox', quota: '测试额度', quality: '中品', region: 'cn' } })
     if (res.status !== 200) fail('alice 提交通告', 200, { status: res.status, body: json })
     dealId = json?.deal_id
     const items = await waitSpool(3, 'spool 出现 3 条出站消息')
@@ -255,6 +255,25 @@ async function main() {
       if (!md.includes('/tokens?deal=')) fail('发布通知 markdown 含可点详情链接', '/tokens?deal=', md)
     }
     ok('审核通过群广播 ×2（qqbot + dingtalk），未绑定用户无私聊 ✓')
+  }
+
+  // d1. 公开接口不泄露账号名；事件富文本不带品级/地区
+  console.log('▶ d1. 公开接口无 username / 事件 markdown 无品级地区')
+  {
+    const { json } = await api('/api/token-deals?limit=20')
+    const list = json?.deals || []
+    if (!list.length) fail('公开列表非空', '至少 1 条', list.length)
+    const leak = list.filter(d => 'username' in d)
+    if (leak.length) fail('公开列表不得下发 username', '无该字段', Object.keys(leak[0]).filter(k => k === 'username'))
+    ok(`公开列表 ${list.length} 条均不含 username`)
+    const { json: ch } = await api('/api/token-deals/changes?since=0&limit=20')
+    const evs = ch?.events || []
+    for (const ev of evs) {
+      const md = String(ev.markdown || '')
+      if (/^- (中品|精品|国内|海外)$/m.test(md)) fail('事件 markdown 不得含品级/地区行', '无 - 中品/- 国内', md)
+      if (!ev.text) fail('事件保留 text 兜底', '非空', ev)
+    }
+    ok(`事件 ${evs.length} 条：markdown 无品级/地区行，text 兜底仍在`)
   }
 
   // d2. 指令回复也要成卡片（入站指令 → 出站 markdown）

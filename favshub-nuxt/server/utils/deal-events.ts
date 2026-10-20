@@ -243,8 +243,6 @@ export function renderDealEventMarkdown(
   if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
   if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
   if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)
-  if (snap.quality) facts.push(clip(snap.quality, 12))
-  if (snap.region) facts.push(snap.region === 'global' ? '海外' : '国内')
   if (snap.rating) facts.push(`评分 ${snap.rating}`)
   if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
   // 领取地址是「现在还能不能薅」的关键，官网地址放其后做核对

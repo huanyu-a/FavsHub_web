@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
   // ── 登录用户评测 ──
   const userReviews = db.prepare(`
     SELECT r.id, r.rating, r.content, r.created_at, r.updated_at,
-           COALESCE(NULLIF(u.nickname, ''), u.username, '匿名') AS author,
+           COALESCE(NULLIF(u.nickname, ''), '社区用户') AS author,
            u.qq_cipher
     FROM token_deal_reviews r
     LEFT JOIN users u ON r.user_id = u.id

@@ -51,7 +51,7 @@
           <span class="meta-sep"></span>
           <span><i class="ri-bookmark-line"></i>{{ collection.bookmark_count }} 条书签</span>
           <span class="meta-sep"></span>
-          <span><i class="ri-user-3-line"></i>{{ collection.username || '匿名' }}</span>
+          <span><i class="ri-user-3-line"></i>{{ collection.nickname || '社区用户' }}</span>
           <template v-if="collection.updated_at || collection.created_at">
             <span class="meta-sep"></span>
             <span><i class="ri-refresh-line"></i>更新于 {{ formatHeroDate(collection.updated_at || collection.created_at) }}</span>

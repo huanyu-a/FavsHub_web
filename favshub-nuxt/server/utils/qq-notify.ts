@@ -534,13 +534,15 @@ function dealBody(deal: any, opts: { withLink?: boolean } = {}): string {
 export function notifyTokenDealPending(deal: any, submitter: string): void {
   const title = String(deal?.title ?? '')
   if (!allowNotify('deal-pending', title)) return
+  // 提交人不在通知里点名：群里有别人，昵称/账号名都算身份信息，管理面板里能看全
+  const who = /^游客/.test(String(submitter || '')) ? '游客' : '注册用户'
   const lines = [
     `📥 新通告待审：《${escapeCqText(title)}》`,
     dealBody(deal, { withLink: false }),
-    `提交人：${escapeCqText(submitter)}，当前待审 ${countPendingDeals()} 条`,
+    `提交人：${who}，当前待审 ${countPendingDeals()} 条`,
   ].filter(Boolean)
   const md = noticeMd('📥【新通告待审】', deal, {
-    tail: `提交人：${clipText(submitter, 20)}，当前待审 ${countPendingDeals()} 条`,
+    tail: `提交人：${who}，当前待审 ${countPendingDeals()} 条`,
     link: `${siteBase()}/admin/token-deals`,
     linkLabel: '去审核',
   })

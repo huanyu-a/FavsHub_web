@@ -92,7 +92,7 @@
             </div>
             <div class="tdd-fact">
               <span class="fact-label">发布者</span>
-              <span class="fact-value">{{ deal.nickname || deal.username || '匿名' }}</span>
+              <span class="fact-value">{{ deal.nickname || '社区用户' }}</span>
             </div>
             <div class="tdd-fact">
               <span class="fact-label">最近核验</span>
@@ -644,7 +644,7 @@ interface ITokenDeal {
   note?: string
   status?: string
   reject_reason?: string
-  username?: string
+  /** 公开接口不再下发 username（避免泄露账号名），这里保留可选仅作历史兼容 */
   nickname?: string
   is_expired?: boolean
   is_invalid?: boolean

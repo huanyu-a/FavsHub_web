@@ -11,7 +11,7 @@
     <div class="collection-meta">
       <span class="meta-item"><i class="ri-bookmark-line"></i>{{ collection.bookmark_count }} 条书签</span>
       <span class="meta-sep"></span>
-      <span class="meta-item"><i class="ri-user-3-line"></i>{{ collection.username || '匿名' }}</span>
+      <span class="meta-item"><i class="ri-user-3-line"></i>{{ collection.nickname || '社区用户' }}</span>
     </div>
     <div class="collection-actions" @click.stop.prevent>
       <button class="btn-subscribe" :class="{ subscribed: isSubscribed }" :disabled="subscribing" @click="toggleSubscribe">

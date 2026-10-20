@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
 
   // 查询列表
   const sql = `
-    SELECT c.*, u.username, u.nickname,
+    SELECT c.*, u.nickname,
       (SELECT COUNT(*) FROM collection_bookmarks WHERE collection_id = c.id) as bookmark_count
       ${user ? `, EXISTS (SELECT 1 FROM collection_subscriptions WHERE user_id = ? AND collection_id = c.id) as is_subscribed` : ''}
     FROM collections c

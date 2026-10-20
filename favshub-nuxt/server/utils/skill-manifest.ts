@@ -7,13 +7,13 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.9.5",
-  site_version: "1.0.40",
+  version: "1.9.6",
+  site_version: "1.0.41",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**通知格式统一为 Markdown**：站点侧 10 类通知（通告待审/发布/回待审/删除/通过/驳回、 提示词待审/通过/驳回）全部带 `markdown` 版本（`### ` 标题 + 加粗 + 字段列表 + 可点链接）； QQ 机器人指令回复也自动包成卡片（首行标题、`·` 行换 `-`），`text` 仍保留作纯文本兜底。",
-  "订阅事件推送到 QQ 私聊时同样使用 `markdown`（此前只有钉钉用它）， 所以 `text` 现在只用于 OneBot 等纯文本通道。",
-  "排查提示：若某条通知仍是单行纯文本，先看该通道是不是走了 OneBot 传输（那里没有富文本）。"
+  "**推送只放对读者有用的字段**：`### ` 卡片里去掉了「品级」「地区」两行运营字段—— 订阅者关心的是额度、模型、到期、领取地址，品级/地区属于站内运营信息。",
+  "**不暴露投稿人身份**：待审通知从「提交人：昵称」改为「提交人：游客 / 注册用户」； 站内通告详情页的「发布者」只显示用户自填昵称，不再回退到账号名。",
+  "公开接口 `/api/token-deals`、`/api/token-deals/{id}`、`/api/collections` 不再下发 `username` 字段（管理员接口不受影响）。"
 ],
 } as const

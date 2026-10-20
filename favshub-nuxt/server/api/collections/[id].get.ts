@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
 
   // 查询精选集
   const collection = db.prepare(`
-    SELECT c.*, u.username, u.nickname
+    SELECT c.*, u.nickname
     FROM collections c
     LEFT JOIN users u ON c.user_id = u.id
     WHERE c.id = ?
