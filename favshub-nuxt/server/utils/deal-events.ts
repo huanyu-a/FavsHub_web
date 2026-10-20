@@ -24,6 +24,7 @@
  */
 import type Database from 'better-sqlite3'
 import { isPubliclyVisible, INVALID_REASON_LABELS, parseDealModels, DEAL_FIELD_LABELS } from './token-deals'
+import { getConfig } from './config'
 
 /** 事件类型 */
 export const DEAL_EVENT_KINDS = ['online', 'offline', 'updated', 'renewed', 'pinned'] as const
@@ -212,6 +213,9 @@ export function appendDealEvent(
   opts: { reason?: string; before?: any; after?: any; changes?: FieldDiff[] } = {},
 ): number | null {
   try {
+    // 总开关：出问题时可以立即停止写入事件流（读侧另有 deal_changes_public 闸门）
+    if (getConfig('deal_events_enabled') === 'false') return null
+
     const after = opts.after ?? db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
     if (!after) return null
 

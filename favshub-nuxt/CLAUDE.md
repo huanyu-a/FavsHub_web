@@ -300,6 +300,11 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   `deal-edits.ts`（提案通过）。
 - **游标语义**：`next_since` 推进到**取到的**最大 seq（不是命中的），否则带过滤的订阅会在同一段反复重扫。
   首次接入必须 `?tail=1` 取基线，**永不回灌历史**。
+- **游标超前不报错**：`since > maxSeq`（多为事件被保留期清理后 `seq` 回落）时**归位到 maxSeq**
+  并回 `notice` + `cursor_reset: true`。不要改回 400 —— 无人值守的 cron 遇到 400 就是永久静默失败，
+  而归位不会跳过客户端还没见过的序号。
+- **总开关** `deal_events_enabled=false` 会在 `appendDealEvent()` 入口直接返回（业务写入照常）。
+  写侧开关 + 读侧 `deal_changes_public` 是两层独立的闸门。
 - **订阅凭证**：`sub_token` = 32 字节随机 hex，只在 `POST /api/deal-subscriptions` 返回一次；
   之后一律脱敏（`maskSubToken`）。站点不采集游客身份，只有 `created_ip_hash`（sha256 前 16 位）。
 - **配置项**：`deal_events_enabled` / `deal_changes_public` / `deal_feed_enabled` / `deal_sub_enabled` /

@@ -273,3 +273,31 @@ deal_changes_max_limit       100
 4. 你希望游客在站点有个**可管理的订阅记录**（后台能看到 N 人在订阅、各自偏好）吗？
    要 → 做 P2 账本；不要 → 只靠 `changes` 接口，站点完全无状态。
 5. 是否需要在 QQ 消息里带**分享短链/追踪参数**（用于统计点击）？（默认不带，保持干净）
+
+---
+
+## 14. 已验收结论（2026-10-20 收官，站点 v1.0.29 / 技能 v1.9.0）
+
+上面「待确认」的 5 个问题已由用户拍板：**1) Hermes 用 cron；2) 支持 feed；3) 只针对装了技能的机器人；4) 要订阅账本；5) 不带追踪参数。**
+最终落地形态（与原计划的差异都已在上文修正）：
+
+| 计划项 | 落地 |
+|---|---|
+| P0 事件表 + `changes` | ✅ `token_deal_events`（append-only，`seq` 即游标）+ `GET /api/token-deals/changes`（`tail` / `since` / `limit` / `kinds` / `token`，ETag+304） |
+| P1 feed 双格式 | ✅ `feed.atom` / `feed.json`，只含 `online/updated/renewed` |
+| P2 订阅账本 + 后台 | ✅ `deal_subscriptions` + `/api/deal-subscriptions[/:token]`（建/查/改/停/退）+ 后台「机器人订阅」Tab 与 `/events` 面板 |
+| P3 技能包 | ✅ `subscribe.md`（含可直接跑的 `favshub-poll.py`）+ SKILL.md 触发词与章节 + examples 第 15 节 |
+
+**与计划的刻意偏离**
+
+- 事件**不落渲染文案**：只存 `snapshot` + `meta.changes`，读取时渲染（换域名时链接自动跟随）。
+- `offline` 事件快照脱敏为 `id/provider/title/expires_at/share_path`，不带额度 / 模型 / 领取链接。
+- 订阅创建**不做 Turnstile**（调用方是脚本），改为 3 次/IP/天；`filters` 超限采取**截断/去重**而非报错。
+- 事件写入整体 try/catch，永不回滚业务事务。
+
+**验证**：`pnpm build` ✅；`ts-check` 771 具名导入 ✅；冒烟 111 / 122 / 124 全绿；
+新增 40 项事件流端到端探测（基线 / 增量 / 过滤 / 暂停 / 退订 / 脱敏 / feed / 400·404 / 后台账本）全绿；
+线上 `https://hao.bx9y.com.cn` 已核对 health、技能清单 1.9.0（6 文件）、`changes?tail=1`、`feed.atom`。
+
+**遗留（明确不做）**：任何「站点主动推送到游客地址」的实现 —— 那会让站点变成开放出站代理，
+与「游客只有接收能力」的产品定位冲突。若将来要统计点击，只在游客脚本侧记录，站点不引入追踪参数。

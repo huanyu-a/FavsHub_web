@@ -71,6 +71,7 @@ export default defineEventHandler((event) => {
   const kindClause = kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : ''
 
   let since = 0
+  let cursorResetNotice = ''
   let mode: 'incremental' | 'latest' = 'incremental'
   if (q.since === undefined || q.since === '') {
     mode = 'latest'
@@ -80,9 +81,13 @@ export default defineEventHandler((event) => {
       throw createError({ statusCode: 400, data: { error: 'since 必须是非负整数（事件序号）' } })
     }
     if (n > maxSeq) {
-      throw createError({ statusCode: 400, data: { error: `since 超出当前事件序号 ${maxSeq}，请用 ?tail=1 重新取基线` } })
+      // 游标超前：事件可能已被保留期清理（`seq` 是 AUTOINCREMENT，清空后 maxSeq 会回落）。
+      // 对无人值守的 cron 来说 400 等于永久静默失败；而客户端既然声称「看过 n 之前的一切」，
+      // 归位到 maxSeq 不会跳过任何它还没见过的序号。因此这里只警告 + 归位，不报错。
+      console.warn(`[deal-changes] since(${n}) 超过当前序号(${maxSeq})，已归位`)
+      cursorResetNotice = `游标 ${n} 超前于当前事件序号 ${maxSeq}（旧事件可能已被保留期清理），已归位到 ${maxSeq}`
     }
-    since = n
+    since = Math.min(n, maxSeq)
   }
 
   const where = `WHERE public = 1${mode === 'incremental' ? ' AND seq > ?' : ''}${kindClause}`
@@ -129,6 +134,10 @@ export default defineEventHandler((event) => {
   }
   if (mode === 'latest') {
     body.notice = '未带 since：已返回最近的事件。首次接入请用 ?tail=1 取基线，避免历史刷屏。'
+  }
+  if (cursorResetNotice) {
+    body.notice = cursorResetNotice
+    body.cursor_reset = true
   }
   return body
 })
