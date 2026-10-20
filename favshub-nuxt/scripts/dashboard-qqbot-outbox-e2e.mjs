@@ -209,6 +209,10 @@ async function main() {
       if (!t.includes('新通告待审') || !t.includes(dealTitle)) fail('消息含事件与标题（反转义后字面 [CQ:test]）', dealTitle, t)
       if (t.includes('&#91;') || t.includes('&#38;') || t.includes('&#93;')) fail('不得残留 CQ HTML 实体', '无反转义残留', t)
       if (!i.entry.at) fail('消息含 ISO 时间戳（消费端按时效丢弃）', '有 at', i.entry)
+      // 提交人脱敏：通知里只能出现「注册用户 / 游客」，不得出现账号名 alice
+      if (t.includes('alice')) fail('通知不得暴露投稿人账号名', '不含 alice', t)
+      if (!t.includes('提交人：注册用户')) fail('提交人脱敏为「注册用户」', '提交人：注册用户', t)
+      if (String(i.entry.markdown || '').includes('alice')) fail('markdown 也不得暴露账号名', '不含 alice', i.entry.markdown)
     }
     ok(`待审 3 条：群·QQ（${gQ.entry.text.slice(0, 26)}…）、群·钉钉、主人私聊各 1，反转义干净`)
     // 富文本：每条都带 markdown（首行 ### 才触发钉钉卡片 / QQ msg_type=2），text 保持单行
