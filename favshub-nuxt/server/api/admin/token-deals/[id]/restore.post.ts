@@ -25,6 +25,7 @@ import {
   restoreDeletedDeal,
   type InvalidReason,
 } from '../../../../utils/token-deals'
+import { appendDealEvent } from '../../../../utils/deal-events'
 
 const ACTIONS = ['restore_delete', 'restore_invalid', 'mark_invalid', 'extend', 'set_permanent'] as const
 type Action = (typeof ACTIONS)[number]
@@ -50,9 +51,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getRawDb()
-  const deal = db.prepare(
-    'SELECT id, status, deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'
-  ).get(id) as any
+  const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
@@ -143,6 +142,14 @@ export default defineEventHandler(async (event) => {
         .run(nextExpiresAt, Date.now(), id)
     }
   })()
+
+  // 续期 / 改永久 → 对外「续期」事件（撤销失效那条 online(restored) 已另行写入）
+  if (nextExpiresAt !== undefined) {
+    appendDealEvent(db, id, 'renewed', {
+      before: deal,
+      changes: [{ field: 'expires_at', from: deal.expires_at, to: nextExpiresAt }],
+    })
+  }
 
   const after = db.prepare(
     'SELECT deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'

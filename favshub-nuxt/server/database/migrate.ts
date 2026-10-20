@@ -1700,6 +1700,72 @@ export function createQqBotSchema(db: Database.Database) {
 }
 
 /**
+ * 通告事件流 + 游客订阅（2026-10-20）
+ *
+ * token_deal_events：append-only 事实表，`seq` 自增即对外游标。只写「当时对外可见」的变化，
+ *   snapshot 只含公开字段（提交人 / 审核备注永不入表）。订阅方（游客自己的 Hermes / feed 阅读器）
+ *   靠 `seq > 上次游标` 精确取增量，也才能感知「某条下架了」这类内容已消失的变化。
+ * deal_subscriptions：订阅账本。站点**不投递**（游客 Hermes 自己 `hermes send`），
+ *   这里只记「谁关心什么」，`sub_token` 是游客的唯一凭证（32 字节随机，不可猜）。
+ */
+export function createDealEventsSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_events (
+        seq        INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id    TEXT NOT NULL,
+        kind       TEXT NOT NULL,
+        reason     TEXT NOT NULL DEFAULT '',
+        snapshot   TEXT NOT NULL,
+        meta       TEXT NOT NULL DEFAULT '',
+        public     INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_events 失败:', err.message)
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS deal_subscriptions (
+        id              TEXT PRIMARY KEY,
+        sub_token       TEXT NOT NULL UNIQUE,
+        label           TEXT NOT NULL DEFAULT '',
+        filters         TEXT NOT NULL DEFAULT '{}',
+        status          TEXT NOT NULL DEFAULT 'active',
+        cursor          INTEGER NOT NULL DEFAULT 0,
+        pull_count      INTEGER NOT NULL DEFAULT 0,
+        last_pull_at    INTEGER,
+        created_ip_hash TEXT NOT NULL DEFAULT '',
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 deal_subscriptions 失败:', err.message)
+  }
+
+  // 已有实例补列（CREATE TABLE IF NOT EXISTS 不会改老表）
+  ensureColumn(db, 'token_deal_events', 'meta', "ALTER TABLE token_deal_events ADD COLUMN meta TEXT NOT NULL DEFAULT ''")
+
+  const dealEventIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_deal_events_created ON token_deal_events(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_deal_events_deal ON token_deal_events(deal_id, seq)',
+    'CREATE INDEX IF NOT EXISTS idx_deal_events_seq_public ON token_deal_events(seq, public)',
+    'CREATE INDEX IF NOT EXISTS idx_deal_subs_status ON deal_subscriptions(status, last_pull_at)',
+    'CREATE INDEX IF NOT EXISTS idx_deal_subs_token ON deal_subscriptions(sub_token)',
+  ]
+  for (const sql of dealEventIndexes) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] 事件流索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
+}
+
+/**
  * 执行完整的数据库初始化
  */
 export function initializeDatabase(db: Database.Database) {
@@ -1710,5 +1776,6 @@ export function initializeDatabase(db: Database.Database) {
   createNexusSchema(db)
   createTokenKeysSchema(db)
   createQqBotSchema(db)
+  createDealEventsSchema(db)
   seedDefaults(db)
 }

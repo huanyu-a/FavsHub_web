@@ -6,6 +6,8 @@ import { initDatabase, closeDatabase, getRawDb } from '../database'
 import { initializeDatabase } from '../database/migrate'
 import { initJwtSecret } from '../utils/jwt'
 import { archiveExpiredDeals } from '../utils/token-deals'
+import { pruneDealEvents } from '../utils/deal-events'
+import { getConfig } from '../utils/config'
 
 export default defineNitroPlugin(() => {
   const config = useRuntimeConfig()
@@ -28,6 +30,15 @@ export default defineNitroPlugin(() => {
     if (archived > 0) console.log(`[Init] 已归档过期通告 ${archived} 条`)
   } catch (err: any) {
     console.warn('[Init] 过期通告归档失败（忽略）:', err?.message || err)
+  }
+
+  // 3.2 事件流保留期清理：订阅游标只前推，过期事件不会再被任何订阅方读到
+  try {
+    const days = Number(getConfig('deal_events_retention_days') || 90)
+    const pruned = pruneDealEvents(rawDb, Number.isFinite(days) ? days : 90)
+    if (pruned > 0) console.log(`[Init] 已清理过期通告事件 ${pruned} 条`)
+  } catch (err: any) {
+    console.warn('[Init] 事件流清理失败（忽略）:', err?.message || err)
   }
 
   console.log('[Init] FavsHub Nuxt 服务已启动')

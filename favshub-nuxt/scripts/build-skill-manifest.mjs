@@ -38,7 +38,7 @@ const OUT_FILE = join(OUT_DIR, `${SKILL_NAME}.json`)
 const OUT_TS = join(NUXT_ROOT, 'server', 'utils', 'skill-manifest.ts')
 
 /** 参与分发的文件（按此顺序出现在清单里） */
-const TRACKED = ['SKILL.md', 'README.md', 'examples.md', 'CHANGELOG.md', 'LICENSE']
+const TRACKED = ['SKILL.md', 'README.md', 'examples.md', 'subscribe.md', 'CHANGELOG.md', 'LICENSE']
 
 const CHECK_ONLY = process.argv.includes('--check')
 

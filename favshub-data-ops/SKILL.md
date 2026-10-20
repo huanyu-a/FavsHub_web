@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.8.2
+version: 1.9.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -9,7 +9,9 @@ description: >
   "favshub api token", "favshub mcp", "整理我的 favshub 书签", "批量添加书签到 favshub",
   "favshub token 通告", "更新 favshub 通告", "查询 favshub 数据", "更新 favshub 技能",
   "favshub 分享卡片", "生成通告卡片", "favshub card.png",
-  "favshub 福利 Key", "上报 favshub key", "favshub token key".
+  "favshub 福利 Key", "上报 favshub key", "favshub token key",
+  "订阅通告", "把新通告推送到 QQ", "favshub 机器人订阅", "通告变化自动推送",
+  "favshub 订阅", "白嫖通告提醒".
 agent_created: true
 ---
 
@@ -267,6 +269,34 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 ```
 
 支持 `initialize` / `tools/list` / `tools/call` / `ping`。工具与 REST 端点一一对应（`list_bookmarks`、`create_bookmarks`、`delete_bookmark` 等），参数结构相同。
+
+## 通告订阅（把新通告推到机器人）
+
+用户说「有新的白嫖通告自动发到我的 QQ 群」时用这条通道。**站点不推送，投递在你这边完成**：
+
+```
+站点事件流 GET /api/token-deals/changes
+        ↓ 按游标拉增量（可带订阅 token 套用过滤条件）
+   你的机器（cron 跑轮询脚本）
+        ↓ hermes send -t qqbot:<群号> --json "<text>"
+  用户的 QQ 群 / 单聊
+```
+
+三条公开通道（**无需 PAT**，游客也能用）：
+
+| 端点 | 用途 |
+|---|---|
+| `GET /api/token-deals/changes` | 增量事件流：`?tail=1` 取基线、`?since=<seq>` 取增量、`?token=` 套过滤 |
+| `GET /api/token-deals/feed.atom` / `feed.json` | Atom / JSON Feed，Hermes 支持订阅时零代码（只含上新/变更/续期） |
+| `POST/PATCH/DELETE /api/deal-subscriptions[/:token]` | 建 / 改 / 退订（`sub_token` 即凭证，只返回一次） |
+
+**动手前必须做的三件事**：
+
+1. **问清接收目标**（`qqbot:<群号>` 还是 `dingtalk:...`）。不猜、不先建订阅。
+2. **首次用 `?tail=1` 取基线**，不要把历史通告一次性灌进群里。
+3. **投递成败只看 `hermes send --json` 输出的 `success` 字段**（退出码不可信），失败就**不要**推进游标。
+
+完整流程、可直接落地的轮询脚本、排错表与红线见 **`subscribe.md`**。
 
 ## 错误码
 

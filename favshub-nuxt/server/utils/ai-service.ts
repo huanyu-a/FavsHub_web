@@ -27,7 +27,9 @@ import {
   diffDealPatch,
   normalizeModels,
   softDeleteDeal,
+  DEAL_FIELD_LABELS,
 } from './token-deals'
+import { appendDealEvent } from './deal-events'
 import {
   submitDealEdit,
   listDealEdits,
@@ -705,6 +707,9 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
     d.expiresAt, d.note, status, now, now,
   )
 
+  // 管理员直接上线 → 对外「上新」事件
+  if (isAdmin) appendDealEvent(db, id, 'online')
+
   return {
     token_deal: db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id),
     status,
@@ -816,6 +821,15 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     d.region, d.quality, d.sourceTag, d.expiresAt, d.note,
     status, Date.now(), id,
   )
+
+  // 「变更 / 续期」事件：只发公开可见通告的实质变化（status 流转由审核链路自己发 online）
+  const diffList = Object.entries(changes)
+    .filter(([k]) => k !== 'status')
+    .map(([k, v]: [string, any]) => ({ field: k, label: DEAL_FIELD_LABELS[k] || k, from: v.from, to: v.to }))
+  if (diffList.length) {
+    const onlyExpiry = diffList.every(item => item.field === 'expires_at')
+    appendDealEvent(db, id, onlyExpiry ? 'renewed' : 'updated', { before: deal, changes: diffList })
+  }
 
   const updated = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
   if (updated) updated.models = parseDealModels(updated.models)

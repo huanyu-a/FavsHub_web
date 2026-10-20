@@ -20,6 +20,7 @@ import {
   validateDealPatch,
   type EditOpResult,
 } from './token-deals'
+import { appendDealEvent } from './deal-events'
 
 type DB = Database.Database
 
@@ -402,6 +403,8 @@ export function reviewDealEdit(
     db.prepare(
       "UPDATE token_deal_edits SET status = 'approved', reviewer_id = ?, reject_reason = '', updated_at = ? WHERE id = ?"
     ).run(viewer.id, now, editId)
+    // 提案生效 = 通告内容变化（仅公开可见时入事件流）
+    appendDealEvent(db, deal.id, 'updated', { before: deal, changes: diffDealPatch(deal, patch) })
   })()
 
   const updatedEdit = loadEdit(db, editId)

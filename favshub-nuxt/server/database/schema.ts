@@ -382,3 +382,34 @@ export const revealLog = sqliteTable('reveal_log', {
   ip: text('ip').default(''),
   revealedAt: integer('revealed_at').notNull(),
 })
+
+// ─── token_deal_events（对外订阅的事件流，append-only，seq 即游标）──────
+export const tokenDealEvents = sqliteTable('token_deal_events', {
+  seq: integer('seq').primaryKey({ autoIncrement: true }),
+  dealId: text('deal_id').notNull(),
+  kind: text('kind').notNull(),                  // online|offline|updated|renewed|pinned
+  reason: text('reason').default(''),            // offline 原因 / restored / pin|unpin
+  snapshot: text('snapshot').notNull(),          // 公开字段 JSON（不含提交人与审核信息）
+  public: integer('public').default(1),          // 恒为 1；留作写入侧 fail-closed 的显式声明
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  index('idx_deal_events_created').on(table.createdAt),
+  index('idx_deal_events_deal').on(table.dealId, table.seq),
+])
+
+// ─── deal_subscriptions（游客订阅账本；站点不投递，游客 Hermes 自己拉）──────
+export const dealSubscriptions = sqliteTable('deal_subscriptions', {
+  id: text('id').primaryKey(),
+  subToken: text('sub_token').notNull().unique(),  // 游客唯一凭证（32 字节随机）
+  label: text('label').default(''),
+  filters: text('filters').default('{}'),
+  status: text('status').default('active'),        // active|paused|revoked
+  cursor: integer('cursor').default(0),
+  pullCount: integer('pull_count').default(0),
+  lastPullAt: integer('last_pull_at'),
+  createdIpHash: text('created_ip_hash').default(''),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_deal_subs_status').on(table.status, table.lastPullAt),
+])

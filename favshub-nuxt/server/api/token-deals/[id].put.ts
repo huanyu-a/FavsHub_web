@@ -13,7 +13,10 @@
  */
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
-import { clearDealInvalid, validateDealPayload } from '../../utils/token-deals'
+import {
+  clearDealInvalid, diffDealPatch, payloadToPatch, validateDealPayload, DEAL_PATCHABLE,
+} from '../../utils/token-deals'
+import { appendDealEvent } from '../../utils/deal-events'
 import { notifyTokenDealRePending } from '../../utils/qq-notify'
 
 export default defineEventHandler(async (event) => {
@@ -68,12 +71,23 @@ export default defineEventHandler(async (event) => {
 
   // 续期：作者把有效期往后延（或改为永久）后，撤销因过期而失效的条目 ——
   // 「expired」是客观到期事实，续期即消除该事实；`votes` / `manual` 两类失效不受编辑影响。
+  let revived = false
   if (deal.invalid_at && deal.invalid_reason === 'expired'
       && (!d.expiresAt || d.expiresAt > Date.now())) {
     try {
-      clearDealInvalid(db, id)
+      clearDealInvalid(db, id)   // 内部会写一条 online(restored) 事件
+      revived = true
     } catch (err: any) {
       console.warn('[token-deals] 续期后撤销失效失败（忽略）:', err?.message || err)
+    }
+  }
+
+  // 「变更 / 续期」事件：撤销失效那条 online 已经把「回来了」说清楚，不重复发
+  if (!revived) {
+    const diff = diffDealPatch(deal, payloadToPatch(d, DEAL_PATCHABLE))
+    if (diff.length) {
+      const onlyExpiry = diff.every(item => item.field === 'expires_at')
+      appendDealEvent(db, id, onlyExpiry ? 'renewed' : 'updated', { before: deal, changes: diff })
     }
   }
 

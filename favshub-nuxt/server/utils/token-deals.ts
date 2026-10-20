@@ -5,6 +5,7 @@
  * 可用性投票与综合评分沿用「FreeBuddy 免费模型专区」的社区健康度模型。
  */
 import type Database from 'better-sqlite3'
+import { appendDealEvent, deleteDealEvents } from './deal-events'
 import { getRawDb } from '../database'
 import { notifyTokenDealApproved, notifyTokenDealRejected } from './qq-notify'
 
@@ -396,8 +397,8 @@ export type DealReviewResult =
  */
 export function reviewDealById(dealId: string, action: DealReviewAction, reason: string): DealReviewResult {
   const db = getRawDb()
-  const deal = db.prepare('SELECT id, user_id, title FROM token_deals WHERE id = ?')
-    .get(dealId) as { id: string; user_id: number; title: string } | undefined
+  const deal = db.prepare('SELECT * FROM token_deals WHERE id = ?')
+    .get(dealId) as any
   if (!deal) return { ok: false, status: 404, error: '通告不存在' }
 
   const status = action === 'approve' ? 'approved' : 'rejected'
@@ -405,6 +406,11 @@ export function reviewDealById(dealId: string, action: DealReviewAction, reason:
   db.prepare(
     'UPDATE token_deals SET status = ?, reject_reason = ?, updated_at = ? WHERE id = ?'
   ).run(status, finalReason, Date.now(), dealId)
+
+  // 审核通过 = 对外「上新」（写入时仍受可见性约束：已删除 / 已失效 / 已过期则不入事件流）
+  if (action === 'approve') {
+    appendDealEvent(db, dealId, 'online', { before: deal })
+  }
 
   try {
     if (action === 'approve') {
@@ -491,17 +497,21 @@ export function isPubliclyVisible(
 
 /** 软删除：置 deleted_at，明细表（投票/评测/建议/打标）全部保留，可恢复 */
 export function softDeleteDeal(db: Database.Database, dealId: string, actorId: number): boolean {
+  const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
     'UPDATE token_deals SET deleted_at = ?, deleted_by = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
   ).run(Date.now(), actorId, Date.now(), dealId)
+  if (res.changes > 0) appendDealEvent(db, dealId, 'offline', { reason: 'deleted', before })
   return res.changes > 0
 }
 
 /** 恢复软删除 */
 export function restoreDeletedDeal(db: Database.Database, dealId: string): boolean {
+  const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
     'UPDATE token_deals SET deleted_at = NULL, deleted_by = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
   ).run(Date.now(), dealId)
+  if (res.changes > 0) appendDealEvent(db, dealId, 'online', { reason: 'restored', before })
   return res.changes > 0
 }
 
@@ -512,17 +522,21 @@ export function markDealInvalid(
   reason: InvalidReason,
   at = Date.now(),
 ): boolean {
+  const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
     'UPDATE token_deals SET invalid_at = ?, invalid_reason = ?, updated_at = ? WHERE id = ? AND invalid_at IS NULL'
   ).run(at, reason, Date.now(), dealId)
+  if (res.changes > 0) appendDealEvent(db, dealId, 'offline', { reason, before })
   return res.changes > 0
 }
 
 /** 撤销失效（恢复对外展示）；`expired` 类需同时延长有效期，由调用方先改 expires_at */
 export function clearDealInvalid(db: Database.Database, dealId: string): boolean {
+  const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
     "UPDATE token_deals SET invalid_at = NULL, invalid_reason = '', updated_at = ? WHERE id = ? AND invalid_at IS NOT NULL"
   ).run(Date.now(), dealId)
+  if (res.changes > 0) appendDealEvent(db, dealId, 'online', { reason: 'restored', before })
   return res.changes > 0
 }
 
@@ -534,12 +548,21 @@ export function clearDealInvalid(db: Database.Database, dealId: string): boolean
  */
 export function archiveExpiredDeals(db: Database.Database, now = Date.now()): number {
   try {
+    // 先取出行（事件需要「变更前」的样子），再批量归档
+    const rows = db.prepare(`
+      SELECT * FROM token_deals
+      WHERE status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL
+        AND expires_at IS NOT NULL AND expires_at <= ?
+    `).all(now) as any[]
     const res = db.prepare(`
       UPDATE token_deals
       SET invalid_at = COALESCE(expires_at, ?), invalid_reason = 'expired'
       WHERE status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL
         AND expires_at IS NOT NULL AND expires_at <= ?
     `).run(now, now)
+    for (const row of rows) {
+      appendDealEvent(db, row.id, 'offline', { reason: 'expired', before: row })
+    }
     return res.changes
   } catch (err: any) {
     console.warn('[token-deals] 过期归档失败（忽略）:', err?.message || err)
@@ -593,6 +616,8 @@ export function purgeDealPermanently(db: Database.Database, dealId: string): voi
     // 游客投票：同样无 FK（游客没有 users 行），不显式清理即留下孤儿票
     db.prepare('DELETE FROM token_deal_guest_votes WHERE deal_id = ?').run(dealId)
     db.prepare('DELETE FROM token_deals WHERE id = ?').run(dealId)
+    // 事件流是公开历史，通告本体消失后不得再留下指向它的条目
+    deleteDealEvents(db, dealId)
   })()
 }
 

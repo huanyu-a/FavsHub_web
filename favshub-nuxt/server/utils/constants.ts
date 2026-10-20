@@ -27,6 +27,10 @@ export const SYSTEM_ONLY_KEYS = [
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
   // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
   'qq_bot_transport', 'qq_outbox_path',
+  // 通告事件流（对外订阅）：见 server/utils/deal-events.ts
+  'deal_events_enabled', 'deal_changes_public', 'deal_feed_enabled',
+  'deal_sub_enabled', 'deal_sub_per_ip_per_day',
+  'deal_events_retention_days', 'deal_changes_max_limit',
   // 人机校验（Cloudflare Turnstile；密钥为空时视为未启用 —— 游客通道整体关闭，无降级）
   'turnstile_enabled', 'turnstile_site_key', 'turnstile_secret_key',
   'register_turnstile_enabled',
@@ -83,6 +87,15 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   qq_admin_qq: '',
   qq_bot_transport: 'onebot',
   qq_outbox_path: '',
+  // 通告事件流：默认开（只读增量接口，无出站；关掉即回到「只有列表」的旧行为）
+  deal_events_enabled: 'true',
+  deal_changes_public: 'true',
+  deal_feed_enabled: 'true',
+  // 订阅账本：默认开（游客自助建订阅，凭 sub_token 拉个性化增量）
+  deal_sub_enabled: 'true',
+  deal_sub_per_ip_per_day: '3',
+  deal_events_retention_days: '90',
+  deal_changes_max_limit: '100',
   // 人机校验（Cloudflare Turnstile）
   // turnstile_enabled：总开关；site_key / secret_key 任一为空时强制视为关闭
   //   关闭（或密钥不全）时游客通道整体关闭 —— 游客无法提交通告/评测，不放行

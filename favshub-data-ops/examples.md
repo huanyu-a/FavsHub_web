@@ -462,3 +462,76 @@ console.log("已更新到 v" + m.version + "（" + n + " 个文件）");
 | `DELETE` 返回 200，但列表里还有同名通告 | 软删除后管理员已恢复，或删的是另一条 | 软删除不销毁数据：核对 ID，不要靠标题判断 |
 | 409 | 同用户下 URL 重复 | 视为已存在，跳过或改用 PUT 更新 |
 | 429 | 触发限频（600 次/分钟） | 退避重试 |
+
+---
+
+## 15. 订阅通告并推送到 QQ（机器人）
+
+**场景**：用户说「有新的白嫖通告就自动发到我的 QQ 群」。
+
+**先问清楚两件事**，不要自己猜：
+
+1. 推到哪？（`qqbot:<群号>` / `dingtalk:cid...` —— 就是 `hermes send -t` 的目标）
+2. 全收还是只收某几家？（可用 `providers` / `kinds` / `regions` / `keywords` 过滤）
+
+> 站点**不主动推送**：站点只提供事件流，投递由用户机器上的 Hermes 完成（`hermes send`）。
+
+### 15.1 建订阅（拿凭证，只返回一次）
+
+```bash
+curl -sS -X POST {BASE}/api/deal-subscriptions \
+  -H 'content-type: application/json' \
+  -d '{"label":"我的 QQ 群","filters":{"providers":["某服务商"]}}'
+```
+
+响应关键字段：`sub_token`（凭证，等同密码）、`baseline_seq`（起步游标）、`subscription.changes_url`。
+
+### 15.2 首次取基线（**别跳过**）
+
+```bash
+curl -sS "{BASE}/api/token-deals/changes?tail=1"
+# → {"events":[],"next_since":4,"baseline":true,...}
+```
+
+`next_since` 就是起点。**不取基线**的话，一装技能就把历史通告全灌进群里。
+
+### 15.3 拉增量并投递
+
+```bash
+# 1) 拉（token 可选，带上是「按你的过滤条件」）
+curl -sS "{BASE}/api/token-deals/changes?since=4&limit=20"
+# → {"events":[{"seq":5,"kind":"online","text":"【上新】...","deal":{...}}],"next_since":5}
+
+# 2) 投递（公众号召：成功只看 JSON 的 success 字段，退出码不可信）
+hermes send -t qqbot:123456789 --json "【上新】某服务商｜XX 额度｜额度 100 刀｜https://..."
+# → {"success":true,"message_id":"..."}
+```
+
+`text` 已经是渲染好的中文句子，直接发即可；需要自己拼时用 `kind` + `deal`。
+
+### 15.4 固化下来（推荐给用户装 cron）
+
+```cron
+*/10 * * * * python3 /你的绝对路径/favshub-poll.py >> /你的绝对路径/favshub-poll.log 2>&1
+```
+
+脚本全文与 `--init` / `--status` / `--dry-run` 用法见 **`subscribe.md`**。
+
+### 15.5 零代码替代：Feed
+
+用户的助手支持订阅 feed 时，直接给它：
+
+```
+{BASE}/api/token-deals/feed.atom      # 或 feed.json
+```
+
+只含上新 / 变更 / 续期（**下架不进 feed**）；建过订阅的话可加 `?token=<sub_token>` 套过滤。
+
+### 15.6 暂停 / 退订
+
+```bash
+curl -sS -X PATCH {BASE}/api/deal-subscriptions/<sub_token> -H 'content-type: application/json' -d '{"status":"paused"}'
+curl -sS -X DELETE {BASE}/api/deal-subscriptions/<sub_token>
+```
+
+退订后提醒用户把 cron 一起删掉，否则它每 10 分钟空跑一次 404。

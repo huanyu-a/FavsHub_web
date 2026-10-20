@@ -136,6 +136,8 @@ collection_imports                 # 导入到用户空间
 `settings`（`user_id` PK，`id=0` 系统默认）· `search_engines` · `system_config`  
 `token_deals` / `token_deal_votes` / `token_deal_reviews` / `guest_submit_quota`
 （Token 白嫖通告与游客提交配额，见「产品域行为」）  
+`token_deal_events`（对外订阅的事件流，**append-only，`seq` 即游标**）/ `deal_subscriptions`
+（游客机器人订阅账本，见「通告事件流与订阅」）  
 `token_keys` / `token_key_votes`（福利 Key 快照与可用性投票，见「产品域行为」；**时间戳为秒**，其余表为毫秒）  
 `api_tokens` / `ai_audit_logs`（AI 数据操作 PAT 与审计，见「AI 数据操作通道」）
 
@@ -172,6 +174,10 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/token-deals/*` | Token 通告：列表 / 详情 / 发布 / 改删（软删除）/ 投票 / 评测 / 导入 / 置顶 | 混合 |
 | `/api/admin/token-deals/:id/restore` | 恢复删除 / 撤销失效 / 标记失效 / 续期 / 改永久（管理员，支持 `dry_run`） | 管理员 |
 | `/api/admin/token-deals/:id/purge` | 彻底删除通告及其明细（物理删除，须 `{confirm:true}`） | 管理员 |
+| `/api/token-deals/changes` | 通告事件增量流（`?tail=1` 基线 / `?since=` 增量 / `?token=` 过滤；无变化 304） | 无 |
+| `/api/token-deals/feed.atom`、`feed.json` | Atom / JSON Feed 1.1（仅上新/变更/续期） | 无 |
+| `/api/deal-subscriptions[/:token]` | 游客建 / 查 / 改 / 退订机器人订阅（`sub_token` 即凭证） | 无 |
+| `/api/admin/token-deals/subscriptions`、`/events` | 后台订阅账本与最近事件（排查「为什么没推」） | 管理员 |
 | `/api/token-keys/*` | 福利 Key：公开脱敏列表 / 复制明文 / 可用性投票 / 我的投票 | 无（投票按指纹身份） |
 | `/api/sync/*` | 扩展书签 / favicon 同步 | 登录 |
 | `/api/favicon?domain=` | favicon 服务端代理 + 本地缓存（SSRF 防护） | 无 |
@@ -264,6 +270,42 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   显式清理 6 张明细表，不依赖 FK 级联）。审核队列（`view=queue`）只含在架条目，与失效面板互不重叠。
 - **AI / MCP / QQ**：`/api/ai/token-deals` 列表同样按上面口径过滤，删除即软删除；
   QQ 机器人待审汇总额外报「已失效 N 条」。
+
+#### 通告事件流与订阅（2026-10-20）
+
+游客装技能后想让自己的 Hermes 机器人**在通告变化时收到消息**。架构选择是 **pull-first**：
+
+```
+站内写路径 → appendDealEvent() → token_deal_events（append-only，seq 即游标）
+                                        ↓ 游客机器 cron 拉增量
+                            GET /api/token-deals/changes?since=<seq>
+                                        ↓ 本地渲染
+                            hermes send -t qqbot:<群号> --json "<text>"
+```
+
+- **站点零出站**：不做任何主动 HTTP，因此没有 SSRF 面、不会被当成刷屏放大器、也不需要地址验证；
+  群号 / 频率 / 文案全在游客自己手里，符合「游客只有接收能力」。
+- **公开边界**（`server/utils/deal-events.ts` 的 `appendDealEvent`，**fail-closed**）：
+  `offline` 要求 `wasPublished(before)`（审核通过 + 未软删 + 未失效，**故意不看 `expires_at`**，
+  否则到期归档这一事件永远发不出去）；其余类型要求 `nowPublic && status==='approved'`。
+  `updated` 无实质差异则不写。
+- **`text` 不落库**：只存 `snapshot`（公开字段）+ `meta.changes`（差异结构），文案在读取时渲染
+  —— 站点换域名时链接跟着变。`offline` 的 `snapshot` 走 `offlineSnapshot()` 只留
+  `id/provider/title/expires_at/share_path`：下架后额度 / 模型 / 领取链接不该再从公开流里读到。
+- **事件写入永不回滚业务事务**：整体包在 try/catch 里，失败只 warn。
+- **埋点位**：`softDeleteDeal` / `restoreDeletedDeal` / `markDealInvalid` / `clearDealInvalid` /
+  `archiveExpiredDeals` / `reviewDealById`（audit=approve）/ `purgeDealPermanently`（连带删事件）/
+  `token-deals/index.post.ts`（管理员直发）/ `[id].put.ts` / `[id]/pin.post.ts` /
+  `admin/.../restore.post.ts`（extend、set_permanent）/ `ai-service.ts`（创建、更新）/
+  `deal-edits.ts`（提案通过）。
+- **游标语义**：`next_since` 推进到**取到的**最大 seq（不是命中的），否则带过滤的订阅会在同一段反复重扫。
+  首次接入必须 `?tail=1` 取基线，**永不回灌历史**。
+- **订阅凭证**：`sub_token` = 32 字节随机 hex，只在 `POST /api/deal-subscriptions` 返回一次；
+  之后一律脱敏（`maskSubToken`）。站点不采集游客身份，只有 `created_ip_hash`（sha256 前 16 位）。
+- **配置项**：`deal_events_enabled` / `deal_changes_public` / `deal_feed_enabled` / `deal_sub_enabled` /
+  `deal_sub_per_ip_per_day`(3) / `deal_events_retention_days`(90) / `deal_changes_max_limit`(100)。
+  保留期清理在 `server/plugins/db-init.ts` 启动时跑（`pruneDealEvents`）。
+- **不要**给这条链路加「站点主动推送到游客地址」的能力：那会让站点变成开放出站代理。
 
 #### 人机校验（2026-10-12 升级为 Cloudflare Turnstile）
 

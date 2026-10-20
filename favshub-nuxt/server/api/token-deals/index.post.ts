@@ -15,6 +15,7 @@
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import { validateDealPayload, newDealId } from '../../utils/token-deals'
+import { appendDealEvent } from '../../utils/deal-events'
 import { submitGuestDeal } from '../../utils/guest-deals'
 import { notifyTokenDealPending, notifyTokenDealPublished } from '../../utils/qq-notify'
 
@@ -70,6 +71,11 @@ export default defineEventHandler(async (event) => {
   } catch (err: any) {
     console.error('发布 Token 白嫖通告失败:', err)
     throw createError({ statusCode: 500, data: { error: err.message || '发布失败' } })
+  }
+
+  // 管理员直接上线 → 对外「上新」事件（登录用户落 pending，不产生事件）
+  if (isAdmin) {
+    appendDealEvent(db, id, 'online')
   }
 
   // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）

@@ -4,6 +4,7 @@
  */
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
+import { appendDealEvent } from '../../../utils/deal-events'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -28,6 +29,9 @@ export default defineEventHandler(async (event) => {
     : (deal.pinned ? 0 : 1)
 
   db.prepare('UPDATE token_deals SET pinned = ? WHERE id = ?').run(next, id)
+
+  // 置顶变化也进事件流（默认订阅集合不含 pinned，需要的人显式开启）
+  appendDealEvent(db, id, 'pinned', { reason: next ? 'pin' : 'unpin', before: deal })
 
   return { success: true, pinned: next }
 })

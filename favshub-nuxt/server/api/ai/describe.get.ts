@@ -183,6 +183,15 @@ export default defineAiHandler('read', async (_event, token) => {
       { method: 'POST', path: '/api/ai/token-deal-edits/:id/review', scope: 'write', body: '{ action: "approve" | "reject", reason?, dry_run? }', note: '审核建议；权限为通告作者或管理员（管理员可审所有用户的）' },
       { method: 'DELETE', path: '/api/ai/token-deal-edits/:id', scope: 'write', note: '撤回自己提交的建议（仅待审状态）' },
 
+      // ── 公开通道：无需 PAT（游客的 Hermes / 任意脚本直接拉，站点零出站）──
+      { method: 'GET', path: '/api/token-deals/changes', scope: '公开通道，无需 PAT', params: ['since', 'tail=1', 'limit', 'kinds=online,offline,updated,renewed,pinned', 'token'], note: '**通告变更增量流**：`since` 为上次响应里的 `next_since`；**首次接入必须用 tail=1 取基线**，否则一装就被灌历史。事件类型 online=上新 / offline=下架（原因 expired|votes|manual|deleted）/ updated=变更 / renewed=续期 / pinned=置顶。站点不主动推送：由订阅方（游客自己的 Hermes）轮询后本地 `hermes send` 投递' },
+      { method: 'GET', path: '/api/token-deals/feed.atom', scope: '公开通道，无需 PAT', params: ['token', 'limit'], returns: 'application/atom+xml', note: 'Atom Feed（只含上新/变更/续期，下架不进去）。给「支持订阅 feed」的阅读器或 Hermes 订阅功能用，零代码' },
+      { method: 'GET', path: '/api/token-deals/feed.json', scope: '公开通道，无需 PAT', returns: 'JSON Feed 1.1', note: '与 feed.atom 同一份数据' },
+      { method: 'POST', path: '/api/deal-subscriptions', scope: '公开通道，无需 PAT', body: '{ label?, filters?: { kinds?, providers?, regions?, keywords? } }', note: '**创建机器人订阅**（游客，无账号）。返回 `sub_token` 仅此一次，请妥善保存；`baseline_seq` 作为起步游标。站点只记账不投递' },
+      { method: 'GET', path: '/api/deal-subscriptions/:token', scope: '公开通道，无需 PAT', note: '查自己的订阅（token 即能力，不可猜）' },
+      { method: 'PATCH', path: '/api/deal-subscriptions/:token', scope: '公开通道，无需 PAT', body: '{ label?, filters?, status?: "active"|"paused" }', note: '改过滤条件 / 暂停；**不能改投递目标**（目标在游客自己的 Hermes 里）' },
+      { method: 'DELETE', path: '/api/deal-subscriptions/:token', scope: '公开通道，无需 PAT', note: '退订（立即生效，之后该 token 一律 404）' },
+
       { method: 'POST', path: '/api/mcp', scope: '按工具', desc: 'MCP（JSON-RPC 2.0）通道：initialize / tools/list / tools/call，与 REST 端点等价' },
     ],
 
