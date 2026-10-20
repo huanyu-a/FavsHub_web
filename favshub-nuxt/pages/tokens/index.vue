@@ -72,6 +72,7 @@
         v-model:sort="sort"
         v-model:quality="quality"
         v-model:source-tag="sourceTag"
+        v-model:category="category"
         v-model:stale="staleOnly"
       />
 
@@ -168,6 +169,7 @@ interface ITokenDeal {
   region?: string
   quality?: string
   source_tag?: string
+  category?: string
   expires_at?: number | null
   pinned?: number
   is_expired?: boolean
@@ -224,6 +226,7 @@ const search = ref('')
 const sort = ref('nexus')
 const quality = ref('')
 const sourceTag = ref('')
+const category = ref('')
 const staleOnly = ref(false)
 const page = ref(1)
 const limit = 24
@@ -277,7 +280,7 @@ let searchTimeout: ReturnType<typeof setTimeout>
 
 // 服务端预取 + 客户端复用，避免 SSR 空白闪烁
 const { data, refresh, pending } = await useFetch<{ deals: ITokenDeal[]; pagination: IPagination }>('/api/token-deals', {
-  query: { page, limit, sort, quality, source_tag: sourceTag, search, stale: staleOnly },
+  query: { page, limit, sort, quality, source_tag: sourceTag, category, search, stale: staleOnly },
   server: true,
   lazy: false,
   getCachedData: (key, nuxtApp) => nuxtApp.payload?.data?.[key],
@@ -286,7 +289,7 @@ const { data, refresh, pending } = await useFetch<{ deals: ITokenDeal[]; paginat
 const loading = computed(() => pending.value)
 const deals = computed(() => data.value?.deals || [])
 const pagination = computed(() => data.value?.pagination || { page: 1, limit, total: 0, totalPages: 1 })
-const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.value || staleOnly.value))
+const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.value || category.value || staleOnly.value))
 
 function debouncedSearch() {
   clearTimeout(searchTimeout)
@@ -349,11 +352,11 @@ function onSaved(message: string) {
 }
 
 // 筛选变化 → 回到第 1 页（页码本身绝不能被回置：翻页只靠下面的 watch 重新请求）
-watch([sort, quality, sourceTag, staleOnly], () => {
+watch([sort, quality, sourceTag, category, staleOnly], () => {
   if (page.value !== 1) page.value = 1
 })
 // 翻页 / 筛选变化 → 重新请求
-watch([page, sort, quality, sourceTag, staleOnly], () => refresh())
+watch([page, sort, quality, sourceTag, category, staleOnly], () => refresh())
 
 /** 从第 1 页重新加载：已在第 1 页时直接请求，否则改页码交给上面的 watch（避免重复请求） */
 function reloadFirstPage() {

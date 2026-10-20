@@ -227,6 +227,7 @@ export function createTables(db: Database.Database) {
       region TEXT DEFAULT 'cn',
       quality TEXT DEFAULT '中品',
       source_tag TEXT DEFAULT 'official',
+      category TEXT DEFAULT 'token',
       expires_at INTEGER,
       pinned INTEGER DEFAULT 0,
       note TEXT DEFAULT '',
@@ -520,6 +521,7 @@ export function runMigrations(db: Database.Database) {
   // 游客发布通告（无需登录）：署名昵称 + 身份指纹（与游客评测同一套身份体系，
   // 用于「待审上限」去重；user_id 固定为 0，即种子系统用户 _system，满足外键约束）
   ensureColumn(db, 'token_deals', 'guest_name', "ALTER TABLE token_deals ADD COLUMN guest_name TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'category', "ALTER TABLE token_deals ADD COLUMN category TEXT DEFAULT 'token'")
   ensureColumn(db, 'token_deals', 'guest_fingerprint', "ALTER TABLE token_deals ADD COLUMN guest_fingerprint TEXT DEFAULT ''")
   // 2026-10-20 通告生命周期（失效 / 软删除）：与「审核状态 status」正交的一组列。
   //   deleted_at / deleted_by —— 删除由物理 DELETE 改软删除，使「被删除」可追溯、

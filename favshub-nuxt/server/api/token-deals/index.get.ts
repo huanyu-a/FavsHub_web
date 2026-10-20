@@ -1,6 +1,6 @@
 /**
  * GET /api/token-deals — Token 白嫖通告列表
- * Query: page, limit, search, region, quality, source_tag, stale, sort (nexus|latest|hot|rating|expiring|verified), mine
+ * Query: page, limit, search, region, quality, source_tag, category, stale, sort (nexus|latest|hot|rating|expiring|verified), mine
  *
  * `stale=1` 只返回「待复核」条目（超过 deal_verify_stale_days 没人工核验，含从未核验）。
  * `sort=verified` 把最近核验过的排前面（未核验的垫底）。
@@ -62,6 +62,7 @@ export default defineEventHandler(async (event) => {
   const region = String(query.region || '').trim()
   const quality = String(query.quality || '').trim()
   const sourceTag = String(query.source_tag || '').trim()
+  const category = String(query.category || '').trim()
   const sort = String(query.sort || 'nexus')
   const mine = query.mine === '1' || query.mine === 'true'
   const staleOnly = query.stale === '1' || query.stale === 'true'
@@ -109,6 +110,10 @@ export default defineEventHandler(async (event) => {
   if (quality) {
     whereClause += ' AND d.quality = ?'
     params.push(quality)
+  }
+  if (category) {
+    whereClause += ' AND d.category = ?'
+    params.push(category)
   }
   if (sourceTag) {
     whereClause += ' AND d.source_tag = ?'

@@ -35,6 +35,7 @@
           </p>
         </div>
       </div>
+      <span v-if="categoryLabel" class="deal-category">{{ categoryLabel }}</span>
       <span class="deal-quality" :class="qualityClass">{{ deal.quality }}</span>
     </header>
 
@@ -105,6 +106,7 @@ interface TokenDeal {
   region?: string
   quality?: string
   source_tag?: string
+  category?: string
   expires_at?: number | null
   pinned?: number
   is_expired?: boolean
@@ -130,6 +132,8 @@ const icon = computed(() => fallbackProxyIcon('', props.deal.url) || '')
 const initial = computed(() => (props.deal.provider || '?').trim().charAt(0).toUpperCase())
 const regionLabel = computed(() => REGION_LABELS[props.deal.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[props.deal.source_tag || 'official'] || '官方直营')
+// 只给「免费云服务器」挂徽标：API 额度是默认分类，挂上去只会给所有卡片添噪
+const categoryLabel = computed(() => (props.deal.category === 'cloud' ? '免费云服务器' : ''))
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {
@@ -287,6 +291,15 @@ const expiryWarn = computed(() => {
   color: var(--text-tertiary);
 }
 
+.deal-category {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  background: var(--primary-soft, rgba(99, 102, 241, 0.14));
+  color: var(--primary);
+}
 .deal-quality {
   flex-shrink: 0;
   font-size: 12px;

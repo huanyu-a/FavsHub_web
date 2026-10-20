@@ -95,6 +95,8 @@ export interface DealEventSnapshot {
   models: string[]
   region: string
   quality: string
+  /** 通告分类：token=API 额度 / cloud=免费云服务器（旧数据缺省为 token） */
+  category: string
   expires_at: number | null
   rating: string
   share_path: string
@@ -114,6 +116,7 @@ export function buildDealSnapshot(deal: any): DealEventSnapshot {
     models: parseDealModels(deal?.models),
     region: String(deal?.region ?? ''),
     quality: String(deal?.quality ?? ''),
+    category: String(deal?.category ?? 'token') || 'token',
     expires_at: deal?.expires_at ?? null,
     rating: count > 0 ? avg.toFixed(1) : '',
     share_path: `/tokens?deal=${encodeURIComponent(String(deal?.id ?? ''))}`,
@@ -241,6 +244,8 @@ export function renderDealEventMarkdown(
 
   // online / pinned：把能公开的字段一次说全，省得点进去才知道额度多少
   const facts: string[] = []
+  // 云服务器与 API 额度的「看点」完全不同：先说分类，读者才知道该拿什么标准衡量
+  if (snap.category === 'cloud') facts.push('类型 免费云服务器')
   if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
   if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
   if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)

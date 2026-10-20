@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.9.7
+version: 1.9.8
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -141,9 +141,9 @@ DELETE /api/ai/tags/:id         { confirm: true, dry_run? }     # 仅管理员
 ### Token 白嫖通告
 
 ```
-GET    /api/ai/token-deals?q=&region=&quality=&mine=&limit=&page=
-POST   /api/ai/token-deals      { provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }
-PUT    /api/ai/token-deals/:id  { title?, provider?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }
+GET    /api/ai/token-deals?q=&region=&quality=&category=&mine=&limit=&page=
+POST   /api/ai/token-deals      { provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, category?, expires_at?, note?, dry_run? }
+PUT    /api/ai/token-deals/:id  { title?, provider?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, category?, expires_at?, note?, dry_run? }
 DELETE /api/ai/token-deals/:id  { confirm: true, dry_run? }
 GET    /api/ai/token-deals/:id/card.png?style=&refresh=   # 分享卡片（PNG 二进制）
 
@@ -162,6 +162,8 @@ DELETE /api/ai/token-deal-edits/:id       # 撤回自己的待审建议（write�
   重复删除返回 404。物理清除只能由管理员在后台执行
 - 管理员发布直接上线（`approved`）；普通用户发布进入待审核（`pending`）
 - `region`: `cn` | `global`；`quality`: 上上品 | 上品 | 中品 | 下品 | 下下品；`source_tag`: `official` | `relay` | `community`
+- `category`: `token`（默认，API 额度）| `cloud`（免费云服务器 —— VPS / PaaS / Serverless 免费档）。
+  **云服务器条目必须带 `category: 'cloud'`**，否则会被算进 API 额度里，读者按分类筛选时找不到它
 - **`PUT` 是部分更新**：只传要改的字段，未传字段保持原值 —— 改标题不必回填其余字段
 - 作者编辑已通过审核的通告会回到 `pending` 重新审核；管理员编辑保持原状态
 - `models` 若传入则**整体替换**（不是追加）

@@ -324,6 +324,10 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   的 `markdown` 不推可点链接，只留一句「已下架」说明。
 - **推送只放读者关心的字段**：额度 / 模型 / 到期 / 领取 / 官网 / 评分。**品级（`quality`）、
   地区（`region`）属于站内运营信息，不进推送**——`snapshot` 里仍有，渲染时故意不用。
+- **分类（`category`）**：`token`（默认，API 额度）/ `cloud`（免费云服务器）。云服务器与 API 额度
+  共用一块通告板，但领取方式与核验口径完全不同，所以前端筛选、卡片徽标、推送文案都按分类分流；
+  新分类要同时改 `server/utils/token-deals.ts` 的 `DEAL_CATEGORIES`、迁移里的默认值，以及
+  `TokenFilterBar` / `TokenDealEditor` / `TokenDealCard` / `TokenDealDetail` 四处的常量副本。
 - **不在推送与公开页暴露身份**：`users.username` 一律不出现在 `/api/token-deals*`、
   `/api/collections*` 的响应里（管理员接口除外）；详情页「发布者」只显示用户自填昵称，
   没有昵称就显示「社区用户」；待审通知里提交人只写「游客 / 注册用户」。

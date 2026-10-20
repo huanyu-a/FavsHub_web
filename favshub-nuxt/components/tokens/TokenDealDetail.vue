@@ -82,6 +82,10 @@
 
           <!-- 关键信息 -->
           <div class="tdd-facts">
+            <div v-if="isCloud" class="tdd-fact">
+              <span class="fact-label">分类</span>
+              <span class="fact-value">免费云服务器</span>
+            </div>
             <div class="tdd-fact">
               <span class="fact-label">免费额度</span>
               <span class="fact-value">{{ deal.quota || '未说明' }}</span>
@@ -639,6 +643,7 @@ interface ITokenDeal {
   region?: string
   quality?: string
   source_tag?: string
+  category?: string
   expires_at?: number | null
   pinned?: number
   note?: string
@@ -844,6 +849,7 @@ const icon = computed(() => (deal.value ? fallbackProxyIcon('', deal.value.url) 
 const initial = computed(() => (deal.value?.provider || '?').trim().charAt(0).toUpperCase())
 const regionLabel = computed(() => REGION_LABELS[deal.value?.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[deal.value?.source_tag || 'official'] || '官方直营')
+const isCloud = computed(() => deal.value?.category === 'cloud')
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {

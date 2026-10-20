@@ -49,10 +49,10 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 #: Crawler DB - always opened read-only (red line, design doc §5.2 #1).
-DEFAULT_SOURCE_DB = r"D:\project\wwwroot\FavsHub_web\tokenhub\crawler\data\tokenhub.db"
+DEFAULT_SOURCE_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crawler", "data", "tokenhub.db")
 #: FavsHub dev DB pinned by design doc §5.1 (``nuxt.config.ts`` ``dbPath``
 #: resolved against the favshub-nuxt repo root); ``--db`` overrides it.
-DEFAULT_TARGET_DB = r"D:\project\wwwroot\FavsHub_web\favshub-nuxt\data\favshub.db"
+DEFAULT_TARGET_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "favshub-nuxt", "data", "favshub.db")
 
 # ---------------------------------------------------------------------------
 # Schema - verbatim from design doc §4.1 (= docs/07 §8.4 =

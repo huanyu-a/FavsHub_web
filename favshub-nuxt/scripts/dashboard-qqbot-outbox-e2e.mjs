@@ -191,7 +191,7 @@ async function main() {
   const dealTitle = 'Outbox 测试『标题』[CQ:test]'
   let dealId = ''
   {
-    const { res, json } = await api('/api/token-deals', { method: 'POST', cookie: aliceCookie, body: { provider: 'E2E服务商', title: dealTitle, url: 'https://example.com/outbox', quota: '测试额度', quality: '中品', region: 'cn' } })
+    const { res, json } = await api('/api/token-deals', { method: 'POST', cookie: aliceCookie, body: { provider: 'E2E服务商', title: dealTitle, url: 'https://example.com/outbox', quota: '测试额度', quality: '中品', region: 'cn', category: 'cloud' } })
     if (res.status !== 200) fail('alice 提交通告', 200, { status: res.status, body: json })
     dealId = json?.deal_id
     const items = await waitSpool(3, 'spool 出现 3 条出站消息')
@@ -213,6 +213,7 @@ async function main() {
       if (t.includes('alice')) fail('通知不得暴露投稿人账号名', '不含 alice', t)
       if (!t.includes('提交人：注册用户')) fail('提交人脱敏为「注册用户」', '提交人：注册用户', t)
       if (String(i.entry.markdown || '').includes('alice')) fail('markdown 也不得暴露账号名', '不含 alice', i.entry.markdown)
+      if (!String(i.entry.markdown || '').includes('分类 免费云服务器')) fail('云服务器通告的通知带分类', '分类 免费云服务器', i.entry.markdown)
     }
     ok(`待审 3 条：群·QQ（${gQ.entry.text.slice(0, 26)}…）、群·钉钉、主人私聊各 1，反转义干净`)
     // 富文本：每条都带 markdown（首行 ### 才触发钉钉卡片 / QQ msg_type=2），text 保持单行
@@ -270,6 +271,14 @@ async function main() {
     const leak = list.filter(d => 'username' in d)
     if (leak.length) fail('公开列表不得下发 username', '无该字段', Object.keys(leak[0]).filter(k => k === 'username'))
     ok(`公开列表 ${list.length} 条均不含 username`)
+    // 分类筛选：cloud 命中刚投稿的那条，token 不掺进来
+    const { json: onlyCloud } = await api('/api/token-deals?category=cloud&limit=20')
+    const { json: onlyToken } = await api('/api/token-deals?category=token&limit=20')
+    const cloudIds = (onlyCloud?.deals || []).map(d => d.id)
+    const tokenIds = (onlyToken?.deals || []).map(d => d.id)
+    if (!cloudIds.includes(dealId)) fail('category=cloud 命中投稿', dealId, cloudIds)
+    if (tokenIds.includes(dealId)) fail('category=token 不掺云服务器通告', dealId, tokenIds)
+    ok('分类筛选：cloud 命中、token 不掺')
     const { json: ch } = await api('/api/token-deals/changes?since=0&limit=20')
     const evs = ch?.events || []
     for (const ev of evs) {

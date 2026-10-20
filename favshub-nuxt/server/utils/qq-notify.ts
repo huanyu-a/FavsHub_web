@@ -469,6 +469,8 @@ function dealLink(deal: any): string {
 /** 通告字段清单（Markdown 列表用，每项一条） */
 function dealFactList(deal: any): string[] {
   const out: string[] = []
+  // 云服务器通告的「额度 / 模型」两行没有意义，用分类代替位置
+  if (String(deal?.category ?? 'token') === 'cloud') out.push('分类 免费云服务器')
   const provider = clipText(deal?.provider, 24)
   if (provider) out.push(`服务商 ${provider}`)
   const quota = clipText(deal?.quota, 40)

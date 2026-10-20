@@ -29,6 +29,18 @@ export const SOURCE_LABELS: Record<string, string> = {
   community: '社区转发',
 }
 
+/**
+ * 通告分类 — API 额度（默认）/ 免费云服务器。
+ *
+ * 云服务器（VPS / PaaS / Serverless 免费档）与「API 额度」共用一块通告板，
+ * 但领取方式、可用周期、核验口径完全不同：用分类让读者一键筛掉不关心的那一半。
+ */
+export const DEAL_CATEGORIES = ['token', 'cloud'] as const
+export const DEAL_CATEGORY_LABELS: Record<string, string> = {
+  token: 'API 额度',
+  cloud: '免费云服务器',
+}
+
 /** 通告状态 — 发布后进入 pending，管理员审核通过才公开 */
 export const DEAL_STATUS = ['pending', 'approved', 'rejected'] as const
 
@@ -90,6 +102,7 @@ export interface DealPayload {
   region: string
   quality: QualityLevel
   sourceTag: string
+  category: string
   expiresAt: number | null
   note: string
 }
@@ -135,6 +148,9 @@ export function validateDealPayload(body: any): ValidateResult {
   const sourceTag = String(body?.source_tag ?? body?.sourceTag ?? 'official')
   if (!SOURCE_TAGS.includes(sourceTag as any)) return { ok: false, error: '来源标签取值非法' }
 
+  const category = String(body?.category ?? 'token')
+  if (!DEAL_CATEGORIES.includes(category as any)) return { ok: false, error: '通告分类取值非法' }
+
   let expiresAt: number | null = null
   const rawExpires = body?.expires_at ?? body?.expiresAt
   if (rawExpires !== null && rawExpires !== undefined && rawExpires !== '') {
@@ -155,6 +171,7 @@ export function validateDealPayload(body: any): ValidateResult {
       region,
       quality: quality as QualityLevel,
       sourceTag,
+      category,
       expiresAt,
       note,
     },
@@ -251,7 +268,7 @@ export function parseDealModels(raw: unknown): string[] {
 /** 提案可修改的字段白名单（不含 status / pinned / user_id / 计数列 —— 由权限与站点规则决定） */
 export const DEAL_PATCHABLE = [
   'provider', 'title', 'url', 'call_url', 'quota', 'models',
-  'region', 'quality', 'source_tag', 'expires_at', 'note',
+  'region', 'quality', 'source_tag', 'category', 'expires_at', 'note',
 ] as const
 
 /** 字段中文名，供 diff 展示 */
@@ -265,6 +282,7 @@ export const DEAL_FIELD_LABELS: Record<string, string> = {
   region: '访问区域',
   quality: '品质分级',
   source_tag: '来源标签',
+  category: '分类',
   expires_at: '有效期',
   note: '备注',
 }
@@ -311,6 +329,7 @@ export function dealToPatchShape(deal: any): Record<string, any> {
     region: deal?.region,
     quality: deal?.quality,
     source_tag: deal?.source_tag,
+    category: deal?.category,
     expires_at: deal?.expires_at ?? null,
     note: deal?.note,
   }

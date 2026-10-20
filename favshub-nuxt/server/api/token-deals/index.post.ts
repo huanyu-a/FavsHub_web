@@ -60,12 +60,12 @@ export default defineEventHandler(async (event) => {
     db.prepare(`
       INSERT INTO token_deals (
         id, user_id, provider, title, url, call_url, quota, models, region, quality,
-        source_tag, expires_at, pinned, note, status, reject_reason,
+        source_tag, category, expires_at, pinned, note, status, reject_reason,
         vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', 0, 0, 0, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', 0, 0, 0, 0, ?, ?)
     `).run(
       id, user.id, d.provider, d.title, d.url, d.callUrl, d.quota,
-      JSON.stringify(d.models), d.region, d.quality, d.sourceTag,
+      JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
       d.expiresAt, d.note, status, now, now,
     )
   } catch (err: any) {

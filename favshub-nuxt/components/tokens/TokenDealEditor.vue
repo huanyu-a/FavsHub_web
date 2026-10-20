@@ -113,9 +113,24 @@
             </label>
           </fieldset>
 
-          <!-- 分级与来源 -->
+          <!-- 分类与分级 -->
           <fieldset class="tde-group">
-            <legend class="tde-legend">分级与来源</legend>
+            <legend class="tde-legend">分类与分级</legend>
+
+            <div class="tde-field">
+              <span class="field-label">通告分类</span>
+              <div class="chip-row">
+                <button
+                  v-for="c in CATEGORY_OPTIONS"
+                  :key="c.value"
+                  type="button"
+                  class="chip"
+                  :class="{ active: form.category === c.value }"
+                  @click="form.category = c.value"
+                >{{ c.label }}</button>
+              </div>
+              <p class="tde-hint">云服务器 / PaaS / Serverless 免费档选「免费云服务器」；API 额度选「API 额度」</p>
+            </div>
 
             <div class="tde-field">
               <span class="field-label">品质分级</span>
@@ -278,6 +293,7 @@ interface ITokenDeal {
   region?: string
   quality?: string
   source_tag?: string
+  category?: string
   expires_at?: number | null
   note?: string
 }
@@ -315,6 +331,11 @@ const SOURCE_OPTIONS = [
   { value: 'official', label: '官方直营' },
   { value: 'relay', label: '中转站' },
   { value: 'community', label: '社区转发' },
+]
+// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致
+const CATEGORY_OPTIONS = [
+  { value: 'token', label: 'API 额度' },
+  { value: 'cloud', label: '免费云服务器' },
 ]
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外（需代理）' }
@@ -356,7 +377,7 @@ const submitLabel = computed(() => {
 /** 与 server/utils/token-deals.ts 的 DEAL_PATCHABLE 对应 */
 const PATCHABLE = [
   'provider', 'title', 'url', 'call_url', 'quota', 'models',
-  'region', 'quality', 'source_tag', 'expires_at', 'note',
+  'region', 'quality', 'source_tag', 'category', 'expires_at', 'note',
 ] as const
 
 const FIELD_LABELS: Record<string, string> = {
@@ -369,6 +390,7 @@ const FIELD_LABELS: Record<string, string> = {
   region: '访问区域',
   quality: '品质分级',
   source_tag: '来源标签',
+  category: '分类',
   expires_at: '有效期',
   note: '备注',
 }
@@ -383,6 +405,7 @@ const form = ref({
   region: 'cn',
   quality: '中品',
   source_tag: 'official',
+  category: 'token',
   note: '',
 })
 
@@ -506,6 +529,7 @@ function currentPatch(): Record<string, any> {
     region: f.region,
     quality: f.quality,
     source_tag: f.source_tag,
+  category: f.category || 'token',
     expires_at: toExpiresAt(expiresDate.value),
     note: f.note.trim(),
   }

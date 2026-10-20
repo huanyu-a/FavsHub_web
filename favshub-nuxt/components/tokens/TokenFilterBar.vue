@@ -23,6 +23,14 @@
       </label>
 
       <label class="filter-select">
+        <span class="sr-only">通告分类</span>
+        <select :value="category" @change="onChange('update:category', $event)">
+          <option value="">分类：全部</option>
+          <option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
+        </select>
+      </label>
+
+      <label class="filter-select">
         <span class="sr-only">来源标签</span>
         <select :value="sourceTag" @change="onChange('update:sourceTag', $event)">
           <option value="">来源：全部</option>
@@ -50,6 +58,7 @@ defineProps<{
   sort: string
   quality: string
   sourceTag: string
+  category: string
   stale: boolean
 }>()
 
@@ -57,6 +66,7 @@ const emit = defineEmits<{
   'update:sort': [value: string]
   'update:quality': [value: string]
   'update:sourceTag': [value: string]
+  'update:category': [value: string]
   'update:stale': [value: boolean]
 }>()
 
@@ -77,9 +87,19 @@ const SOURCE_OPTIONS = [
   { value: 'community', label: '社区转发' },
 ]
 
-function onChange(eventName: 'update:quality' | 'update:sourceTag', e: Event) {
+// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致
+const CATEGORY_OPTIONS = [
+  { value: 'token', label: 'API 额度' },
+  { value: 'cloud', label: '免费云服务器' },
+]
+
+function onChange(
+  eventName: 'update:quality' | 'update:sourceTag' | 'update:category',
+  e: Event,
+) {
   const value = (e.target as HTMLSelectElement).value
   if (eventName === 'update:quality') emit('update:quality', value)
+  else if (eventName === 'update:category') emit('update:category', value)
   else emit('update:sourceTag', value)
 }
 </script>
