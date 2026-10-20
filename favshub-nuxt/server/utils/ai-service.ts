@@ -688,6 +688,20 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
   return { token_deals: deals, pagination: { page, limit, total } }
 }
 
+/**
+ * AI 通道返回的通告行：剥掉只该留在后台的字段。
+ *
+ * `verified_by`（核验人用户名）属内部审计信息，公开 Web 通道都不下发，AI 通道更不能给；
+ * 顺手反序列化 `models`。`verify_stale` / `verify_age_days` 是派生只读字段，不剥离。
+ */
+function stripDealPrivateFields<T = any>(row: T): T {
+  if (!row || typeof row !== 'object') return row
+  const anyRow = row as any
+  if ('verified_by' in anyRow) delete anyRow.verified_by
+  if ('models' in anyRow) anyRow.models = parseDealModels(anyRow.models)
+  return row
+}
+
 export function createTokenDeal(db: DB, userId: number, body: any) {
   const result = validateDealPayload(body)
   if (!result.ok) fail(400, result.error)
@@ -718,7 +732,7 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
   if (isAdmin) appendDealEvent(db, id, 'online')
 
   return {
-    token_deal: db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id),
+    token_deal: stripDealPrivateFields(db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id)),
     status,
     message: isAdmin ? '已发布（管理员直接上线）' : '已提交，等待管理员审核',
   }
@@ -838,8 +852,7 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     appendDealEvent(db, id, onlyExpiry ? 'renewed' : 'updated', { before: deal, changes: diffList })
   }
 
-  const updated = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id) as any
-  if (updated) updated.models = parseDealModels(updated.models)
+  const updated = stripDealPrivateFields(db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id))
 
   return {
     token_deal: updated,

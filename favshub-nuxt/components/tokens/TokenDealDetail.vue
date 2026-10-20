@@ -124,6 +124,7 @@
             <ul class="verify-list">
               <li v-for="(v, i) in verifications" :key="i" class="verify-item">
                 <span class="verify-action" :class="`is-${v.action}`">{{ v.action_label }}</span>
+                <span v-if="v.actor" class="verify-actor" title="核验人（仅管理员可见）">{{ v.actor }}</span>
                 <span class="verify-date">{{ formatTime(v.created_at) }}</span>
                 <span v-if="v.note" class="verify-item-note">{{ v.note }}</span>
               </li>
@@ -2358,6 +2359,11 @@ onUnmounted(() => {
 }
 .verify-action.is-dead {
   color: var(--danger, #ff453a);
+}
+.verify-actor {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.9;
 }
 .verify-date {
   color: var(--text-tertiary);

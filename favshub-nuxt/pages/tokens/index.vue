@@ -290,7 +290,7 @@ const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.v
 
 function debouncedSearch() {
   clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => { page.value = 1; refresh() }, 300)
+  searchTimeout = setTimeout(() => reloadFirstPage(), 300)
 }
 
 function prevPage() {
@@ -345,12 +345,21 @@ function onSaved(message: string) {
   editorOpen.value = false
   editorDeal.value = null
   if (message) showToast(message)
-  page.value = 1
-  refresh()
+  reloadFirstPage()
 }
 
-// 翻页 / 筛选变化自动重新请求
-watch([page, sort, quality, sourceTag, staleOnly], () => { page.value = 1; refresh() })
+// 筛选变化 → 回到第 1 页（页码本身绝不能被回置：翻页只靠下面的 watch 重新请求）
+watch([sort, quality, sourceTag, staleOnly], () => {
+  if (page.value !== 1) page.value = 1
+})
+// 翻页 / 筛选变化 → 重新请求
+watch([page, sort, quality, sourceTag, staleOnly], () => refresh())
+
+/** 从第 1 页重新加载：已在第 1 页时直接请求，否则改页码交给上面的 watch（避免重复请求） */
+function reloadFirstPage() {
+  if (page.value !== 1) page.value = 1
+  else refresh()
+}
 
 // 从登录页跳回时自动展开发布表单；带 ?deal= 落地时自动打开对应详情弹窗
 onMounted(() => {

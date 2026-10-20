@@ -36,7 +36,7 @@
       <button :class="{ active: tab === 'deals' && status === 'pending' }" @click="switchStatus('pending')">
         待审核<span v-if="counts.pending" class="tab-badge">{{ counts.pending }}</span>
       </button>
-      <button :class="{ active: tab === 'deals' && status === 'approved' }" @click="switchStatus('approved')">已通过</button>
+      <button :class="{ active: tab === 'deals' && status === 'approved' && verifyFilter !== 'stale' }" @click="switchStatus('approved')">已通过</button>
       <button :class="{ active: tab === 'deals' && status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
       <button :class="{ active: tab === 'deals' && status === 'all' }" @click="switchStatus('all')">全部</button>
       <button
@@ -542,7 +542,8 @@
             <p class="hint">
               「{{ verifyTarget.provider }} · {{ verifyTarget.title }}」<br>
               核验 = 站点确认「此刻仍可用」，只更新时间轴，不会推送订阅者；
-              判定失效才会让订阅者收到「下架」。
+              判定失效才会让订阅者收到「下架」。<br>
+              只想留一条观察记录、不代表已核实可用 → 用「仅备注」。
             </p>
             <div class="fg">
               <label>核验备注（可选）</label>
@@ -560,6 +561,7 @@
             <button class="btn btn-primary" :disabled="submitting" @click="confirmVerify('alive')">
               {{ submitting ? '提交中...' : '核验可用' }}
             </button>
+            <button class="btn btn-ghost" :disabled="submitting" @click="confirmVerify('note')">仅备注</button>
             <button class="btn btn-danger" :disabled="submitting" @click="confirmVerify('dead')">判定失效</button>
           </div>
         </div>
@@ -739,8 +741,12 @@ function verifyText(d: any): string {
   if (days <= 0) return '今日已核验'
   return `${days} 天前核验`
 }
-/** 与后端 verifyStaleDays() 同口径（默认 30 天；只用于配色，不参与查询） */
+/**
+ * 是否待复核：直接吃服务端按 `deal_verify_stale_days` 判定的 `verify_stale`，
+ * 前端不再自己算阈值（否则改了配置就有两套口径）。
+ */
 function isStaleVerify(d: any): boolean {
+  if (typeof d?.verify_stale === 'boolean') return d.verify_stale
   const days = verifyDays(d)
   return days < 0 || days > 30
 }
@@ -750,7 +756,7 @@ function openVerify(d: any) {
   verifyNote.value = ''
 }
 
-async function confirmVerify(action: 'alive' | 'dead') {
+async function confirmVerify(action: 'alive' | 'dead' | 'note') {
   if (!verifyTarget.value) return
   submitting.value = true
   try {
@@ -771,6 +777,8 @@ async function confirmVerify(action: 'alive' | 'dead') {
 
 function switchTab(next: 'deals' | 'edits' | 'guests' | 'invalid' | 'subs') {
   tab.value = next
+  // 「待核验」只是审核队列的子视图，切到别的面板必须清掉，避免残留隐式筛选
+  if (next !== 'deals') verifyFilter.value = 'all'
   if (next === 'edits') loadEdits()
   else if (next === 'guests') loadGuests()
   else if (next === 'invalid') loadInvalid()
@@ -910,7 +918,6 @@ async function loadInvalid() {
       limit: String(invalidPageSize),
     })
     if (searchQuery.value) params.append('search', searchQuery.value)
-    if (verifyFilter.value !== 'all') params.append('verify', verifyFilter.value)
 
     const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
     invalidDeals.value = r.deals || []

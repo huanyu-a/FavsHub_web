@@ -14,7 +14,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import {
-  archiveExpiredDeals, escapeLike, INVALID_REASON_LABELS, verifyStaleDays,
+  archiveExpiredDeals, escapeLike, INVALID_REASON_LABELS, isVerifyStale, verifyAgeDays, verifyStaleDays,
 } from '../../../utils/token-deals'
 
 function parseModels(raw: unknown): string[] {
@@ -157,10 +157,12 @@ export default defineEventHandler(async (event) => {
     FROM token_deals
   `).get() as { deleted: number | null; invalid: number | null; expired: number | null } | undefined
 
-  // 待核验计数：只在架（live）且超过阈值没核验 —— 与「待核验」tab 同口径
+  // 待核验计数：口径必须与「待核验」tab 完全一致（tab 固定 status=approved），
+  // 否则角标数字会和点进去的条数对不上
   const staleCount = (db.prepare(`
     SELECT COUNT(*) AS c FROM token_deals d
-    WHERE ${L.live} AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)
+    WHERE ${L.live} AND d.status = 'approved'
+      AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)
   `).get(now - verifyStaleDays() * 86400000) as { c: number } | undefined)?.c || 0
   counts.stale = staleCount
 
@@ -176,6 +178,9 @@ export default defineEventHandler(async (event) => {
       models: parseModels(row.models),
       is_expired: !!row.expires_at && row.expires_at < now,
       lifecycle: classify(row, now),
+      // 核验新鲜度由服务端按配置判定（前端别再自己算阈值，否则改配置就两套口径）
+      verify_stale: isVerifyStale(row, now),
+      verify_age_days: verifyAgeDays(row, now),
       invalid_reason_label: row.invalid_at
         ? (INVALID_REASON_LABELS[row.invalid_reason] || '已失效')
         : '',

@@ -8,7 +8,7 @@
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
   version: "1.9.2",
-  site_version: "1.0.35",
+  site_version: "1.0.36",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [

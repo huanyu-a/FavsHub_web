@@ -666,16 +666,20 @@ export function verifyDeal(
   if (row.deleted_at) return { ...base, message: '通告已删除，不能核验（请先恢复）' }
 
   let invalidated = false
-  if (action === 'dead') {
-    invalidated = markDealInvalid(db, dealId, 'manual', now)
-  }
-
-  if (action === 'alive' || action === 'dead') {
-    const keepNote = note || (action === 'dead' ? '核验发现已失效' : String(row.verify_note || ''))
-    db.prepare(
-      'UPDATE token_deals SET verified_at = ?, verified_by = ?, verify_note = ?, updated_at = ? WHERE id = ?',
-    ).run(now, actor, keepNote, now, dealId)
-  }
+  // 失效判定（含 offline 事件）与核验时间写入放在同一事务里，
+  // 避免「事件已发、核验时间却没落库」的半状态
+  const applyWrite = db.transaction(() => {
+    if (action === 'dead') {
+      invalidated = markDealInvalid(db, dealId, 'manual', now)
+    }
+    if (action === 'alive' || action === 'dead') {
+      const keepNote = note || (action === 'dead' ? '核验发现已失效' : String(row.verify_note || ''))
+      db.prepare(
+        'UPDATE token_deals SET verified_at = ?, verified_by = ?, verify_note = ?, updated_at = ? WHERE id = ?',
+      ).run(now, actor, keepNote, now, dealId)
+    }
+  })
+  applyWrite()
 
   try {
     db.prepare(
