@@ -205,7 +205,8 @@ function eventEmoji(kind: string, reason: string): string {
 /**
  * 富文本（Markdown）文案 —— 给支持 Markdown 的通道用（钉钉群机器人、Web feed 预览）。
  *
- * QQ 官方机器人只吃纯文本，Markdown 会原样显示成 `**`，那边继续用 `text`。
+ * QQ 官方机器人**私聊**同样支持 markdown（`msg_type=2`，实测返回 200），与钉钉共用这份富文本；
+ * 只有 OneBot 这类没有富文本能力的通道才回退 `text`。
  * 只渲染公开快照里已有的字段；`offline` 与脱敏快照走最小信息，不会漏出额度 / 领取链接。
  */
 export function renderDealEventMarkdown(
@@ -257,19 +258,33 @@ export function renderDealEventMarkdown(
   return lines.join('\n')
 }
 
-/** 单条差异的中文渲染：`额度 100 → 200`、`模型 Claude/GPT → Claude` */
+/** 单条差异的中文渲染：`额度 100 → 200`、`支持模型 +GLM 5 -MiMo` */
 function renderDiff(diff: FieldDiff): string {
   const name = diff.label || DEAL_FIELD_LABELS[diff.field] || diff.field
+  // 先按**完整值**判断是否真的变了：数组字段（如 models）动辄十几个元素，
+  // 若先截断再比较，末尾追加的元素会被裁成一样的开头 → 差异被判成「无变化」，
+  // 订阅者就会收到一条「【变更】xxx」却什么都没说的推送。
+  if (JSON.stringify(diff.from ?? null) === JSON.stringify(diff.to ?? null)) return ''
   const fmt = (v: any): string => {
     if (v == null || v === '') return '空'
     if (Array.isArray(v)) return v.length ? clip(v.join('/'), 30) : '空'
     if (diff.field === 'expires_at' && typeof v === 'number') return formatEventDay(v)
     return clip(v, 24)
   }
-  const from = fmt(diff.from)
-  const to = fmt(diff.to)
-  if (from === to) return ''
-  return `${name} ${from} → ${to}`
+  // 数组字段只说「加了什么 / 去了什么」，比把两个长列表截断后并排摆着有用
+  if (Array.isArray(diff.from) && Array.isArray(diff.to)) {
+    const from = diff.from.map(String)
+    const to = diff.to.map(String)
+    const fromSet = new Set(from)
+    const toSet = new Set(to)
+    const added = to.filter(x => !fromSet.has(x))
+    const removed = from.filter(x => !toSet.has(x))
+    const parts: string[] = []
+    if (added.length) parts.push(`+${clip(added.join('、'), 40)}`)
+    if (removed.length) parts.push(`-${clip(removed.join('、'), 40)}`)
+    return parts.length ? `${name} ${parts.join(' ')}` : ''
+  }
+  return `${name} ${fmt(diff.from)} → ${fmt(diff.to)}`
 }
 
 /**
