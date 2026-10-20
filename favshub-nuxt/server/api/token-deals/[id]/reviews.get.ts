@@ -24,6 +24,9 @@
 import { getRawDb } from '../../../database'
 import { avatarUrl } from '../../../utils/avatar'
 import { currentFingerprint, reviewMarkStats } from '../../../utils/review-marks'
+import { optionalAuthLoose } from '../../../utils/guest-reviews'
+import { isAdminUserById } from '../../../utils/auth'
+import { canReadDeal } from '../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -34,8 +37,17 @@ export default defineEventHandler(async (event) => {
   const offset = (page - 1) * limit
 
   const db = getRawDb()
-  const deal = db.prepare('SELECT id FROM token_deals WHERE id = ? AND deleted_at IS NULL').get(id)
-  if (!deal) {
+  // 与详情端点同一口径：已删除仅管理员、已失效/已过期仅作者与管理员可读，
+  // 否则「详情 404 但评测照读」等于绕过隔离把失效内容放出去。
+  const deal = db.prepare(
+    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at'
+    + ' FROM token_deals WHERE id = ?'
+  ).get(id) as Record<string, any> | undefined
+  const viewer = optionalAuthLoose(event)
+  if (!deal || !canReadDeal(deal, {
+    id: viewer?.id ?? null,
+    isAdmin: isAdminUserById(viewer?.id ?? null),
+  })) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 

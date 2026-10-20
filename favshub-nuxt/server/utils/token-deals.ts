@@ -597,6 +597,29 @@ export function purgeDealPermanently(db: Database.Database, dealId: string): voi
 }
 
 /**
+ * 读入口（详情 / 评测列表 / 游客评测 / 分享卡片）的可见性判定。
+ *
+ * 与详情端点同一口径，避免「详情已 404，但换个端点还能把内容读出来」：
+ *   - 已删除：仅管理员（作者也不行 —— 恢复是管理员动作）；
+ *   - 已失效 / 已过期：作者与管理员可见，其余一律不可见；
+ *   - 公开可见：所有人。
+ *
+ * 注意 AI 通道的 `token.user_id` 与 Cookie 登录态都直接传进来即可，
+ * 两边都只是「谁在看」，不涉及角色系统差异。
+ */
+export function canReadDeal(
+  deal: Record<string, any>,
+  viewer: { id?: number | null; isAdmin?: boolean } = {},
+  now = Date.now(),
+): boolean {
+  if (!deal) return false
+  if (deal.deleted_at) return !!viewer.isAdmin
+  if (isPubliclyVisible(deal, now)) return true
+  if (viewer.isAdmin) return true
+  return viewer.id != null && deal.user_id === viewer.id
+}
+
+/**
  * 写入口（投票 / 评测 / 建议 / 打标 / 置顶 / 导入）的可见性闸门。
  *
  * 规则：

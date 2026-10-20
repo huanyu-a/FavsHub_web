@@ -16,7 +16,7 @@
 import { defineAiHandler } from '../../../../utils/ai-auth'
 import { getRawDb } from '../../../../database'
 import { isUserAdmin } from '../../../../utils/ai-service'
-import { isPubliclyVisible } from '../../../../utils/token-deals'
+import { canReadDeal } from '../../../../utils/token-deals'
 import { getFaviconDir } from '../../../../utils/favicon-dir'
 import { join } from 'node:path'
 import { getRouterParams, getQuery, setResponseHeaders, createError } from 'h3'
@@ -80,13 +80,19 @@ export default defineAiHandler('read', async (event, token) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 
-  // 可见性：未审核通过的通告仅作者与管理员可见
+  // 可见性：与详情端点同一口径（canReadDeal）
+  //   - 未审核通过：仅作者与管理员可看（403 带审核提示，避免与「不存在」混淆）
+  //   - 已删除：仅管理员（作者也不行，恢复是管理员动作）
+  //   - 已失效 / 已过期：仅作者与管理员
   const isOwner = row.user_id === token.user_id
   const isAdmin = isUserAdmin(db, token.user_id)
+  if (row.deleted_at && !isAdmin) {
+    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
+  }
   if (row.status !== 'approved' && !isOwner && !isAdmin) {
     throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
   }
-  if (!isPubliclyVisible(row) && !isOwner && !isAdmin) {
+  if (!canReadDeal(row, { id: token.user_id, isAdmin })) {
     throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
   }
 

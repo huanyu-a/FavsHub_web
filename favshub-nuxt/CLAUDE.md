@@ -227,6 +227,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 
 #### 生命周期：已过期 / 判定失效 / 已删除（2026-10-20）
 
+> 判定分两类入口：**读**用 `canReadDeal(deal, {id, isAdmin})`，**写**用 `findWritableDeal()`；
+> 列表类 SQL 用 `publicVisibleClause(alias, params)` 拼条件。三者口径必须一致。
+
 状态机与 `status`（审核态）**正交**，四列全部是毫秒时间戳或空：
 
 | 列 | 含义 |
@@ -239,9 +242,12 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 判定逻辑的单一真源在 `admin/token-deals/index.get.ts` 的 `P_DELETED / P_INVALID / P_EXPIRED / P_LIVE`
 与 `classify()`，改口径只改这里。
 
-- **对外不可见**：公开列表、详情直达、投票 / 评测 / 建议 / 打标 / 置顶 / 导入 / 分享卡片，
-  对不可见条目**统一 404**（不是 403 —— 403 会泄露「这条存在」）。规则集中在
-  `publicVisibleClause()` / `isPubliclyVisible()` / `findWritableDeal()`（`utils/token-deals.ts`）。
+- **对外不可见**：公开列表、详情直达、评测列表 / 游客评测、投票、提交评测、建议、打标、置顶、
+  导入、分享卡片（PNG）、AI 通道，对不可见条目**统一 404**（不是 403 —— 403 会泄露「这条存在」）。
+  规则集中在 `publicVisibleClause()` / `isPubliclyVisible()`（列表与写入口）与
+  `canReadDeal()`（读入口，含作者/管理员例外）/ `findWritableDeal()`（`utils/token-deals.ts`）。
+  **新增任何按 id 读通告内容的端点，都要先过 `canReadDeal()`** —— 否则会出现
+  「详情 404，但换个端点还能把失效内容读出来」。
 - **例外（作者视角）**：自己的**过期 / 失效**通告仍可打开详情（据此续期），列表走 `mine=1`；
   但**已删除**的除管理员外一律 404 —— 恢复是管理员动作，防止被下架内容被作者自行「复活」。
 - **自动失效**：`archiveExpiredDeals()`（`db-init` 启动时 + 打开后台失效面板时各跑一次，幂等）
