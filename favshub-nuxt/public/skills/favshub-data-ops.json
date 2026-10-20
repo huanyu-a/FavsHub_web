@@ -1,8 +1,8 @@
 {
   "name": "favshub-data-ops",
   "version": "1.9.3",
-  "generated_at": "2026-10-20T07:39:27.014Z",
-  "site_version": "1.0.37",
+  "generated_at": "2026-10-20T08:09:56.078Z",
+  "site_version": "1.0.38",
   "source": "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   "install_hint": "把 files 中每个条目按 path 写入技能目录（目录名 favshub-data-ops）即完成安装或更新。",
   "changelog": [

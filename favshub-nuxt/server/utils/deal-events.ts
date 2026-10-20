@@ -220,7 +220,9 @@ export function renderDealEventMarkdown(
   const base = String(opts.baseUrl || '').replace(/\/+$/, '')
   const link = base ? `${base}${snap.share_path}` : snap.share_path
   const provider = clip(snap.provider, 20) || '未知来源'
-  const lines = [`${eventEmoji(kind, reason)} **【${label}】${provider}**`, `> ${clip(snap.title, 60)}`]
+  // 首行用 `### ` 标题：钉钉群机器人只在消息含 `### ` / `\n---` / `<font ` 时才走 markdown 卡片，
+  // 否则整条按纯文本发（`**` 与 `>` 会原样露出来）。
+  const lines = [`### ${eventEmoji(kind, reason)}【${label}】${provider}`, `**${clip(snap.title, 60)}**`]
 
   if (kind === 'offline') {
     const why = OFFLINE_REASON_LABELS[reason] || INVALID_REASON_LABELS[reason] || ''
@@ -250,7 +252,7 @@ export function renderDealEventMarkdown(
   if (snap.url) lines.push('', `官网：${snap.url}`)
   if (opts.redacted) {
     // 通告此刻已不可见：不推可点链接（点进去是 404），只留一句说明
-    lines.push('', '_该通告已从站点下架或失效，详情页不再可访问。_')
+    lines.push('', '（该通告已从站点下架或失效，详情页不再可访问）')
     return lines.join('\n')
   }
   lines.push('', `[查看通告](${link})`)
