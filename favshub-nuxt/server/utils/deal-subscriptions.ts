@@ -21,6 +21,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { DEAL_EVENT_KINDS, DEFAULT_SUBSCRIBE_KINDS } from './deal-events'
+import { getConfig } from './config'
 
 /** 订阅状态 */
 export const SUBSCRIPTION_STATUSES = ['active', 'paused', 'revoked'] as const
@@ -58,7 +59,31 @@ export interface SubscriptionRow {
   updated_at: number
 }
 
-/** IP 只留不可逆短哈希（限频 / 滥用封禁用），不存明文 */
+/**
+ * 把 IP 收敛成「限频键」再哈希。
+ *
+ * - IPv4：原样（一个宽带用户 = 一个 /32，收得太紧会误伤整片小区的真游客）
+ * - IPv6：收敛到 /64 —— 一个用户通常独占整段 /64，逐地址限频等于没限
+ *   （换一个地址就重置配额）。真实 ISP 也基本按 /64 分给一个用户。
+ *
+ * 只在**限频**上用这个键；`created_ip_hash` 仍用原始地址（便于后台排查同源创建）。
+ */
+export function normalizeIpForKey(ip: unknown): string {
+  const s = String(ip ?? '').trim().toLowerCase().replace(/^\[|\]$/g, '')
+  if (!s) return ''
+  if (!s.includes(':')) return s
+  const bare = s.split('%')[0]
+  const groups = bare.split(':')
+  // 取前 4 组作为 /64 前缀；压缩写法（::）按实际展开不了时退化为「第一个 4 组 + 固定后缀」
+  const head = groups.slice(0, 4).filter(Boolean).join(':')
+  return head ? `${head}::/64` : bare
+}
+
+/** 限频用的 IP 键（不是身份标识，仅用于配额） */
+export function rateKeyForIp(ip: unknown): string {
+  return hashIp(normalizeIpForKey(ip))
+}
+
 export function hashIp(ip: unknown): string {
   const s = String(ip ?? '').trim()
   if (!s) return ''
@@ -157,6 +182,10 @@ export function filtersMatchEvent(
 
 /** 按 token 查订阅；查不到或已退订返回 null */
 export function resolveSubscription(db: Database.Database, token: unknown): SubscriptionRow | null {
+  // 总闸门：`deal_sub_enabled=false` 时整条订阅链路（含查询/改/退订）一律 404，
+  // 否则「想整体下掉订阅功能」还得记得同时关掉 4 个端点
+  if (getConfig('deal_sub_enabled') === 'false') return null
+
   const t = String(token ?? '').trim()
   if (t.length < 16 || t.length > 200) return null
   try {
@@ -198,4 +227,42 @@ export function subscriptionView(row: SubscriptionRow, opts: { baseUrl?: string 
     changes_url: `${base}/api/token-deals/changes?token=${row.sub_token}&since=<游标>`,
     hint: '把 feed_url 填进 Hermes 的订阅（或轮询 changes_url），游标每次响应里的 next_since 即下次的 since。',
   }
+}
+
+/**
+ * 淘汰死订阅（在 db-init 里按天跑）：
+ *
+ * - `revoked` 且 90 天没动过 → 直接删（退订行只用于统计，留着没意义）
+ * - `active/paused` 且 180 天没来拉过 → 置 `revoked`（游客机器早就不在了；
+ *   若他还在跑，下一次拉取会拿到 404 并提示重建 —— 比永久占着配额好）
+ *
+ * 与事件保留期（默认 90 天）同量级，保证「订阅不会比它订阅的东西活得更久」。
+ */
+export function pruneDeadSubscriptions(
+  db: Database.Database,
+  opts: { revokedDays?: number; idleDays?: number; now?: number } = {},
+): { deleted: number; revoked: number } {
+  const now = opts.now ?? Date.now()
+  const revokedDays = opts.revokedDays ?? 90
+  const idleDays = opts.idleDays ?? 180
+  let deleted = 0
+  let revoked = 0
+  try {
+    const r1 = db.prepare(
+      `DELETE FROM deal_subscriptions
+        WHERE status = 'revoked' AND updated_at < ?`
+    ).run(now - revokedDays * 86400000)
+    deleted = Number(r1.changes || 0)
+
+    const r2 = db.prepare(
+      `UPDATE deal_subscriptions
+          SET status = 'revoked', filters = '{}', updated_at = ?
+        WHERE status IN ('active', 'paused')
+          AND COALESCE(last_pull_at, created_at) < ?`
+    ).run(now, now - idleDays * 86400000)
+    revoked = Number(r2.changes || 0)
+  } catch (err: any) {
+    console.warn('[deal-subscriptions] 死订阅清理失败（忽略）:', err?.message || err)
+  }
+  return { deleted, revoked }
 }

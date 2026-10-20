@@ -7,6 +7,7 @@ import { initializeDatabase } from '../database/migrate'
 import { initJwtSecret } from '../utils/jwt'
 import { archiveExpiredDeals } from '../utils/token-deals'
 import { pruneDealEvents } from '../utils/deal-events'
+import { pruneDeadSubscriptions } from '../utils/deal-subscriptions'
 import { getConfig } from '../utils/config'
 
 export default defineNitroPlugin(() => {
@@ -32,14 +33,24 @@ export default defineNitroPlugin(() => {
     console.warn('[Init] 过期通告归档失败（忽略）:', err?.message || err)
   }
 
-  // 3.2 事件流保留期清理：订阅游标只前推，过期事件不会再被任何订阅方读到
-  try {
-    const days = Number(getConfig('deal_events_retention_days') || 90)
-    const pruned = pruneDealEvents(rawDb, Number.isFinite(days) ? days : 90)
-    if (pruned > 0) console.log(`[Init] 已清理过期通告事件 ${pruned} 条`)
-  } catch (err: any) {
-    console.warn('[Init] 事件流清理失败（忽略）:', err?.message || err)
+  // 3.2 事件流保留期清理 + 死订阅淘汰
+  // 只在启动跑一次是不够的：容器长跑几个月都不会重启。改为启动跑一次 + 每 24 小时一次。
+  const runEventHousekeeping = () => {
+    try {
+      const days = Number(getConfig('deal_events_retention_days') || 90)
+      const pruned = pruneDealEvents(rawDb, Number.isFinite(days) ? days : 90)
+      if (pruned > 0) console.log(`[Init] 已清理过期通告事件 ${pruned} 条`)
+      const subs = pruneDeadSubscriptions(rawDb)
+      if (subs.deleted || subs.revoked) {
+        console.log(`[Init] 已淘汰死订阅：删除 ${subs.deleted} 条 / 失活 ${subs.revoked} 条`)
+      }
+    } catch (err: any) {
+      console.warn('[Init] 事件流清理失败（忽略）:', err?.message || err)
+    }
   }
+  runEventHousekeeping()
+  const housekeepingTimer = setInterval(runEventHousekeeping, 24 * 60 * 60 * 1000)
+  housekeepingTimer.unref?.()
 
   console.log('[Init] FavsHub Nuxt 服务已启动')
 

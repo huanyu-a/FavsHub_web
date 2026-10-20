@@ -307,6 +307,18 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   写侧开关 + 读侧 `deal_changes_public` 是两层独立的闸门。
 - **订阅凭证**：`sub_token` = 32 字节随机 hex，只在 `POST /api/deal-subscriptions` 返回一次；
   之后一律脱敏（`maskSubToken`）。站点不采集游客身份，只有 `created_ip_hash`（sha256 前 16 位）。
+- **读侧可见性收敛（必须）**：事件 snapshot 是**写入当时**的快照，通告之后可能被软删 / 失效 /
+  到期归档 —— 而它更早的 `online|updated|renewed` 事件还在表里。所有公开出口都要过
+  `publicEventViews()`（`server/utils/deal-events.ts`）：当前不可见就降级成最小快照 + 清空差异，
+  并打 `deal_redacted`（feed 据此整条剔除）。**不要**直接 `toEventView()` 对外吐。
+- **`deal_sub_enabled=false` 是整条链路的闸门**：`resolveSubscription()` 直接返回 null，
+  于是查 / 改 / 退订 / 带 token 拉取一律 404，不必逐个端点加判断。
+- **限频键收敛**：订阅创建用 `rateKeyForIp()`（IPv6 → /64），否则换地址即重置配额；
+  `changes` 与两个 feed 各自 60 次/小时/IP。
+- **暂停订阅的判断必须早于 304**：否则带 `If-None-Match` 的轮询永远拿不到 `paused` 提示，
+  后台「最近来拉」也不更新。ETag 里带订阅 id，不同过滤条件不能共用同一个 304。
+- **死订阅淘汰**：`pruneDeadSubscriptions()` 在 db-init 启动时 + 每 24h 跑一次
+  （`revoked` 超 90 天删除；`active/paused` 超 180 天没拉取则自动置 revoked）。
 - **配置项**：`deal_events_enabled` / `deal_changes_public` / `deal_feed_enabled` / `deal_sub_enabled` /
   `deal_sub_per_ip_per_day`(3) / `deal_events_retention_days`(90) / `deal_changes_max_limit`(100)。
   保留期清理在 `server/plugins/db-init.ts` 启动时跑（`pruneDealEvents`）。

@@ -19,7 +19,7 @@
 import { getRawDb } from '../../database'
 import { getConfig, getConfigInt } from '../../utils/config'
 import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
-import { currentEventSeq, toEventView } from '../../utils/deal-events'
+import { DEAL_EVENT_KINDS, currentEventSeq, publicEventViews } from '../../utils/deal-events'
 import {
   effectiveKinds, filtersMatchEvent, parseFilters, recordSubscriptionPull, resolveSubscription,
 } from '../../utils/deal-subscriptions'
@@ -50,8 +50,28 @@ export default defineEventHandler((event) => {
   const maxSeq = currentEventSeq(db)
   const serverTime = Date.now()
 
+  // 暂停中的订阅：直接回空结果（必须早于 304 —— 否则客户端带 If-None-Match 时
+  // 永远拿不到 paused 提示，后台的「最近来拉」也不会更新）
+  if (sub && sub.status === 'paused') {
+    setResponseHeader(event, 'Cache-Control', 'no-store')
+    return {
+      events: [],
+      next_since: Number(sub.cursor) || 0,
+      has_more: false,
+      paused: true,
+      notice: '该订阅已暂停（PATCH 传 status:"active" 恢复）',
+      server_time: serverTime,
+    }
+  }
+
+  // kinds 归一：白名单 + 去重 + 上限（未收敛的原始串还曾导致 ETag 头含非 Latin1 字符时 500）
+  const kindsParam = Array.from(new Set(
+    String(q.kinds ?? '').split(',').map(s => s.trim()).filter(Boolean),
+  )).filter(k => (DEAL_EVENT_KINDS as readonly string[]).includes(k)).slice(0, 5)
+
   // 轮询友好：无变化时 304（轮询方带 If-None-Match 即可省掉整包 body）
-  const etag = `W/"tdseq-${maxSeq}-${String(q.since ?? '')}-${limit}-${String(q.kinds ?? '')}"`
+  // ETag 里带上订阅 id：不同订阅（过滤条件不同）不能共用同一个 304 命中
+  const etag = `W/"tdseq-${maxSeq}-${String(q.since ?? '')}-${limit}-${kindsParam.join('|') || 'all'}-${sub ? sub.id : ''}"`
   setResponseHeader(event, 'ETag', etag)
   setResponseHeader(event, 'Cache-Control', 'no-store')
   setResponseHeader(event, 'X-Token-Deal-Seq', String(maxSeq))
@@ -66,7 +86,6 @@ export default defineEventHandler((event) => {
   }
 
   const filters = sub ? parseFilters(sub.filters) : {}
-  const kindsParam = String(q.kinds ?? '').split(',').map(s => s.trim()).filter(Boolean)
   const kinds = kindsParam.length ? kindsParam : (sub ? effectiveKinds(filters) : null)
   const kindClause = kinds ? ` AND kind IN (${kinds.map(() => '?').join(',')})` : ''
 
@@ -104,7 +123,7 @@ export default defineEventHandler((event) => {
   const page = hasMoreRaw ? rows.slice(0, limit) : rows
   const ordered = mode === 'incremental' ? page : page.slice().reverse()
 
-  let views = ordered.map(row => toEventView(row, { baseUrl }))
+  let views = publicEventViews(db, ordered, { baseUrl })
   if (sub) {
     views = views.filter(v => filtersMatchEvent(filters, { kind: v.kind, deal: v.deal }))
   }
@@ -112,19 +131,7 @@ export default defineEventHandler((event) => {
   // 游标推进到「取到的最大 seq」（见文件头注释）
   const nextSince = ordered.length ? Math.max(since, Number(ordered[ordered.length - 1].seq)) : since
 
-  if (sub) {
-    if (sub.status === 'paused') {
-      return {
-        events: [],
-        next_since: since,
-        has_more: false,
-        paused: true,
-        notice: '该订阅已暂停（PATCH 传 status:"active" 恢复）',
-        server_time: serverTime,
-      }
-    }
-    recordSubscriptionPull(db, sub.id, nextSince)
-  }
+  if (sub) recordSubscriptionPull(db, sub.id, nextSince)
 
   const body: Record<string, any> = {
     events: views,

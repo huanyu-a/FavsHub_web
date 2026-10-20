@@ -8,9 +8,12 @@
  * Body: { label?, filters?, status?: 'active'|'paused' }
  */
 import { getRawDb } from '../../database'
+import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 import { normalizeFilters, resolveSubscription, subscriptionView } from '../../utils/deal-subscriptions'
 
 export default defineEventHandler(async (event) => {
+  checkRateLimit(`deal_sub_rw:${getClientIP(event)}`, 60, 60 * 60 * 1000)
+
   const { token } = getRouterParams(event)
   const db = getRawDb()
   const row = resolveSubscription(db, token)

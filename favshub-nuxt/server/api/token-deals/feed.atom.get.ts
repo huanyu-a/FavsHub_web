@@ -7,7 +7,8 @@
  */
 import { getRawDb } from '../../database'
 import { getConfig } from '../../utils/config'
-import { toEventView } from '../../utils/deal-events'
+import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
+import { publicEventViews } from '../../utils/deal-events'
 import { filtersMatchEvent, parseFilters, resolveSubscription } from '../../utils/deal-subscriptions'
 
 function xmlEscape(s: unknown): string {
@@ -26,6 +27,9 @@ export default defineEventHandler((event) => {
   const baseUrl = String(config.public?.baseUrl || '').replace(/\/+$/, '')
   const limit = Math.min(200, Math.max(1, Number(q.limit) || 50))
 
+  // 与 changes 对齐的限频：feed 是整包渲染（最多 200 条），不能无限拉
+  checkRateLimit(`deal_feed:${getClientIP(event)}`, 60, 60 * 60 * 1000)
+
   const sub = q.token ? resolveSubscription(db, q.token) : null
   if (q.token && !sub) throw createError({ statusCode: 404, data: { error: '订阅不存在或已退订' } })
 
@@ -36,7 +40,9 @@ export default defineEventHandler((event) => {
   `).all(limit) as any[]
 
   const filters = sub ? parseFilters(sub.filters) : {}
-  let items = rows.slice().reverse().map(row => toEventView(row, { baseUrl }))
+  // 读侧可见性收敛：通告下架后，它的历史事件不再出现在 feed 里（feed 只分发「现在还能领」的）
+  let items = publicEventViews(db, rows.slice().reverse(), { baseUrl })
+  items = items.filter(v => !v.deal_redacted)
   if (sub) items = items.filter(v => filtersMatchEvent(filters, { kind: v.kind, deal: v.deal }))
 
   const updatedAt = items.length ? new Date(items[items.length - 1].created_at).toISOString() : new Date().toISOString()
@@ -66,6 +72,7 @@ ${entries}
 `
 
   setResponseHeader(event, 'Content-Type', 'application/atom+xml; charset=utf-8')
-  setResponseHeader(event, 'Cache-Control', 'public, max-age=300')
+  // 带 token 的响应体里含订阅凭证（self link 与 feed_url），**绝不能**进共享缓存
+  setResponseHeader(event, 'Cache-Control', q.token ? 'private, no-store' : 'public, max-age=300')
   return xml
 })

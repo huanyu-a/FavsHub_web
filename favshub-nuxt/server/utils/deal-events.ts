@@ -141,6 +141,8 @@ export interface DealEventView {
   /** 字段级差异（仅 updated / renewed 有：`额度 100 刀 → 200 刀` 的结构化版本） */
   changes: FieldDiff[]
   deal: DealEventSnapshot
+  /** 读侧降级标记：该通告此刻已不可见，快照与差异已收敛为最小信息 */
+  deal_redacted?: boolean
 }
 
 export interface FieldDiff {
@@ -289,6 +291,50 @@ export function toEventView(row: DealEventRow, opts: { baseUrl?: string } = {}):
     changes,
     deal: snap,
   }
+}
+
+/**
+ * 读侧可见性收敛 —— **不要**跳过这一步直接对外吐 `toEventView`。
+ *
+ * 事件里的 snapshot 是**写入当时**的公开快照。通告之后可能被软删 / 判定失效 / 到期归档，
+ * 那一刻它的额度、模型、领取链接就不该再从公开事件流里读到 —— 而它更早的
+ * `online / updated / renewed` 事件还留在表里（`offline` 只是新增了一条）。
+ *
+ * 这里按「当前可见性」把这些历史事件降级成最小快照 + 清空差异，并在视图上打
+ * `deal_redacted`（feed 用它把整条剔除）。刻意**不**做破坏性 UPDATE：管理员恢复上架后，
+ * 历史事件又能读到（也没有丢数据）。
+ */
+export function publicEventViews(
+  db: Database.Database,
+  rows: DealEventRow[],
+  opts: { baseUrl?: string } = {},
+): DealEventView[] {
+  const ids = Array.from(new Set(rows.map(r => r.deal_id).filter(Boolean)))
+  const visible = new Map<string, boolean>()
+  if (ids.length) {
+    try {
+      const ph = ids.map(() => '?').join(',')
+      const live = db.prepare(`SELECT * FROM token_deals WHERE id IN (${ph})`).all(...ids) as any[]
+      for (const row of live) {
+        visible.set(row.id, isPubliclyVisible(row) && row.status === 'approved')
+      }
+    } catch (err: any) {
+      // 查不到可见性时按不可见处理（fail-closed：宁可不发内容，也不泄露）
+      console.warn('[deal-events] 可见性查询失败，按不可见处理:', err?.message || err)
+    }
+  }
+
+  return rows.map((row) => {
+    const view = toEventView(row, opts)
+    if (visible.get(row.deal_id) === true) return view
+    const redacted = offlineSnapshot(view.deal)
+    view.deal = redacted as DealEventSnapshot
+    view.changes = []
+    // 文案也按脱敏后的快照重渲染，避免里面残留额度 / 链接
+    view.text = renderDealEventText(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl })
+    view.deal_redacted = true
+    return view
+  })
 }
 
 /** 当前最大 seq（订阅方的基线；空表为 0） */

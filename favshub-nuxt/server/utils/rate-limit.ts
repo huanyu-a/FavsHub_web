@@ -132,12 +132,22 @@ function isPrivatePeer(ip: string): boolean {
  *
  * 安全性：仅当对端是内网地址时才采信 `X-Real-IP`；公网直连（如容器端口意外暴露）
  * 时该头不可信，回退到对端地址，避免伪造绕过限频。
+ *
+ * ⚠️ `NUXT_TRUST_PROXY=true` 只有当**直连对端就是你自己信任的反代**时才安全。
+ * 本站在「宝塔 nginx → docker nginx → 应用」下**不需要**开启它：内层 nginx 已用 realip
+ * 还原并写入 `X-Real-IP`，而对端是内网网关，走的是上面第 2 条分支。
+ * 若前面的反代用 `$proxy_add_x_forwarded_for`（追加而非覆盖），开启 trustProxy 会让
+ * 「客户端自带的 XFF 首段」变成限频键 —— 换个头就绕过配额。
  */
 export function getClientIP(event: H3Event): string {
   const config = useRuntimeConfig(event)
   const trustProxy = config.trustProxy === 'true' || config.trustProxy === true
 
   if (trustProxy) {
+    // 优先 `X-Real-IP`：反代通常用 `$remote_addr` 覆盖它，客户端伪造不了；
+    // 而 `X-Forwarded-For` 是**追加**的，首段可以被客户端自己塞进去（见下方警告）。
+    const real = getRequestHeader(event, 'x-real-ip')
+    if (real && real.trim()) return real.trim()
     const xff = getRequestHeader(event, 'x-forwarded-for')
     if (xff) {
       // 取第一个 IP（最接近客户端的）

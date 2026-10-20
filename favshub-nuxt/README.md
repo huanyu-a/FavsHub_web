@@ -215,7 +215,7 @@ curl -s http://localhost:3090/api/health
 | `NUXT_DB_PATH` | SQLite 路径 | `./data/favshub.db`（容器内多为 `/opt/favshub/data/...`） |
 | `NUXT_CORS_ORIGIN` | 允许的跨域来源 | 开发默认 `http://localhost:3000`；上线改为你的站点源 |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔） | 空；内置 `admin_favs` 已足够，仅特殊场景需要 |
-| `NUXT_TRUST_PROXY` | 是否信任反向代理的客户端 IP | `false`；前面有 Nginx 等再按需开启 |
+| `NUXT_TRUST_PROXY` | 是否信任反向代理的客户端 IP | `false`。**只有对端就是你自己信任的反代时才开**；若反代用 `$proxy_add_x_forwarded_for`（追加而非覆盖），开了等于让客户端自选 IP，按 IP 限频会被绕过。本站双层 nginx 部署**保持 false**（内层 nginx 会写 `X-Real-IP`，应用侧按「内网对端」分支采信它） |
 | `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | 默认 `https://hao.bx9y.com.cn`，自托管请改成自己的域名 |
 
 ### 备份与升级

@@ -73,6 +73,14 @@ curl -sS -X POST {BASE}/api/deal-subscriptions \
 | `baseline_seq` | 起步游标。**从它开始**，否则一装就把历史通告全灌进群里 |
 | `subscription.changes_url` | 拉取地址模板 |
 
+> ⚠️ 三件事：
+> 1. 凭证走 **URL query**（`?token=...`），所以你机器上的 web 服务器 / 反代 / 抓包日志
+>    **可能记下它**。别把 `changes_url` 直接暴露给外部、也别配成公共可访问的 RSS 代理。
+> 2. 状态文件默认写到 `~/.favshub-sub.json`，脚本用 `0600` 创建；别把它提交进 git
+>    （`echo '.favshub-sub.json' >> .gitignore`）。
+> 3. 万一泄露：`DELETE /api/deal-subscriptions/<token>` 退订，再建一个新的。
+>    该凭证只能读公开通告、只能改它自己，不能读你的账号数据。
+
 `filters` 全部可选：`kinds`（事件类型）、`providers`（服务商）、`regions`（cn/global）、`keywords`（关键词）。
 不填 = 收全部。
 
@@ -149,7 +157,9 @@ def load_state(path):
 
 def save_state(path, st):
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    # 状态文件里存着 sub_token（等同密码）：用 0600 创建，别让同机其他用户读到
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
 

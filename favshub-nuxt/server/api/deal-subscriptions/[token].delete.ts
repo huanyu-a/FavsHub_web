@@ -5,9 +5,12 @@
  * 站点也不再为它记账（`revoked` 行只留给后台统计）。
  */
 import { getRawDb } from '../../database'
+import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 import { resolveSubscription } from '../../utils/deal-subscriptions'
 
 export default defineEventHandler((event) => {
+  checkRateLimit(`deal_sub_rw:${getClientIP(event)}`, 60, 60 * 60 * 1000)
+
   const { token } = getRouterParams(event)
   const db = getRawDb()
   const row = resolveSubscription(db, token)

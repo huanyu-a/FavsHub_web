@@ -14,7 +14,7 @@ import { getRawDb } from '../../database'
 import { getConfig, getConfigInt } from '../../utils/config'
 import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
 import {
-  newSubToken, newSubscriptionId, normalizeFilters, hashIp, subscriptionView,
+  newSubToken, newSubscriptionId, normalizeFilters, hashIp, rateKeyForIp, subscriptionView,
 } from '../../utils/deal-subscriptions'
 
 export default defineEventHandler(async (event) => {
@@ -24,7 +24,8 @@ export default defineEventHandler(async (event) => {
 
   const ip = getClientIP(event)
   const perDay = Math.max(1, getConfigInt('deal_sub_per_ip_per_day', 3))
-  checkRateLimit(`deal_sub:${hashIp(ip)}`, perDay, 24 * 60 * 60 * 1000)
+  // 限频键用收敛后的地址（IPv6 → /64）：否则换一个地址就能重置配额
+  checkRateLimit(`deal_sub:${rateKeyForIp(ip)}`, perDay, 24 * 60 * 60 * 1000)
 
   const body = await readBody(event).catch(() => ({} as any))
   const label = String(body?.label ?? '').trim().slice(0, 40)
