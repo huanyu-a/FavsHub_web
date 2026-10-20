@@ -26,7 +26,7 @@ export const SYSTEM_ONLY_KEYS = [
   // QQ Bot（OneBot 11 / NapCat）
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
   // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
-  'qq_bot_transport', 'qq_outbox_path',
+  'qq_bot_transport', 'qq_outbox_path', 'qq_notify_max_per_hour',
   // 通告事件流（对外订阅）：见 server/utils/deal-events.ts
   'deal_events_enabled', 'deal_changes_public', 'deal_feed_enabled',
   'deal_sub_enabled', 'deal_sub_per_ip_per_day',
@@ -82,6 +82,9 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   // qq_admin_qq：主人提醒目标。onebot 传输=管理员 QQ 号（群消息尾 @）；outbox 传输=私聊 Hermes 目标（待审提醒直接 DM 主人）
   // qq_bot_transport：出站传输方式 'onebot'（默认，兼容 NapCat 直连）/ 'outbox'（写 spool 目录，宿主机 cron + hermes send 消费）
   // qq_outbox_path：outbox spool 目录（容器内路径，需为宿主机可见的挂载卷；空 = 回落 NUXT_QQ_OUTBOX_DIR；两者皆空 = outbox 传输不可用）
+  // qq_notify_max_per_hour：出站通知配额（防止用户反复触发写路径把站点当刷屏放大器）。
+  //   同一条提醒另有 10 分钟去重；机器人指令回复不占该配额。
+  qq_notify_max_per_hour: '40',
   qq_bot_enabled: 'false',
   qq_bot_group_id: '',
   qq_admin_qq: '',

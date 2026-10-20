@@ -195,6 +195,75 @@ function enqueue(item: Omit<QueueItem, 'retries' | 'retryAt'>) {
   }
 }
 
+// ─── 出站通知配额（防「把站点当刷屏放大器」） ─────────────────
+
+/**
+ * 为什么需要它
+ *
+ * 通知类消息由**用户行为**触发：`PUT /api/token-deals/:id` 在「被驳回 → 重新提交」时
+ * 会给群里发一条待审提醒，提示词审核请求同理。这类端点原本没有出站限频，登录用户
+ * 循环提交就能持续驱动服务端出站 HTTP（OneBot）——这是本仓库唯一能被做成放大器的路径
+ * （对外公开的订阅 / 事件链路是**零出站**的）。
+ *
+ * 两层保护：
+ *   1. **同一条提醒 10 分钟内只发一次**（按 kind + 标题去重）——正常用户改完再提交
+ *      不该重复 @ 管理员；这也顺带挡住了「同一个通告反复提交」的刷屏。
+ *   2. **全站通知 N 条/小时**（`qq_notify_max_per_hour`，默认 40）——真到这个量就是滥用
+ *      而不是业务，超出的直接丢弃并 warn（不会积压，也不会事后补发）。
+ *
+ * 机器人**指令回复**（queueBotReply）不占这个配额：那是正常聊天，被限会显得机器人坏掉。
+ */
+const NOTIFY_DEDUP_MS = 10 * 60 * 1000
+const notifySentAt: number[] = []
+const notifyDedupAt = new Map<string, number>()
+let notifyDropped = 0
+
+function notifyMaxPerHour(): number {
+  try {
+    const n = parseInt(String(getConfig('qq_notify_max_per_hour') || ''), 10)
+    return Number.isFinite(n) && n > 0 ? n : 40
+  } catch {
+    return 40
+  }
+}
+
+/** 配额判定：true = 允许发；false = 被去重或超配额丢弃 */
+function allowNotify(kind: string, subject: string): boolean {
+  // 机器人关着就别记配额：否则「临时关闭 → 一小时后打开」会发现配额被空跑了
+  if (!botEnabled()) return false
+  const now = Date.now()
+  const key = `${kind}:${String(subject || '').trim()}`
+
+  const last = notifyDedupAt.get(key)
+  if (last && now - last < NOTIFY_DEDUP_MS) return false
+
+  // 滑动窗口：只保留最近 1 小时的发送时间
+  while (notifySentAt.length && now - notifySentAt[0] > 60 * 60 * 1000) notifySentAt.shift()
+  const max = notifyMaxPerHour()
+  if (notifySentAt.length >= max) {
+    notifyDropped += 1
+    if (notifyDropped === 1 || notifyDropped % 50 === 0) {
+      console.warn(`[QQBot] 出站通知达到上限 ${max} 条/小时，已丢弃 ${notifyDropped} 条（防止被当作刷屏放大器）`)
+    }
+    return false
+  }
+
+  notifySentAt.push(now)
+  notifyDedupAt.set(key, now)
+  // 顺手清理过期去重键，避免 Map 无限增长
+  if (notifyDedupAt.size > 500) {
+    for (const [k, t] of notifyDedupAt) if (now - t > NOTIFY_DEDUP_MS) notifyDedupAt.delete(k)
+  }
+  return true
+}
+
+/** 供测试 / 排障查看当前配额状态 */
+export function notifyQuotaState(): { sentLastHour: number; maxPerHour: number; dedupKeys: number; dropped: number } {
+  const now = Date.now()
+  const sent = notifySentAt.filter(t => now - t <= 60 * 60 * 1000).length
+  return { sentLastHour: sent, maxPerHour: notifyMaxPerHour(), dedupKeys: notifyDedupAt.size, dropped: notifyDropped }
+}
+
 /**
  * 群消息入队：qq_bot_group_id 为空时直接丢弃
  */
@@ -334,26 +403,32 @@ export function getBoundQQ(userId: number): string {
 
 /** 新通告待审 → 群（@管理员） */
 export function notifyTokenDealPending(title: string, submitter: string): void {
+  if (!allowNotify('deal-pending', title)) return
   queuePendingNotice(`📥 新通告待审：《${escapeCqText(title)}》（提交人：${escapeCqText(submitter)}），当前待审 ${countPendingDeals()} 条`)
 }
 
 /** 管理员直接发布 → 群（不 @） */
 export function notifyTokenDealPublished(title: string): void {
+  if (!allowNotify('deal-published', title)) return
   queueGroupMessage(`🆕 新通告发布：《${escapeCqText(title)}》`)
 }
 
 /** 通告修改回待审 → 群（@管理员） */
 export function notifyTokenDealRePending(title: string): void {
+  // 这条最容易被反复触发：同一条通告 10 分钟内只提醒一次
+  if (!allowNotify('deal-repending', title)) return
   queuePendingNotice(`✏️ 通告《${escapeCqText(title)}》已修改，重新进入待审，当前待审 ${countPendingDeals()} 条`)
 }
 
 /** 通告删除 → 群 */
 export function notifyTokenDealDeleted(title: string): void {
+  if (!allowNotify('deal-deleted', title)) return
   queueGroupMessage(`🗑️ 通告《${escapeCqText(title)}》已删除`)
 }
 
 /** 通告审核通过 → 群 + 私聊作者（若已绑定 QQ） */
 export function notifyTokenDealApproved(title: string, authorUserId: number): void {
+  if (!allowNotify('deal-approved', title)) return
   queueGroupMessage(`✅ 通告《${escapeCqText(title)}》已发布`)
   const qq = getBoundQQ(authorUserId)
   if (qq) queuePrivateMessage(qq, `✅ 你投稿的通告《${escapeCqText(title)}》已通过审核，感谢贡献！`)
@@ -361,6 +436,7 @@ export function notifyTokenDealApproved(title: string, authorUserId: number): vo
 
 /** 通告驳回 → 私聊作者（若已绑定 QQ） */
 export function notifyTokenDealRejected(title: string, authorUserId: number, reason: string): void {
+  if (!allowNotify('deal-rejected', title)) return
   const qq = getBoundQQ(authorUserId)
   if (qq) queuePrivateMessage(qq, `❌ 你投稿的通告《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`)
 }
@@ -369,17 +445,20 @@ export function notifyTokenDealRejected(title: string, authorUserId: number, rea
 
 /** 提示词修改待审 → 群（@管理员） */
 export function notifyPromptReviewPending(title: string): void {
+  if (!allowNotify('prompt-review', title)) return
   queuePendingNotice(`📝 提示词《${escapeCqText(title)}》有新的修改审核请求，当前待审 ${countPendingPromptReviews()} 条`)
 }
 
 /** 提示词审核通过 → 私聊提交人（若已绑定 QQ） */
 export function notifyPromptReviewApproved(title: string, submitterUserId: number): void {
+  if (!allowNotify('prompt-approved', title)) return
   const qq = getBoundQQ(submitterUserId)
   if (qq) queuePrivateMessage(qq, `✅ 你提交的提示词《${escapeCqText(title)}》已通过审核，感谢贡献！`)
 }
 
 /** 提示词审核驳回 → 私聊提交人（若已绑定 QQ） */
 export function notifyPromptReviewRejected(title: string, submitterUserId: number, reason: string): void {
+  if (!allowNotify('prompt-rejected', title)) return
   const qq = getBoundQQ(submitterUserId)
   if (qq) queuePrivateMessage(qq, `❌ 你提交的提示词《${escapeCqText(title)}》未通过审核：${escapeCqText(reason) || '未填写原因'}`)
 }

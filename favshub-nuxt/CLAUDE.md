@@ -324,6 +324,16 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   保留期清理在 `server/plugins/db-init.ts` 启动时跑（`pruneDealEvents`）。
 - **不要**给这条链路加「站点主动推送到游客地址」的能力：那会让站点变成开放出站代理。
 
+#### QQ 机器人出站配额（2026-10-20）
+
+- **唯一能被做成放大器的是 QQ 通知**：`PUT /api/token-deals/:id`（作者修正被驳回的通告）、
+  `POST /api/prompts/:id/review-request` 等**用户可反复触发**的写路径会驱动服务端出站 HTTP。
+  新增 `allowNotify()`（`server/utils/qq-notify.ts`）两层保护：
+  1. 同 kind + 同标题 **10 分钟内只发一次**（循环提交不再刷屏）；
+  2. 全站通知 `qq_notify_max_per_hour`（默认 40）条/小时，超出丢弃并 warn。
+- **机器人指令回复不走配额**（`queueBotReply`）：正常聊天被限会显得机器人坏了。
+- 机器人总开关关着时不消耗配额（`allowNotify` 先判 `botEnabled()`）。
+
 #### 人机校验（2026-10-12 升级为 Cloudflare Turnstile）
 
 游客发布通告（`POST /api/token-deals`）、游客评测（`POST /api/token-deals/[id]/guest-reviews`）与
