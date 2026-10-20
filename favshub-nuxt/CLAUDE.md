@@ -317,9 +317,16 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   `offline` 要求 `wasPublished(before)`（审核通过 + 未软删 + 未失效，**故意不看 `expires_at`**，
   否则到期归档这一事件永远发不出去）；其余类型要求 `nowPublic && status==='approved'`。
   `updated` 无实质差异则不写。
-- **两套渲染并存**：`text`（单行 ≤200 字，QQ 官方机器人只吃纯文本）+ `markdown`（多行富文本：
-  标题 / 字段列表 / 领取与官网地址 / 可点详情链接，钉钉等富文本通道用）。脱敏事件（`deal_redacted`）
+- **两套渲染并存**：`text`（单行 ≤200 字，给 OneBot 这类没有富文本的通道兜底）+ `markdown`
+  （多行富文本：`### ` 标题 / 加粗标题 / 字段列表 / 领取与官网地址 / 可点详情链接）。
+  **钉钉群机器人和 QQ 官方机器人私聊都吃 markdown**（QQ 走 `msg_type=2`，实测返回 200；
+  QQ 群无主动消息权限 `40034105`，只能靠 `text` 或换协议端）。脱敏事件（`deal_redacted`）
   的 `markdown` 不推可点链接，只留一句「已下架」说明。
+- **推送只放读者关心的字段**：额度 / 模型 / 到期 / 领取 / 官网 / 评分。**品级（`quality`）、
+  地区（`region`）属于站内运营信息，不进推送**——`snapshot` 里仍有，渲染时故意不用。
+- **不在推送与公开页暴露身份**：`users.username` 一律不出现在 `/api/token-deals*`、
+  `/api/collections*` 的响应里（管理员接口除外）；详情页「发布者」只显示用户自填昵称，
+  没有昵称就显示「社区用户」；待审通知里提交人只写「游客 / 注册用户」。
 - **`text` / `markdown` 都不落库**：只存 `snapshot`（公开字段）+ `meta.changes`（差异结构），文案在读取时渲染
   —— 站点换域名时链接跟着变。`offline` 的 `snapshot` 走 `offlineSnapshot()` 只留
   `id/provider/title/expires_at/share_path`：下架后额度 / 模型 / 领取链接不该再从公开流里读到。
