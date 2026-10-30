@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     const list = db.prepare(`
       SELECT id, title, content, content_type, pinned, created_at, updated_at
       FROM announcements
-      WHERE status = 'published'
+      WHERE status = 'published' AND deleted_at IS NULL
       ORDER BY pinned DESC, created_at DESC
     `).all()
 

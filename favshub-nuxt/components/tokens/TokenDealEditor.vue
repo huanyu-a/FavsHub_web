@@ -181,6 +181,52 @@
 
             <div class="tde-field">
               <span class="field-label">支持模型（{{ form.models.length }} / {{ LIMITS.models }}）</span>
+
+              <!-- 2026-10-30：内置 /v1/models 拉取。部分平台需鉴权，
+                   故 key 输入框与按钮同排；填了 key 才会带 Authorization 出去。
+                   key 只用于本次请求，不落库、不回显。 -->
+              <div class="model-fetch">
+                <input
+                  v-model="modelApiKey"
+                  type="password"
+                  class="model-fetch-key"
+                  autocomplete="off"
+                  placeholder="API Key（仅需鉴权的平台填写，不会保存）"
+                >
+                <button
+                  type="button"
+                  class="tde-btn"
+                  :disabled="modelFetching || !form.call_url.trim()"
+                  :title="form.call_url.trim() ? '从 API 地址拉取模型清单' : '请先填写 API 地址'"
+                  @click="fetchModels"
+                >
+                  <i :class="modelFetching ? 'ri-loader-4-line spin' : 'ri-download-cloud-2-line'"></i>
+                  {{ modelFetching ? '获取中...' : '获取模型' }}
+                </button>
+              </div>
+              <span v-if="modelFetchError" class="field-hint is-err">{{ modelFetchError }}</span>
+              <span v-else-if="modelFetchNote" class="field-hint">{{ modelFetchNote }}</span>
+
+              <div v-if="fetchedModels.length" class="model-picker">
+                <div class="model-picker-head">
+                  <span>拉到 {{ fetchedModels.length }} 个，点击勾选</span>
+                  <button type="button" class="model-picker-close" @click="fetchedModels = []">收起</button>
+                </div>
+                <div class="model-picker-list">
+                  <button
+                    v-for="m in fetchedModels"
+                    :key="m"
+                    type="button"
+                    class="model-pick"
+                    :class="{ selected: form.models.includes(m) }"
+                    @click="toggleFetchedModel(m)"
+                  >
+                    <i :class="form.models.includes(m) ? 'ri-checkbox-circle-fill' : 'ri-add-circle-line'"></i>
+                    {{ m }}
+                  </button>
+                </div>
+              </div>
+
               <div class="tag-input">
                 <span v-for="(m, i) in form.models" :key="m" class="tag">
                   {{ m }}
@@ -215,12 +261,88 @@
               <span class="field-label">补充说明</span>
               <textarea
                 v-model="form.note"
-                rows="3"
+                rows="6"
                 :maxlength="LIMITS.note"
-                placeholder="领取门槛、是否需要实名、常见坑点等"
+                placeholder="领取门槛、是否需要实名、常见坑点等。支持 Markdown / HTML / 图片，如：&#10;**需实名**，额度 500 万&#10;![截图](https://example.com/a.png)"
               ></textarea>
-              <span class="field-hint">{{ form.note.length }} / {{ LIMITS.note }}</span>
+              <span class="field-hint">
+                {{ form.note.length }} / {{ LIMITS.note }} ·
+                支持 Markdown、HTML 与图片；展示时由服务端统一渲染并消毒
+              </span>
             </label>
+          </fieldset>
+
+          <!-- 邀请码（2026-10-30）──
+              码池挂在通告 ID 上，因此只在「编辑既有通告」时出现：
+              新建时还没有 ID，提案模式则由作者/管理员在直接编辑里配置。 -->
+          <fieldset v-if="canEditInviteCodes" class="tde-group">
+            <legend class="tde-legend">
+              邀请码（{{ form.inviteCodes.length }} / {{ LIMITS.inviteCodes }}）
+            </legend>
+
+            <!-- 码池读失败时必须显式告知并**锁住编辑**：
+                 PUT 是全量替换，「没读到」被当成「空池」提交会把整池连同 copy_count 一起删掉。
+                 所以这里不给编辑入口，submit 也会跳过这次 PUT（通告其余字段照常保存）。 -->
+            <p v-if="inviteCodesError" class="field-hint is-err">
+              {{ inviteCodesError }}
+            </p>
+
+            <template v-else>
+              <p class="tde-hint">
+                可配置多个邀请码：<strong>展现比例</strong>决定访客打开详情页时抽中它的概率（越大越容易）；
+                <strong>复制上限</strong>用满后该码不再出现给任何人（留 0 = 不限）。
+                访客一次只会看到其中一个，抽选在服务端完成。
+              </p>
+
+              <p v-if="!inviteCodesLoaded" class="tde-hint">正在读取现有邀请码…</p>
+
+              <template v-if="inviteCodesLoaded">
+                <div v-for="(c, i) in form.inviteCodes" :key="i" class="invite-edit-row">
+                  <input
+                    v-model="c.code"
+                    type="text"
+                    class="invite-input"
+                    :maxlength="LIMITS.inviteCode"
+                    placeholder="邀请码或邀请链接"
+                  >
+                  <input
+                    v-model="c.label"
+                    type="text"
+                    class="invite-input is-small"
+                    :maxlength="LIMITS.inviteLabel"
+                    placeholder="备注（选填）"
+                  >
+                  <label class="invite-num" title="展现比例：越大越容易被抽中">
+                    <span>比例</span>
+                    <input v-model.number="c.weight" type="number" min="1" max="1000" step="1">
+                  </label>
+                  <label class="invite-num" title="被复制次数上限：用满后该码不再出现">
+                    <span>复制上限</span>
+                    <input v-model.number="c.copyLimit" type="number" min="0" max="1000000" step="1">
+                  </label>
+                  <button
+                    type="button"
+                    class="invite-remove"
+                    title="移除该邀请码"
+                    @click="removeInviteCode(i)"
+                  >
+                    <i class="ri-delete-bin-line"></i>
+                  </button>
+                  <span v-if="c.copy_count" class="invite-used">
+                    已复制 {{ c.copy_count }} 次{{ c.exhausted ? '（已用满，访客不再见到）' : '' }}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  class="tde-btn"
+                  :disabled="form.inviteCodes.length >= LIMITS.inviteCodes"
+                  @click="addInviteCode"
+                >
+                  <i class="ri-add-line"></i> 添加邀请码
+                </button>
+              </template>
+            </template>
           </fieldset>
 
           <!-- 建议修改：提交说明 + 改动清单 -->
@@ -316,10 +438,15 @@ const LIMITS = {
   url: 500,
   callUrl: 500,
   quota: 200,
-  note: 500,
+  /** 2026-10-30：备注上限 500 → 2000，并支持 Markdown / HTML / 图片富文本（服务端渲染消毒） */
+  note: 2000,
   models: 20,
   modelName: 60,
   comment: 200,
+  /** 邀请码：与 server/utils/invite-codes.ts 的 INVITE_CODE_LIMITS 保持一致 */
+  inviteCodes: 20,
+  inviteCode: 300,
+  inviteLabel: 40,
 }
 
 const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品']
@@ -351,6 +478,16 @@ const isProposal = computed(() => !!props.proposal)
 const isAdmin = computed(() => authStore.isAdmin)
 /** 游客发布模式：未登录 + 新建（编辑/提案永远需要登录身份） */
 const isGuest = computed(() => !authStore.isLoggedIn && !isEdit.value && !isProposal.value)
+
+/**
+ * 是否开放邀请码配置（2026-10-30）
+ *
+ * 码池挂在通告 ID 上，所以：新建时还没有 ID → 不显示（保存后可再编辑）；
+ * 提案模式不碰码池（属于作者/管理员的直接操作）；游客无法通过服务端权限校验。
+ */
+const canEditInviteCodes = computed(() =>
+  isEdit.value && !isGuest.value && !isProposal.value,
+)
 
 const headTitle = computed(() => {
   if (isProposal.value) return '建议修改'
@@ -396,6 +533,18 @@ const FIELD_LABELS: Record<string, string> = {
   note: '备注',
 }
 
+/** 编辑器里的邀请码草稿；`copy_count` / `exhausted` 来自服务端，只读回显 */
+interface InviteCodeDraft {
+  id?: number
+  code: string
+  label: string
+  weight: number
+  copyLimit: number
+  enabled?: boolean
+  copy_count?: number
+  exhausted?: boolean
+}
+
 const form = ref({
   provider: '',
   title: '',
@@ -408,6 +557,8 @@ const form = ref({
   source_tag: 'official',
   category: 'token',
   note: '',
+  /** 邀请码池（2026-10-30）：全量提交，服务端做全量替换 */
+  inviteCodes: [] as InviteCodeDraft[],
 })
 
 const modelDraft = ref('')
@@ -415,6 +566,25 @@ const expiresDate = ref('')
 const saving = ref(false)
 const errorText = ref('')
 const comment = ref('')
+
+// ── 模型清单拉取（2026-10-30）──
+// API Key 只随本次请求出站，不落库；部分平台不填 key 即可拉到模型
+const modelApiKey = ref('')
+const modelFetching = ref(false)
+const modelFetchError = ref('')
+const modelFetchNote = ref('')
+const fetchedModels = ref<string[]>([])
+
+// ── 邀请码（2026-10-30）──
+/**
+ * 码池是否成功读回。
+ *
+ * `PUT /:id/invite-codes` 是**全量替换**语义，所以「读失败」与「真的是空池」
+ * 必须能区分开：2026-10-30 审查指出，原先 `loadInviteCodes` 在 catch 里把列表置空，
+ * 用户只改个标题点保存就会 `PUT {codes: []}`，**整池连同 copy_count 被静默删除**。
+ */
+const inviteCodesLoaded = ref(false)
+const inviteCodesError = ref('')
 
 // ── 游客身份（isGuest 时生效）──
 const guestNickname = ref('')
@@ -661,6 +831,36 @@ async function submit() {
       },
     )
 
+    // 邀请码（2026-10-30）：独立资源，主表保存成功后再**全量提交**码池。
+    // 失败时不发 saved 事件 —— 通告内容已入库但这块没存上，
+    // 静默关窗会让用户以为全部成功。
+    // inviteCodesLoaded 为假 ⇒ 码池没读回来，**跳过这一笔**：
+    // PUT 是全量替换，提交空数组会把现有码池连同 copy_count 一起删掉
+    if (canEditInviteCodes.value && props.deal?.id && inviteCodesLoaded.value) {
+      const codes = form.value.inviteCodes
+        .map(c => ({
+          code: c.code.trim(),
+          label: c.label.trim(),
+          weight: Number(c.weight) || 1,
+          copyLimit: Number(c.copyLimit) || 0,
+          // 沿用读回来的启用状态，不要硬编码 true ——
+          // 否则被停用的码会在下一次保存时被静默复活
+          enabled: c.enabled !== false,
+        }))
+        .filter(c => c.code)
+
+      try {
+        await $fetch(`/api/token-deals/${props.deal.id}/invite-codes`, {
+          method: 'PUT',
+          body: { codes },
+          credentials: 'include',
+        })
+      } catch (err: any) {
+        errorText.value = err?.data?.error || '通告已保存，但邀请码保存失败，请重试'
+        return
+      }
+    }
+
     emit('saved', res?.message || '')
   } catch (err: any) {
     const errMsg = String(err?.data?.error || '')
@@ -670,6 +870,110 @@ async function submit() {
     if (errMsg.includes('人机验证')) challengeNote.value = errMsg
   } finally {
     saving.value = false
+  }
+}
+
+/**
+ * 从通告的 API 地址拉取模型清单（2026-10-30）
+ *
+ * 走**服务端代理**而非浏览器直连，原因有二：
+ *   1. 中转站基本不带 CORS 头，浏览器直连必然被拦；
+ *   2. SSRF 校验（内网地址 / DNS rebinding / 重定向重校验）只能在服务端做。
+ * 拉回来的模型**不自动选中** —— 需求是「手动点击选择」。
+ */
+async function fetchModels() {
+  modelFetchError.value = ''
+  modelFetchNote.value = ''
+  fetchedModels.value = []
+
+  const callUrl = form.value.call_url.trim()
+  if (!callUrl) {
+    modelFetchError.value = '请先填写 API 地址'
+    return
+  }
+
+  modelFetching.value = true
+  try {
+    const res = await $fetch<{
+      data: { models: string[]; count: number; truncated: boolean }
+    }>('/api/token-deals/fetch-models', {
+      method: 'POST',
+      body: { call_url: callUrl, api_key: modelApiKey.value.trim() || undefined },
+      credentials: 'include',
+    })
+
+    fetchedModels.value = res?.data?.models || []
+    modelFetchNote.value = fetchedModels.value.length
+      ? `获取到 ${fetchedModels.value.length} 个模型${res?.data?.truncated ? '（已达上限，仅显示前 500 个）' : ''}，点击下方勾选`
+      : '该地址没有返回模型'
+  } catch (err: any) {
+    modelFetchError.value = err?.data?.error || err?.message || '获取模型失败'
+  } finally {
+    modelFetching.value = false
+  }
+}
+
+/** 点击勾选 / 取消勾选拉取到的模型 */
+function toggleFetchedModel(name: string) {
+  const idx = form.value.models.indexOf(name)
+  if (idx >= 0) {
+    form.value.models.splice(idx, 1)
+    return
+  }
+  if (form.value.models.length >= LIMITS.models) {
+    modelFetchError.value = `最多选择 ${LIMITS.models} 个模型`
+    return
+  }
+  form.value.models.push(name)
+}
+
+// ── 邀请码编辑 ──
+
+function addInviteCode() {
+  if (form.value.inviteCodes.length >= LIMITS.inviteCodes) return
+  form.value.inviteCodes.push({ code: '', label: '', weight: 1, copyLimit: 0 })
+}
+
+function removeInviteCode(index: number) {
+  form.value.inviteCodes.splice(index, 1)
+}
+
+/** 读回既有码池（仅编辑既有通告时有意义；失败时**锁住编辑**，见 inviteCodesLoaded 的说明） */
+async function loadInviteCodes() {
+  inviteCodesLoaded.value = false
+  inviteCodesError.value = ''
+  if (!canEditInviteCodes.value || !props.deal?.id) return
+  try {
+    const res = await $fetch<{
+      data: {
+        codes: Array<{
+          id: number
+          code: string
+          label: string
+          weight: number
+          copy_limit: number
+          copy_count: number
+          enabled: boolean
+          exhausted: boolean
+        }>
+      }
+    }>(`/api/token-deals/${props.deal.id}/invite-codes`, { credentials: 'include' })
+
+    form.value.inviteCodes = (res?.data?.codes || []).map(c => ({
+      id: c.id,
+      code: c.code,
+      label: c.label || '',
+      weight: Number(c.weight) > 0 ? Number(c.weight) : 1,
+      copyLimit: Number(c.copy_limit) || 0,
+      enabled: c.enabled !== false,
+      copy_count: Number(c.copy_count) || 0,
+      exhausted: !!c.exhausted,
+    }))
+    inviteCodesLoaded.value = true
+  } catch (err: any) {
+    // 只读失败不改数据：保持清空但**标记未加载**，submit 会跳过码池那一笔 PUT
+    inviteCodesError.value = err?.data?.error
+      || '邀请码列表加载失败。为避免误删现有邀请码，本次保存不会改动邀请码，请关闭后重试。'
   }
 }
 
@@ -696,13 +1000,20 @@ onMounted(() => {
       region: d.region || 'cn',
       quality: d.quality || '中品',
       source_tag: d.source_tag || 'official',
+      // 2026-10-30 修：此前漏了 category 回填，表单默认值 'token' 会被原样提交，
+      // 导致编辑一条「免费云服务器 / 客户端额度」通告时分类被静默改回 API 额度
+      category: d.category || 'token',
       note: d.note || '',
+      inviteCodes: [],
     }
     expiresDate.value = toDateInput(d.expires_at)
   }
 
   // 快照原始值 —— 提案模式据此算 diff（必须放在表单填充之后）
   original.value = currentPatch()
+
+  // 邀请码：独立资源（详情接口不下发码池），单独拉取
+  void loadInviteCodes()
 
   // 游客模式：预取人机校验方式（Turnstile 挂件 / 通道关闭），省去一次手动点击
   if (isGuest.value) loadChallenge()
@@ -1033,6 +1344,133 @@ onUnmounted(() => {
 .tde-btn.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
 .tde-btn.primary:active:not(:disabled) { background: var(--primary-dark); border-color: var(--primary-dark); }
 .spin { animation: modal-spin 1s linear infinite; }
+
+/* ── 模型拉取（2026-10-30）─────────────────────────────────── */
+.model-fetch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.model-fetch-key {
+  flex: 1;
+  min-width: 0;
+}
+.model-picker {
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+}
+.model-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.model-picker-close {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.model-picker-close:hover { color: var(--text-primary); }
+.model-picker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+.model-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s;
+}
+.model-pick:hover { border-color: var(--border-focus); color: var(--text-primary); }
+.model-pick.selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+/* 拉取失败提示：与普通 hint 区分（红色） */
+.field-hint.is-err { color: var(--danger, #ef4444); }
+
+/* ── 邀请码（2026-10-30）───────────────────────────────────── */
+.tde-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+.invite-edit-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.invite-input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.invite-input.is-small { flex: 0 1 140px; }
+.invite-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.invite-num input {
+  width: 78px;
+  padding: 6px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.invite-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s;
+}
+.invite-remove:hover {
+  border-color: var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+}
+.invite-used {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ── 模型拉取结束 ── */
 
 /* 游客身份：人机校验行（Turnstile 挂件 / 未启用提示 / 失败重试） */
 .challenge-note {

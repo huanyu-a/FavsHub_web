@@ -12,7 +12,10 @@ export default defineEventHandler(async (event) => {
   const title = String(body.title || '').trim()
   const content = String(body.content || '').trim()
   const contentType = body.content_type === 'html' ? 'html' : 'markdown'
-  const status = ['published', 'draft', 'offline'].includes(body.status) ? body.status : 'published'
+  // 2026-10-30：状态收敛为 published（发布）/ pending（待发布）；删除是软删除列，不在这里
+  // 缺省/非法值取 **pending**（fail-closed）：与 PUT 端点、以及迁移里
+  // 「draft/offline → pending」的收敛方向保持一致，不给「参数写错就直接对外发布」留口子
+  const status = ['published', 'pending'].includes(body.status) ? body.status : 'pending'
   const pinned = body.pinned ? 1 : 0
 
   if (!title) {

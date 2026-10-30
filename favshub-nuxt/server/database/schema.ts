@@ -453,11 +453,35 @@ export const announcements = sqliteTable('announcements', {
   title: text('title').notNull(),
   content: text('content').notNull(),
   contentType: text('content_type').default('markdown'), // markdown | html
-  status: text('status').default('published'),           // published | draft | offline
+  status: text('status').default('published'),           // published（发布）| pending（待发布）
   pinned: integer('pinned').default(0),                  // 1 = 置顶, 0 = 普通
+  // 软删除（2026-10-30）：与 status 正交，优先级高于 status；NULL = 未删除
+  deletedAt: integer('deleted_at'),
+  deletedBy: integer('deleted_by'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (table) => [
   index('idx_ann_status_pinned').on(table.status, table.pinned, table.createdAt),
+  index('idx_ann_deleted').on(table.deletedAt, table.createdAt),
+])
+
+// ─── token_deal_invite_codes（通告邀请码池，2026-10-30）──────────
+// 一个通告可配置多个邀请码：按 weight 加权随机，服务端只下发**一个**；
+// copy_count 达到 copy_limit 后该码不再被选中（0 = 不限）。
+// 码池绝不出现在公开详情响应里，否则前端「按比例只显示一个」形同虚设。
+export const tokenDealInviteCodes = sqliteTable('token_deal_invite_codes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  dealId: text('deal_id').notNull().references(() => tokenDeals.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),                  // 邀请码 / 邀请链接
+  label: text('label').default(''),              // 展示备注，如「新用户专享」
+  weight: integer('weight').default(1),          // 展现比例（相对权重，<=0 视为 1）
+  copyLimit: integer('copy_limit').default(0),   // 被复制次数上限；0 = 不限
+  copyCount: integer('copy_count').default(0),   // 已复制次数
+  enabled: integer('enabled').default(1),        // 1 = 参与抽取
+  sortOrder: integer('sort_order').default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_invite_deal').on(table.dealId, table.enabled, table.sortOrder),
 ])
 

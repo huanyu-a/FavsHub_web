@@ -45,9 +45,15 @@ export function normalizeViewer(input: any): DealViewer | null {
   return { id, isAdmin: !!input.isAdmin }
 }
 
-/** 提案人的展示名 */
+/**
+ * 提案人的展示名
+ *
+ * 2026-10-30 前端脱敏：**只用用户自填昵称，绝不再回退到账号名**。
+ * 此前写成 `nickname || username || '匿名'`，导致没设昵称的用户在公开前台的
+ * 「修改建议」列表里直接暴露登录账号名（`TokenDealDetail` / `TokenEditReviewPanel` 都渲染 proposer）。
+ */
 function displayName(row: any): string {
-  return row?.nickname || row?.username || '匿名'
+  return row?.nickname || '社区用户'
 }
 
 /** 安全解析提案 payload */
@@ -77,7 +83,9 @@ function serializeEdit(row: any, deal: any) {
     comment: row.comment || '',
     status: row.status,
     reviewer_id: row.reviewer_id ?? null,
-    reviewer: row.reviewer_name || null,
+    // 2026-10-30 前端脱敏：审核人同样只用昵称（reviewer_nickname 是纯昵称列），
+    // 不再使用 SQL 里 `(r.nickname || r.username)` 的 reviewer_name，避免回退到账号名
+    reviewer: row.reviewer_id ? (row.reviewer_nickname || '管理员') : null,
     reject_reason: row.reject_reason || '',
     payload,
     diff,

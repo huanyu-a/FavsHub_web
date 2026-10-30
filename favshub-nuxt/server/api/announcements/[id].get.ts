@@ -16,11 +16,11 @@ export default defineEventHandler(async (event) => {
     const item = db.prepare(`
       SELECT id, title, content, content_type, pinned, created_at, updated_at
       FROM announcements
-      WHERE id = ? AND status = 'published'
+      WHERE id = ? AND status = 'published' AND deleted_at IS NULL
     `).get(id)
 
     if (!item) {
-      throw createError({ statusCode: 404, message: '公告不存在或已下线' })
+      throw createError({ statusCode: 404, message: '公告不存在或未发布' })
     }
 
     return {

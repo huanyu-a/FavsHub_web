@@ -1888,6 +1888,35 @@ export function createAnnouncementsSchema(db: Database.Database) {
     console.warn('[DB] announcements 索引创建失败:', err.message)
   }
 
+  // 软删除列（2026-10-30）：新增列一律独立 try/catch，勿并入大 exec 块
+  try {
+    ensureColumn(db, 'announcements', 'deleted_at', 'ALTER TABLE announcements ADD COLUMN deleted_at INTEGER')
+  } catch (err: any) {
+    console.warn('[DB] announcements.deleted_at 添加失败:', err.message)
+  }
+  try {
+    ensureColumn(db, 'announcements', 'deleted_by', 'ALTER TABLE announcements ADD COLUMN deleted_by INTEGER')
+  } catch (err: any) {
+    console.warn('[DB] announcements.deleted_by 添加失败:', err.message)
+  }
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_ann_deleted ON announcements(deleted_at, created_at)')
+  } catch (err: any) {
+    console.warn('[DB] announcements 软删除索引创建失败:', err.message)
+  }
+
+  // 状态收敛（2026-10-30）：原 draft / offline → pending（二者都不该在前端露出）
+  try {
+    const r = db.prepare(
+      "UPDATE announcements SET status = 'pending' WHERE status IN ('draft','offline')"
+    ).run()
+    if (r.changes > 0) {
+      console.log(`[DB] 公告状态收敛：${r.changes} 条 draft/offline → pending`)
+    }
+  } catch (err: any) {
+    console.warn('[DB] 公告状态收敛失败:', err.message)
+  }
+
   // 种子公告：若表为空则插入默认示例公告
   try {
     const count = db.prepare('SELECT COUNT(*) as count FROM announcements').get() as { count: number }
@@ -1913,6 +1942,40 @@ export function createAnnouncementsSchema(db: Database.Database) {
 }
 
 /**
+ * 通告邀请码池（2026-10-30）
+ *
+ * 一个通告可配置多个邀请码；服务端按 weight 加权随机只下发一个，
+ * 达到 copy_limit 的码自动退出抽取。
+ */
+export function createInviteCodesSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS token_deal_invite_codes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id    TEXT NOT NULL REFERENCES token_deals(id) ON DELETE CASCADE,
+        code       TEXT NOT NULL,
+        label      TEXT DEFAULT '',
+        weight     INTEGER DEFAULT 1,
+        copy_limit INTEGER DEFAULT 0,
+        copy_count INTEGER DEFAULT 0,
+        enabled    INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 token_deal_invite_codes 失败:', err.message)
+  }
+
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_invite_deal ON token_deal_invite_codes(deal_id, enabled, sort_order)')
+  } catch (err: any) {
+    console.warn('[DB] token_deal_invite_codes 索引创建失败:', err.message)
+  }
+}
+
+/**
  * 执行完整的数据库初始化
  */
 export function initializeDatabase(db: Database.Database) {
@@ -1927,5 +1990,6 @@ export function initializeDatabase(db: Database.Database) {
   createDealEventsSchema(db)
   createFriendLinksSchema(db)
   createAnnouncementsSchema(db)
+  createInviteCodesSchema(db)
   seedDefaults(db)
 }

@@ -86,6 +86,13 @@ docs/screenshots/      # 文档截图（非 public）
 - Token 通告：`components/tokens/`（Card、Detail、Editor、FilterBar）
 - 其它：`BackToTop`、`FloatingNav`、`WelcomeMessage`、`YearProgress`、`common/IconPicker`
 - **BackToTop 为逐页引用组件**（不在任何 layout）：新增长页须手动加 `<BackToTop />`。滚动监听捕获 window / body / 最后滚动容器 / `main`；admin 布局真实滚动容器是 `main.admin-main`（`overflow-y:auto; height:100vh`）。登录页（`layout:false` 单屏居中）无需添加
+- **右下角悬浮件会互相打架（2026-10-30 实测）**：`#back-to-top-container` 在 ≤1024px 为
+  `position:fixed; bottom:calc(80px + safe-area); right:0; z-index:10004`，
+  其 50×50 按钮带 `margin:32px`，实际占据 **右侧 32–82px / 底部 112–162px**；
+  公告挂件 FAB 原为 `right:24px; bottom:120px; z-index:990` → 两者重叠，且 FAB 的
+  z-index 远低于回到顶部容器（10004），**点击直接落到回到顶部按钮上、FAB 完全点不到**。
+  修法是把 FAB 抬到回到顶部之上（`bottom: calc(176px + safe-area)`）并居中（≤1024 用 `right:33px`，
+  ≤768 用 `right:35px` 配 44×44）。**以后往右下角加悬浮件，必须先量这两个数**。
 - Pinia `bookmarks`：个人书签 vs 精选集 `viewMode` / `fetchCollectionData`
 
 ### 管理后台能力
@@ -136,6 +143,9 @@ collection_imports                 # 导入到用户空间
 `settings`（`user_id` PK，`id=0` 系统默认）· `search_engines` · `system_config`  
 `token_deals` / `token_deal_votes` / `token_deal_reviews` / `guest_submit_quota`
 （Token 白嫖通告与游客提交配额，见「产品域行为」）  
+`token_deal_invite_codes`（通告邀请码池：比例 / 复制阈值 / 计数，见「邀请码」；**公开侧绝不下发**）  
+`announcements`（站点公告；`status` 仅 `published`/`pending`，删除走正交的 `deleted_at`/`deleted_by` 软删除，
+见「站点公告与友情链接」）  
 `token_deal_events`（对外订阅的事件流，**append-only，`seq` 即游标**）/ `deal_subscriptions`
 （游客机器人订阅账本，见「通告事件流与订阅」）  
 `token_keys` / `token_key_votes`（福利 Key 快照与可用性投票，见「产品域行为」；**时间戳为秒**，其余表为毫秒）  
@@ -172,6 +182,12 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | `/api/collections/*` | 精选集 CRUD、订阅、导入、书签引用 | 混合 |
 | `/api/prompts/*`、`/api/tags/*` | 提示词、版本、审核申请 | 登录 |
 | `/api/token-deals/*` | Token 通告：列表 / 详情 / 发布 / 改删（软删除）/ 投票 / 评测 / 导入 / 置顶 | 混合 |
+| `/api/token-deals/:id/invite-code` | 公开抽**一个**邀请码（服务端加权随机，`canReadDeal` 同口径） | 混合 |
+| `/api/token-deals/:id/invite-code/:codeId/copy` | 邀请码复制计数（IP+通告 限频 20/h；写闸门 `findWritableDeal`） | 混合 |
+| `/api/token-deals/:id/invite-codes` | 完整码池读写（全量替换；仅作者 / 管理员） | 登录（作者/管理员） |
+| `/api/token-deals/fetch-models` | 从 `call_url` 拉取模型清单（服务端出站，SSRF 三重防护；登录 30/h、游客 6/h） | 混合 |
+| `/api/announcements[/:id]` | 站点公告公开读取（仅 `published` 且未软删除） | 无 |
+| `/api/admin/announcements[/:id]` | 公告管理：三态（`published`/`pending`）+ 软删除 + `{restore:true}` 恢复 | 管理员 |
 | `/api/admin/token-deals/:id/restore` | 恢复删除 / 撤销失效 / 标记失效 / 续期 / 改永久（管理员，支持 `dry_run`） | 管理员 |
 | `/api/admin/token-deals/:id/purge` | 彻底删除通告及其明细（物理删除，须 `{confirm:true}`） | 管理员 |
 | `/api/token-deals/changes` | 通告事件增量流（`?tail=1` 基线 / `?since=` 增量 / `?token=` 过滤；无变化 304） | 无 |
@@ -279,7 +295,7 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 | 列 / 表 | 含义 |
 |----|------|
 | `token_deals.verified_at` | 最近一次确认可用的时刻；`0` / `NULL` = 从未核验 |
-| `token_deals.verified_by` | 核验人（管理员用户名）——**只在后台下发**，公开侧不下发 |
+| `token_deals.verified_by` | 核验人（管理员用户名）——**任何身份都不下发**（含管理员浏览公开前台），后台走 `/api/admin/token-deals` |
 | `token_deals.verify_note` | 最近一次核验备注（如「注册实测通过，额度到账」） |
 | `token_deal_verifications` | 核验流水（`action` / `note` / `actor` / `created_at`），append-only |
 
@@ -295,7 +311,10 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   （`?stale=1`、后台 `?verify=stale`），**不影响可见性** —— 可见性仍由
   `status` / `deleted_at` / `invalid_at` / `expires_at` 决定，别把两件事混在一起。
 - **派生字段**：列表/详情返回 `verified_at`、`verify_age_days`（-1 = 从未核验）、`verify_stale`、
-  `verify_note`；详情另带 `verifications`（公开侧最多 3 条且 `actor` 置空，管理员 10 条含核验人）。
+  `verify_note`；详情另带 `verifications`。
+- **核验人永不出现在前端（2026-10-30）**：`verified_by` 恒下发空串、`verifications[].actor` 恒置空，
+  **不再按 `isAdmin` 放行**。原因：原实现写成 `isAdmin ? row.verified_by : ''`，管理员浏览公开前台时
+  仍会看到账号名，与「前端不出现敏感信息」直接冲突。前端组件也不再渲染该字段。
 - **AI 侧**：`/api/ai/describe` 把 `verified_at` / `verify_stale` 标为**只读**字段（AI 不能自封核验），
   并提示「优先推最近核验 + 社区投票健康」的条目。
 
@@ -331,6 +350,20 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **不在推送与公开页暴露身份**：`users.username` 一律不出现在 `/api/token-deals*`、
   `/api/collections*` 的响应里（管理员接口除外）；详情页「发布者」只显示用户自填昵称，
   没有昵称就显示「社区用户」；待审通知里提交人只写「游客 / 注册用户」。
+- **2026-10-30 二次收紧（前端脱敏）**：光靠「管理员除外」不够 —— 管理员也会用公开前台，
+  而前台一旦渲染就是泄露。因此：
+  - 用户名类字段（`verified_by`、`verifications[].actor`）**任何身份都不下发**，只看后台；
+  - 内部标识（`user_id`）、下架操作人（`deleted_by`）不进公开列表/详情 —— 归属判断一律用服务端算好的
+    `is_owner` / `can_edit` / `can_moderate`，前端不需要也不该拿到 ID；
+  - `server/utils/deal-edits.ts` 的 `displayName()` / `reviewer` **不再回退到 `username`**
+    （原为 `nickname || username || '匿名'`，没设昵称的用户会在公开前台的「修改建议」里
+    直接暴露登录账号名），改为 `nickname || '社区用户'`；
+  - **游客指纹也不下发**（`guest_fingerprint`）：`...row` 展开全列会让它混进公开列表/详情
+    （2026-10-30 审查实测确认）。它是 `sha256(ip|ua)`，与 `utils/guest-reviews.ts` 的身份识别
+    是**同一算法**，一旦泄露就能把「同一个匿名访客发过的所有通告」串起来，游客通道的匿名性即失效。
+    现在列表与详情都显式置 `undefined`。**`guest_name` 要保留** —— 那是游客自填的展示名，与昵称同级。
+  - 公开侧仍用 `...row` 展开全列，所以**每次往 `token_deals` 加内部字段都要回来看一眼**
+    这两个端点要不要显式剔除。
 - **`text` / `markdown` 都不落库**：只存 `snapshot`（公开字段）+ `meta.changes`（差异结构），文案在读取时渲染
   —— 站点换域名时链接跟着变。`offline` 的 `snapshot` 走 `offlineSnapshot()` 只留
   `id/provider/title/expires_at/share_path`：下架后额度 / 模型 / 领取链接不该再从公开流里读到。
@@ -365,6 +398,91 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   `deal_sub_per_ip_per_day`(3) / `deal_events_retention_days`(90) / `deal_changes_max_limit`(100)。
   保留期清理在 `server/plugins/db-init.ts` 启动时跑（`pruneDealEvents`）。
 - **不要**给这条链路加「站点主动推送到游客地址」的能力：那会让站点变成开放出站代理。
+
+#### 邀请码（2026-10-30）
+
+> 需求：一个通告可配**多个**邀请码，每个码可设「展现比例」与「被复制次数」；
+> 用户访问详情页时邀请码按比例出现，前端**只显示一个**，被复制次数达到阈值后不再出现。
+
+| 表 / 列 | 含义 |
+|----|------|
+| `token_deal_invite_codes.deal_id` | 所属通告（带 `ON DELETE CASCADE`，但**不要依赖级联**，见 `purgeDealPermanently`） |
+| `.code` / `.label` | 邀请码内容 / 展示备注 |
+| `.weight` | 展现比例（相对权重，`<=0` 兜底为 1） |
+| `.copy_limit` | 被复制次数上限，`0` = 不限 |
+| `.copy_count` | 已复制次数（由 copy 端点自增） |
+| `.enabled` / `.sort_order` | 是否参与抽取 / 展示顺序 |
+
+- **码池绝不随详情下发（核心设计）**：若把 `invite_codes` 数组放进 `GET /api/token-deals/:id`，
+  前端「按比例只显示一个」就纯属摆设（F12 一开全看得见），比例与阈值同时失效。
+  因此公开侧只有两个端点，且都**不暴露码池**：
+  - `GET /api/token-deals/:id/invite-code` → 服务端按权重**加权随机抽一个**，只返回这一个，
+    并附一个 32 位 HMAC 抽中凭证 `t`；无可用码返回 `{ id:null, code:null, t:'' }`。
+    **按 IP + 通告限频 60 次/小时** —— 原先完全无限频，脚本循环请求即可把整池码收割走。
+  - `POST /api/token-deals/:id/invite-code/:codeId/copy` → 计数，body 必须带 `{ t }`。
+    没有凭证的话，枚举 `codeId` 就能把每个码的配额逐个烧满、把码从池里挤出去
+    （实测把 `copy_limit=2` 的码两次烧满）。凭证校验见 `verifyDrawToken`，管理员豁免。
+- **可见性口径必须走 `canReadDeal` / `findWritableDeal`**：2026-10-30 审查发现这两个函数
+  **原先都不判 `status`**（注释写「与 `status='approved'` 配合」，等于把责任推给每个调用方）——
+  详情端点自己补了，新加的邀请码端点没补，于是**未过审 / 已驳回通告的邀请码可被匿名读到**
+  （实测 200 + 明文码，而同一 deal 的详情是 403）。现在 `status` 判定收在函数内部，
+  新增任何按 id 读写通告的端点直接调它们即可，不必也不该再自己补一次。
+- **`copy_limit` 是「防君子不防小人」**：用户完全可以把码手动抄给别人而不点复制按钮，
+  凭证与限频只是让「通过本站接口刷」变得有成本。前端文案按这个口径写，
+  不要宣称「散播次数严格等于计数值」。
+- **完整码池只在作者/管理员侧**：`GET|PUT /api/token-deals/:id/invite-codes`
+  （`findManageableDeal` 闸门：已删除 → 404，非作者非管理员 → 403）。
+- **全量替换语义**：`PUT` 的 `codes` 就是最终码池，缺失的码被删除；缺 `codes` 字段 → 400
+  （避免调用方漏传被静默当成「清空码池」）。
+  **前端配套**：编辑器读码池失败时锁住编辑并跳过这笔 PUT（`inviteCodesLoaded`），
+  否则「读失败 = 空池」会把整池连同 `copy_count` 删掉。
+- **`copy_count` 在替换时按码内容沿用**（`replaceInviteCodes`）：否则每次编辑通告
+  （哪怕只改标题）都会把计数清零，已经用满的码会重新开始出现。
+  匹配是**大小写敏感的精确匹配** —— 改码内容（含只改大小写）即视为新码、计数从 0 起，
+  这是刻意的（运营可借改码重置额度）。
+- **`enabled` 只认显式停用**：`false` / `0` / `'false'` / `'0'` 才算停用，其余一律启用。
+- **计数是原子的条件自增**：`UPDATE ... SET copy_count = copy_count + 1 WHERE ... AND (copy_limit = 0 OR copy_count < copy_limit)`，
+  把「检查」和「自增」压进同一条语句，避免并发超发（实测 4 进程 × 60 次 / limit 25 → 恰好 25，零超发）。
+- **加权随机的退化保护**：`weight <= 0` 兜底为 1；权重之和算出 `Infinity` 时改用等概率
+  （否则永远返回池中最后一个码、其余码被饿死）。
+- **AI 通道不开放码池读写**：邀请码属分发控制信息，走人工界面更可控，故不入 `DEAL_PATCHABLE`。
+- **前端**：详情页 `TokenDealDetail.vue` 的邀请码区块（只读、带复制按钮，复制时带凭证上报一次计数）；
+  编辑器 `TokenDealEditor.vue` 的码池表格仅在 `isEdit && !isGuest && !isProposal` 时出现
+  —— 码池挂在通告 ID 上，新建时还没有 ID。
+
+#### 富文本备注与 HTML 消毒（2026-10-30）
+
+- 备注上限 **500 → 2000**（`LIMITS.note`，前后端同步），支持 Markdown + HTML + 图片。
+- **渲染放在服务端**：详情接口新增 `note_html`，由 `server/utils/rich-text.ts` 的
+  `renderRichText()` 用 `marked` 解析后经 `sanitize-html` 白名单消毒，**前端只 `v-html` 成品**。
+  选这条路的理由：备注是**普通用户可写**字段，消毒点必须在唯一入口；
+  若交给前端渲染，每个消费方（页面/分享卡片/快照）都得记得消毒一次，漏一处就是漏洞。
+- 白名单只放行常见排版标签与 `img` / `a` / `table` / `code` / `pre`；
+  `a` 强制 `rel="noopener noreferrer"`；协议只允许 `http` / `https` / `mailto`
+  （**不放行 `data:`** —— 2000 字上限下 base64 图片根本塞不下，放行只有风险没有收益）。
+- 降级路径保守：`marked` 或 `sanitize-html` 抛异常时，只输出**转义后的纯文本**，
+  绝不把原文当 HTML 吐出去。
+- 原始 `note` 仍照常下发（供编辑器回填），前端渲染一律用 `note_html`。
+- 公告正文沿用「前端 `marked` + `v-html`」的既有实现（公告正文是**管理员**独有权限的字段），
+  本次未改动；新增的富文本场景请一律走 `renderRichText()`。
+
+#### 模型清单拉取（2026-10-30）
+
+- 需求：「内置 `/v1/models` 接口直接获取模型，然后手动点击选择；部分平台需要 key 才出现 key 字段，
+  填了 key 再获取模型」。端点：`POST /api/token-deals/fetch-models`（`{ call_url, api_key? }`）。
+- **URL 规整**（`normalizeModelsEndpoint`）：去尾斜杠 → 已以 `/models` 结尾则原样 →
+  以 `/v\d+` 结尾则补 `/models` → 否则补 `/v1/models`。
+- **这是本站极少数的服务端主动出站接口，SSRF 是首要风险**，三重防护缺一不可：
+  1. 协议与主机名：仅 http/https；复用 `isPrivateHostname` 挡 `localhost` / `*.internal` / 内网 IP 字面量；
+     拒绝 URL 内嵌凭据；
+  2. **DNS 二次解析**后校验 IP（挡 `evil.com` 解析到 `127.0.0.1` 这类 rebinding）；
+  3. **`redirect:'manual'` 手动跟一跳并重新做完整校验** —— 交给 fetch 自动跟随等于绕过前两步
+     （首跳合法、次跳指向内网）。
+- 其它边界：响应体上限 2 MB、超时 12 秒、返回模型数上限 500；`api_key` **只用于本次出站**，
+  不落库、不回显、不写日志（并拒绝含 `\r\n` 的 key 以防 header 注入）。
+- 限频：登录用户 30 次/小时（按 用户+IP），游客 6 次/小时（按 IP）。
+  放行游客是为了不砍掉「游客投稿」通道，但额度压得很低。
+- 上游错误一律**不回显原始信息**（可能含内网细节），只转成可操作的中文提示。
 
 #### QQ 机器人出站配额（2026-10-20）
 
@@ -428,6 +546,27 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
   - 投票端点复用列表可见口径（`published` + 非 `dead` + 回帖指引 24h 内），不可见行一律 **404**（不区分「不存在」与「已下架」）
   - `my_vote` **不**进列表响应（列表按「公开资源共享缓存」语义设计：`routeRules` 声明 `public, max-age=300`，但容器 nginx 的 API 段另加 `private, no-cache`，实际不落共享缓存），由 `GET /api/token-keys/my-votes` 客户端挂载后批量补拉（`no-store` + `Vary: Cookie`）
   - 爬虫 `upsertTokenKey` 的 UPDATE / INSERT **不含**投票列 → 每轮上报不会清零投票；`pruneTokenKeys` 删行时级联清理 `token_key_votes`
+
+### 站点公告与友情链接（2026-10-30 三态 + 软删除）
+
+前台悬浮公告挂件（`components/common/SiteAnnouncement.vue`）读取 `GET /api/announcements`；
+公告正文与「通告备注」不同，是**管理员独有**字段，沿用前端 `marked` + `v-html` 渲染（未改）。
+
+- **状态模型**：`status` 只有两个值 —— `published`（发布）/ `pending`（待发布）；
+  「删除」**不是**第三个状态，而是正交的软删除列 `deleted_at` / `deleted_by`。
+  有效公开可见 = `status = 'published' AND deleted_at IS NULL`。
+  新建公告时 status **缺省取 `pending`**（fail-closed）：与 PUT 端点、以及迁移里
+  「`draft`/`offline` → `pending`」的收敛方向一致，不给「参数写错就直接对外发布」留口子。
+- **为什么删除不做成 status**：做成状态就会和「待发布」抢同一个字段
+  （「待发布且已删除」无法表达），且恢复时无法知道该退回哪个状态。两列分开后，
+  删除只记「谁在什么时候删的」，恢复即把两列清空、状态原样保留。
+- **历史值收敛**：老库里的 `draft` / `offline` 在启动迁移里统一改为 `pending`
+  （二者语义都是「未发布」，没有信息损失），迁移日志会打印收敛条数。
+- **后台筛选**：`GET /api/admin/announcements?status=published|pending|deleted`
+  （省略 = 全部）；已删除行排序垫底，前台用 `row-deleted` 样式区分并只给「恢复」按钮。
+- **恢复**：`PUT /api/admin/announcements/:id` 带 `{ restore: true }`，
+  在**同一事务**里先更新字段再清空删除标记，避免出现「字段已改但没恢复」的中间态。
+- **公开端点不区分「不存在」与「未发布/已删除」**（一律 404），避免靠状态码探测草稿。
 
 ### AI 数据操作通道（PAT）
 
@@ -508,6 +647,13 @@ curl -s https://hao.bx9y.com.cn/api/health
 - **SSR / hydration**：`useMobile` 等 SSR 与客户端宽度可能不一致；`isMobile` 默认须与 CSS 断点（约 `1024px`，`mobile-responsive.css`）一致，避免 mismatch / `insertBefore`
 - **watch**：下一 tick 异步；同一操作勿「手动调 API + 依赖 watcher 再调」
 - **CSS 缓存**：`layouts/default.vue` / `admin.vue` 的 `useHead` 上 `?v=`
+- **移动端覆盖必须写进组件内（2026-10-30 踩坑）**：顶层 CSS 规则优先于 `@layer`；
+  而 `<style scoped>` 的规则带 `[data-v-*]`，与外部类规则**同特异度**（都是 0,2,0），
+  于是靠加载顺序决胜 —— 外部 `mobile-responsive.css` 与组件的先后顺序不可依赖。
+  因此**改组件在移动端的表现，覆盖规则要写在组件自己的 `<style scoped>` 里**，
+  别指望外部 `mobile-responsive.css` 能压住组件内样式（反之亦然）。
+- **`v-html` 的内容命中不了 scoped 样式**：必须用 `:deep()`（如备注富文本
+  `TokenDealDetail.vue` 的 `.tdd-note.markdown-body :deep(p)`）。
 - **CI**：功能提交不必 bump `VERSION`
 - **密钥**：勿提交 `DEPLOY.md`、密码、JWT secret
 - **部署 skill 仅本机**：本机部署要点在同机 skill `bt-docker-reverse-proxy-deploy`（`%USERPROFILE%\.workbuddy\skills\`）与 `favshub-nuxt/DEPLOY.md`，内含服务器 IP、部署路径、SSH 私钥路径等本机专属信息，**只能留在本机**，不得提交。对外分发的技能包是仓库根的 `favshub-data-ops/`，两者不是一回事

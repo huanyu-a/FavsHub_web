@@ -732,10 +732,23 @@ onMounted(() => {
   opacity: 0;
 }
 
+/* ── 移动端避让「回到顶部」按钮（2026-10-30）──────────────────────
+   #back-to-top-container 在 ≤1024px 时 bottom: calc(80px + safe-area)，
+   其内按钮为 50×50 + margin:32px → 按钮实际占据「下 112–162px、右 32–82px」，
+   且容器 z-index:10004 远高于本组件 FAB 的 990，重叠时 FAB 会被盖住且点击无效。
+   因此 FAB 必须整体叠到按钮**上方**：bottom ≥ 162px + 间距；
+   同时把水平中心对齐到按钮中心（距离右缘 57px），视觉上形成一列。 */
+@media (max-width: 1024px) {
+  .announcement-fab {
+    right: 33px; /* 57 - 48/2 */
+    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (max-width: 768px) {
   .announcement-fab {
-    right: 16px;
-    bottom: 90px;
+    right: 35px; /* 57 - 44/2 */
+    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
     width: 44px;
     height: 44px;
   }

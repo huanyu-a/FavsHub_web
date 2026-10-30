@@ -52,7 +52,11 @@ export const LIMITS = {
   url: 500,
   callUrl: 500,
   quota: 200,
-  note: 500,
+  /**
+   * 备注：2026-10-30 由 500 提到 2000，并支持 Markdown / HTML / 图片富文本。
+   * 富文本在服务端用白名单消毒（见 `server/utils/rich-text.ts`），前后端同时校验此上限。
+   */
+  note: 2000,
   models: 20,
   modelName: 60,
   reviewContent: 1000,
@@ -791,6 +795,8 @@ export function purgeDealPermanently(db: Database.Database, dealId: string): voi
     db.prepare('DELETE FROM token_deal_review_marks WHERE deal_id = ?').run(dealId)
     // 游客投票：同样无 FK（游客没有 users 行），不显式清理即留下孤儿票
     db.prepare('DELETE FROM token_deal_guest_votes WHERE deal_id = ?').run(dealId)
+    // 邀请码池（2026-10-30）：表上带了 ON DELETE CASCADE，但如上所述不能依赖级联
+    db.prepare('DELETE FROM token_deal_invite_codes WHERE deal_id = ?').run(dealId)
     db.prepare('DELETE FROM token_deals WHERE id = ?').run(dealId)
     // 事件流是公开历史，通告本体消失后不得再留下指向它的条目
     deleteDealEvents(db, dealId)
@@ -798,12 +804,19 @@ export function purgeDealPermanently(db: Database.Database, dealId: string): voi
 }
 
 /**
- * 读入口（详情 / 评测列表 / 游客评测 / 分享卡片）的可见性判定。
+ * 读入口（详情 / 评测列表 / 游客评测 / 分享卡片 / 邀请码）的可见性判定。
  *
  * 与详情端点同一口径，避免「详情已 404，但换个端点还能把内容读出来」：
  *   - 已删除：仅管理员（作者也不行 —— 恢复是管理员动作）；
+ *   - **未过审（`pending` / `rejected`）：仅作者与管理员**；
  *   - 已失效 / 已过期：作者与管理员可见，其余一律不可见；
  *   - 公开可见：所有人。
+ *
+ * `status='approved'` 为什么必须判在**这里**（2026-10-30 审查修）：
+ * 本函数原先只判 deleted/invalid/expired，注释写「与 `status='approved'` 配合」，
+ * 等于把补 status 的责任推给每个调用方 —— 详情端点自己补了，新加的邀请码端点没补，
+ * 于是未过审 / 已驳回通告的邀请码可被匿名读到（实测 200 + 明文码，而同一 deal 的详情是 403）。
+ * 可见性口径要收在函数内部：**新增任何按 id 读通告内容的端点，直接调它就行**。
  *
  * 注意 AI 通道的 `token.user_id` 与 Cookie 登录态都直接传进来即可，
  * 两边都只是「谁在看」，不涉及角色系统差异。
@@ -815,16 +828,18 @@ export function canReadDeal(
 ): boolean {
   if (!deal) return false
   if (deal.deleted_at) return !!viewer.isAdmin
-  if (isPubliclyVisible(deal, now)) return true
+  if (deal.status === 'approved' && isPubliclyVisible(deal, now)) return true
   if (viewer.isAdmin) return true
   return viewer.id != null && deal.user_id === viewer.id
 }
 
 /**
- * 写入口（投票 / 评测 / 建议 / 打标 / 置顶 / 导入）的可见性闸门。
+ * 写入口（投票 / 评测 / 建议 / 打标 / 置顶 / 导入 / 邀请码计数）的可见性闸门。
  *
  * 规则：
  *   - 通告不存在 或 已删除 → 一律 404（管理员也不给写，恢复走 restore 端点）；
+ *   - **未过审（`pending` / `rejected`）→ 对非管理员 404**，且不透露审核状态
+ *     （2026-10-30 审查修：原先漏判 `status`，未过审通告的写入口对匿名访客是放行的）；
  *   - 已失效 / 已过期 → 对普通访客 404（冻结交互，避免「已失效却继续收好评」的矛盾数据），
  *     管理员放行（要能在后台对失效条目做数据维护）。
  *
@@ -842,6 +857,10 @@ export function findWritableDeal(
   ).get(dealId) as Record<string, any> | undefined
 
   if (!deal || deal.deleted_at) {
+    return { ok: false, status: 404, error: '通告不存在' }
+  }
+  // 未过审视同「不存在」：不向调用方暴露审核状态
+  if (deal.status !== 'approved' && !opts.isAdmin) {
     return { ok: false, status: 404, error: '通告不存在' }
   }
   if (!opts.isAdmin && !isPubliclyVisible(deal)) {

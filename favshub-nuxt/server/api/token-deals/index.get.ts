@@ -188,6 +188,12 @@ export default defineEventHandler(async (event) => {
       verify_stale: isVerifyStaleRow(row, now),
       verify_note: String(row.verify_note || ''),
       verified_by: undefined,
+      // 2026-10-30 前端脱敏：内部标识与下架操作人不进公开列表
+      user_id: undefined,
+      deleted_by: undefined,
+      // 游客指纹不下发（与详情同口径）：它是同一匿名访客的跨通告关联键，
+      // 公开侧只保留游客自填的 guest_name
+      guest_fingerprint: undefined,
       nexus,
     }
   })

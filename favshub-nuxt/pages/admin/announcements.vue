@@ -11,6 +11,13 @@
           <h3>公告列表 ({{ filteredAnnouncements.length }})</h3>
         </div>
         <div class="header-actions">
+          <!-- 2026-10-30：状态收敛为「发布 / 待发布」，删除改为软删除，故单列一个筛选 -->
+          <select v-model="statusFilter" class="search-input status-filter">
+            <option value="all">全部状态</option>
+            <option value="published">已发布</option>
+            <option value="pending">待发布</option>
+            <option value="deleted">已删除</option>
+          </select>
           <input
             v-model="searchQuery"
             type="text"
@@ -46,7 +53,7 @@
             <tr v-else-if="filteredAnnouncements.length === 0">
               <td colspan="7" class="empty-state">暂无公告</td>
             </tr>
-            <tr v-for="item in filteredAnnouncements" :key="item.id">
+            <tr v-for="item in filteredAnnouncements" :key="item.id" :class="{ 'row-deleted': !!item.deleted_at }">
               <td>{{ item.id }}</td>
               <td>
                 <span v-if="item.pinned" class="badge badge-pinned" title="置顶公告">
@@ -61,17 +68,17 @@
                 <span class="badge badge-type">{{ item.content_type?.toUpperCase() || 'MARKDOWN' }}</span>
               </td>
               <td>
-                <span
-                  class="badge"
-                  :class="item.status === 'published' ? 'badge-public' : (item.status === 'draft' ? 'badge-pending' : 'badge-private')"
-                >
-                  {{ item.status === 'published' ? '已发布' : (item.status === 'draft' ? '草稿' : '已下线') }}
-                </span>
+                <span class="badge" :class="statusBadgeClass(item)">{{ statusLabel(item) }}</span>
               </td>
               <td class="time-cell">{{ formatDate(item.created_at) }}</td>
               <td class="actions" style="text-align: right;">
-                <button class="btn btn-ghost btn-sm" @click="openEdit(item)">编辑</button>
-                <button class="btn btn-danger btn-sm" @click="confirmDelete(item)">删除</button>
+                <template v-if="item.deleted_at">
+                  <button class="btn btn-primary btn-sm" @click="restoreAnnouncement(item)">恢复</button>
+                </template>
+                <template v-else>
+                  <button class="btn btn-ghost btn-sm" @click="openEdit(item)">编辑</button>
+                  <button class="btn btn-danger btn-sm" @click="confirmDelete(item)">删除</button>
+                </template>
               </td>
             </tr>
           </tbody>
@@ -96,9 +103,8 @@
             <div class="fg" style="flex: 1;">
               <label>发布状态</label>
               <select v-model="form.status">
-                <option value="published">正式发布（前端立即展示）</option>
-                <option value="draft">存为草稿（仅后台可见）</option>
-                <option value="offline">下线停用</option>
+                <option value="published">发布（前端立即展示）</option>
+                <option value="pending">待发布（仅后台可见）</option>
               </select>
             </div>
 
@@ -186,8 +192,12 @@ interface AnnouncementItem {
   title: string
   content: string
   content_type: 'markdown' | 'html'
-  status: 'published' | 'draft' | 'offline'
+  /** 2026-10-30：发布 / 待发布。删除不再是一个状态值，而是下面的 deleted_at */
+  status: 'published' | 'pending'
   pinned: number | boolean
+  /** 软删除标记；非空 = 已删除（仅后台可见，可恢复） */
+  deleted_at?: number | null
+  deleted_by?: number | null
   created_at: number
   updated_at: number
 }
@@ -196,6 +206,8 @@ const loading = ref(false)
 const submitting = ref(false)
 const announcements = ref<AnnouncementItem[]>([])
 const searchQuery = ref('')
+/** 状态筛选：all | published | pending | deleted */
+const statusFilter = ref<'all' | 'published' | 'pending' | 'deleted'>('all')
 const modalVisible = ref(false)
 const isNew = ref(true)
 const currentId = ref<number | null>(null)
@@ -205,14 +217,33 @@ const form = ref({
   title: '',
   content: '',
   content_type: 'markdown' as 'markdown' | 'html',
-  status: 'published' as 'published' | 'draft' | 'offline',
+  status: 'published' as 'published' | 'pending',
   pinned: false,
 })
 
+/** 列表状态文案：软删除优先于状态（与后端口径一致） */
+function statusLabel(item: AnnouncementItem): string {
+  if (item.deleted_at) return '已删除'
+  return item.status === 'published' ? '已发布' : '待发布'
+}
+
+function statusBadgeClass(item: AnnouncementItem): string {
+  if (item.deleted_at) return 'badge-private'
+  return item.status === 'published' ? 'badge-public' : 'badge-pending'
+}
+
 const filteredAnnouncements = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return announcements.value
-  return announcements.value.filter(item =>
+  let list = announcements.value
+
+  if (statusFilter.value === 'deleted') {
+    list = list.filter(item => !!item.deleted_at)
+  } else if (statusFilter.value !== 'all') {
+    list = list.filter(item => !item.deleted_at && item.status === statusFilter.value)
+  }
+
+  if (!q) return list
+  return list.filter(item =>
     item.title.toLowerCase().includes(q) ||
     item.content.toLowerCase().includes(q)
   )
@@ -264,7 +295,7 @@ function openEdit(item: AnnouncementItem) {
     title: item.title,
     content: item.content,
     content_type: item.content_type || 'markdown',
-    status: item.status || 'published',
+    status: item.status === 'pending' ? 'pending' : 'published',
     pinned: !!item.pinned,
   }
   modalVisible.value = true
@@ -303,12 +334,26 @@ async function saveAnnouncement() {
 }
 
 async function confirmDelete(item: AnnouncementItem) {
-  if (!confirm(`确定要删除公告「${item.title}」吗？`)) return
+  if (!confirm(`确定要删除公告「${item.title}」吗？\n（软删除：前端立即隐藏，可在「已删除」筛选中恢复）`)) return
   try {
     await $fetch(`/api/admin/announcements/${item.id}`, { method: 'DELETE' })
     await fetchAnnouncements()
   } catch (err: any) {
     alert(err?.data?.message || err?.message || '删除失败')
+  }
+}
+
+/** 撤销软删除（2026-10-30）：仅清 deleted_at，不改状态 */
+async function restoreAnnouncement(item: AnnouncementItem) {
+  if (!confirm(`确定要恢复公告「${item.title}」吗？恢复后按原状态生效。`)) return
+  try {
+    await $fetch(`/api/admin/announcements/${item.id}`, {
+      method: 'PUT',
+      body: { restore: true },
+    })
+    await fetchAnnouncements()
+  } catch (err: any) {
+    alert(err?.data?.message || err?.message || '恢复失败')
   }
 }
 
@@ -337,6 +382,18 @@ onMounted(() => {
   color: var(--text-primary);
   font-size: 13px;
   width: 200px;
+}
+/* 2026-10-30：公告状态筛选（复用 .search-input 外观，仅收窄） */
+.status-filter {
+  width: 132px;
+  cursor: pointer;
+}
+/* 已删除行整体压暗，与可编辑行区分（删除是软删除，行仍留在列表里） */
+.row-deleted td {
+  opacity: 0.6;
+}
+.row-deleted .name-cell strong {
+  text-decoration: line-through;
 }
 .modal-large {
   max-width: 760px;

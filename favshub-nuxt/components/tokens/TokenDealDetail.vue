@@ -121,6 +121,19 @@
             </div>
           </section>
 
+          <!-- 邀请码（2026-10-30）：通告可配多个码，服务端按展现比例加权随机只下发一个 -->
+          <section v-if="inviteCode" class="tdd-section">
+            <h4 class="section-title"><i class="ri-coupon-3-line"></i> 邀请码</h4>
+            <div class="invite-row">
+              <code class="invite-code">{{ inviteCode.code }}</code>
+              <button type="button" class="tdd-btn tiny" @click="copyInviteCode">
+                <i :class="inviteCopied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+                {{ inviteCopied ? '已复制' : '复制' }}
+              </button>
+            </div>
+            <p v-if="inviteCode.label" class="invite-label">{{ inviteCode.label }}</p>
+          </section>
+
           <!-- 人工核验记录：站点确认「此刻仍可用」的时间线 -->
           <section v-if="verifications.length || deal.verify_note" class="tdd-section">
             <h4 class="section-title"><i class="ri-shield-check-line"></i> 人工核验</h4>
@@ -128,7 +141,9 @@
             <ul class="verify-list">
               <li v-for="(v, i) in verifications" :key="i" class="verify-item">
                 <span class="verify-action" :class="`is-${v.action}`">{{ v.action_label }}</span>
-                <span v-if="v.actor" class="verify-actor" title="核验人（仅管理员可见）">{{ v.actor }}</span>
+                <!-- 2026-10-30 前端脱敏：公开前台不再渲染核验人用户名（actor）。
+                     核验人属内部审计信息，只应在后台管理页出现；
+                     此前按 isAdmin 放行，导致管理员浏览公开前台时仍能看到账号名。 -->
                 <span class="verify-date">{{ formatTime(v.created_at) }}</span>
                 <span v-if="v.note" class="verify-item-note">{{ v.note }}</span>
               </li>
@@ -144,9 +159,13 @@
           </section>
 
           <!-- 备注 -->
-          <section v-if="deal.note" class="tdd-section">
+          <section v-if="deal.note_html || deal.note" class="tdd-section">
             <h4 class="section-title"><i class="ri-sticky-note-line"></i> 备注</h4>
-            <p class="tdd-note">{{ deal.note }}</p>
+            <!-- 2026-10-30：备注升级为富文本（Markdown / HTML / 图片），上限 2000 字。
+                 这里渲染的是**服务端已白名单消毒**的 note_html，不是用户原文 ——
+                 备注是普通用户可写字段，对原文直接 v-html 等于开 XSS 口子。 -->
+            <div v-if="deal.note_html" class="tdd-note markdown-body" v-html="deal.note_html"></div>
+            <p v-else class="tdd-note">{{ deal.note }}</p>
           </section>
 
           <!-- 我的修改建议状态 -->
@@ -647,6 +666,10 @@ interface ITokenDeal {
   expires_at?: number | null
   pinned?: number
   note?: string
+  /** 2026-10-30：服务端渲染并消毒后的备注 HTML（前端直接 v-html，勿自行渲染 note） */
+  note_html?: string
+  /** 2026-10-30：是否还有可用邀请码（码池不下发，码本身走 /invite-code 单独抽） */
+  has_invite_code?: boolean
   status?: string
   reject_reason?: string
   /** 公开接口不再下发 username（避免泄露账号名），这里保留可选仅作历史兼容 */
@@ -657,6 +680,7 @@ interface ITokenDeal {
   invalid_reason_label?: string
   // 人工核验时间轴（2026-10-20）
   verified_at?: number
+  /** 2026-10-30 前端脱敏：公开接口一律下发空串（核验人不下发到前端），保留字段仅为类型兼容 */
   verified_by?: string
   verify_note?: string
   verify_age_days?: number
@@ -778,6 +802,12 @@ const deleting = ref(false)
 const importing = ref(false)
 const submitting = ref(false)
 const shareOpen = ref(false)
+
+// ── 邀请码（2026-10-30）──
+// 码池**不会**随详情下发，这里拿到的永远是服务端按展现比例加权随机抽中的**那一个**
+// `t` 是抽中凭证：复制上报时必须带上，否则服务端无法确认「确实刚发过这个码」
+const inviteCode = ref<{ id: number; code: string; label: string; t: string } | null>(null)
+const inviteCopied = ref(false)
 
 // ── 修改建议 ──
 const myEdit = ref<IDealEdit | null>(null)
@@ -957,6 +987,8 @@ async function loadDeal() {
       { credentials: 'include' },
     )
     deal.value = data.deal
+    // 邀请码与详情并行拉取，不阻塞弹层渲染
+    void loadInviteCode()
     verifications.value = data.verifications || []
     myVote.value = data.my_vote
     myReview.value = data.my_review
@@ -1370,6 +1402,58 @@ async function removeDeal() {
   }
 }
 
+/**
+ * 抽一个邀请码（2026-10-30）
+ *
+ * 通告可配多个码，各自带「展现比例」与「被复制次数」阈值；**抽选在服务端完成**，
+ * 前端只拿到被选中的那一个 —— 所以「按比例只显示一个」不是前端障眼法。
+ * 拿不到 / 全部用满时静默隐藏区块，不影响详情阅读。
+ */
+async function loadInviteCode() {
+  inviteCode.value = null
+  inviteCopied.value = false
+  if (!deal.value?.has_invite_code) return
+  try {
+    const res = await $fetch<{
+      data: { id: number | null; code: string | null; label: string; t: string }
+    }>(
+      `/api/token-deals/${props.dealId}/invite-code`,
+      { credentials: 'include' },
+    )
+    const d = res?.data
+    inviteCode.value = d?.code
+      ? { id: Number(d.id), code: String(d.code), label: String(d.label || ''), t: String(d.t || '') }
+      : null
+  } catch {
+    inviteCode.value = null
+  }
+}
+
+/** 复制邀请码，并上报一次「被复制」—— 达到阈值后该码不再出现给任何人 */
+async function copyInviteCode() {
+  const current = inviteCode.value
+  if (!current || !import.meta.client) return
+  try {
+    await navigator.clipboard.writeText(current.code)
+  } catch {
+    toast('复制失败，请手动选择', 'err')
+    return
+  }
+  toast('已复制邀请码')
+  if (inviteCopied.value) return
+  inviteCopied.value = true
+  try {
+    await $fetch(`/api/token-deals/${props.dealId}/invite-code/${current.id}/copy`, {
+      method: 'POST',
+      // 带上抽中凭证：服务端据此确认该码确实刚发给过本次访问者
+      body: { t: current.t },
+      credentials: 'include',
+    })
+  } catch {
+    // 计数失败不影响用户已经完成的复制动作，静默忽略
+  }
+}
+
 async function copy(text?: string) {
   if (!text || !import.meta.client) return
   try {
@@ -1648,6 +1732,116 @@ onUnmounted(() => {
   line-height: 1.65;
   color: var(--text-secondary);
   white-space: pre-wrap;
+}
+
+/* ── 备注富文本（2026-10-30）─────────────────────────────────
+   v-html 注入的节点不带 scoped 属性，必须用 :deep() 才命中。
+   另外富文本要关掉 pre-wrap：marked 生成的是块级标签，
+   保留 pre-wrap 会把源码里的换行渲染成多余空行。 */
+.tdd-note.markdown-body {
+  white-space: normal;
+  word-break: break-word;
+}
+.tdd-note.markdown-body :deep(p) { margin: 0 0 8px; }
+.tdd-note.markdown-body :deep(p:first-child),
+.tdd-note.markdown-body :deep(ul:first-child),
+.tdd-note.markdown-body :deep(ol:first-child) { margin-top: 0; }
+.tdd-note.markdown-body :deep(p:last-child),
+.tdd-note.markdown-body :deep(ul:last-child),
+.tdd-note.markdown-body :deep(ol:last-child) { margin-bottom: 0; }
+.tdd-note.markdown-body :deep(h1),
+.tdd-note.markdown-body :deep(h2),
+.tdd-note.markdown-body :deep(h3),
+.tdd-note.markdown-body :deep(h4),
+.tdd-note.markdown-body :deep(h5),
+.tdd-note.markdown-body :deep(h6) {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.tdd-note.markdown-body :deep(ul),
+.tdd-note.markdown-body :deep(ol) {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.tdd-note.markdown-body :deep(li) { margin: 2px 0; }
+.tdd-note.markdown-body :deep(a) {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.tdd-note.markdown-body :deep(code) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-sunken);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+.tdd-note.markdown-body :deep(pre) {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.tdd-note.markdown-body :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+.tdd-note.markdown-body :deep(blockquote) {
+  margin: 0 0 8px;
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--text-tertiary);
+}
+.tdd-note.markdown-body :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: var(--radius-sm);
+}
+.tdd-note.markdown-body :deep(table) {
+  width: 100%;
+  margin: 0 0 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.tdd-note.markdown-body :deep(th),
+.tdd-note.markdown-body :deep(td) {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.tdd-note.markdown-body :deep(hr) {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* ── 邀请码（2026-10-30）── */
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.invite-code {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invite-label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 /* ── 健康度 ── */
@@ -2370,11 +2564,6 @@ onUnmounted(() => {
 }
 .verify-action.is-dead {
   color: var(--danger, #ff453a);
-}
-.verify-actor {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  opacity: 0.9;
 }
 .verify-date {
   color: var(--text-tertiary);

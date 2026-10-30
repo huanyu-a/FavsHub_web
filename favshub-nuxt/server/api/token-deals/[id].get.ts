@@ -13,6 +13,8 @@ import {
 import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
 import { myVoteFor } from '../../utils/deal-votes'
+import { renderRichText } from '../../utils/rich-text'
+import { hasAvailableInviteCode } from '../../utils/invite-codes'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -93,8 +95,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
   }
 
+  // 未过审 / 已驳回：对作者与管理员之外一律 404。
+  // 2026-10-30 审查后从 403 +「该通告尚未通过审核」改为 404：那个提示只有
+  // **非作者非管理员**才看得到（作者在上面就放行了），等于向外部确认「这条存在但没批」，
+  // 与本文件第 93 行「统一 404 不区分，避免泄露条目存在性」自相矛盾。
   if (row.status !== 'approved' && !isOwner && !isAdmin) {
-    throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
+    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 
   // 我的投票：登录用户查原表，游客查游客表（投票已开放给游客，故不能只在 role 分支里取）
@@ -138,15 +144,33 @@ export default defineEventHandler(async (event) => {
       can_moderate: isAdmin,
       // 人工核验时间轴（2026-10-20）：核验人只给管理员看，公开侧只露出时间与备注
       verified_at: Number(row.verified_at || 0),
-      verified_by: isAdmin ? String(row.verified_by || '') : '',
+      // 2026-10-30 前端脱敏：核验人用户名**任何身份**都不再从公开详情下发。
+      // 原实现写成 `isAdmin ? row.verified_by : ''`，于是管理员浏览公开前台时仍会看到用户名，
+      // 与「前端不出现敏感信息」相悖。后台要看核验人请走 /api/admin/token-deals（本就有权限门）。
+      verified_by: '',
+      // 内部标识与操作人一律不下发公开侧：user_id 可关联到账号，deleted_by 是下架操作人
+      user_id: undefined,
+      deleted_by: undefined,
+      // 游客指纹 = sha256(ip|ua)，与 server/utils/guest-reviews.ts 的身份识别是**同一算法**。
+      // 一旦下发，任何人都能把「同一个匿名访客发过的所有通告」串起来，游客通道的匿名性就没了。
+      // 2026-10-30 审查实测该字段确实出现在公开列表/详情（上面 `...row` 展开全列的锅）。
+      // 注意 `guest_name` 要保留 —— 那是游客自填的展示名，与昵称同级，本来就公开。
+      guest_fingerprint: undefined,
       verify_note: String(row.verify_note || ''),
       verify_age_days: verifyAgeDays(row),
       verify_stale: isVerifyStale(row),
+      // 2026-10-30 备注富文本：服务端渲染 + 白名单消毒，只下发成品 HTML。
+      // 备注是**普通用户可写**字段，前端绝不该对原文直接 v-html（XSS）。原始 `note` 仍保留给编辑器回填。
+      note_html: renderRichText(row.note),
+      // 邀请码（2026-10-30）：这里只告诉前端「还有没有可用码」，
+      // 码本身走 GET /:id/invite-code 单独抽一个 —— 码池绝不随详情下发
+      has_invite_code: hasAvailableInviteCode(db, id),
       nexus: loadNexusInfo(db, id),
     },
     // 公开侧只露「何时核验过」，不露核验人（后台才看得到）
+    // 2026-10-30：actor 一律清空（不再按 isAdmin 放行），公开前台永不出现用户名
     verifications: loadVerifications(db, id, isAdmin ? 10 : 3)
-      .map(v => (isAdmin ? v : { ...v, actor: '' })),
+      .map(v => ({ ...v, actor: '' })),
     edits,
     guest_review: guestReview,
     my_vote: myVote,

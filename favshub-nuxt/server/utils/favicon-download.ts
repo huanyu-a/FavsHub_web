@@ -26,13 +26,132 @@ export function isRasterIcon(buf: Buffer): boolean {
   return false
 }
 
+/**
+ * 内网 / 保留网段判定（CIDR）。
+ *
+ * 2026-10-30 审查后重写：原先只是一串 `startsWith` 前缀匹配，漏了
+ * `100.64/10`（CGNAT）、`198.18/15`（基准测试保留段，**fake-ip 模式与透明代理常用**）、
+ * `192.0.0/24`、`224/4`、`240/4`，以及 IPv4-mapped 的**十六进制**写法
+ * （`::ffff:7f00:1` 就是 `127.0.0.1` —— 旧写法剥掉 `::ffff:` 后拿到 `7f00:1`，
+ * 不是点分格式因而不匹配，实测该地址确实能连到 loopback）。
+ */
+
+/** IPv4 内网 / 保留段（网络号 + 前缀位数） */
+const PRIVATE_V4_CIDRS: Array<[number[], number]> = [
+  [[0, 0, 0, 0], 8],          // 「本网络」/ 未指定，含 0.0.0.0
+  [[10, 0, 0, 0], 8],
+  [[100, 64, 0, 0], 10],      // CGNAT（运营商级 NAT）
+  [[127, 0, 0, 0], 8],        // loopback
+  [[169, 254, 0, 0], 16],     // link-local，含 169.254.169.254 云元数据
+  [[172, 16, 0, 0], 12],
+  [[192, 0, 0, 0], 24],       // IETF 协议专用
+  [[192, 168, 0, 0], 16],
+  [[198, 18, 0, 0], 15],      // 基准测试保留段
+  [[224, 0, 0, 0], 4],        // 组播
+  [[240, 0, 0, 0], 4],        // 保留（含 255.255.255.255 广播）
+]
+
+/** IPv6 内网 / 保留段（字节前缀 + 前缀位数） */
+const PRIVATE_V6_CIDRS: Array<[number[], number]> = [
+  [[0xfe, 0x80], 10],                     // link-local fe80::/10
+  [[0xfc], 7],                            // unique local fc00::/7
+  [[0x00, 0x64, 0xff, 0x9b], 96],         // NAT64 64:ff9b::/96
+]
+
+/** IPv4-mapped（::ffff:0:0/96）与 IPv4-compatible（::/96）—— 内层按 IPv4 递归判定 */
+const V4_MAPPED_PREFIX = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff]
+const V4_COMPAT_PREFIX = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+function parseIPv4(host: string): number[] | null {
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (!m) return null
+  const parts = m.slice(1).map(Number)
+  if (parts.some(p => p > 255)) return null
+  return parts
+}
+
+/** 把 IPv6 字符串解析成 16 字节（支持 `::` 压缩与末尾点分 IPv4），失败返回 null */
+function parseIPv6(host: string): number[] | null {
+  let h = host.trim().toLowerCase()
+  if (!h.includes(':')) return null
+
+  // 末尾的点分 IPv4 折成两个十六进制组：::ffff:127.0.0.1 → ::ffff:7f00:1
+  const lastColon = h.lastIndexOf(':')
+  if (lastColon >= 0 && h.slice(lastColon + 1).includes('.')) {
+    const v4 = parseIPv4(h.slice(lastColon + 1))
+    if (!v4) return null
+    const hi = ((v4[0] << 8) | v4[1]).toString(16)
+    const lo = ((v4[2] << 8) | v4[3]).toString(16)
+    h = `${h.slice(0, lastColon + 1)}${hi}:${lo}`
+  }
+
+  const dbl = h.indexOf('::')
+  let head: string[]
+  let tail: string[] = []
+  if (dbl >= 0) {
+    if (h.indexOf('::', dbl + 1) >= 0) return null // `::` 只能出现一次
+    const before = h.slice(0, dbl)
+    const after = h.slice(dbl + 2)
+    head = before ? before.split(':') : []
+    tail = after ? after.split(':') : []
+    if (head.length + tail.length > 7) return null
+  } else {
+    head = h.split(':')
+    if (head.length !== 8) return null
+  }
+
+  const groups: number[] = []
+  const push = (list: string[]) => {
+    for (const g of list) {
+      if (!/^[0-9a-f]{1,4}$/.test(g)) return false
+      groups.push(parseInt(g, 16))
+    }
+    return true
+  }
+  if (!push(head)) return null
+  if (dbl >= 0) for (let i = 0; i < 8 - head.length - tail.length; i++) groups.push(0)
+  if (!push(tail)) return null
+  if (groups.length !== 8) return null
+
+  const bytes: number[] = []
+  for (const g of groups) bytes.push((g >> 8) & 0xff, g & 0xff)
+  return bytes
+}
+
+/** 字节数组是否落在某个 CIDR 前缀内 */
+function matchCidr(bytes: number[], prefix: number[], bits: number): boolean {
+  const full = Math.floor(bits / 8)
+  for (let i = 0; i < full; i++) if (bytes[i] !== prefix[i]) return false
+  const rem = bits % 8
+  if (rem) {
+    const mask = (0xff << (8 - rem)) & 0xff
+    if ((bytes[full] & mask) !== (prefix[full] & mask)) return false
+  }
+  return true
+}
+
+function isPrivateIPv4Bytes(b: number[]): boolean {
+  return PRIVATE_V4_CIDRS.some(([prefix, bits]) => matchCidr(b, prefix, bits))
+}
+
+/** 判断主机名/IP 是否指向内网或保留地址（**DNS 解析结果也要过这一关**） */
 export function isPrivateIP(hostname: string): boolean {
-  let h = hostname.toLowerCase()
-  if (h.startsWith('::ffff:')) h = h.slice(7)
-  const privateIPv4 = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.)/
-  if (privateIPv4.test(h)) return true
-  if (h === '::1' || h === '::' || h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')) return true
-  if (h === '169.254.169.254' || h === 'metadata.google.internal') return true
+  const h = (hostname || '').trim().toLowerCase().replace(/^\[|\]$/g, '')
+  if (!h) return true
+
+  const v6 = parseIPv6(h)
+  if (v6) {
+    // 内嵌 IPv4 的两种映射形式：先剥出后 4 字节按 IPv4 规则判（递归）
+    if (matchCidr(v6, V4_MAPPED_PREFIX, 96) || matchCidr(v6, V4_COMPAT_PREFIX, 96)) {
+      return isPrivateIPv4Bytes(v6.slice(12))
+    }
+    return PRIVATE_V6_CIDRS.some(([prefix, bits]) => matchCidr(v6, prefix, bits))
+  }
+
+  const v4 = parseIPv4(h)
+  if (v4) return isPrivateIPv4Bytes(v4)
+
+  if (h === 'metadata.google.internal') return true
   return false
 }
 
