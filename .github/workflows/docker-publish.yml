@@ -46,6 +46,31 @@ jobs:
         working-directory: favshub-nuxt
         run: pnpm install --frozen-lockfile
 
+      # ── 测试门禁 ───────────────────────────────────────────────
+      # 这些套件**不需要数据库、不需要 .output 构建产物**，所以能在 build 之前跑，
+      # 快速失败（省一次几分钟的镜像构建 + 一次错误的 GHCR 推送）。
+      #
+      # 只挑自包含的：end-to-end 套件（third-batch-*、second-batch-e2e、ai-api-smoke-*）
+      # 要起本地服务 + 真实 SQLite，CI 里没有该环境，故不纳入。
+      # 计入断言数：102 + 17 + 12 = 131 项。
+      - name: Type check (named imports)
+        working-directory: favshub-nuxt
+        run: pnpm ts:check
+
+      - name: Test — SSRF 内网地址判定
+        working-directory: favshub-nuxt
+        run: node scripts/private-ip-check.mjs
+
+      # 该脚本 import 了 server/utils/sanitize.ts，依赖 Node 的原生 TS 类型剥离。
+      # 显式给 flag：Node 22.6–22.17 需要它，22.18+ / 24 视为无害别名。
+      - name: Test — 出站错误脱敏
+        working-directory: favshub-nuxt
+        run: node --experimental-strip-types scripts/sanitize-test.mjs
+
+      - name: Test — SSRF 出站地址钉死（TOCTOU）
+        working-directory: favshub-nuxt
+        run: node scripts/ssrf-pin-check.mjs
+
       - name: Build Nuxt
         working-directory: favshub-nuxt
         run: pnpm build
