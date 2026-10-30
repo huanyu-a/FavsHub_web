@@ -246,6 +246,7 @@ export function renderDealEventMarkdown(
   const facts: string[] = []
   // 云服务器与 API 额度的「看点」完全不同：先说分类，读者才知道该拿什么标准衡量
   if (snap.category === 'cloud') facts.push('类型 免费云服务器')
+  else if (snap.category === 'client') facts.push('类型 客户端额度')
   if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
   if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
   if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)

@@ -336,6 +336,7 @@ const SOURCE_OPTIONS = [
 const CATEGORY_OPTIONS = [
   { value: 'token', label: 'API 额度' },
   { value: 'cloud', label: '免费云服务器' },
+  { value: 'client', label: '客户端额度' },
 ]
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外（需代理）' }

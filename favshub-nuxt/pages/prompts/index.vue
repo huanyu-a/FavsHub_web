@@ -200,6 +200,7 @@
             <button v-if="!isGuest" class="btn btn-primary" @click="openCreate">创建第一个提示词</button>
           </div>
         </div>
+        <SiteFooter />
       </div>
     </main>
 
@@ -267,6 +268,7 @@ import PromptDialogs from '~/components/prompts/PromptDialogs.vue'
 import TemplateVarModal from '~/components/prompts/TemplateVarModal.vue'
 import FolderTreeItem from '~/components/sidebar/FolderTreeItem.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import SiteFooter from '~/components/common/SiteFooter.vue'
 import { parseTemplateVariables } from '~/utils/template-variables'
 import { searchPrompts } from '~/utils/pinyin'
 

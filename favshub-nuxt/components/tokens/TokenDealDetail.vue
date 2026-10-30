@@ -82,9 +82,9 @@
 
           <!-- 关键信息 -->
           <div class="tdd-facts">
-            <div v-if="isCloud" class="tdd-fact">
+            <div v-if="categoryText" class="tdd-fact">
               <span class="fact-label">分类</span>
-              <span class="fact-value">免费云服务器</span>
+              <span class="fact-value">{{ categoryText }}</span>
             </div>
             <div class="tdd-fact">
               <span class="fact-label">免费额度</span>
@@ -850,6 +850,11 @@ const initial = computed(() => (deal.value?.provider || '?').trim().charAt(0).to
 const regionLabel = computed(() => REGION_LABELS[deal.value?.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[deal.value?.source_tag || 'official'] || '官方直营')
 const isCloud = computed(() => deal.value?.category === 'cloud')
+const categoryText = computed(() => {
+  if (deal.value?.category === 'cloud') return '免费云服务器'
+  if (deal.value?.category === 'client') return '客户端额度'
+  return ''
+})
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {

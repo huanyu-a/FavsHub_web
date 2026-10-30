@@ -1,6 +1,7 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
     <slot />
+    <SiteAnnouncement />
     <FloatingNav />
     <MobileHeader />
     <MobileOverlay />
@@ -9,6 +10,8 @@
 </template>
 
 <script setup lang="ts">
+import SiteAnnouncement from '~/components/common/SiteAnnouncement.vue'
+
 const { isGuest, isAdmin } = useAuth()
 const { initThemeWatchers } = useTheme()
 const { isMobile, drawerOpen } = useMobile()

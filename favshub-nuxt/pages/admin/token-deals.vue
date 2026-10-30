@@ -443,6 +443,7 @@
             </td>
             <td>
               <span class="quality-tag" :class="qualityClass(d.quality)">{{ d.quality }}</span>
+              <span v-if="d.category && d.category !== 'token'" class="badge" style="margin-left: 4px; font-size: 11px;">{{ categoryLabel(d.category) }}</span>
               <div class="cell-sub">{{ regionLabel(d.region) }} · {{ sourceLabel(d.source_tag) }}</div>
             </td>
             <td>
@@ -1162,6 +1163,12 @@ function regionLabel(r?: string) {
 
 function sourceLabel(s?: string) {
   return SOURCE_LABELS[s || 'official'] || '官方直营'
+}
+
+function categoryLabel(cat?: string) {
+  if (cat === 'cloud') return '云服务器'
+  if (cat === 'client') return '客户端额度'
+  return 'API 额度'
 }
 
 function formatTime(ts?: number) {

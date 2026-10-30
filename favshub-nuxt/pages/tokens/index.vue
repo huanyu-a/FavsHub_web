@@ -145,6 +145,9 @@
     <Transition name="tokens-toast">
       <div v-if="toastMessage" class="tokens-toast">{{ toastMessage }}</div>
     </Transition>
+
+    <!-- 统一页脚 -->
+    <SiteFooter />
   </div>
 </template>
 
@@ -156,6 +159,7 @@ import TokenDealDetail from '~/components/tokens/TokenDealDetail.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 import TokenEditReviewPanel from '~/components/tokens/TokenEditReviewPanel.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import SiteFooter from '~/components/common/SiteFooter.vue'
 
 definePageMeta({ layout: 'default' })
 

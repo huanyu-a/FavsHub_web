@@ -128,10 +128,11 @@
         </div>
       </div>
 
-      <!-- 页脚：年度进度条 -->
-      <footer v-if="settingsStore.get('showFooter', true)" class="page-footer">
-        <YearProgress />
-      </footer>
+      <!-- 统一页脚：含年度进度条与友情链接 -->
+      <div v-if="settingsStore.get('showFooter', true)" class="page-footer-container">
+        <div class="progress-wrap"><YearProgress /></div>
+        <SiteFooter />
+      </div>
     </main>
 
     <!-- 侧边栏切换按钮 -->
@@ -155,6 +156,7 @@ import BookmarkEditDialog from '~/components/bookmark/BookmarkEditDialog.vue'
 import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import SiteFooter from '~/components/common/SiteFooter.vue'
 
 const authStore = useAuthStore()
 const bookmarksStore = useBookmarksStore()
@@ -415,6 +417,15 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 </script>
 
 <style scoped>
+.page-footer-container {
+  margin-top: auto;
+  width: 100%;
+}
+.progress-wrap {
+  text-align: center;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+}
 .page-footer {
   text-align: center;
   padding: 1rem;

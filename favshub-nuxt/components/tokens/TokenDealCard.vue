@@ -35,7 +35,7 @@
           </p>
         </div>
       </div>
-      <span v-if="categoryLabel" class="deal-category">{{ categoryLabel }}</span>
+      <span v-if="categoryLabel" class="deal-category" :class="deal.category === 'client' ? 'category-client' : ''">{{ categoryLabel }}</span>
       <span class="deal-quality" :class="qualityClass">{{ deal.quality }}</span>
     </header>
 
@@ -132,8 +132,12 @@ const icon = computed(() => fallbackProxyIcon('', props.deal.url) || '')
 const initial = computed(() => (props.deal.provider || '?').trim().charAt(0).toUpperCase())
 const regionLabel = computed(() => REGION_LABELS[props.deal.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[props.deal.source_tag || 'official'] || '官方直营')
-// 只给「免费云服务器」挂徽标：API 额度是默认分类，挂上去只会给所有卡片添噪
-const categoryLabel = computed(() => (props.deal.category === 'cloud' ? '免费云服务器' : ''))
+// 给「免费云服务器」与「客户端额度」挂徽标（API 额度为默认分类无须挂标）
+const categoryLabel = computed(() => {
+  if (props.deal.category === 'cloud') return '免费云服务器'
+  if (props.deal.category === 'client') return '客户端额度'
+  return ''
+})
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {
@@ -300,6 +304,10 @@ const expiryWarn = computed(() => {
   /* 与站点主题同源：背景走 --primary-light，文字走 --primary */
   background: var(--primary-light);
   color: var(--primary);
+}
+.deal-category.category-client {
+  background: color-mix(in srgb, #06b6d4 15%, transparent);
+  color: #0891b2;
 }
 .deal-quality {
   flex-shrink: 0;

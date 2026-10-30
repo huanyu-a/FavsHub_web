@@ -154,8 +154,8 @@ export function toggleDealVote(
       }
 
       syncDealCounters(db, dealId)
-      // 投票否决阈值判定（真实投票才评估 —— 种子数据不进这条路径，见函数注释）
-      evaluateDealVoteInvalidation(db, dealId)
+      // 2026-10-30 取消社区判定失效下架功能：投票仅记录社区反馈，下架只能由管理员在管理后台下架
+      // evaluateDealVoteInvalidation(db, dealId)
     })()
   } catch (err: any) {
     console.error('投票失败:', err)

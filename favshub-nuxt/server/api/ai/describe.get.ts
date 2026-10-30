@@ -120,6 +120,7 @@ export default defineAiHandler('read', async (_event, token) => {
           id: '字符串', provider: '字符串，必填，≤60', title: '字符串，必填，≤120',
           url: '字符串，必填，http(s)，≤500', call_url: '字符串，可空，http(s)，≤500',
           quota: '字符串，可空，≤200', models: '字符串数组，≤20 项', region: 'cn | global',
+          category: 'token(默认，API 额度) | cloud(免费云服务器) | client(客户端额度)',
           quality: '上上品 | 上品 | 中品 | 下品 | 下下品', source_tag: 'official | relay | community',
           expires_at: '毫秒时间戳或 null（null=永久）', note: '字符串，可空，≤500',
           status: 'pending | approved | rejected', pinned: '0/1，仅管理员可置顶',

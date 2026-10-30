@@ -157,6 +157,9 @@
 
       <BackToTop />
     </div>
+
+    <!-- 统一页脚 -->
+    <SiteFooter />
   </div>
 </template>
 
@@ -164,6 +167,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import TokenKeyCard from '~/components/tokens/TokenKeyCard.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import SiteFooter from '~/components/common/SiteFooter.vue'
 
 definePageMeta({ layout: 'default' })
 

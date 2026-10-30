@@ -20,6 +20,7 @@
     "drizzle-orm": "^0.45.2",
     "jsonwebtoken": "^9.0.3",
     "lru-cache": "^11.5.2",
+    "marked": "^18.1.2",
     "naive-ui": "^2.44.1",
     "nuxt": "^3.21.7",
     "pinia": "^3.0.4",

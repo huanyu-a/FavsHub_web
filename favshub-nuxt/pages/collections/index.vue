@@ -93,6 +93,9 @@
     </div>
     <BackToTop />
     </div>
+
+    <!-- 统一页脚 -->
+    <SiteFooter />
   </div>
 </template>
 
@@ -100,6 +103,7 @@
 import { ref, onUnmounted, watch } from 'vue'
 import CollectionCard from '~/components/collections/CollectionCard.vue'
 import BackToTop from '~/components/BackToTop.vue'
+import SiteFooter from '~/components/common/SiteFooter.vue'
 
 definePageMeta({ layout: 'default' })
 

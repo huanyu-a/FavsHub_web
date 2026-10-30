@@ -1815,6 +1815,104 @@ export function createDealEventsSchema(db: Database.Database) {
 }
 
 /**
+ * 友情链接表（2026-10-30）
+ */
+export function createFriendLinksSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS friend_links (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL,
+        url         TEXT NOT NULL,
+        logo        TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        sort_order  INTEGER DEFAULT 0,
+        status      TEXT DEFAULT 'active',
+        created_at  INTEGER,
+        updated_at  INTEGER
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 friend_links 失败:', err.message)
+  }
+
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_fl_status_sort ON friend_links(status, sort_order)')
+  } catch (err: any) {
+    console.warn('[DB] friend_links 索引创建失败:', err.message)
+  }
+
+  // 种子友链：若表为空则插入默认示例
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM friend_links').get() as { count: number }
+    if (count.count === 0) {
+      const now = Date.now()
+      const insert = db.prepare(`
+        INSERT INTO friend_links (name, url, logo, description, sort_order, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+      `)
+      insert.run('FavsHub', 'https://hao.bx9y.com.cn', '/images/logo.svg', '网址导航与智能书签管理工作台', 1, now, now)
+      insert.run('Linux.do', 'https://linux.do', 'https://linux.do/favicon.ico', '真诚、友善、团结、专业，共建高品质社区', 2, now, now)
+      insert.run('GitHub', 'https://github.com', 'https://github.githubassets.com/favicons/favicon.svg', '全球领先的软件开发与代码托管平台', 3, now, now)
+      console.log('[DB] 已灌入默认友情链接')
+    }
+  } catch (err: any) {
+    console.warn('[DB] 灌入默认友情链接失败:', err.message)
+  }
+}
+
+/**
+ * 站点公告表（2026-10-30）
+ */
+export function createAnnouncementsSchema(db: Database.Database) {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        title        TEXT NOT NULL,
+        content      TEXT NOT NULL,
+        content_type TEXT DEFAULT 'markdown',
+        status       TEXT DEFAULT 'published',
+        pinned       INTEGER DEFAULT 0,
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL
+      )
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 announcements 失败:', err.message)
+  }
+
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_ann_status_pinned ON announcements(status, pinned, created_at)')
+  } catch (err: any) {
+    console.warn('[DB] announcements 索引创建失败:', err.message)
+  }
+
+  // 种子公告：若表为空则插入默认示例公告
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM announcements').get() as { count: number }
+    if (count.count === 0) {
+      const now = Date.now()
+      const insert = db.prepare(`
+        INSERT INTO announcements (title, content, content_type, status, pinned, created_at, updated_at)
+        VALUES (?, ?, ?, 'published', ?, ?, ?)
+      `)
+      insert.run(
+        '欢迎使用 FavsHub 全新升级版本！',
+        `### 🎉 欢迎来到 FavsHub！\n\nFavsHub 致力于为开发者、技术爱好者提供最高效的**书签导航、精选集订阅与 AI 额度情报**。\n\n#### ✨ 本次更新重点：\n- **友情链接与全新页脚**：网站底部全新改版，新增友情链接展示模块；\n- **分类支持【客户端额度】**：白嫖通告新增客户端专用额度分类，查找更便捷；\n- **下架规则升级**：取消社区自动失效下架，更可靠稳定，下架由管理员统一核验处理；\n- **右侧公告中心**：全新悬浮通知与图文富媒体公告体验。\n\n> 感谢大家的支持与陪伴，有任何建议欢迎在交流群反馈！`,
+        'markdown',
+        1,
+        now,
+        now
+      )
+      console.log('[DB] 已灌入默认公告')
+    }
+  } catch (err: any) {
+    console.warn('[DB] 灌入默认公告失败:', err.message)
+  }
+}
+
+/**
  * 执行完整的数据库初始化
  */
 export function initializeDatabase(db: Database.Database) {
@@ -1827,5 +1925,7 @@ export function initializeDatabase(db: Database.Database) {
   createQqBotSchema(db)
   createDealVerificationsSchema(db)
   createDealEventsSchema(db)
+  createFriendLinksSchema(db)
+  createAnnouncementsSchema(db)
   seedDefaults(db)
 }

@@ -30,15 +30,16 @@ export const SOURCE_LABELS: Record<string, string> = {
 }
 
 /**
- * 通告分类 — API 额度（默认）/ 免费云服务器。
+ * 通告分类 — API 额度（默认）/ 免费云服务器 / 客户端额度。
  *
- * 云服务器（VPS / PaaS / Serverless 免费档）与「API 额度」共用一块通告板，
- * 但领取方式、可用周期、核验口径完全不同：用分类让读者一键筛掉不关心的那一半。
+ * 云服务器（VPS / PaaS / Serverless 免费档）、客户端额度（各类大模型客户端/桌面端专属免费额度）
+ * 与「API 额度」共用一块通告板，用分类让读者一键筛掉不关心的那一半。
  */
-export const DEAL_CATEGORIES = ['token', 'cloud'] as const
+export const DEAL_CATEGORIES = ['token', 'cloud', 'client'] as const
 export const DEAL_CATEGORY_LABELS: Record<string, string> = {
   token: 'API 额度',
   cloud: '免费云服务器',
+  client: '客户端额度',
 }
 
 /** 通告状态 — 发布后进入 pending，管理员审核通过才公开 */
@@ -768,34 +769,12 @@ export function archiveExpiredDeals(db: Database.Database, now = Date.now()): nu
 }
 
 /**
- * 投票否决判定：真实投票落库后调用（**不要**放进 syncDealCounters，理由见上方注释）。
- *
- * 语义可逆：票可以改可以撤，故当负票回落到阈值以下时自动撤销 `votes` 类失效；
- * `manual` / `expired` 两类不被投票影响（人工判定与到期事实不该被投票覆盖）。
+ * 投票否决判定（已停用）：
+ * 2026-10-30 需求变更：取消社区判定失效下架功能，投票仅作为可用性参考指标，
+ * 下架只能由管理员在后台手动操作（manual 失效或软删除）。保留函数保持兼容。
  */
-export function evaluateDealVoteInvalidation(db: Database.Database, dealId: string): void {
-  try {
-    const row = db.prepare(
-      'SELECT vote_up, vote_down, invalid_reason, invalid_at FROM token_deals WHERE id = ?'
-    ).get(dealId) as { vote_up: number; vote_down: number; invalid_reason: string; invalid_at: number | null } | undefined
-    if (!row) return
-
-    const up = row.vote_up || 0
-    const down = row.vote_down || 0
-    const total = up + down
-    const hit = down >= INVALID_VOTE_RULE.minDownVotes
-      && total > 0
-      && down / total >= INVALID_VOTE_RULE.minDownRatio
-
-    const currentReason = row.invalid_at ? row.invalid_reason : ''
-    if (hit && (!currentReason || currentReason === 'votes')) {
-      if (!currentReason) markDealInvalid(db, dealId, 'votes')
-    } else if (!hit && currentReason === 'votes') {
-      clearDealInvalid(db, dealId)
-    }
-  } catch (err: any) {
-    console.warn('[token-deals] 投票失效判定失败（忽略）:', err?.message || err)
-  }
+export function evaluateDealVoteInvalidation(_db: Database.Database, _dealId: string): void {
+  // 已取消社区投票自动下架逻辑，空实现保持签名兼容
 }
 
 /**

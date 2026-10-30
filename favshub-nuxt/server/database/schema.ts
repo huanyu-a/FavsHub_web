@@ -250,6 +250,7 @@ export const tokenDeals = sqliteTable('token_deals', {
   region: text('region').default('cn'),          // cn | global
   quality: text('quality').default('中品'),       // 上上品|上品|中品|下品|下下品
   sourceTag: text('source_tag').default('official'), // official|relay|community
+  category: text('category').default('token'),   // token|cloud|client
   expiresAt: integer('expires_at'),              // 有效期截止（NULL = 永久）
   pinned: integer('pinned').default(0),
   note: text('note').default(''),                // 备注 / 使用提示
@@ -430,3 +431,33 @@ export const dealSubscriptions = sqliteTable('deal_subscriptions', {
 }, (table) => [
   index('idx_deal_subs_status').on(table.status, table.lastPullAt),
 ])
+
+// ─── friend_links（友情链接）─────────────────────────────────
+export const friendLinks = sqliteTable('friend_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  logo: text('logo').default(''),
+  description: text('description').default(''),
+  sortOrder: integer('sort_order').default(0),
+  status: text('status').default('active'),        // active | hidden
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+}, (table) => [
+  index('idx_fl_status_sort').on(table.status, table.sortOrder),
+])
+
+// ─── announcements（站点公告）────────────────────────────────
+export const announcements = sqliteTable('announcements', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  contentType: text('content_type').default('markdown'), // markdown | html
+  status: text('status').default('published'),           // published | draft | offline
+  pinned: integer('pinned').default(0),                  // 1 = 置顶, 0 = 普通
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_ann_status_pinned').on(table.status, table.pinned, table.createdAt),
+])
+

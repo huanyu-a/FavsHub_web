@@ -55,6 +55,12 @@
         <template v-if="isAdmin">
           <div class="nav-divider"></div>
           <div class="nav-group-label">管理</div>
+          <NuxtLink to="/admin/announcements" class="nav-item" :class="{ active: route.path === '/admin/announcements' }" @click="closeSidebar">
+            <i class="ri-notification-3-line"></i><span>公告管理</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/friend-links" class="nav-item" :class="{ active: route.path === '/admin/friend-links' }" @click="closeSidebar">
+            <i class="ri-links-line"></i><span>友情链接</span>
+          </NuxtLink>
           <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
             <i class="ri-user-line"></i><span>用户管理</span>
           </NuxtLink>
