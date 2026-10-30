@@ -120,15 +120,21 @@
             <!-- 接入信息 -->
             <section class="tdd-section">
               <h4 class="section-title"><i class="ri-link"></i> 接入信息</h4>
-              <div class="tdd-row">
+              <!-- `v-if` 在**整行**上，不在 `<a>` 上（2026-10-30 四轮）：
+                   原先只把 v-if 挂在 `<a>` 上，于是「模板含 {邀请码} 但当前没有可用码」时
+                   `<a>` 不渲染、`.tdd-row` 照旧渲染 → 只剩一个孤零零的「领取地址」标签，
+                   下面紧跟 API 地址行，读起来像「地址丢了」。整行一起隐藏才是对的。
+                   三种隐藏情形都归到 `claimReady` 为空：
+                     1. 模板含占位符且没抽到码（码池空 / 全部用满 / 全部停用 / 抽码请求失败）；
+                     2. 模板含占位符且抽到了码，但服务端没给 claim_url（防御：宁可不显示也不给坏链接）；
+                     3. 原文本身就是空串（无 url 可展示）。
+                   占位符是后端程序变量，不能让访客看到；用户也明确要求「没有码就什么都不显示」。 -->
+              <div v-if="claimReady" class="tdd-row">
                 <span class="row-label">领取地址</span>
                 <!-- 位置/样式还原为改动前的原样（`<a :href>` + 原文链接）。
                      唯一的升级：值优先用服务端拼好的成品链接 `claimResolved`（= claim_url），
-                     抽中码后显示的就是已替换好邀请码的完整可用地址，而不是带占位符的模板原文。
-                     没抽中时退回原文 `deal.url` —— 此时若模板含占位符，则一行都不渲染
-                     （占位符是后端程序变量，不能让访客看到；用户要求无码时不提示）。 -->
+                     抽中码后显示的就是已替换好邀请码的完整可用地址，而不是带占位符的模板原文。 -->
                 <a
-                  v-if="claimReady"
                   :href="claimReady"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1136,8 +1142,30 @@ const claimReady = computed(() => {
   if (claimHasPlaceholder.value) return ''
   return String(deal.value?.url || '').trim()
 })
-/** 来源就是 call_url 时，成品链接已经出现在「领取地址」那一行，不必再重复一行 */
-const showApiRow = computed(() => !!deal.value?.call_url && claimSource.value !== 'call_url')
+/**
+ * 「API 地址」那一行是否要渲染（2026-10-30 四轮修正）。
+ *
+ * ⚠️ 判据是「**领取地址那一行实际显示的值**是否已经就是 call_url」，
+ * 而不是「服务端说 claim 模板取自 call_url」—— 后者是本轮修掉的 bug：
+ *
+ * `claimUrlTemplateOf()` 在**没有占位符**时也会把 `claim_url_source` 指成 `'call_url'`
+ * （它的选序是「call_url 有占位符 → url 有占位符 → call_url 非空则用 call_url」，
+ * 第三步与占位符无关）。于是任何「填了 call_url、但没写占位符」的通告，
+ * 旧的 `claimSource !== 'call_url'` 判据都会命中「已重复，不必再显示」分支 ——
+ * 可「领取地址」那行此时显示的是 `url`（`claimReady` 无占位符时回退到 `deal.url`），
+ * `call_url` 根本没出现在页面上 → **两个地址都不完整**（实测生产 39/46 条受影响）。
+ *
+ * 改成比对**成品值**后，各情形都自洽：
+ *   - call_url 含占位符且已抽中 → claimReady 就是替换后的 call_url → 相等 → 不重复；
+ *   - call_url 含占位符但没抽中   → claimReady 为 ''（apiReady 也为 ''）→ 最终不渲染；
+ *   - call_url 无占位符           → claimReady 是 url（或 ''）→ 不等 → 正常显示 API 行；
+ *   - url 与 call_url 完全相同    → 相等 → 不重复（与旧行为一致）。
+ */
+const showApiRow = computed(() => {
+  const callUrl = String(deal.value?.call_url || '').trim()
+  if (!callUrl) return false
+  return claimReady.value !== callUrl
+})
 /**
  * 「API 地址」那一行要显示的值。
  * 占位符也可能写在 `call_url` 上（服务端 claim_url_source 会指过来）：
