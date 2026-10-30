@@ -294,3 +294,70 @@ XSS（50 个载荷全部被挡，含 SVG/mathML/编码/注释/mXSS 绕过尝试�
 计数原子性（4 进程 × 60 次 / limit 25 → 恰好 25，零超发）、
 迁移幂等（二次启动 0 行迁移）、公告软删除全链路、备注 2000 前后端一致、
 加权随机边界、重定向与 IP 编码绕过拦截、提案模式 diff 未被污染、除 M4 外的脱敏彻底。
+
+---
+
+## 9. 部署记录与生产验收（2026-10-30 14:37）
+
+镜像 `ghcr.io/huanyu-a/favshub:latest` = `sha256:4b825808e771`（CI run 41014632659，构建 ~4 min）。
+
+| 步骤 | 结果 |
+|----|----|
+| 一致性备份（WAL 模式下必须 `.backup`，不可直接拷文件） | `data/backups/favshub.db.pre-deploy-20261030_143702`，`integrity_check=ok` |
+| 迁移前基线 | deals=80 / announcements=1 / users=3 |
+| 容器重建 | `docker compose -f compose.yaml up -d favshub` |
+| 迁移日志 | `announcements 表添加 deleted_at 字段` / `deleted_by`（新表、索引为静默 `IF NOT EXISTS`） |
+| 迁移后核对 | `token_deal_invite_codes` 11 列齐全，`idx_invite_deal`、`idx_ann_deleted` 均存在 |
+| 数据无损 | deals=80 / announcements=1 / users=3，`PRAGMA integrity_check=ok` |
+| HTTP 验收 | `/` 200、`/tokens` 200、`site_version=1.0.46`、公开公告数=1 |
+| 脱敏验收 | 详情 `verified_by=''`、`user_id`/`deleted_by`/`guest_fingerprint` 均为 null、核验记录 actor 全空、无 `invite_codes` 字段 |
+| 邀请码端点 | 有码池的通告返回单个码 + 凭证；无码池返回空结构；不存在的 id → 404 |
+| 出站成功路径 | `https://api.deepseek.com/v1` → 上游 401 → 「该平台需要鉴权，请先填写 API Key」（**证明 DNS→校验→钉地址→TLS→解析全链路在生产可用**） |
+| SSRF 对照 | `http://127.0.0.1:3090/v1` → 「不允许访问内网地址」 |
+
+> 出站成功路径此前**从未被真正执行过**（本机 fake-ip DNS 构造不出成功请求），
+> 而 `{ all: true }` 那个 bug 恰恰只在这条路径上暴露 —— 所以这一步不是走过场。
+
+---
+
+## 10. ⚠️ 待决：生产 JWT 密钥是公开默认值（CRITICAL，既存问题）
+
+**不是本批改动引入的**，是部署副本 `compose.yaml` 的历史遗留，但会抵消本次全部权限加固。
+
+### 现象与实证
+
+服务器 `/www/dk_project/dk_app/compose.yaml`：
+
+```yaml
+- NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-please-change-this-to-a-random-string}
+```
+
+`.env` 里**没有**定义 `NUXT_JWT_SECRET`，故容器实际用的就是这个公开占位串
+（`docker inspect` 实测 len=37，等于该占位串）。仓库里被跟踪的
+`favshub-nuxt/compose.yaml` 写的是 `:-}`（空默认值）—— 空值会走
+「生成随机密钥并持久化到 `data/.jwt-secret`」的安全分支；是这份**部署副本**把默认值换坏了。
+
+用该密钥为 `_system`（`is_admin=1`）签发令牌后实测：
+
+```
+伪造令牌访问 /api/admin/announcements → 200
+伪造令牌访问 /api/admin/token-deals  → 200
+```
+
+即**任何人凭猜测即可伪造管理员令牌**，等同站点接管（改通告、进后台、发公告）。
+站点公网可达，且仓库是公开仓库。
+
+### 修复方案与代价（已核实）
+
+在 `/www/dk_project/dk_app/.env` 写入强随机 `NUXT_JWT_SECRET`（并把 compose.yaml 默认值
+对齐仓库版本 `:-}`），重建容器。代价很小：
+
+- 所有已登录用户需重新登录（含管理员）—— 会话失效，属预期；
+- `users.qq_cipher` 非空行数 = **0**，无需重加密；
+- `token_deal_guest_reviews.qq_cipher` 非空行数 = **2** —— 这 2 条游客头像解不开、
+  退化为字母头像（`decryptQQ` 返回 null → 上游 404 → 前端回退），**评测正文不受影响**；
+- `digest()` 派生的去重指纹（`ip_hash` / `guest_fingerprint`）整体轮换 →
+  历史行的指纹与新提交不再匹配，「同一访客同一通告只能评一次/投一票」对**旧行**短暂失效
+  （可再评一次）。208 条游客评测的小站点，影响可接受，无需数据迁移。
+
+> 不能靠改 `users` 表或加白名单绕过 —— 只要签名密钥可猜，权限判定就形同虚设。

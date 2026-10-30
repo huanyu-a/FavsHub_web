@@ -33,6 +33,20 @@ docker compose up -d  # http://localhost:3090
 | 变量 | 说明 | 默认 |
 |------|------|------|
 | `NUXT_JWT_SECRET` | JWT 签名 | 空 → `data/.jwt-secret` 或自动 48 字节 |
+
+> ⚠️ **`NUXT_JWT_SECRET` 绝不能留公开的占位值**（2026-10-30 生产实测）。
+> 该密钥同时用于两处，猜中即等同站点接管：
+> 1. 签发/校验登录令牌 —— 可为任意用户（含 `is_admin=1`）伪造令牌；
+> 2. `utils/avatar.ts` 的 `deriveKey()` 基座 —— QQ 密文与去重指纹都由它派生。
+>
+> 事故样本：部署副本 `compose.yaml` 写 `NUXT_JWT_SECRET=${NUXT_JWT_SECRET:-please-change-this-to-a-random-string}`
+> 而 `.env` 未定义该变量 → 容器实际用的是那个公开常量 → 用它可以签出访问 `/api/admin/*` 返回 200 的令牌。
+> 仓库版本写的是 `:-}`（空值会走「自动生成并持久化」的安全分支），是**部署副本**把默认值换坏了。
+> 现在 `utils/jwt.ts` 会在启动时对该占位值大声告警（只告警不阻断，避免站点因配置项起不来）。
+>
+> 轮换密钥的代价：所有会话失效（需重新登录）；`token_deal_guest_reviews.qq_cipher`
+> 会解不开 → 相关游客头像退化为字母头像（正文不受影响）；`digest()` 指纹整体轮换 →
+> 「同一访客同一通告只能评一次/投一票」对**历史行**短暂失效。**不需要数据迁移**。
 | `NUXT_DB_PATH` | SQLite 路径 | `./data/favshub.db` |
 | `NUXT_CORS_ORIGIN` | CORS | `http://localhost:3000` |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔）；**AI 通道的管理员判定同样读取它** | 空 |

@@ -11,6 +11,34 @@ import { getConfig } from './config'
 let _secret: string | null = null
 
 /**
+ * 已知的公开占位值。
+ *
+ * 2026-10-30 在生产实测发现：部署副本 compose.yaml 把 NUXT_JWT_SECRET 的默认值写成了
+ * please-change-this-to-a-random-string，而 .env 里没有定义该变量 ——
+ * 于是容器的签名密钥就是一个**公开可猜的常量**，任何人凭猜测即可伪造管理员令牌
+ * （实测用该密钥签出的令牌访问 /api/admin/ 下的接口返回 200，等同站点接管）。
+ *
+ * 这类事故的根因是「默认值不安全 + 没人会去核对」，光写文档拦不住，所以启动时点出来。
+ * 只告警不阻断：宁可带着警告跑，也不要让站点因为一个配置项起不来。
+ */
+const INSECURE_SECRETS = new Set([
+  'please-change-this-to-a-random-string',
+  'please-change-me',
+  'change-me',
+  'changeme',
+  'secret',
+  'your-secret-key',
+])
+
+function warnIfInsecure(secret: string) {
+  if (!INSECURE_SECRETS.has(secret.trim().toLowerCase())) return
+  console.error(
+    '[Auth] !!! NUXT_JWT_SECRET 使用了公开的默认占位值，任何人凭猜测即可伪造登录令牌'
+    + '（含管理员令牌），等同于站点被接管。请立刻改为随机值后重启容器。'
+  )
+}
+
+/**
  * 获取密钥文件路径（延迟计算，避免 module-level process.cwd() 在 Nitro 打包时不可靠）
  */
 function getSecretFilePath(): string {
@@ -25,6 +53,7 @@ function loadOrCreateSecret(envSecret?: string): string {
 
   // 1. 环境变量优先
   if (envSecret) {
+    warnIfInsecure(envSecret)
     _secret = envSecret
     return _secret
   }
