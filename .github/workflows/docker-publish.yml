@@ -112,6 +112,17 @@ jobs:
         working-directory: favshub-nuxt
         run: node scripts/third-batch-detail.mjs
 
+      # 限流与缓存两个套件也自包含（自己 spawn 服务、自己按 phase 覆盖 FAVSHUB_RL_*）。
+      # ratelimit 把 `.output` 整体拷到 /tmp 再从副本启动，不污染工作区。
+      # 实测 13s + 1s。
+      - name: Test — 限流（三层阈值/并发释放/IP 取用）
+        working-directory: favshub-nuxt
+        run: node scripts/third-batch-ratelimit.mjs
+
+      - name: Test — 缓存与隐私（Cache-Control/Vary/SSR payload）
+        working-directory: favshub-nuxt
+        run: node scripts/cache-privacy-check.mjs
+
       # 注意：这里**不需要**再把 .output 拷成 `favshub/` 之类的中间目录。
       # 后面 `docker/build-push-action` 的 context 是整个 `favshub-nuxt`，
       # Dockerfile 内部会自己 `pnpm install` + `pnpm build`（多阶段构建）。
