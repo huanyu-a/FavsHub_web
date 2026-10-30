@@ -75,14 +75,13 @@ jobs:
         working-directory: favshub-nuxt
         run: pnpm build
 
-      - name: Prepare Docker context
-        working-directory: favshub-nuxt
-        run: |
-          rm -rf favshub/
-          mkdir -p favshub
-          cp -r .output/server favshub/server
-          rm -rf favshub/server/node_modules
-          cp -r .output/public favshub/public 2>/dev/null || true
+      # 注意：这里**不需要**再把 .output 拷成 `favshub/` 之类的中间目录。
+      # 后面 `docker/build-push-action` 的 context 是整个 `favshub-nuxt`，
+      # Dockerfile 内部会自己 `pnpm install` + `pnpm build`（多阶段构建）。
+      # 原本有一个 `Prepare Docker context` 步骤做这件事，但那个目录从未被
+      # Dockerfile 或 .dockerignore 引用 —— 已删除（2026-10-31）。
+      # 上面这次 `pnpm build` 仍然保留，作用是「在 node 22 上先验证能构建」，
+      # 让构建错误更早暴露；产物本身被 .dockerignore 的 `.output` 排除，不会进 context。
 
       - name: Login to GHCR
         uses: docker/login-action@v3
