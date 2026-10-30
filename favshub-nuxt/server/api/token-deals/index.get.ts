@@ -201,6 +201,15 @@ export default defineEventHandler(async (event) => {
       // 游客指纹不下发（与详情同口径）：它是同一匿名访客的跨通告关联键，
       // 公开侧只保留游客自填的 guest_name
       guest_fingerprint: undefined,
+      // 生命周期原始列不下发公开列表（2026-10-30 四轮）：
+      // 前端只需要派生值 `is_hidden`（= deleted || invalid || expired），
+      // 原始列是运营侧审计信息 —— 「谁在何时删的」「为什么判失效」。
+      // 公开列表的 SQL 已过滤掉不可见行，所以这两个字段今天就恒为空，
+      // 但那是**偶然安全**；详情端点本轮已同样剔除，两处必须同口径。
+      // ⚠️ `reject_reason` **刻意保留**（与详情同口径）：`mine=1` 时作者要看到
+      //    自己被驳回的原因才能改稿重提。
+      deleted_at: undefined,
+      invalid_reason: undefined,
       nexus,
     }
   })

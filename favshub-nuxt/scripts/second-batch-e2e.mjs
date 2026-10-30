@@ -530,6 +530,15 @@ async function main() {
       check(`[${who}] 详情 user_id 不下发`, deal.user_id === undefined, String(deal.user_id))
       check(`[${who}] 详情 deleted_by 不下发`, deal.deleted_by === undefined, String(deal.deleted_by))
       check(`[${who}] 详情 verified_by 为空串`, !deal.verified_by, JSON.stringify(deal.verified_by))
+      // 生命周期原始列（2026-10-30 四轮补）：前端只需派生值 is_deleted / is_invalid /
+      // invalid_reason_label，原始列是运营侧审计信息（谁删的、为什么判失效）。
+      // 键应**不出现**（显式 undefined），不是「值为空」。
+      check(`[${who}] 详情 deleted_at 不下发`, !('deleted_at' in deal), JSON.stringify(deal.deleted_at))
+      check(`[${who}] 详情 invalid_reason 不下发`, !('invalid_reason' in deal), JSON.stringify(deal.invalid_reason))
+      // 反向：派生字段与作者必需的 reject_reason 不能被脱敏做过界
+      check(`[${who}] 详情 is_deleted 派生字段仍在`, 'is_deleted' in deal)
+      check(`[${who}] 详情 invalid_reason_label 派生字段仍在`, 'invalid_reason_label' in deal)
+      check(`[${who}] 详情 reject_reason 仍保留（作者改稿需要）`, 'reject_reason' in deal)
       check(`[${who}] 核验记录 actor 一律置空`, verifs.every(v => !v.actor), JSON.stringify(verifs.map(v => v.actor)))
     }
     for (const [who, cookie] of [['匿名', undefined], ['管理员', admin]]) {
@@ -541,6 +550,11 @@ async function main() {
       check(`[${who}] 列表 user_id 不下发`, deals.every(d => d.user_id === undefined))
       check(`[${who}] 列表 deleted_by 不下发`, deals.every(d => d.deleted_by === undefined))
       check(`[${who}] 列表 verified_by 不下发`, deals.every(d => !d.verified_by))
+      // 生命周期原始列同样不下发（与详情同口径）
+      check(`[${who}] 列表 deleted_at 不下发`, deals.every(d => !('deleted_at' in d)))
+      check(`[${who}] 列表 invalid_reason 不下发`, deals.every(d => !('invalid_reason' in d)))
+      // 反向：列表的派生字段是 `is_hidden`（不是详情那套 is_deleted / is_invalid）
+      check(`[${who}] 列表 is_hidden 派生字段仍在`, deals.every(d => 'is_hidden' in d))
     }
   }
 
