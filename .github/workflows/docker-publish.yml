@@ -89,6 +89,29 @@ jobs:
         working-directory: favshub-nuxt
         run: pnpm build
 
+      # ── 端到端套件（774 项断言）─────────────────────────────────
+      # 这三个套件需要 `.output/`（自起服务 + 临时库），所以排在 build 之后。
+      # 它们**在此前从未进过 CI**，只在本地手工跑过 —— 意味着「线上那条流水线
+      # 从没验证过这 774 项」，只有维护者想起来才会跑。补上这一环。
+      #
+      # 关于 Node 版本：套件内部用 `spawn('node', ...)` 起服务（拿 PATH 上的 node），
+      # 而 better-sqlite3 是原生模块、ABI 与 Node 大版本绑定。CI 全程 node 22
+      # （install 与 run 同版本），所以一致；本地则要注意别用「装依赖的 node」
+      # 之外的版本去跑，否则会得到「应用 30s 内未就绪」这种误导性报错。
+      #
+      # 三个套件实测合计约 9–15 秒（138 / 161 / 247 项），成本可忽略。
+      - name: Test — 第二批次 e2e（权限/可见性/SSRF）
+        working-directory: favshub-nuxt
+        run: node scripts/second-batch-e2e.mjs
+
+      - name: Test — 通告事件流（脱敏/码池/订阅）
+        working-directory: favshub-nuxt
+        run: node scripts/third-batch-notify.mjs
+
+      - name: Test — 通告详情页 SSR（两行可见性/内部字段）
+        working-directory: favshub-nuxt
+        run: node scripts/third-batch-detail.mjs
+
       # 注意：这里**不需要**再把 .output 拷成 `favshub/` 之类的中间目录。
       # 后面 `docker/build-push-action` 的 context 是整个 `favshub-nuxt`，
       # Dockerfile 内部会自己 `pnpm install` + `pnpm build`（多阶段构建）。
