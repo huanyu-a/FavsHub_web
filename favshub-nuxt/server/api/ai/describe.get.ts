@@ -108,6 +108,14 @@ export default defineAiHandler('read', async (_event, token) => {
           version_count: '整数，内容变更时自增', current_version: '字符串，如 1.0.0',
           // 2026-10-30：`deleted_at` 已不下发（`prompts/index.get.ts` 与 `[id].get.ts` 都显式剔除）。
           // 判断「是否在回收站」用 `?recycle=1` 查询 —— 该查询已按身份收紧（只看自己的）。
+          //
+          // 2026-10-31 补记：本通道的 `?recycle=1` 原先**没有实现**（`listPrompts` 硬编码
+          // `p.deleted_at IS NULL`），照文档调用只会拿到空列表且不报错。现已实现。
+          // 两个通道的收紧方式不同但效果等价：
+          //   · Web 端 `/api/prompts?recycle=1`：匿名 → `AND 1 = 0`（空集）；
+          //     非管理员 → 限自己的；管理员 → 全部。
+          //   · AI 通道：`userId` 恒来自 PAT，查询恒带 `p.user_id = ?`，不存在匿名分支。
+          // 也就是说在 AI 通道里你**只能**看到自己的回收站，管理员也不例外。
         },
         note: '内容变更会自动创建新版本记录并自增版本号。',
       },
