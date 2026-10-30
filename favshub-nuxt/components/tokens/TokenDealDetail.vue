@@ -96,26 +96,12 @@
                  发布者、最近核验不再以文字形式展示（核验状态改为水印徽标）。
                  是否实名（2026-10-30 三轮）：用户要求放到本区块右端，改为小号彩色徽标，
                  不再是底部的大水印。`real_name === ''` 时不渲染（存量空串）。 -->
-            <!-- 事实区一行：左「免费额度」卡片，右「是否实名」小彩色徽标（2026-10-30 六轮）。
-                 用户原话：「「无需实名」不要显示到下方，显示到标题与额度区最右侧」。
-                 所以它回到这里：`.tdd-facts` 内、右端对齐、纵向居中于该区块。
-                 形态是小彩色徽标（**不是**水印）—— 用户这次明确要它回到这个位置。
-                 文案只有 2~3 个字；「其他」的 40 字手填说明走 title + sr-only。 -->
             <div class="tdd-facts">
               <div class="tdd-fact">
                 <span class="fact-label">免费额度</span>
                 <span class="fact-value">{{ deal.quota || '未说明' }}</span>
               </div>
-              <span
-                v-if="realNameBadge"
-                class="tdd-realname"
-                :class="`is-${realNameBadge.tone}`"
-                :title="realNameBadge.title"
-              >{{ realNameBadge.label }}</span>
             </div>
-            <!-- 无障碍：小徽标只有 2~3 个字，「其他」的手填说明在 title 里对读屏不友好，
-                 用 sr-only 承载完整语义（视觉简、语义全） -->
-            <span v-if="realNameBadge" class="sr-only">{{ realNameBadge.srText }}</span>
 
             <!-- 接入信息 -->
             <section class="tdd-section">
@@ -174,7 +160,7 @@
                  节点（视觉隐藏但读屏可读），若被本层的 aria-hidden 包住会连语义一起丢。
                  装饰性由各水印自身的 aria-hidden 承担，本层只负责定位与容器查询。 -->
             <div class="tdd-seal-layer">
-              <!-- 核验状态水印：贴内容区上部 -->
+              <!-- 核验状态水印：内容区上部、水平居中 -->
               <DealBadge
                 v-if="deal"
                 :tone="verifyState.tone"
@@ -182,6 +168,22 @@
                 :sublabel="verifyState.sublabel"
                 :title="verifyState.title"
                 :sr-text="verifyState.srText"
+              />
+              <!-- 是否实名水印（2026-10-30 七轮）：用户原话「实名不要徽章，要不占位的水印」，
+                   位置在「标题与额度区最右侧」—— 所以它与核验水印同在 `top:8%` 这条
+                   水平带上，但贴右而非居中（`anchor="top-right"`）。
+                   尺寸用 cqw 按容器宽取（比核验水印小一号），保证两者恒不相交。
+                   透明度与核验水印**完全同一套**（填充 2% / 描边 9% / 文字 0.20）。
+                   40 字手填文案走 title + sr-only，圆内只显示「无需实名」等短标签。
+                   `real_name === ''` 不渲染（存量空串保持静默）。 -->
+              <DealBadge
+                v-if="realNameBadge"
+                anchor="top-right"
+                secondary
+                :tone="realNameBadge.tone"
+                :label="realNameBadge.label"
+                :title="realNameBadge.title"
+                :sr-text="realNameBadge.srText"
               />
             </div>
 
@@ -2047,11 +2049,8 @@ onUnmounted(() => {
    范围只覆盖「可能落到水印矩形内」的内容块（表单/卡片/代码块/按钮），
    不动 `.tdd-modal` 与 `.tdd-foot` 这类外层容器（它们不在水印层内）。 */
 .tdd-facts {
-  /* 2026-10-30 六轮：左侧「免费额度」卡片 + 右侧「是否实名」小徽标。
-     原来是 grid(auto-fit)，徽标会被排成独立一列；改 flex 让徽标贴右端、纵向居中。 */
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -2061,60 +2060,10 @@ onUnmounted(() => {
   gap: 4px;
   padding: 12px;
   border-radius: 10px;
-  /* 撑满剩余宽度，把实名徽标推到右端 */
-  flex: 1 1 140px;
-  min-width: 0;
   background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
 }
 .fact-label { font-size: 11px; color: var(--text-tertiary); }
 .fact-value { font-size: 13px; color: var(--text-primary); }
-
-/* ── 是否实名小徽标（2026-10-30 六轮：水印 → 小徽标，回到额度区右侧）──
-   用户原话：「「无需实名」不要显示到下方，显示到标题与额度区最右侧」。
-   视觉语言复用 header 分类徽标（.tdd-category）：12px / 圆角 6px / 600 字重，
-   这样「分类」和「实名」两个徽标在同一套语言里，不显得突兀。
-   文案只有 2~3 个字（无需实名 / 需身份证 / 需人脸 / 需实名）；
-   「其他」的手填 40 字放不下，走 title 悬浮提示 + sr-only 完整文本。 */
-.tdd-realname {
-  flex-shrink: 0;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: help;
-}
-.tdd-realname.is-ok {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
-}
-.tdd-realname.is-blue {
-  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
-  color: color-mix(in srgb, var(--accent-blue) 82%, var(--text-primary));
-}
-.tdd-realname.is-purple {
-  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
-  color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
-}
-.tdd-realname.is-pending {
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
-}
-
-/* 读屏专用：视觉隐藏但仍可被辅助技术读取（与本仓 TokenFilterBar / keys.vue 的写法一致）。
-   为什么详情页需要自己一份：scoped 样式不跨组件生效，而「是否实名」的 sr-only
-   文本现在渲染在**本组件**里。必须是 1px + clip，不能用 display:none —— 后者读屏读不到。 */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
 
 .tdd-section { margin-bottom: 16px; }
 .section-title {
