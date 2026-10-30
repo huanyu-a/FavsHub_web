@@ -701,9 +701,17 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
  * ⚠️ 这份清单与 Web 侧的脱敏**必须同口径**，否则会漂移：
  * `server/api/token-deals/[id].get.ts` 与 `index.get.ts` 显式剔除了 6 项
  * （见那里的 `INTERNAL` 注释），而本函数原先只有 3 项 —— `deleted_at` / `invalid_reason`
- * 在 AI 通道会被原样下发。虽然两边的可见性过滤都保证了这两个字段当前恒为空
- * （`SELECT ... WHERE deleted_at IS NULL AND invalid_at IS NULL`），但那是**偶然安全**：
- * 过滤条件一旦放宽，AI 通道就会比 Web 通道先泄露「谁在何时删的」「为什么判失效」。
+ * 在 AI 通道会被原样下发。
+ *
+ * 剔除的理由是**纵深防御**，不是「反正现在读不到」：
+ * - `deleted_at`：可见性确实保证已删除的不下发（本函数的 SQL 与 `canReadDeal()` 都挡了）；
+ * - `invalid_reason`：**没有这层保证** —— 本函数 `listTokenDeals` 的 WHERE 里
+ *   `OR (td.user_id = ? AND td.deleted_at IS NULL)` 让作者仍能读到自己的已失效通告
+ *   （与 Web 端 `canReadDeal()` 的作者例外同口径，作者据此续期）。
+ *   也就是说作者拉自己的失效通告时，这一列**在库里是有值的**，并非恒为空。
+ *
+ * 所以「现在恰好为空」不能当论据 —— 一旦过滤条件放宽、或新端点漏了闸门，
+ * AI 通道就会比 Web 通道先泄露「谁在何时删的」「为什么判失效」。
  *
  * `reject_reason` **刻意保留**：作者要读到自己被驳回的原因才能改稿重提，
  * 与 Web 端同口径（驳回通告对非作者一律 404，AI 通道同样受 `mine` 约束）。
