@@ -90,7 +90,9 @@ export default defineAiHandler('read', async (event, token) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (row.status !== 'approved' && !isOwner && !isAdmin) {
-    throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
+    // 与详情/导入/评分/邀请码等端点统一口径：一律 404「通告不存在」。
+    // 403 + 「尚未通过审核」等于向持令牌者确认「该 id 存在、且正处于待审状态」。
+    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (!canReadDeal(row, { id: token.user_id, isAdmin })) {
     throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })

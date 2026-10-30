@@ -12,15 +12,31 @@
 import { getCookie, getHeader, getRequestURL, setHeader } from 'h3'
 
 /**
- * 伪静态详情页：SSR HTML 按 Cookie 定制 → 不允许被共享缓存（详见下方注释）
- * 与 nuxt.config.ts 的路由参数正则保持一致（id 只含字母数字与 _ -）。
+ * 归一化请求路径 —— 缓存判定**必须**在归一化之后做。
+ *
+ * 为什么：同一张页面有多种等价写法（尾斜杠 `/x.html/`、结尾 `/.`、以及百分号编码
+ * `%2Ehtml` / `deal%5Fbyp` / `%64eal`），而 vue-router 是**先解码再匹配**路由参数的。
+ * 2026-10-30 复核实测：按未解码原串做精确正则匹配时，有 **5 种写法**能绕过豁免、
+ * 掉进下面「游客 → public」的分支，于是按 Cookie 定制的个性化详情页被判为可共享缓存 ——
+ * CDN 会把某个访客的个性化 HTML 发给别人。归一化后再判，这些写法一律收敛到同一形态。
  */
-const DETAIL_PAGE_RE = /^\/(?:tokens|prompts)\/[A-Za-z0-9_-]+\.html$/i
+function normalizePath(path: string): string {
+  let p = path
+  try {
+    p = decodeURIComponent(p)
+  } catch {
+    // 解码失败（非法编码）时用原串：这类路径由 Nitro 直接 400，不必为它做特殊处理
+  }
+  return p
+    .replace(/\/{2,}/g, '/')        // 折叠重复斜杠
+    .replace(/(?:\/\.)+\/?$/, '/')  // 去掉结尾的 /. 与 /..
+    .replace(/\/+$/, '')            // 去掉尾斜杠
+}
 
 export default defineEventHandler((event) => {
   if (event.method !== 'GET' && event.method !== 'HEAD') return
 
-  const path = getRequestURL(event).pathname
+  const path = normalizePath(getRequestURL(event).pathname)
 
   // 跳过 API 与带文件扩展名的静态资源（页面路径无扩展名）
   if (path.startsWith('/api/')) return
@@ -40,8 +56,13 @@ export default defineEventHandler((event) => {
   // is_owner / can_edit / my_vote / my_review / edits（我的修改建议）/
   // guest_review（我的待审游客评测）/ 评测列表里的 my_marked。
   //
-  // ⚠️ 以后任何「内容按 Cookie 定制」的 .html 路由，都必须加进这个白名单。
-  if (DETAIL_PAGE_RE.test(path)) return
+  // 判定用**后缀规则**而不是枚举具体路由：只要归一化后以 `.html` 结尾就保持 private。
+  // 站点的公开列表页都是无扩展名的（`/`、`/tokens`、`/prompts`、`/collections`、
+  // `/tokens/keys` —— 复核用「两个不同 visitor cookie 差分」实测确认这些页面无个性化），
+  // 所以这条规则不会误伤公开页；而**以后任何人新增一个 .html 页面，都自动继承
+  // 「不被共享缓存」这个安全默认**，不需要记得回来加白名单 —— 枚举式白名单的失效方式
+  // 恰恰是「新页面忘了加」，2026-10-30 的 5 种绕过写法就是这么出现的。
+  if (/\.html$/i.test(path)) return
 
   // 已登录（cookie 或 Bearer）→ 保持 private，不缓存到共享层
   const authCookie = getCookie(event, 'favshub_token')

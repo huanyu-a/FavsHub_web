@@ -397,8 +397,11 @@ async function main() {
       !('guest_fingerprint' in (detailR.json?.deal || {})), JSON.stringify(Object.keys(detailR.json?.deal || {})))
     check('M4：公开详情原文搜不到指纹值', !detailR.text.includes('deadbeefcafe1234'))
     const listR = await api('/api/token-deals?limit=50')
+    // 注意 every() 在空集上恒为真：先钉住「列表非空」，否则这条会在空集上假通过
+    const m4Rows = listR.json?.deals || []
+    check('M4：公开列表非空（后续断言的前提）', m4Rows.length > 0, `样本 ${m4Rows.length} 条`)
     check('M4：公开列表不含 guest_fingerprint',
-      (listR.json?.deals || []).every(d => !('guest_fingerprint' in d)))
+      m4Rows.every(d => !('guest_fingerprint' in d)))
     check('M4：公开列表原文搜不到指纹值', !listR.text.includes('deadbeefcafe1234'))
     check('M4：游客自填展示名仍保留（非敏感）',
       (listR.json?.deals || []).some(d => d.id === guestId && d.guest_name === '游客甲'), 'guest_name 应保留')
@@ -426,9 +429,9 @@ async function main() {
       check('AI 通道确实返回了探针通告（后续断言的前提）',
         rows.some(d => d.id === guestProbeId),
         `样本 ${rows.length} 条，前几个 id: ${rows.slice(0, 5).map(d => d.id).join(',')}`)
-      check('AI 通道列表不含 guest_fingerprint 键', rows.every(d => !('guest_fingerprint' in d)), `样本 ${rows.length} 条`)
-      check('AI 通道列表不含 deleted_by 键', rows.every(d => !('deleted_by' in d)))
-      check('AI 通道列表不含 verified_by 键', rows.every(d => !('verified_by' in d)))
+      check('AI 通道列表不含 guest_fingerprint 键', rows.length > 0 && rows.every(d => !('guest_fingerprint' in d)), `样本 ${rows.length} 条`)
+      check('AI 通道列表不含 deleted_by 键', rows.length > 0 && rows.every(d => !('deleted_by' in d)))
+      check('AI 通道列表不含 verified_by 键', rows.length > 0 && rows.every(d => !('verified_by' in d)))
       check('AI 通道列表原文搜不到指纹值', !aiR.text.includes('deadbeefcafe1234'))
       check('AI 通道仍保留 models 等正常字段（非空集上检查）', rows.length > 0 && rows.every(d => 'models' in d), `样本 ${rows.length} 条`)
       void guestProbeId
@@ -532,6 +535,8 @@ async function main() {
     for (const [who, cookie] of [['匿名', undefined], ['管理员', admin]]) {
       const l = await api('/api/token-deals', { cookie })
       const deals = l.json?.deals || []
+      // 同上：every() 在空集上恒真，统一加非空前提
+      check(`[${who}] 列表非空（后续断言的前提）`, deals.length > 0, `样本 ${deals.length} 条`)
       check(`[${who}] 列表无 username`, deals.every(d => !('username' in d)))
       check(`[${who}] 列表 user_id 不下发`, deals.every(d => d.user_id === undefined))
       check(`[${who}] 列表 deleted_by 不下发`, deals.every(d => d.deleted_by === undefined))
