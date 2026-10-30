@@ -1100,6 +1100,54 @@ async function main() {
         !sameBody.includes('API 地址'), sameBody.slice(0, 400))
     }
 
+    // ── (m) 公开详情响应不得带内部字段（2026-10-30 四轮）──
+    //
+    // 详情端点是 `{ ...row, ...覆盖 }` 的写法：`SELECT *` 展开全列，靠后面显式覆盖来脱敏。
+    // 这种写法**新增一列就会自动透传**，所以必须有断言盯着，否则下一次加内部字段
+    // （审计人、下架原因、指纹…）会静默泄露。
+    //
+    // 当前实测（生产库副本 61 条可见通告）泄露数为 0 —— 因为可见性过滤保证了
+    // 「能读到详情 = 未删除 + 未失效」，`deleted_at` / `invalid_reason` 恒为空。
+    // 但那是**偶然安全**，本轮已把它们改成显式 `undefined`，这里钉住。
+    console.log('\n▶ (m) 公开详情：内部字段一律不下发')
+    {
+      // 本节自建通告，不依赖 (l) 块里的局部变量
+      const idFieldCheck = await createDeal({
+        ...base, title: '庚站 字段白名单', provider: '庚站',
+        url: 'https://example.com/field', call_url: 'https://api.example.com/field',
+      })
+      const INTERNAL = [
+        'deleted_at',        // 谁在何时删的
+        'invalid_reason',    // 为什么判失效（expired/votes/manual）
+        'deleted_by',        // 下架操作人
+        'user_id',           // 可关联到账号
+        'guest_fingerprint', // sha256(ip|ua)，能串联同一游客的全部通告
+      ]
+      const resp = await api(`/api/token-deals/${idFieldCheck}`)
+      const deal = resp.json?.deal || {}
+      const present = INTERNAL.filter(f => f in deal)
+      check('(m) 公开详情不含内部字段（键都不出现）', present.length === 0,
+        `仍在下发：${present.join(', ')}`)
+
+      // `verified_by` 是**例外**：它恒下发空串（键在、值空）。
+      // 前端组件已不渲染该字段，键保留只是为了响应结构稳定；
+      // CLAUDE.md 的口径是「任何身份都不下发用户名」—— 所以要断言的是**值**为空。
+      check('(m) verified_by 恒为空串（不因管理员身份放行）',
+        deal.verified_by === '', JSON.stringify(deal.verified_by))
+
+      // 反向断言：前端**需要**的字段必须保留，别把脱敏做过界
+      const KEEP = ['id', 'provider', 'title', 'url', 'is_deleted', 'is_invalid',
+        'invalid_reason_label', 'is_owner', 'can_edit', 'verified_at', 'verify_note',
+        'note_html', 'has_invite_code', 'claim_url_source']
+      const missing = KEEP.filter(f => !(f in deal))
+      check('(m) 脱敏未过界：前端依赖的字段都在', missing.length === 0,
+        `缺失：${missing.join(', ')}`)
+
+      // 驳回通告：作者必须能读到 reject_reason（改稿重提的依据）
+      // 匿名/他人读驳回通告一律 404（既有行为），所以这里只断言字段本身仍在响应结构里
+      check('(m) reject_reason 字段保留（作者改稿需要）', 'reject_reason' in deal)
+    }
+
     // ── 对照：有占位符但**没有配任何码** → 不能给「去抽取」（点了没反应）──
     const idNoPool = await createDeal({
       ...base, title: '丑站 占位符但无码池', provider: '丑站',

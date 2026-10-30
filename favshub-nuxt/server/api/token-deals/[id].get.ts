@@ -145,6 +145,15 @@ export default defineEventHandler(async (event) => {
       is_deleted: !!row.deleted_at,
       is_invalid: !!row.invalid_at,
       invalid_reason_label: row.invalid_at ? (INVALID_REASON_LABELS[row.invalid_reason] || '已失效') : '',
+      // 生命周期原始列不下发公开侧（2026-10-30 四轮）：前端只需要上面三个派生值
+      // （`is_deleted` / `is_invalid` / `invalid_reason_label`），原始列是运营侧的审计信息。
+      // 当前可见性过滤已保证「能读到详情 = 未删除 + 未失效」，所以这两个字段今天就恒为空 ——
+      // 但那是**偶然安全**：一旦可见性判断出现漏洞（例如新端点漏了 `canReadDeal()`），
+      // 泄露的就是「谁在何时删的」「为什么判失效」。显式剔除，不留这个口子。
+      // ⚠️ `reject_reason` **刻意保留**：作者要读到自己被驳回的原因才能改稿重提
+      //    （`TokenDealDetail.vue` 的「未通过审核」区块），且驳回通告对非作者一律 404。
+      deleted_at: undefined,
+      invalid_reason: undefined,
       is_owner: isOwner,
       can_edit: isOwner || isAdmin,
       can_moderate: isAdmin,
