@@ -40,8 +40,8 @@ function bad(desc, detail) {
 function check(desc, cond, detail) { cond ? ok(desc) : bad(desc, detail) }
 
 // ── HTTP ────────────────────────────────────────────────────
-async function api(path, { method = 'GET', cookie, body } = {}) {
-  const headers = {}
+async function api(path, { method = 'GET', cookie, body, headers: extra } = {}) {
+  const headers = { ...(extra || {}) }
   if (cookie) headers.Cookie = cookie
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   const res = await fetch(BASE + path, {
@@ -312,6 +312,18 @@ async function main() {
       method: 'POST', body: { t: drawToken },
     })
     check('凭证与 codeId 不匹配 → 400', wrongCode.status === 400, `status=${wrongCode.status}`)
+    // 回归：曾用 `t.length`（UTF-16 码元）判长、却用 timingSafeEqual 比字节，
+    // 32 个汉字长度检查放行、字节数不等 → 抛 RangeError → 未认证即可打出 500。
+    const multiByte = await api(`/api/token-deals/${dealId}/invite-code/${codeId}/copy`, {
+      method: 'POST', body: { t: '汉'.repeat(32) },
+    })
+    check('多字节凭证 → 400 而非 500', multiByte.status === 400,
+      `status=${multiByte.status} body=${multiByte.text.slice(0, 80)}`)
+    const emojiToken = await api(`/api/token-deals/${dealId}/invite-code/${codeId}/copy`, {
+      method: 'POST', body: { t: 'a'.repeat(30) + '😀' },
+    })
+    check('emoji 凭证（32 码元/36 字节）→ 400 而非 500', emojiToken.status === 400,
+      `status=${emojiToken.status}`)
 
     const c1 = await api(`/api/token-deals/${dealId}/invite-code/${codeId}/copy`, {
       method: 'POST', body: { t: drawToken },
@@ -390,6 +402,37 @@ async function main() {
     check('M4：公开列表原文搜不到指纹值', !listR.text.includes('deadbeefcafe1234'))
     check('M4：游客自填展示名仍保留（非敏感）',
       (listR.json?.deals || []).some(d => d.id === guestId && d.guest_name === '游客甲'), 'guest_name 应保留')
+  }
+
+  {
+    // ═══ MAJOR 回归：AI 通道同样不得下发游客指纹与内部字段 ═══
+    // 根因是脱敏「按端点各写一遍」：AI 通道走 `SELECT td.*`，此前只有 web 端点清了
+    // guest_fingerprint，于是 AI 通道一直在下发（实测确认过）。这条断言的价值在于
+    // 「以后往 token_deals 加内部字段，AI 通道会被自动盯住」。
+    const guestProbeId = 'e2e_guest_probe'
+    const patR = await api('/api/user/api-tokens', {
+      method: 'POST', cookie: alice, body: { name: 'e2e-ai-field-probe', scopes: 'read' },
+    })
+    const pat = patR.json?.token || patR.json?.plain || patR.json?.data?.token || ''
+    check('AI 前置：创建只读 PAT', (patR.status === 200 || patR.status === 201) && !!pat,
+      `status=${patR.status} body=${patR.text.slice(0, 120)}`)
+
+    if (pat) {
+      const auth = { Authorization: `Bearer ${pat}` }
+      const aiR = await api('/api/ai/token-deals?limit=50', { headers: auth })
+      check('AI 通道列表可访问', aiR.status === 200, `status=${aiR.status} body=${aiR.text.slice(0, 120)}`)
+      const rows = aiR.json?.token_deals || aiR.json?.deals || []
+      // 先证「列表非空且含探针」——否则下面几条「不含某键」会是在空集上假通过
+      check('AI 通道确实返回了探针通告（后续断言的前提）',
+        rows.some(d => d.id === guestProbeId),
+        `样本 ${rows.length} 条，前几个 id: ${rows.slice(0, 5).map(d => d.id).join(',')}`)
+      check('AI 通道列表不含 guest_fingerprint 键', rows.every(d => !('guest_fingerprint' in d)), `样本 ${rows.length} 条`)
+      check('AI 通道列表不含 deleted_by 键', rows.every(d => !('deleted_by' in d)))
+      check('AI 通道列表不含 verified_by 键', rows.every(d => !('verified_by' in d)))
+      check('AI 通道列表原文搜不到指纹值', !aiR.text.includes('deadbeefcafe1234'))
+      check('AI 通道仍保留 models 等正常字段（非空集上检查）', rows.length > 0 && rows.every(d => 'models' in d), `样本 ${rows.length} 条`)
+      void guestProbeId
+    }
   }
 
   {

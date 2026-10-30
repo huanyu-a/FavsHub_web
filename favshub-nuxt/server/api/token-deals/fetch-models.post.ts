@@ -102,8 +102,19 @@ export function normalizeModelsEndpoint(input: string): string {
   return u.href
 }
 
-/** 校验并解析出可安全连接的地址（**校验结果即连接目标**） */
-async function resolveSafeTarget(urlStr: string): Promise<{ url: URL; address: string; family: number }> {
+/** DNS 解析超时：解析器不响应时不能让请求无限期挂着 */
+const DNS_TIMEOUT_MS = 5_000
+
+/**
+ * 校验并解析出可安全连接的地址（**校验结果即连接目标**）。
+ *
+ * 返回**全部**已校验地址而不是第一个：双栈域名下只钉第一个，会在「AAAA 排在前面但本机没有
+ * IPv6 出口」时直接连不上 —— `fetch` 自带 Happy Eyeballs 能自动回退，钉死地址后就失去了这个
+ * 能力，等于用可用性换安全性。候选地址全部经过同一套校验，按序尝试不降低安全性。
+ */
+async function resolveSafeTarget(
+  urlStr: string,
+): Promise<{ url: URL; addrs: Array<{ address: string; family: number }> }> {
   let u: URL
   try {
     u = new URL(urlStr)
@@ -122,10 +133,19 @@ async function resolveSafeTarget(urlStr: string): Promise<{ url: URL; address: s
   }
 
   let addrs: Array<{ address: string; family: number }>
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    addrs = await dns.lookup(u.hostname, { all: true }) as Array<{ address: string; family: number }>
+    addrs = await Promise.race([
+      dns.lookup(u.hostname, { all: true }) as Promise<Array<{ address: string; family: number }>>,
+      // dns.lookup 自身没有超时参数，解析器挂住时会把请求永久占住，故外面套一层
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('dns timeout')), DNS_TIMEOUT_MS)
+      }),
+    ])
   } catch {
     throw new OutboundError('域名解析失败，请检查 API 地址')
+  } finally {
+    if (timer) clearTimeout(timer)
   }
   if (!addrs.length) throw new OutboundError('域名解析失败，请检查 API 地址')
 
@@ -134,39 +154,43 @@ async function resolveSafeTarget(urlStr: string): Promise<{ url: URL; address: s
     if (isPrivateIP(a.address)) throw new OutboundError('不允许访问内网地址')
   }
 
-  // 取第一个作为固定连接目标（与 Node 默认行为一致，但地址已经过校验）
-  return { url: u, address: addrs[0].address, family: addrs[0].family }
+  return { url: u, addrs }
 }
 
-/** 用**已校验并钉死**的地址发起一次 GET */
-function pinnedGet(
-  target: { url: URL; address: string; family: number },
+/**
+ * 单次请求：把已校验的地址**钉到 socket**，并用「硬总时限 + 空闲超时」双保险控制时长。
+ *
+ * 两个踩过的坑（都在 `scripts/ssrf-pin-check.mjs` 里固化成断言）：
+ *
+ * 1. `http.request` 的 `timeout` 是 **socket 空闲超时**，不是总时限 —— 对手用「每秒吐 1 字节、
+ *    永不结束」的慢速服务器就能把连接无限期占住（实测：配 12 s，30 s 仍未结束；而之前用
+ *    `fetch` + `AbortSignal.timeout()` 是 12 s 准时结束）。所以必须另起一个硬定时器到点无条件断开。
+ * 2. 内部是以 `{ all: true }` 调 lookup 的（实测 Node 24），此时回调必须给**数组**；
+ *    给 `(err, address, family)` 会直接报 `Invalid IP address: undefined` 而连不上。
+ */
+function requestOnce(
+  url: URL,
+  addr: { address: string; family: number },
   headers: Record<string, string>,
   timeoutMs: number,
 ): Promise<{ status: number; location: string | null; text: string }> {
-  const mod = target.url.protocol === 'https:' ? https : http
-  const port = target.url.port || (target.url.protocol === 'https:' ? 443 : 80)
+  const mod = url.protocol === 'https:' ? https : http
+  const port = url.port || (url.protocol === 'https:' ? 443 : 80)
 
   return new Promise((resolve, reject) => {
     const req = mod.request({
-      protocol: target.url.protocol,
-      hostname: target.url.hostname,
+      protocol: url.protocol,
+      hostname: url.hostname,
       port,
-      path: target.url.pathname + target.url.search,
+      path: url.pathname + url.search,
       method: 'GET',
       headers,
-      // ── 关键：把已校验的地址直接喂给 socket ──
-      // `fetch` 没有这个能力（它自己解析 DNS），所以这一层只能用原生 http 模块实现。
-      // TLS 的 SNI 与证书校验仍基于 hostname，不受影响。
-      //
-      // 注意 `http.request` 内部是以 `{ all: true }` 调 lookup 的（实测 Node 24），
-      // 此时回调必须给**数组**；给 `(err, address, family)` 会直接报
-      // `Invalid IP address: undefined` 而连不上 —— 两个分支都要覆盖。
+      // TLS 的 SNI 与证书校验仍基于 hostname，不受钉地址影响。
       lookup: (_hostname, options, cb) => {
         if (options && (options as any).all) {
-          cb(null, [{ address: target.address, family: target.family }] as any)
+          cb(null, [{ address: addr.address, family: addr.family }] as any)
         } else {
-          cb(null, target.address, target.family)
+          cb(null, addr.address, addr.family)
         }
       },
       timeout: timeoutMs,
@@ -190,10 +214,41 @@ function pinnedGet(
       res.on('error', reject)
     })
 
+    // 硬总时限：无论对方是否持续吐字节，到点一律断开
+    const hardTimer = setTimeout(
+      () => req.destroy(new OutboundError('目标站点响应超时，请稍后重试')),
+      timeoutMs,
+    )
+    req.on('close', () => clearTimeout(hardTimer))
+    // 空闲超时：连上后长时间一个字节都没有时更快失败
     req.on('timeout', () => req.destroy(new OutboundError('目标站点响应超时，请稍后重试')))
     req.on('error', reject)
     req.end()
   })
+}
+
+/**
+ * 按序尝试**全部**已校验地址，任一成功即返回。
+ *
+ * 回退只在「还没拿到响应」时有意义，因此这里只对 reject 的请求重试下一个地址；
+ * 一旦收到响应就不再换地址，避免重复请求带来副作用。
+ */
+function pinnedGet(
+  target: { url: URL; addrs: Array<{ address: string; family: number }> },
+  headers: Record<string, string>,
+  deadline: number,
+): Promise<{ status: number; location: string | null; text: string }> {
+  const tryAt = (i: number): Promise<{ status: number; location: string | null; text: string }> => {
+    const addr = target.addrs[i]
+    if (!addr) return Promise.reject(new OutboundError('无法连接到该地址，请确认 API 地址可访问'))
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) return Promise.reject(new OutboundError('目标站点响应超时，请稍后重试'))
+    return requestOnce(target.url, addr, headers, remaining).catch((err: unknown) => {
+      if (i + 1 < target.addrs.length) return tryAt(i + 1)
+      throw err
+    })
+  }
+  return tryAt(0)
 }
 
 /**
@@ -211,7 +266,7 @@ async function safeGet(
   if (remaining <= 0) throw new OutboundError('目标站点响应超时，请稍后重试')
 
   const target = await resolveSafeTarget(urlStr)
-  const res = await pinnedGet(target, headers, remaining)
+  const res = await pinnedGet(target, headers, deadline)
 
   if (res.status >= 300 && res.status < 400) {
     if (depth >= MAX_REDIRECTS) {

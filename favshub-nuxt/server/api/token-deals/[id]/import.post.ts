@@ -24,7 +24,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (deal.status !== 'approved' && deal.user_id !== user.id && !isAdmin) {
-    throw createError({ statusCode: 403, data: { error: '该通告尚未通过审核' } })
+    // 与详情/评分/邀请码等端点口径统一：一律 404「通告不存在」。
+    // 403 + 「尚未通过审核」等于向陌生人确认「这个 id 存在、且正处于待审状态」，
+    // 泄露的是存在性与审核进度，对无权查看的人没有告知义务。
+    throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   if (deal.deleted_at) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })

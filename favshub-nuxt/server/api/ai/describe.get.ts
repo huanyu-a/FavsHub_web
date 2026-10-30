@@ -122,17 +122,18 @@ export default defineAiHandler('read', async (_event, token) => {
           quota: '字符串，可空，≤200', models: '字符串数组，≤20 项', region: 'cn | global',
           category: 'token(默认，API 额度) | cloud(免费云服务器) | client(客户端额度)',
           quality: '上上品 | 上品 | 中品 | 下品 | 下下品', source_tag: 'official | relay | community',
-          expires_at: '毫秒时间戳或 null（null=永久）', note: '字符串，可空，≤500',
+          expires_at: '毫秒时间戳或 null（null=永久）',
+          note: '字符串，可空，≤2000，支持 Markdown / HTML / 图片等富文本',
           status: 'pending | approved | rejected', pinned: '0/1，仅管理员可置顶',
           deleted_at: '毫秒时间戳或 null；非 null 表示已软删除（后台可恢复）',
-          deleted_by: '整数或 null，执行删除的用户 id',
           invalid_at: '毫秒时间戳或 null；非 null 表示已失效（下架）',
           invalid_reason: "'' | expired（到期）| votes（社区投票判定）| manual（管理员判定）",
           verified_at: '毫秒时间戳，0 = 从未人工核验（**只读**：核验只能由管理员在后台操作）',
           verify_note: '字符串，最近一次人工核验备注（只读）',
           verify_stale: '布尔（列表/详情派生字段）：超过 deal_verify_stale_days 天没核验',
         },
-        note: '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
+        note: '**内部字段一律不返回**：verified_by（核验人）、guest_fingerprint（游客身份指纹）、deleted_by（执行删除的用户 id）。这些字段在表里存在，但任何对外通道都不下发，请勿依赖。'
+          + '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
           + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。'
           + '每条通告还有人工核验时间轴（verified_at / verify_stale）：`verified_at` 是站点最近一次确认「此刻仍可用」的时间，'
           + '`verify_stale=true` 表示超过阈值（默认 30 天）没核验 —— 只是提示，不代表已失效。推荐给用户时优先推「最近核验 + 社区投票健康」的条目，并如实转述核验日期。',

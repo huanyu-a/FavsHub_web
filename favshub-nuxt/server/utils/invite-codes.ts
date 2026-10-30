@@ -254,10 +254,15 @@ export function pickInviteCode(
   })
   const total = weights.reduce((a, b) => a + b, 0)
 
-  // 极端权重叠加（如多个 Number.MAX_VALUE）会让 total 变 Infinity，
-  // 那样 `rand() * total` 恒为 Infinity，差值永远不减到 0 以下 → 永远返回最后一个码、
-  // 其余码被彻底饿死。检出这种退化情形就改用等概率，宁可与配置不符也不要给出错误的分布。
-  const effective = Number.isFinite(total) && total > 0 ? weights : pool.map(() => 1)
+  // 极端权重会让抽选分布失真，要判**两种**退化：
+  //   1. 多个 Number.MAX_VALUE 相加 → total 为 Infinity，`rand() * total` 恒为 Infinity；
+  //   2. **有限但极大**（更隐蔽）：`MAX_VALUE + 2 === MAX_VALUE`（浮点），
+  //      于是 total 看起来正常，实际抽选几乎全落在那个巨权重上、其余码被饿死。
+  // 所以判据不能只看 isFinite，还要落在可精确表示的整数范围内。
+  // 检出退化为等概率：宁可与配置不符，也不要给出错误的分布（接口层权重已夹到 [1,1000]，
+  // 这里是纵深防御，防的是直接改库或将来新增的写入路径）。
+  const sane = Number.isFinite(total) && total > 0 && total <= Number.MAX_SAFE_INTEGER
+  const effective = sane ? weights : pool.map(() => 1)
   const safeTotal = effective.reduce((a, b) => a + b, 0)
 
   let t = rand() * safeTotal
@@ -322,13 +327,17 @@ export function verifyDrawToken(
   token: unknown,
   now = Date.now(),
 ): boolean {
-  const t = String(token ?? '')
-  if (t.length !== 32) return false
+  // 必须按**字节**长度判，不能用 `t.length`：后者数的是 UTF-16 码元，
+  // 32 个汉字是 32 码元却有 96 字节 —— 长度检查放行后 `timingSafeEqual` 会因字节长度不等
+  // 抛 RangeError，未认证即可把接口打成 500（契约应是 400/拒绝）。
+  // `utils/ai-auth.ts` 与 `onebot.post.ts` 在别处就是这么比的，这里之前漏了。
+  const got = Buffer.from(String(token ?? ''), 'utf8')
+  if (got.length !== 32) return false
   const bucket = Math.floor(now / DRAW_TOKEN_TTL_MS)
   for (const b of [bucket, bucket - 1]) {
-    const expect = drawTokenFor(dealId, codeId, b)
-    // 定长比较用 timingSafeEqual，避免按字节提前返回泄露信息
-    if (timingSafeEqual(Buffer.from(expect), Buffer.from(t))) return true
+    const expect = Buffer.from(drawTokenFor(dealId, codeId, b), 'utf8')
+    // 定长比较用 timingSafeEqual，避免按字节提前返回泄露信息（长度已确认相等）
+    if (expect.length === got.length && timingSafeEqual(expect, got)) return true
   }
   return false
 }

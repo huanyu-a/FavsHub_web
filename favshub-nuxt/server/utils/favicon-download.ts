@@ -53,14 +53,26 @@ const PRIVATE_V4_CIDRS: Array<[number[], number]> = [
 
 /** IPv6 内网 / 保留段（字节前缀 + 前缀位数） */
 const PRIVATE_V6_CIDRS: Array<[number[], number]> = [
-  [[0xfe, 0x80], 10],                     // link-local fe80::/10
-  [[0xfc], 7],                            // unique local fc00::/7
-  [[0x00, 0x64, 0xff, 0x9b], 96],         // NAT64 64:ff9b::/96
+  [[0xfe, 0x80], 10],                                      // link-local fe80::/10
+  [[0xfc], 7],                                             // unique local fc00::/7
 ]
+
 
 /** IPv4-mapped（::ffff:0:0/96）与 IPv4-compatible（::/96）—— 内层按 IPv4 递归判定 */
 const V4_MAPPED_PREFIX = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff]
 const V4_COMPAT_PREFIX = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+/**
+ * IPv6 中**内嵌 IPv4** 的形式：`[前缀, 位数, 内层 IPv4 起始字节]`。
+ * 必须先剥出内层 IPv4 再按 IPv4 规则判，否则 `2002:7f00:1::`（6to4 封装的 127.0.0.1）
+ * 这类地址能直接绕过整张表。
+ */
+const V6_EMBEDDED_V4: Array<[number[], number, number]> = [
+  [V4_MAPPED_PREFIX, 96, 12],                             // ::ffff:0:0/96
+  [V4_COMPAT_PREFIX, 96, 12],                             // ::/96
+  [[0x20, 0x02], 16, 2],                                  // 6to4 2002::/16
+  [[0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0], 96, 12], // NAT64 64:ff9b::/96
+  [[0x00, 0x64, 0xff, 0x9b, 0x00, 0x01, 0, 0, 0, 0, 0, 0], 48, 12], // NAT64 本地用途 64:ff9b:1::/48（RFC 8215）
+]
 
 function parseIPv4(host: string): number[] | null {
   const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
@@ -118,8 +130,18 @@ function parseIPv6(host: string): number[] | null {
   return bytes
 }
 
-/** 字节数组是否落在某个 CIDR 前缀内 */
+/**
+ * 字节数组是否落在某个 CIDR 前缀内。
+ *
+ * **前缀字节数不足时必须报错，不能静默返回 false** —— `prefix[i]` 为 `undefined` 时
+ * 恒有 `bytes[i] !== undefined`，整个表项会变成永不生效的死代码。
+ * 2026-10-30 的 NAT64 词条 `64:ff9b::/96` 就是这么失效的：写了 4 字节却要按 96 位比。
+ */
 function matchCidr(bytes: number[], prefix: number[], bits: number): boolean {
+  const need = Math.ceil(bits / 8)
+  if (prefix.length < need) {
+    throw new Error(`CIDR 前缀字节数不足：/${bits} 需要 ${need} 字节，实际只有 ${prefix.length} 字节`)
+  }
   const full = Math.floor(bits / 8)
   for (let i = 0; i < full; i++) if (bytes[i] !== prefix[i]) return false
   const rem = bits % 8
@@ -130,9 +152,28 @@ function matchCidr(bytes: number[], prefix: number[], bits: number): boolean {
   return true
 }
 
-function isPrivateIPv4Bytes(b: number[]): boolean {
-  return PRIVATE_V4_CIDRS.some(([prefix, bits]) => matchCidr(b, prefix, bits))
+/**
+ * 命中表中任意一项即算内网。
+ *
+ * 表项本身写错时**按内网处理（fail-closed）**并大声报错：宁可多拦一个地址，
+ * 也不能让一道安全控制悄无声息地失效 —— 这正是本次踩到的坑。
+ */
+function matchAnyCidr(bytes: number[], table: Array<[number[], number]>): boolean {
+  for (const [prefix, bits] of table) {
+    try {
+      if (matchCidr(bytes, prefix, bits)) return true
+    } catch (e) {
+      console.error('[SSRF] 内网地址段表配置错误，该项已按内网拦截:', (e as Error).message)
+      return true
+    }
+  }
+  return false
 }
+
+function isPrivateIPv4Bytes(b: number[]): boolean {
+  return matchAnyCidr(b, PRIVATE_V4_CIDRS)
+}
+
 
 /** 判断主机名/IP 是否指向内网或保留地址（**DNS 解析结果也要过这一关**） */
 export function isPrivateIP(hostname: string): boolean {
@@ -141,14 +182,17 @@ export function isPrivateIP(hostname: string): boolean {
 
   const v6 = parseIPv6(h)
   if (v6) {
-    // 内嵌 IPv4 的两种映射形式：先剥出后 4 字节按 IPv4 规则判（递归）
-    if (matchCidr(v6, V4_MAPPED_PREFIX, 96) || matchCidr(v6, V4_COMPAT_PREFIX, 96)) {
-      return isPrivateIPv4Bytes(v6.slice(12))
+    // 内嵌 IPv4 的形式（V4-mapped / V4-compatible / 6to4）：剥出内层 IPv4 递归判
+    for (const [prefix, bits, offset] of V6_EMBEDDED_V4) {
+      if (matchAnyCidr(v6, [[prefix, bits]])) {
+        return isPrivateIPv4Bytes(v6.slice(offset, offset + 4))
+      }
     }
-    return PRIVATE_V6_CIDRS.some(([prefix, bits]) => matchCidr(v6, prefix, bits))
+    return matchAnyCidr(v6, PRIVATE_V6_CIDRS)
   }
 
   const v4 = parseIPv4(h)
+
   if (v4) return isPrivateIPv4Bytes(v4)
 
   if (h === 'metadata.google.internal') return true

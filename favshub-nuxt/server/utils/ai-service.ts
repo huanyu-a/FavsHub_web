@@ -682,10 +682,30 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
     d.verified_at = Number(d.verified_at || 0)
     d.verify_age_days = verifyAgeDays(d, now)
     d.verify_stale = isVerifyStale(d, now)
-    delete d.verified_by
+    // 与 stripDealPrivateFields 共用同一份字段清单，避免两处各写一遍再漂移
+    stripDealPrivateFieldList(d)
   }
 
   return { token_deals: deals, pagination: { page, limit, total } }
+}
+
+/**
+ * **只该留在后台、任何对外通道都不下发的通告字段**。
+ *
+ * 2026-10-30 的教训：脱敏散落在各个端点里「各补一句 delete」，全仓只有两处清了
+ * `guest_fingerprint`，而 AI 通道走的是 `SELECT td.*`，于是它一直在下发游客指纹 ——
+ * 指纹是「同一游客发过的所有通告」的关联键（与游客评测身份同源算法），泄露即剥掉匿名性。
+ *
+ * **以后往 `token_deals` 加任何内部字段，都先回到这里加一项**，再去端点里确认没有绕开本函数。
+ */
+const DEAL_PRIVATE_FIELDS = ['verified_by', 'guest_fingerprint', 'deleted_by'] as const
+
+/** 就地剥离内部字段（不动 `models` 反序列化，方便列表循环里单独调用） */
+function stripDealPrivateFieldList(row: any): void {
+  if (!row || typeof row !== 'object') return
+  for (const f of DEAL_PRIVATE_FIELDS) {
+    if (f in row) delete row[f]
+  }
 }
 
 /**
@@ -695,10 +715,11 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
  * 顺手反序列化 `models`。`verify_stale` / `verify_age_days` 是派生只读字段，不剥离。
  */
 function stripDealPrivateFields<T = any>(row: T): T {
-  if (!row || typeof row !== 'object') return row
+  stripDealPrivateFieldList(row)
   const anyRow = row as any
-  if ('verified_by' in anyRow) delete anyRow.verified_by
-  if ('models' in anyRow) anyRow.models = parseDealModels(anyRow.models)
+  if (anyRow && typeof anyRow === 'object' && 'models' in anyRow) {
+    anyRow.models = parseDealModels(anyRow.models)
+  }
   return row
 }
 
