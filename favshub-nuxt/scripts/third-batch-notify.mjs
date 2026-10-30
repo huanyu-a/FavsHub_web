@@ -572,6 +572,38 @@ async function main() {
       }
       if (!codeHit) ok('(k) 公开事件流不含码池明文（含 changes.from 的历史值）')
 
+      // 断言 2b：**停用**的码同样要清洗。
+      //
+      // 实现里刻意用「全量码池」而不是「可用码池」（`pickInviteCode` 才只取可用码）：
+      // 已停用 / 已用满的码只是不再发给新访客，但它仍是秘密 —— 从公开事件流里读出来
+      // 照样能手动拿去用（`copy_limit` 只约束本站计数，拦不住抄写）。
+      // 若有人「优化」成只查 enabled=1，这条断言会立刻失败。
+      {
+        const disabledCode = `E2EDIS${STAMP.toString(36).slice(-5).toUpperCase()}`
+        const putDis = await api(`/api/token-deals/${idK}/invite-codes`, {
+          method: 'PUT', cookie: admin,
+          // 保留原码（否则 url 里那个码会被当成「新码」），再追加一个**停用**的码
+          body: { codes: [
+            { code: POOL_CODE, label: '', weight: 1, copyLimit: 0, enabled: true },
+            { code: disabledCode, label: '', weight: 1, copyLimit: 0, enabled: false },
+          ] },
+        })
+        check('(k) 写入一个停用的码', putDis.status === 200, JSON.stringify(putDis.json).slice(0, 200))
+        // 把停用码写进 url 再改回占位符 → 产出 changes 里含停用码的事件
+        await api(`/api/token-deals/${idK}`, {
+          method: 'PUT', cookie: admin,
+          body: { ...kBase, url: `https://example.com/k?ref=${disabledCode}` },
+        })
+        await api(`/api/token-deals/${idK}`, {
+          method: 'PUT', cookie: admin,
+          body: { ...kBase, url: 'https://example.com/k?ref={邀请码}' },
+        })
+        const pub2 = await fetchEvents()
+        const disHit = pub2.filter(e => JSON.stringify(e).includes(disabledCode))
+        check('(k) 停用的码也不得出现在公开事件流', disHit.length === 0,
+          disHit.map(e => `seq=${e.seq}`).join(','))
+      }
+
       // 断言 3：**没有误伤** —— 通告自身的公开领取链接（不含码池码）应原样保留。
       //
       // ⚠️ 注意选谁做样本：通告 A 在本步之前已被软删除（`▶ 造 offline` 段），

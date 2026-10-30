@@ -580,7 +580,13 @@ export function publicEventViews(
 ): DealEventView[] {
   const ids = Array.from(new Set(rows.map(r => r.deal_id).filter(Boolean)))
   const visible = new Map<string, boolean>()
-  // 每个通告的码池（只取「可用」的码：与 pickInviteCode 同一口径）。
+  // 每个通告的码池 —— **刻意不过滤 `enabled` / `copy_limit`**，全量取出。
+  //
+  // 为什么与 `pickInviteCode` 的口径不同（那里只取「可用」的码）：这里的目的是
+  // **防泄露**，不是「发码」。已停用 / 已用满的码同样是秘密 —— 它们只是不再发给
+  // 新访客，但从公开事件流里读出来照样能拿去用（`copy_limit` 只约束本站计数，
+  // 拦不住手动抄写）。所以宁可多清洗，不可漏一个。
+  //
   // 用途见 scrubInviteCodeLeak：只有命中**本通告码池**的码才算泄露，
   // 通告自身公开领取链接里的固定邀请码不算。
   const pools = new Map<string, Set<string>>()
