@@ -171,5 +171,14 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // 内部列不下发（2026-10-30 四轮）：`SELECT p.*` 展开全列，`deleted_at` 会跟着透传。
+  // 当前 `deleted_at` 恒为 NULL（提示词走 `login_required` 做可见性，没有软删除 UI），
+  // 但那是**偶然安全** —— 与 token_deals 同一个坑（那轮修了详情、漏了列表），这里一并堵上。
+  // `user_id` 暂留：公开提示词的作者必然是管理员（POST/PUT 里非管理员强制
+  // `login_required = 1`），其值与同一响应里的 `owner_is_admin` / 昵称等价，无新增泄露面。
+  for (const p of prompts) {
+    delete (p as any).deleted_at
+  }
+
   return { prompts }
 })
