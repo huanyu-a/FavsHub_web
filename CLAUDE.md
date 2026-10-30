@@ -67,6 +67,10 @@ pnpm compile                                    # 类型检查
 - 推送 `favshub-nuxt/VERSION` 到 `main` → GitHub Actions 构建并推 `ghcr.io/<owner>/favshub`。
 - 日常功能提交**不必** bump VERSION。
 - 含密码的本机部署步骤在 **`favshub-nuxt/DEPLOY.md`**（gitignore，勿提交）。
+- **当前生产状态与部署坑见 [`favshub-nuxt/DEPLOYMENT-STATE.md`](favshub-nuxt/DEPLOYMENT-STATE.md)**
+  （不含密码）：其中记录了「GHCR 的 `latest` 可能落后于生产实际运行的镜像」这一情形，
+  以及为什么**推送前不要执行 `docker compose pull`**（会把生产拉回旧版）、
+  回滚 tag 清单、补丁镜像的做法。
 
 ## 协作约定
 
