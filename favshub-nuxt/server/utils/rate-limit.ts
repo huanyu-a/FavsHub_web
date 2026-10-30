@@ -270,9 +270,9 @@ export function getRateLimitConfig(): RateLimitConfig {
   if (cachedConfig) return cachedConfig
   cachedConfig = {
     ai: {
-      perMin: envInt('FAVSHUB_RL_AI_PER_MIN', 10, 1, 1_000_000),
+      perMin: envInt('FAVSHUB_RL_AI_PER_MIN', 25, 1, 1_000_000),
       windowMs: envInt('FAVSHUB_RL_AI_WINDOW_MS', 60_000, 1_000, 86_400_000),
-      burst: envInt('FAVSHUB_RL_AI_BURST', 50, 1, 1_000_000),
+      burst: envInt('FAVSHUB_RL_AI_BURST', 250, 1, 1_000_000),
       burstWindowMs: envInt('FAVSHUB_RL_AI_BURST_WINDOW_MS', 30 * 60_000, 1_000, 30 * 86_400_000),
       ipPerMin: envInt('FAVSHUB_RL_AI_IP_PER_MIN', 60, 1, 1_000_000),
       ipBurst: envInt('FAVSHUB_RL_AI_IP_BURST', 200, 1, 1_000_000),

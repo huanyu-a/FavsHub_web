@@ -242,7 +242,7 @@ async function main() {
   cpSync(join(ROOT, '.output'), SNAP, { recursive: true })
 
   // ══════════════════════════════════════════════════════════════════════
-  section('phase 1 · 默认阈值：AI 通道 10 次/分钟 + 50 次/30 分钟')
+  section('phase 1 · 默认阈值：AI 通道 25 次/分钟 + 250 次/30 分钟')
   console.log('  （本 phase 不覆盖任何 FAVSHUB_RL_*，跑的就是生产默认值）')
   // ══════════════════════════════════════════════════════════════════════
   await startApp({}, 'default')
@@ -253,22 +253,22 @@ async function main() {
   // describe 的 429 文案必须由阈值表生成（防文档/代码漂移）
   const describe = await req('/api/ai/describe', { token: PAT_READ })
   const describe429 = String(describe.json?.errors?.[429] || '')
-  check('describe.errors[429] 由阈值表生成（含「10 次/分钟」与「50 次/30 分钟」）',
-    describe429.includes('10 次/分钟') && describe429.includes('50 次/30 分钟'),
+  check('describe.errors[429] 由阈值表生成（含「25 次/分钟」与「250 次/30 分钟」）',
+    describe429.includes('25 次/分钟') && describe429.includes('250 次/30 分钟'),
     `实际=${describe429}`)
   check('describe 不再出现旧的 600 次/分钟', !describe429.includes('600'), describe429)
 
   // ── (a) 第 11 次/分钟 → 429 ──────────────────────────────────────────
-  section('(a) AI 通道 10 次/分钟')
+  section('(a) AI 通道 25 次/分钟')
   const IP_A = '198.51.100.11'
   const statuses = []
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i < 26; i++) {
     const r = await req('/api/ai/stats', { token: PAT, ip: IP_A })
     statuses.push(r.status)
-    if (i < 10) check(`第 ${i + 1} 次 → 200`, r.status === 200, `status=${r.status} ${r.text.slice(0, 120)}`)
-    else assert429('第 11 次（同一令牌同一分钟）', r, '每令牌 10 次/分钟')
+    if (i < 25) check(`第 ${i + 1} 次 → 200`, r.status === 200, `status=${r.status} ${r.text.slice(0, 120)}`)
+    else assert429('第 26 次（同一令牌同一分钟）', r, '每令牌 25 次/分钟')
   }
-  check('前 10 次全 200、第 11 次 429', statuses.slice(0, 10).every(s => s === 200) && statuses[10] === 429,
+  check('前 25 次全 200、第 26 次 429', statuses.slice(0, 25).every(s => s === 200) && statuses[25] === 429,
     `statuses=${statuses.join(',')}`)
 
   // 另一张令牌（新桶）不受影响 —— 证明键是 per-token 而不是全局

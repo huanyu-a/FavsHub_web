@@ -570,8 +570,8 @@ async function main() {
 
     // ── 锚点：内容区上部 + 首屏可见 ──
     const anchorRule = (css.match(/\.deal-badge\.is-anchor-top\s*\{([^}]*)\}/) || [])[1] || ''
-    check('锚点类 .is-anchor-top 的 top 是 22%（不是 50%，也不是旧的中部方案）',
-      /top:\s*22%/.test(anchorRule), anchorRule.slice(0, 160))
+    check('锚点类 .is-anchor-top 的 top 是 8%（不是 50%，也不是旧的中部方案）',
+      /top:\s*8%/.test(anchorRule), anchorRule.slice(0, 160))
     check('锚点用顶部锚定（transform translate(-50%, 0)，不再垂直居中）',
       /translate\(-50%,\s*0\)/.test(anchorRule), anchorRule.slice(0, 160))
     check('锚点水平居中（left:50%）', /left:\s*50%/.test(anchorRule))
@@ -579,8 +579,8 @@ async function main() {
       !/badge-seal-space/.test(css) && !/badge-seal-space/.test(detailCss))
 
     // ── 360×640 首屏可见（用户反馈「手机端第一屏看不到」）──
-    // 水印顶边 = 22% × 容器高；容器高取弹窗 92vh 减 header/footer 的保守估计。
-    const SEAL_TOP_PCT = 0.22
+    // 水印顶边 = 8% × 容器高；容器高取弹窗 92vh 减 header/footer 的保守估计。
+    const SEAL_TOP_PCT = 0.08
     console.log('    视口高 | 容器高(估) | 水印 top | 水印 bottom | 首屏640内 | 结论')
     for (const [vw, vh, containerH] of [[360, 640, 576], [375, 667, 600], [414, 896, 806],
       [360, 568, 500], [390, 844, 760]]) {

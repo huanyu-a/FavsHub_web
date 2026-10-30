@@ -22,8 +22,8 @@ services:
       # 只往 .env 里加 FAVSHUB_RL_* 是不会生效的（历史教训，见 CLAUDE.md「限流与并发」）。
       # 改完需 `docker compose up -d` 重建容器（阈值在进程启动时读一次并缓存，不热更新）。
       # AI 通道：令牌级（用户原话「一分钟10次、半小时50次」）
-      - FAVSHUB_RL_AI_PER_MIN=${FAVSHUB_RL_AI_PER_MIN:-10}
-      - FAVSHUB_RL_AI_BURST=${FAVSHUB_RL_AI_BURST:-50}
+      - FAVSHUB_RL_AI_PER_MIN=${FAVSHUB_RL_AI_PER_MIN:-25}
+      - FAVSHUB_RL_AI_BURST=${FAVSHUB_RL_AI_BURST:-250}
       # AI 通道：IP 兜底（防无效令牌爆破）
       - FAVSHUB_RL_AI_IP_PER_MIN=${FAVSHUB_RL_AI_IP_PER_MIN:-60}
       - FAVSHUB_RL_AI_IP_BURST=${FAVSHUB_RL_AI_IP_BURST:-200}
