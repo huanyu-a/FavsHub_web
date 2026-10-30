@@ -110,7 +110,7 @@ cd favshub-nuxt && node scripts/public-field-matrix.mjs
 
 # 3) 全量通告「两行可见性」审计（期望 两行都无:0 / 错误:0）
 #    这是「API 地址行被误隐藏」那个 bug 的回归哨兵
-node /path/to/full-audit.mjs   # 脚本在本机 tmp，未入库
+node scripts/full-deal-row-audit.mjs        # 支持 --base / --limit / --concurrency
 
 # 4) 软 404 回归（期望 404）
 curl -s -o /dev/null -w "%{http_code}\n" -H "User-Agent: Mozilla/5.0" \
