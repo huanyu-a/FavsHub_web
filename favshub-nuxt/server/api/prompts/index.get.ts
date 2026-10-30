@@ -115,8 +115,23 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── 回收站过滤：默认排除软删除，recycle=1 时只返回已删除 ──────
+  //
+  // ⚠️ `recycle=1` 必须**收紧**可见性，而不是只加一个过滤条件（2026-10-30 四轮补）。
+  // 原实现与 `visibilityClause` 是 AND 关系，于是匿名访客用
+  // `GET /api/prompts?recycle=1` 能把「管理员已软删除的公开提示词」整条列出来
+  // （连同 id），再拿去 `GET /api/prompts/:id` 读完整正文 —— 回收站成了公开索引。
+  //
+  // 回收站是**私有视图**：只有作者本人与管理员能看，且非管理员只能看自己的。
   if (recycle === '1' || recycle === 'true') {
-    sql += ' AND p.deleted_at IS NOT NULL'
+    if (!user) {
+      // 游客没有回收站。返回空集而不是 403 —— 这是列表端点，便于调用方统一处理。
+      sql += ' AND 1 = 0'
+    } else if (!currentUserIsAdmin) {
+      sql += ' AND p.deleted_at IS NOT NULL AND p.user_id = ?'
+      params.push(user.id)
+    } else {
+      sql += ' AND p.deleted_at IS NOT NULL'
+    }
   } else {
     sql += ' AND p.deleted_at IS NULL'
   }

@@ -19,10 +19,24 @@ export default defineEventHandler(async (event) => {
   // 管理员：全部
   // 普通用户：自己的 + 管理员公开的
   // 游客：管理员的公开提示词
+  //
+  // ⚠️ 软删除（回收站）必须单独判，且**优先生效**（2026-10-30 四轮补）：
+  // `DELETE /api/prompts/:id` 是软删除（`deleted_at = now`），语义是「移入回收站」。
+  // 但原实现只判归属与 `login_required`，**完全不看 `deleted_at`** —— 于是：
+  //   · 匿名/他人可以读到已删除提示词的**完整正文**（详情 200）；
+  //   · 匿名还能用 `?recycle=1` 枚举出「管理员已删除的公开提示词」并拿到 id。
+  // 对照 `token_deals` 那边是 `deleted_at && !isAdmin` → 404，这里漏了同一层。
+  //
+  // 规则（与 token_deals 同口径）：**作者本人与管理员仍可读**，好让作者在回收站里
+  // 看清内容再决定「恢复 / 彻底删除」；其他人一律 404（不是 403 —— 403 会泄露「这条存在」）。
   const isOwnerAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(prompt.user_id) as { is_admin: number } | undefined
   if (user) {
     const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id) as { is_admin: number } | undefined
-    if (dbUser?.is_admin) {
+    const isAdminViewer = !!dbUser?.is_admin
+    if (prompt.deleted_at && !isAdminViewer && prompt.user_id !== user.id) {
+      throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
+    }
+    if (isAdminViewer) {
       // 管理员可以看全部
     } else if (prompt.user_id === user.id) {
       // 自己的
@@ -32,6 +46,10 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
     }
   } else {
+    // 游客：已软删除的一律不可见（连「存在性」也不透露）
+    if (prompt.deleted_at) {
+      throw createError({ statusCode: 404, data: { error: '提示词不存在' } })
+    }
     if (!isOwnerAdmin?.is_admin || prompt.login_required) {
       throw createError({ statusCode: 403, data: { error: '无权访问此提示词' } })
     }
