@@ -51,6 +51,15 @@ docker compose up -d  # http://localhost:3090
 | `NUXT_CORS_ORIGIN` | CORS | `http://localhost:3000` |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔）；**AI 通道的管理员判定同样读取它** | 空 |
 | `NUXT_TRUST_PROXY` | 信任 X-Forwarded-For | `false` |
+
+> ⚠️ **容器/本机的 DNS 不可使用 fake-ip 模式**（Clash、mihomo TUN 等，2026-10-30 实测）。
+> fake-ip 会把**所有域名**解析到 `198.18.0.0/15`，而该段被 `server/utils/favicon-download.ts`
+> 的 SSRF 护栏按「基准保留段」拦截 → 「拉取模型列表」与 favicon 下载**全部失效**，
+> 表现为 `不允许访问内网地址`。生产用的是普通 DNS，不受影响；
+> 但**本地开发若开着这类代理，模型拉取的出站成功路径无法在本机验证**（只能验证拒绝分支）。
+> 护栏本身假定是正常解析器，这是刻意的取舍：宁可自建 DNS 时不可用，也不放行可被
+> 攻击者用自控权威 DNS 指到内网的解析结果。
+
 | `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | `https://hao.bx9y.com.cn` |
 
 `.env.example` 中的 `PORT=3001` 无效（Nuxt dev 端口由 `devServer.port` 固定为 `3000`）。

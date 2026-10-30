@@ -400,7 +400,7 @@ home / tokens                  → 200 / 200
 
 ---
 
-## 12. 待办：伪静态（进行中）
+## 12. 伪静态（已完成，见 §13）
 
 用户澄清的需求：「部分详情页还是有 ? 参数」—— 即通告详情 `/tokens?deal=<id>` 与
 提示词详情 `/prompts?prompt_id=<id>` 仍是查询参数形式。
@@ -414,3 +414,136 @@ home / tokens                  → 200 / 200
 
 该工作已派给 teammate `pseudo-static-coder`（共享任务 `task-2`），
 验收标准含「curl 到 SSR HTML 并 grep 出详情正文」与「旧地址 301」。
+
+---
+
+## 13. 伪静态交付 + 第三轮复核 + 上线记录（2026-10-30 收尾）
+
+### 13.1 伪静态实现（task-2，teammate `pseudo-static-coder`）
+
+关键事实（决定了实现方式）：详情内容原本由 `TokenDealDetail.vue` 在客户端 `$fetch` 拉取，
+**只改地址不会让爬虫看到正文** —— 所以必须真做 SSR。
+
+- 路由：`nuxt.config.ts` 的 `pages:extend` 把 `pages/{tokens,prompts}/[id].vue` 改写成
+  `/tokens/:id([\w-]+).html`。实测（**vue-router 是 5.1.0，不是 v4**）：
+  `:id` 紧跟 `.html` 时后缀由路由消费、`params.id` 是纯 id；裸 `/tokens/x` 不误匹配。
+- SSR 取数走 `useRequestFetch()`：把入站头转发给内部 API（Nitro `localFetch`，不走网络），
+  保证登录态视角与客户端一致。复核用「外域 `X-Forwarded-Host`/`Forwarded` 伪造」实测：
+  陷阱服务器命中 0 次、Cookie 未出站 → **转发严格限定本站同源**。
+- 老地址 301：`server/middleware/legacy-detail-redirect.ts`，其它 query 原样保留；
+  id 走白名单 `[A-Za-z0-9_-]+`，非法 id 不重定向（避免 301 到必然 404 的地址）。
+  复核测了 18 种 id 变体 + 4 种保留 query 变体：`Location` **恒为站内相对路径**，
+  `%0d%0a` 一律 400（拒绝而非注入），保留 query 被 `URLSearchParams` 重编码
+  （`next=//evil.com` → `next=%2F%2Fevil.com`）。
+- 所有生成链接改新形态：`utils/deal-share.ts`（权威构造器）、分享卡片、QQ 通知、
+  `deal-events.ts` 的 `share_path`（RSS/Atom 两个对外入口此前仍在发旧地址）、
+  编辑建议面板、搜索建议。**全仓已无功能性旧形态消费方**（只剩解释性注释）。
+- 列表卡片改成真锚点 `<a href>` + `preventDefault` 就地弹窗（爬虫拿到真链接，用户行为不变）；
+  `/prompts` 因卡片内有按钮、整卡做 `<a>` 会非法嵌套，改为标题是真链接。
+- sitemap 收录详情页：通告侧**复用 `publicVisibleClause()`**（与公开列表同一口径，
+  不另写一套），提示词侧与 `/api/prompts` 游客口径一致。复核实测：公开通告收录，
+  待审/已删/已过期/已失效**全部不收录**，XML 里搜不到任何非公开标题。
+- 详情页三处绝对日期改为固定站点时区（`Asia/Shanghai`）：页面现在 SSR，
+  时间格式化必须是确定性的，否则跨日边界会 hydration 不一致。
+
+**验收（构建产物 + curl）**：两个详情路由 200 且 SSR HTML 含标题/`note_html` 渲染结果/
+提示词正文；旧地址 301；`ts:check` / `build` / 各 e2e 全绿。
+
+### 13.2 第三轮复核查出并修掉的 [MAJOR]：详情页缓存豁免可被路径拼写绕过
+
+`cache-control.ts` 原先用**未解码的原始 pathname** 做精确正则匹配来豁免详情页，
+而 vue-router **先解码再匹配**路由参数 —— 于是同一张页面有多种等价写法能绕过豁免、
+掉进「游客 → public」分支。复核实测 5 种写法（尾斜杠、结尾 `/.`、`%2Ehtml`、`%5F`、`%64eal`）
+都拿到 `public, s-maxage=120` 且 **`Vary` 被覆盖成 `Accept-Encoding, Origin`**（丢掉 `Vary: Cookie`）。
+
+危害：这两页的 SSR HTML **按 Cookie 定制**（`is_owner`/`can_edit`/`my_vote`/`my_review`/
+`guest_review`/评测的 `my_marked`），复核用「两个不同 visitor cookie」实测确认 HTML 确实不同
+（游客 A 投过票有 `class="active vote-btn is-up"`，B 没有）。有共享缓存时会把某访客的
+个性化 HTML 发给别人。
+
+**修法**：先归一化（解码 → 折叠重复斜杠 → 去掉结尾 `/.` → 去掉尾斜杠）再判，
+且把「以 `.html` 结尾」作为**后缀规则而非枚举具体路由** —— 以后新增任何 `.html` 页面
+都自动继承「不被共享缓存」这个安全默认。公开列表页都无扩展名，不会误伤。
+常驻检测器 `scripts/cache-privacy-check.mjs`（20 项）锁住这条不变量。
+
+### 13.3 生产缓存环境的实情（决定了上面那条的实际严重度）
+
+2026-10-30 实测：`/www/server/panel/vhost/nginx/hao.bx9y.com.cn.conf` 第 1 行**定义了**
+`proxy_cache_path ... keys_zone=hao_bx9y_com_cn_cache:20m`，但全文件**没有任何 `proxy_cache`
+指令** → 该 zone 未启用；站点响应头也无 `cf-ray`/`x-cache`/`age`（前面**没有 CDN**）。
+
+结论：这条 MAJOR 在生产**当前不可触发**，但那个 zone 是宝塔面板一键即可启用的，
+且缓存设计（`s-maxage=120` + `stale-while-revalidate=300`）本身是按「前面有共享缓存」做的
+—— 属埋着的雷，已按上面修掉。
+
+另注：nginx 的 `location /` 会 `add_header Cache-Control "private, no-cache"`，
+与中间件设置的 `public, ...` **同时存在**（响应里出现两个 `Cache-Control` 头）。
+按 RFC 9111「任一 `Cache-Control` 声明 private 即视为 private」，实际效果偏保守；
+但这个双头本身语义含糊，若将来要做 CDN 缓存需先理顺（记录，未改）。
+
+### 13.4 第二轮复核报出的 3 个 MAJOR / 3 个 MINOR（全部已修住，第三轮独立复验通过）
+
+| 项 | 问题 | 修法 |
+|---|---|---|
+| MAJOR | `fetch` 换原生 `http` 时丢掉 `AbortSignal.timeout()` 的真总时限，慢速服务器可无限占住连接 | `requestOnce` 加硬定时器到点 `req.destroy`，空闲超时仅作补充；`pinnedGet` 按序尝试**全部**已校验地址（顺带修双栈只钉 `addrs[0]`）；`dns.lookup` 套 `Promise.race` 超时 |
+| MAJOR | AI 通道仍下发 `guest_fingerprint`（脱敏按端点各写一遍，AI 走 `SELECT td.*`） | 内部字段收进一份清单 `DEAL_PRIVATE_FIELDS`（`verified_by`/`guest_fingerprint`/`deleted_by`），列表循环与 `stripDealPrivateFields` 共用 |
+| MAJOR | NAT64 词条 `64:ff9b::/96` 是死代码（写了 4 字节前缀却按 96 位比，恒为 false） | 补齐前缀字节 + `matchCidr` 长度断言 + `matchAnyCidr` 对写错的表项 **fail-closed** 并报错；内嵌 IPv4 统一为精确递归（mapped/compat/6to4/NAT64） |
+| MINOR | `verifyDrawToken` 用 `t.length`（UTF-16 码元）判长却用 `timingSafeEqual` 比字节 → 32 个汉字致未认证 **500** | 按 `Buffer.from(t,'utf8').length` 比较 |
+| MINOR | `pickInviteCode` 只防 `Infinity`，`MAX_VALUE + 2 === MAX_VALUE` 的有限极大权重会让其余码饿死 | 判据加 `total <= Number.MAX_SAFE_INTEGER` |
+| MINOR | 待审通告返回 403「尚未通过审核」＝确认「该 id 存在且待审」 | `import.post.ts` 与 `card.png.get.ts` 统一为 404「通告不存在」 |
+
+复核对 MAJOR 1 的独立复验：复刻接线实测 40/40 成功、**残留 Timeout = 0**（`close`→`clearTimeout`
+确实触发、不泄漏定时器）、后续请求仍 200（keep-alive 池未被 `destroy` 误伤）、无
+`unhandledRejection`；且**超时预算不会放大**（每跳重算 `remaining`，最坏 ≈ 单个 deadline）。
+
+### 13.5 门禁（`pnpm build` 后全部实跑）
+
+| 门禁 | 结果 |
+|---|---|
+| `pnpm run ts:check` | 857 个具名导入全部存在 |
+| `node scripts/second-batch-e2e.mjs` | **117 通过 / 0 失败** |
+| `node scripts/private-ip-check.mjs` | **98 通过 / 0 失败**（直接加载真实源码；负向验证：改回错误前缀 → 红灯） |
+| `node scripts/ssrf-pin-check.mjs` | **12 通过 / 0 失败**（含慢速响应 before/after 对照 + 4 条源码防漂移断言） |
+| `node scripts/cache-privacy-check.mjs` | **20 通过 / 0 失败** |
+| `node scripts/dashboard-qqbot-outbox-e2e.mjs` | 13/13 PASS |
+| `pnpm skill:check` | v1.9.8（6 个文件） |
+
+**断言纪律（本轮踩过）**：`array.every(...)` 在**空集上恒为真** —— 我最初写的 5 条
+「AI 通道不含某敏感键」断言在列表为空时会**全部假通过**。已补「列表非空且含探针」的前提，
+并统一了 3 处同类写法。复核复查后确认 AI 那组前提有效；其余同类写法已对齐。
+
+### 13.6 上线记录（1.0.47）
+
+- 提交：`e29cd78`(安全修复) → `98959e3`(伪静态) → `ce3e264`(缓存豁免) → `e98af67`(VERSION 1.0.47)，CI success。
+- 备份：`data/backups/favshub.db.pre-1.0.47-20261030_154854`（`integrity_check`=ok，
+  deals=80 / announcements=1 / users=3）。
+- 回滚点：镜像标签 `ghcr.io/huanyu-a/favshub:rollback-1.0.46`（= `sha256:4b825808e771a`）。
+- 新镜像：`sha256:4879b18852dea4339152133717b292b79818a1a82b11d1c1892c04dad18a830e`。
+- 容器 `favshub_b8j8-favshub-1` 已重建，健康；`NUXT_JWT_SECRET` 容器内指纹与 `.env` 一致
+  （`04509cf86e619d3b`，轮换未被回退）；启动日志无告警。
+- **生产端到端验收 24 项全通过**：站点 5 个页面 200；详情页 200 且 SSR HTML 含通告标题
+  （实测 `deal_1789980617061_xnr12c`）；列表卡片含真锚点；老地址 **301** 且 `Location` 正确；
+  **缓存隐私的 5 种绕过写法在生产 nginx 下全部不再是 `public`**；sitemap 含详情页 URL；
+  公开页仍为 `public`（没一刀切）；非法 id 不重定向。
+
+### 13.7 遗留项（下一轮可做，均非阻塞）
+
+1. **Teredo `2001::/32` 未覆盖**（内嵌 IPv4 在 bit 32–63 且按位取反）——需 Teredo 基础设施才可利用，
+   复核判低风险，记录即可。
+2. `favicon-download.ts` 的两点可选优化：CIDR 表校验提到**模块加载时**（让错误在启动/CI 暴露）、
+   `console.error` 降为**只报一次**（避免潜在刷日志）。
+3. `scripts/second-batch-e2e.mjs` 会留下 `data/e2e-second-batch-<ts>.db` 与
+   `data/cache-privacy-<ts>.db` 临时库，建议加清理。
+4. **移动端布局未被任何人实测**（①的回到顶部 / FAB 几何改动用 CSS 静态比对确认过，
+   但无浏览器环境）——**需用户在手机上确认**。
+5. **hydration 控制台告警无直接证据**（本机无浏览器：Chrome DevTools MCP 连不上 9222，
+   kimi-webbridge 扩展未连接）。已用替代证据（payload 同源 + 时区确定性）做结构级证明，
+   但不等价。相对时间标签（「3 天后到期」）由 `Date.now()` 现算，跨日边界 SSR 与客户端
+   可能差一个字 —— **列表页 `TokenDealCard` 早就是这个行为**，属既有口径，非本次引入。
+6. **真实搜索引擎抓取未验证**（只验证了 SSR 含正文 + canonical/og/sitemap/RSS/站内锚点
+   四条发现路径都在）。
+7. 容器 DNS **不可使用 fake-ip 模式**（Clash/mihomo TUN 等）：会让所有域名解析到
+   `198.18.0.0/15`，被 SSRF 护栏拦截 → 模型拉取与 favicon 下载全部失效。
+   该约束已写入 `CLAUDE.md`。
+8. `favshub-nuxt/docs/` 下 3 个历史计划文档仍含旧地址形态（按指示不改历史文档）：
+   `plans/2026-10-20-guest-deal-subscriptions.md`、本文件（§12 已改写）、`plan-token-share-card.md`。
