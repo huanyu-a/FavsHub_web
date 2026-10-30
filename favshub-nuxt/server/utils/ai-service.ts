@@ -409,8 +409,25 @@ export function deleteFolder(db: DB, userId: number, rawId: unknown, body: any) 
 
 export function listPrompts(db: DB, userId: number, query: any) {
   const { limit, page, offset } = paging(query)
-  const where: string[] = ['p.user_id = ?', 'p.deleted_at IS NULL']
+  const where: string[] = ['p.user_id = ?']
   const params: any[] = [userId]
+
+  // ── 回收站（2026-10-31 补）─────────────────────────────────────
+  // `recycle=1` 只返回**已软删除**的提示词，默认（省略）只返回未删除的。
+  //
+  // 为什么必须补：`/api/ai/describe` 与技能包 CHANGELOG 都写着
+  //   「判断提示词是否在回收站：用 `GET /api/ai/prompts?recycle=1`」
+  // 但本函数原先**硬编码** `p.deleted_at IS NULL`、根本没有 recycle 分支 ——
+  // 外部 AI 照文档调用只会拿到空列表，而且不会报错，是那种「静默失效」的坑。
+  // 字段字典是对外契约，承诺了能力就必须真有。
+  //
+  // AI 通道的隔离本就靠 `p.user_id = ?`（越权一律 404），所以这里两种模式
+  // 都天然只能看到自己的 —— 与 Web 端 `?recycle=1` 的收紧口径一致。
+  if (query?.recycle === '1' || query?.recycle === 'true' || query?.recycle === true) {
+    where.push('p.deleted_at IS NOT NULL')
+  } else {
+    where.push('p.deleted_at IS NULL')
+  }
 
   if (query?.folder_id !== undefined && query.folder_id !== '' && query.folder_id !== 'all') {
     where.push('p.folder_id = ?')
