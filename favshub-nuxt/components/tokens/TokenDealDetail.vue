@@ -40,6 +40,20 @@
               :class="`is-${categoryMeta.tone}`"
             >{{ categoryMeta.label }}</span>
             <span v-if="deal" class="tdd-quality" :class="qualityClass">{{ deal.quality }}</span>
+            <!-- 是否实名徽标（2026-10-30 九轮）：用户原话「是否实名不要水印了，改为徽章放置到
+                 header/div[2]」—— 即 `.tdd-head-side` 这一排（分类 · 品质 · 实名 · 关闭）。
+                 放在品质之后、关闭之前：让「分类/品质/实名」三个**信息徽标**聚在一起，
+                 关闭按钮留在最右（按钮是操作，不该混进信息组）。
+                 视觉语言与 `.tdd-category` 完全一致（12px / 圆角 6px / 600 字重 / 同一套 color-mix 调色板）。
+                 徽标内只显示 2~3 字短标签；「其他」的 40 字手填说明走 title + sr-only。
+                 `real_name === ''` 不渲染（存量 67 条空串保持静默）。 -->
+            <span
+              v-if="realNameBadge"
+              class="tdd-realname"
+              :class="`is-${realNameBadge.tone}`"
+              :title="realNameBadge.title"
+            >{{ realNameBadge.label }}</span>
+            <span v-if="realNameBadge" class="sr-only">{{ realNameBadge.srText }}</span>
             <button type="button" class="tdd-close" :title="isPage ? '返回通告列表' : '关闭'" @click="close">
               <i class="ri-close-line"></i>
             </button>
@@ -168,22 +182,6 @@
                 :sublabel="verifyState.sublabel"
                 :title="verifyState.title"
                 :sr-text="verifyState.srText"
-              />
-              <!-- 是否实名水印（2026-10-30 七轮）：用户原话「实名不要徽章，要不占位的水印」，
-                   位置在「标题与额度区最右侧」—— 所以它与核验水印同在 `top:8%` 这条
-                   水平带上，但贴右而非居中（`anchor="top-right"`）。
-                   尺寸用 cqw 按容器宽取（比核验水印小一号），保证两者恒不相交。
-                   透明度与核验水印**完全同一套**（填充 2% / 描边 9% / 文字 0.20）。
-                   40 字手填文案走 title + sr-only，圆内只显示「无需实名」等短标签。
-                   `real_name === ''` 不渲染（存量空串保持静默）。 -->
-              <DealBadge
-                v-if="realNameBadge"
-                anchor="top-right"
-                secondary
-                :tone="realNameBadge.tone"
-                :label="realNameBadge.label"
-                :title="realNameBadge.title"
-                :sr-text="realNameBadge.srText"
               />
             </div>
 
@@ -2955,6 +2953,57 @@ onUnmounted(() => {
 .tdd-category.is-primary {
   background: var(--primary-light);
   color: var(--primary);
+}
+
+/* ── 是否实名徽标（2026-10-30 九轮：右上水印 → header 徽章）──
+   用户原话「是否实名不要水印了，改为徽章放置到 header/div[2]」。
+   视觉参数与 `.tdd-category` **逐项对齐**（12px / padding 2px 8px / 圆角 6px /
+   600 字重 / nowrap / flex-shrink:0），让「分类 · 品质 · 实名」三个徽标在同一套语言里。
+   调色板也复用同一套机制：color-mix(色 14%, transparent) 打底 +
+   color-mix(色 82%, 文字色) 上色，亮暗主题自动跟随。
+   `cursor: help` 是因为「其他」态的 40 字手填说明只出现在 title 里，
+   给个可悬停提示的视觉暗示（不影响点击，本元素无交互）。
+   四态配色：无需实名=绿(success) / 需身份证=蓝(accent-blue) /
+             需人脸=紫(accent-purple) / 需实名=黄(warning)。 */
+.tdd-realname {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+.tdd-realname.is-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
+}
+.tdd-realname.is-blue {
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 82%, var(--text-primary));
+}
+.tdd-realname.is-purple {
+  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
+}
+.tdd-realname.is-pending {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
+}
+
+/* 读屏专用：视觉隐藏但辅助技术可读（1px + clip，不能用 display:none）。
+   为什么详情页需要自己一份：scoped 样式不跨组件生效，而实名徽标的 sr-only
+   文本渲染在**本组件**的 header 里。写法与本仓 TokenFilterBar / keys.vue 一致。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* 底部「前往领取」在地址含未替换占位符时的降级态：不可点，但仍占位不跳版 */
