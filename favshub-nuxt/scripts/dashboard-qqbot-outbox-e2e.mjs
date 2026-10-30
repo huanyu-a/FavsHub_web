@@ -257,7 +257,8 @@ async function main() {
       if (!String(i.entry.text).includes('已发布') || !String(i.entry.text).includes(dealTitle)) fail('含「已发布」与标题', dealTitle, i.entry.text)
       const md = String(i.entry.markdown || '')
       if (!md.startsWith('### ')) fail('发布通知 markdown 首行 ###', '### …', md.slice(0, 40))
-      if (!md.includes('/tokens?deal=')) fail('发布通知 markdown 含可点详情链接', '/tokens?deal=', md)
+      const expectedLink = `/tokens/${dealId}.html`
+      if (!md.includes(expectedLink)) fail('发布通知 markdown 含可点详情链接（伪静态地址）', expectedLink, md)
     }
     ok('审核通过群广播 ×2（qqbot + dingtalk），未绑定用户无私聊 ✓')
   }

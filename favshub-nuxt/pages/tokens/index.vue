@@ -116,7 +116,7 @@
       <BackToTop />
     </div>
 
-    <!-- 详情弹窗 -->
+    <!-- 详情弹窗（列表页保留原有弹窗交互：点击卡片就地展开，地址栏不落查询参数） -->
     <TokenDealDetail
       v-if="detailDeal"
       :deal-id="detailDeal.id"
@@ -268,7 +268,6 @@ function openReviewPanel() {
 function onOpenDealFromPanel(dealId: string) {
   reviewPanelOpen.value = false
   detailDeal.value = { id: dealId } as ITokenDeal
-  syncDealQuery(dealId)
 }
 
 const toastMessage = ref('')
@@ -310,23 +309,18 @@ function nextPage() {
 
 function openDetail(deal: ITokenDeal) {
   detailDeal.value = deal
-  syncDealQuery(deal.id)
-}
-
-function closeDetail() {
-  detailDeal.value = null
-  if (route.query.deal) syncDealQuery(null)
 }
 
 /**
- * 详情弹窗与 ?deal= 查询参数双向同步：
- * 分享出去的 /tokens?deal=<id> 扫码/点开即还原弹窗，关闭时清掉参数保持地址干净。
+ * 关闭详情：只关弹窗。
+ *
+ * 这里**不再**同步 `?deal=` 查询参数（旧实现用 syncDealQuery 双向同步）：
+ * 详情地址已改为伪静态路径 `/tokens/<id>.html`，弹窗就地展开时地址栏保持
+ * `/tokens` 干净；老分享链接（`/tokens?deal=<id>`）由
+ * server/middleware/legacy-detail-redirect.ts 在服务端 301 到新的落地页。
  */
-function syncDealQuery(id: string | null) {
-  const query: Record<string, any> = { ...route.query }
-  if (id) query.deal = id
-  else delete query.deal
-  router.replace({ query })
+function closeDetail() {
+  detailDeal.value = null
 }
 
 /**
@@ -368,7 +362,7 @@ function reloadFirstPage() {
   else refresh()
 }
 
-// 从登录页跳回时自动展开发布表单；带 ?deal= 落地时自动打开对应详情弹窗
+// 从登录页跳回时自动展开发布表单
 onMounted(() => {
   // 待审建议角标：不阻塞首屏，后台拉取
   loadReviewCount()
@@ -378,12 +372,6 @@ onMounted(() => {
     delete next.action
     openEditor()
     router.replace({ query: next })
-    return
-  }
-  const sharedId = String(route.query.deal || '').trim()
-  if (sharedId) {
-    // 仅传 id，详情内容由弹窗自行拉取（未过审/不存在时由弹窗提示）
-    detailDeal.value = { id: sharedId } as ITokenDeal
   }
 })
 

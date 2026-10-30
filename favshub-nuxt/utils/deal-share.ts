@@ -126,10 +126,10 @@ export async function makeQrDataUrl(text: string, size = 336): Promise<string> {
   })
 }
 
-/** 详情页可分享地址（扫码落地即打开对应详情弹窗） */
+/** 详情页可分享地址（伪静态路径；扫码/点开即打开该通告的详情页） */
 export function buildShareUrl(dealId: string, origin: string): string {
   const base = (origin || '').replace(/\/+$/, '')
-  return `${base}/tokens?deal=${encodeURIComponent(dealId)}`
+  return `${base}/tokens/${encodeURIComponent(dealId)}.html`
 }
 
 /** 下载文件名（去掉路径不安全字符；非默认风格带风格后缀） */

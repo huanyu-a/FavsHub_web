@@ -459,11 +459,11 @@ function siteBase(): string {
   return ''
 }
 
-/** 通告详情链接 */
+/** 通告详情链接（伪静态路径：/tokens/<id>.html） */
 function dealLink(deal: any): string {
   const id = String(deal?.id ?? '').trim()
   if (!id) return ''
-  return `${siteBase()}/tokens?deal=${encodeURIComponent(id)}`
+  return `${siteBase()}/tokens/${encodeURIComponent(id)}.html`
 }
 
 /** 通告字段清单（Markdown 列表用，每项一条） */

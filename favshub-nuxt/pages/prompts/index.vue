@@ -158,7 +158,15 @@
           <div v-if="!isLoading && prompts.length > 0" class="prompts-grid" id="promptsGrid">
             <div v-for="prompt in prompts" :key="prompt.id" class="prompt-card" :class="{ 'read-only': !isGuest && prompt.user_id !== currentUserId }" @click="viewPrompt(prompt)">
               <div class="prompt-card-header">
-                <h3 class="prompt-title">{{ prompt.title }}</h3>
+                <h3 class="prompt-title">
+                  <!-- 标题是真链接：爬虫由此发现伪静态详情页 /prompts/<id>.html；
+                       普通点击仍就地打开弹窗（见 onTitleClick），修饰键/中键走新标签页 -->
+                  <a
+                    class="prompt-title-link"
+                    :href="promptDetailHref(prompt)"
+                    @click="onTitleClick($event, prompt)"
+                  >{{ prompt.title }}</a>
+                </h3>
                 <div class="prompt-actions">
                   <!-- 回收站模式：还原 + 永久删除 -->
                   <template v-if="activeFolderId === '_recycle'">
@@ -353,7 +361,6 @@ useHead({
 const { isGuest } = useAuth()
 const authStore = useAuthStore()
 const currentUserId = computed(() => authStore.user?.id)
-const route = useRoute()
 
 interface Prompt {
   id: string
@@ -783,6 +790,23 @@ function viewPrompt(prompt: Prompt) {
   viewingPrompt.value = prompt
 }
 
+/** 提示词详情的伪静态地址（站内真链接，供爬虫发现） */
+function promptDetailHref(prompt: Prompt) {
+  return `/prompts/${encodeURIComponent(prompt.id)}.html`
+}
+
+/**
+ * 标题链接点击：普通左键 → 阻止跳转、就地打开详情弹窗（保持原有交互与列表状态）；
+ * 带修饰键或中键 → 交给浏览器在新标签页打开落地页。
+ * 一律 stopPropagation，避免与卡片本身的点击处理器叠加触发。
+ */
+function onTitleClick(e: MouseEvent, prompt: Prompt) {
+  e.stopPropagation()
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+  e.preventDefault()
+  viewPrompt(prompt)
+}
+
 function openCreate() {
   isCreating.value = true
   editingPrompt.value = null
@@ -1042,20 +1066,14 @@ watch(sortBy, () => loadPrompts())
 
 onMounted(async () => {
   await Promise.all([loadPrompts(), loadFolders(), loadTags(), refreshRecycleCount()])
-  // frontend #11：支持 ?prompt_id= 直达详情（首页搜索建议跳转携带）
-  const promptId = route.query.prompt_id as string | undefined
-  if (promptId) viewPromptById(promptId)
 })
 
-// 根据 ID 拉取单个提示词并打开详情（供 ?prompt_id= 直达）
-async function viewPromptById(promptId: string) {
-  try {
-    const res = await $fetch<{ prompt: any }>(`/api/prompts/${encodeURIComponent(promptId)}`, {
-      credentials: 'include',
-    })
-    if (res?.prompt) viewPrompt(res.prompt)
-  } catch { /* 不存在或无权限时静默 */ }
-}
+/**
+ * 旧地址 `/prompts?prompt_id=<id>` 的直达逻辑已移除：
+ * 详情地址改为伪静态 `/prompts/<id>.html`（pages/prompts/[id].vue），
+ * 旧的查询参数地址由 server/middleware/legacy-detail-redirect.ts 在服务端 301 过去。
+ * 站内跳转（首页搜索建议）现在直接指向新的路径地址。
+ */
 </script>
 
 <style scoped>
@@ -1068,6 +1086,17 @@ async function viewPromptById(promptId: string) {
   --duration-normal: 180ms;
   --duration-slow: 240ms;
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 卡片标题里的详情链接：视觉与标题文字一致（去掉浏览器默认链接色与下划线） */
+.prompt-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+.prompt-title-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ── 侧边栏文件夹项 ── */

@@ -119,7 +119,7 @@ export function buildDealSnapshot(deal: any): DealEventSnapshot {
     category: String(deal?.category ?? 'token') || 'token',
     expires_at: deal?.expires_at ?? null,
     rating: count > 0 ? avg.toFixed(1) : '',
-    share_path: `/tokens?deal=${encodeURIComponent(String(deal?.id ?? ''))}`,
+    share_path: `/tokens/${encodeURIComponent(String(deal?.id ?? ''))}.html`,
   }
 }
 

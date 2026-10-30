@@ -32,6 +32,32 @@ export default defineNuxtConfig({
     ],
   },
 
+  /**
+   * 伪静态详情页路由 —— 把文件式路由 /tokens/:id、/prompts/:id 改写成带 `.html`
+   * 字面量后缀的路径（/tokens/<dealId>.html、/prompts/<promptId>.html）。
+   *
+   * 为什么必须在这里改写：Nuxt 的文件命名只能表达「动态参数」或「静态字符串」，
+   * 表达不了「动态参数 + 字面量后缀」；`definePageMeta({ alias })` 同样不支持给参数
+   * 段拼字面量后缀。pages:extend 是官方允许改写 path 的钩子。
+   *
+   * 为什么正则限定 `[\w-]+`：vue-router 默认参数模式是「除 / 之外任意字符」，
+   * 会把 `/tokens/a.b.html` 之类的脏路径也吃进来；通告 id（deal_<ts>_<rand>）与
+   * 提示词 id 只含字母数字与下划线/连字符，收紧后脏路径直接 404。
+   *
+   * 实测（vue-router 5.1.0）：`:id([\w-]+).html` 匹配
+   * `/tokens/deal_1789564086126_gzjrfj.html` 且 `params.id` = `deal_1789564086126_gzjrfj`
+   * —— `.html` 不会被吃进参数（详见交付说明的实测记录）。
+   */
+  hooks: {
+    'pages:extend'(pages) {
+      for (const page of pages) {
+        const file = (page.file || '').replace(/\\/g, '/')
+        if (file.endsWith('/pages/tokens/[id].vue')) page.path = '/tokens/:id([\\w-]+).html'
+        else if (file.endsWith('/pages/prompts/[id].vue')) page.path = '/prompts/:id([\\w-]+).html'
+      }
+    },
+  },
+
   // 全局 CSS 通过 layouts/default.vue 的 useHead() 引用 public/ 下的静态文件
 
   runtimeConfig: {

@@ -40,7 +40,7 @@
                 <div class="tre-deal">
                   <span class="tre-provider">{{ e.deal.provider }}</span>
                   <a
-                    :href="`/tokens?deal=${e.deal_id}`"
+                    :href="`/tokens/${e.deal_id}.html`"
                     class="tre-title"
                     title="查看通告详情"
                     @click.prevent="openDeal(e.deal_id)"

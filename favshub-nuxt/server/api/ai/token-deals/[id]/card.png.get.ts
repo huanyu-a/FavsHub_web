@@ -98,7 +98,7 @@ export default defineAiHandler('read', async (event, token) => {
 
   const config = useRuntimeConfig(event)
   const baseUrl = String(config.public.baseUrl || '').replace(/\/+$/, '')
-  const shareUrl = `${baseUrl}/tokens?deal=${encodeURIComponent(id)}`
+  const shareUrl = `${baseUrl}/tokens/${encodeURIComponent(id)}.html`
   const siteHost = hostnameOf(baseUrl) || 'FavsHub'
 
   // 缓存命中：通告更新（updated_at 变化）后 key 自然失效

@@ -386,7 +386,7 @@ if __name__ == "__main__":
 
 领取：https://example.com/redeem
 
-[查看通告](https://example.com/tokens?deal=xxx)
+[查看通告](https://example.com/tokens/xxx.html)
 ```
 
 `updated` / `renewed` 事件改成差异列表（`- 额度 40 美元 → 80 美元`），`offline` 只给「已下架 + 原因」。

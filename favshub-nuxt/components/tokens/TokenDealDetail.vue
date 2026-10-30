@@ -1,7 +1,12 @@
 <template>
-  <Teleport to="body">
-    <div class="tdd-backdrop" @click.self="onBackdrop">
-      <div class="tdd-modal" role="dialog" aria-modal="true" :aria-label="deal?.title || '通告详情'">
+  <Teleport to="body" :disabled="isPage">
+    <div class="tdd-backdrop" :class="{ 'is-page': isPage }" @click.self="onBackdrop">
+      <div
+        class="tdd-modal"
+        :role="isPage ? undefined : 'dialog'"
+        :aria-modal="isPage ? undefined : 'true'"
+        :aria-label="deal?.title || '通告详情'"
+      >
         <!-- 头部 -->
         <header class="tdd-head">
           <div class="tdd-head-main">
@@ -29,7 +34,7 @@
           </div>
           <div class="tdd-head-side">
             <span v-if="deal" class="tdd-quality" :class="qualityClass">{{ deal.quality }}</span>
-            <button type="button" class="tdd-close" title="关闭" @click="close">
+            <button type="button" class="tdd-close" :title="isPage ? '返回通告列表' : '关闭'" @click="close">
               <i class="ri-close-line"></i>
             </button>
           </div>
@@ -646,7 +651,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
@@ -769,13 +774,48 @@ interface IGuestReview {
   avatar?: string | null
 }
 
-const props = defineProps<{ dealId: string }>()
+/** 详情载荷：SSR 预取（伪静态落地页）与客户端 $fetch（列表页弹窗）共用同一形状 */
+interface IDealDetailPayload {
+  deal: ITokenDeal
+  verifications: IVerification[]
+  edits: IEditsSummary | null
+  guest_review: IGuestReview | null
+  my_vote: string | null
+  my_review: { rating: number; content: string } | null
+}
+
+/** 评测第一页载荷（落地页 SSR 预取，避免「社区评测」区块首屏空白） */
+interface IReviewsPayload {
+  reviews: IReview[]
+  distribution: Record<number, number>
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+const props = defineProps<{
+  dealId: string
+  /**
+   * modal（默认）：列表页弹窗形态 —— 固定定位遮罩、锁 body 滚动、Esc 关闭。
+   * page：伪静态详情页形态 —— 内容就地流式排布随页面滚动，
+   *       「关闭」= 返回 /tokens 列表（地址栏不残留查询参数）。
+   */
+  variant?: 'modal' | 'page'
+  /**
+   * SSR 已预取的详情载荷：有值时首帧（服务端渲染的 HTML）就带正文，
+   * 不再客户端 $fetch —— 这正是伪静态页面对爬虫有意义的前提。
+   */
+  initial?: IDealDetailPayload | null
+  /** SSR 已预取的第一页评测 */
+  initialReviews?: IReviewsPayload | null
+}>()
 const emit = defineEmits<{
   close: []
   edit: [deal: ITokenDeal]
   changed: []
 }>()
 const authStore = useAuthStore()
+
+/** 落地页形态：不使用遮罩定位与滚动锁定，「关闭」改为返回列表 */
+const isPage = computed(() => props.variant === 'page')
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
 const SOURCE_LABELS: Record<string, string> = {
@@ -791,8 +831,8 @@ const RATING_TEXTS: Record<number, string> = {
   5: '很好',
 }
 
-const deal = ref<ITokenDeal | null>(null)
-const loading = ref(true)
+const deal = ref<ITokenDeal | null>(props.initial?.deal ?? null)
+const loading = ref(!props.initial)
 const loadError = ref('')
 
 const myVote = ref<string | null>(null)
@@ -925,7 +965,8 @@ const expiryText = computed(() => {
   const days = Math.ceil(diff / 86400000)
   if (days <= 1) return '今天到期'
   if (days <= 30) return `${days} 天后到期`
-  return new Date(ts).toLocaleDateString('zh-CN')
+  // 远期过期时间用固定时区的绝对日期（与 formatTime 同口径，避免 SSR/客户端不一致）
+  return formatTime(ts)
 })
 
 const ratingText = computed(() => RATING_TEXTS[formRating.value] || '')
@@ -936,10 +977,26 @@ function distPercent(n: number) {
   return `${Math.round(((distribution.value[n] || 0) / total) * 100)}%`
 }
 
+/**
+ * 绝对日期统一按站点固定时区格式化为 `YYYY-MM-DD`。
+ *
+ * 为什么必须固定时区：详情页现在是**服务端渲染**的，如果沿用 `new Date(ts).getFullYear()`
+ * 这类本地时区分支，服务端（服务器时区）与浏览器（用户时区）可能算出**不同的日期**，
+ * 于是 hydration 时文本对不上（dev 构建会报 Hydration text content mismatch，
+ * 生产构建则静默改成客户端结果，出现一次可见的文本跳变）。
+ * 站点面向中文用户（hao.bx9y.com.cn），固定成 Asia/Shanghai 对绝大多数访客显示不变，
+ * 且服务端/客户端结果恒定一致。
+ */
+const SITE_TIME_ZONE = 'Asia/Shanghai'
+const DATE_FMT = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: SITE_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
 function formatTime(ts: number) {
   if (!ts) return ''
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const parts = DATE_FMT.formatToParts(new Date(ts))
+  const get = (type: string) => parts.find(p => p.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
 /** diff 展示用：把枚举值与时间戳渲染成人话 */
@@ -951,7 +1008,8 @@ function displayFieldValue(field: string, value: any): string {
   if (field === 'expires_at') {
     const ts = Number(value)
     if (!Number.isFinite(ts)) return String(value)
-    return new Date(ts).toLocaleDateString('zh-CN')
+    // 固定时区（formatTime 同口径）：diff 表会进入 SSR 输出，不能依赖服务器/浏览器本地时区
+    return formatTime(ts)
   }
   return String(value)
 }
@@ -964,52 +1022,61 @@ function toast(text: string, type: 'ok' | 'err' = 'ok') {
 }
 
 function close() {
+  if (isPage.value) {
+    // 落地页形态：「关闭」= 回列表页（干净地址，不残留 ?deal= 之类查询参数）
+    navigateTo('/tokens')
+    return
+  }
   emit('close')
 }
 
 function onBackdrop() {
+  // 落地页形态没有遮罩，点空白处不应把用户弹走
+  if (isPage.value) return
   close()
+}
+
+/** 把详情载荷写入各响应式状态（SSR 预取与客户端拉取共用同一份逻辑） */
+function applyDealPayload(data: IDealDetailPayload) {
+  deal.value = data.deal
+  verifications.value = data.verifications || []
+  myVote.value = data.my_vote
+  myReview.value = data.my_review
+  myEdit.value = data.edits?.my_edit ?? null
+  myGuestReview.value = data.guest_review ?? null
+  // 回填游客表单：被驳回后重填时预填上次内容，减少重复输入
+  if (data.guest_review && data.guest_review.status === 'rejected') {
+    guestNickname.value = data.guest_review.nickname || ''
+    guestRating.value = data.guest_review.rating || 5
+    guestContent.value = data.guest_review.content || ''
+  }
+  if (data.my_review) {
+    formRating.value = data.my_review.rating
+    formContent.value = data.my_review.content
+  }
+}
+
+/** 审核人需要提案明细 → 单独拉一次列表（详情端点只给摘要） */
+async function syncPendingEdits(data: IDealDetailPayload) {
+  if (data.edits?.can_review && data.edits.pending_edit_count > 0) {
+    await loadPendingEdits()
+  } else {
+    pendingEdits.value = []
+  }
 }
 
 async function loadDeal() {
   loading.value = true
   loadError.value = ''
   try {
-    const data = await $fetch<{
-      deal: ITokenDeal
-      verifications: IVerification[]
-      edits: IEditsSummary | null
-      guest_review: IGuestReview | null
-      my_vote: string | null
-      my_review: any
-    }>(
+    const data = await $fetch<IDealDetailPayload>(
       `/api/token-deals/${props.dealId}`,
       { credentials: 'include' },
     )
-    deal.value = data.deal
+    applyDealPayload(data)
     // 邀请码与详情并行拉取，不阻塞弹层渲染
     void loadInviteCode()
-    verifications.value = data.verifications || []
-    myVote.value = data.my_vote
-    myReview.value = data.my_review
-    myEdit.value = data.edits?.my_edit ?? null
-    myGuestReview.value = data.guest_review ?? null
-    // 回填游客表单：被驳回后重填时预填上次内容，减少重复输入
-    if (data.guest_review && data.guest_review.status === 'rejected') {
-      guestNickname.value = data.guest_review.nickname || ''
-      guestRating.value = data.guest_review.rating || 5
-      guestContent.value = data.guest_review.content || ''
-    }
-    if (data.my_review) {
-      formRating.value = data.my_review.rating
-      formContent.value = data.my_review.content
-    }
-    // 审核人需要提案明细 → 单独拉一次列表（详情端点只给摘要）
-    if (data.edits?.can_review && data.edits.pending_edit_count > 0) {
-      await loadPendingEdits()
-    } else {
-      pendingEdits.value = []
-    }
+    await syncPendingEdits(data)
   } catch (err: any) {
     loadError.value = err?.data?.error || '加载失败，请稍后重试'
   } finally {
@@ -1252,11 +1319,7 @@ async function loadReviews(reset = false) {
   reviewsLoading.value = true
   try {
     const targetPage = reset ? 1 : reviewPage.value
-    const data = await $fetch<{
-      reviews: IReview[]
-      distribution: Record<number, number>
-      pagination: { page: number; limit: number; total: number; totalPages: number }
-    }>(`/api/token-deals/${props.dealId}/reviews`, {
+    const data = await $fetch<IReviewsPayload>(`/api/token-deals/${props.dealId}/reviews`, {
       query: { page: targetPage, limit: 20 },
       credentials: 'include',
     })
@@ -1275,6 +1338,15 @@ async function loadReviews(reset = false) {
 function loadMoreReviews() {
   reviewPage.value += 1
   loadReviews(false)
+}
+
+/** SSR 预取的第一页评测：落库方式与 loadReviews(true) 保持一致（页码恒为第 1 页） */
+function applyInitialReviews(data: IReviewsPayload) {
+  reviews.value = data.reviews
+  distribution.value = { ...distribution.value, ...data.distribution }
+  reviewPagination.value = data.pagination
+  reviewTotal.value = data.pagination.total
+  reviewPage.value = 1
 }
 
 /**
@@ -1470,17 +1542,39 @@ function onKeydown(e: KeyboardEvent) {
 
 let prevOverflow = ''
 
+// SSR 预取载荷：在 setup 阶段同步应用一次，保证服务端渲染出的首帧 HTML 就带详情正文
+// （爬虫据此拿到内容；客户端 hydration 时复用同一份数据，两边渲染结果一致）
+if (props.initial) applyDealPayload(props.initial)
+if (props.initialReviews) applyInitialReviews(props.initialReviews)
+
+// 落地页 refresh()（编辑保存/投票后重取）会下发新的载荷 → 就地更新
+watch(() => props.initial, (v) => { if (v) applyDealPayload(v) })
+watch(() => props.initialReviews, (v) => { if (v) applyInitialReviews(v) })
+
 onMounted(() => {
-  prevOverflow = document.body.style.overflow
-  document.body.style.overflow = 'hidden'
-  document.addEventListener('keydown', onKeydown)
-  loadDeal()
-  loadReviews(true)
+  // 滚动锁定与 Esc 关闭只属于弹窗形态；落地页形态让页面正常滚动
+  if (!isPage.value) {
+    prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKeydown)
+  }
+
+  if (props.initial) {
+    // SSR 已给正文：客户端只补「按需/不可预取」的部分 ——
+    // 邀请码（每次展现随机抽一个，带一次性凭证）与审核人的提案明细
+    void loadInviteCode()
+    void syncPendingEdits(props.initial)
+  } else {
+    loadDeal()
+  }
+  if (!props.initialReviews) loadReviews(true)
 })
 
 onUnmounted(() => {
-  document.body.style.overflow = prevOverflow
-  document.removeEventListener('keydown', onKeydown)
+  if (!isPage.value) {
+    document.body.style.overflow = prevOverflow
+    document.removeEventListener('keydown', onKeydown)
+  }
   if (messageTimer) clearTimeout(messageTimer)
 })
 </script>
@@ -1514,6 +1608,30 @@ onUnmounted(() => {
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: modal-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 落地页形态（伪静态 /tokens/<id>.html）──
+   同一个组件两用：列表页当弹窗（遮罩 + 锁滚动），详情页当正文。
+   这里只把「弹窗」的外壳约束去掉，内部结构、交互与弹窗形态完全一致。 */
+.tdd-backdrop.is-page {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  animation: none;
+}
+.tdd-backdrop.is-page .tdd-modal {
+  max-width: 780px;
+  margin: 20px auto;
+  max-height: none;
+  animation: none;
+}
+/* 弹窗里主体是独立滚动区（max-height + overflow-y）；落地页交给页面本身滚动 */
+.tdd-backdrop.is-page .tdd-body {
+  overflow: visible;
 }
 
 /* ── 头部 ── */

@@ -497,10 +497,11 @@ function searchWithEngine(engine: Engine) {
 
 function applySuggestion(s: SuggestionItem) {
   if (s.type === 'prompt') {
-    // Navigate to prompt detail or open prompt page（frontend #11：跳转携带 prompt_id，避免目标丢失）
+    // 打开提示词详情：走伪静态路径地址（/prompts/<id>.html）
+    // 旧形态 /prompts?prompt_id=<id> 已在服务端 301 到新地址，这里直接生成新地址
     const promptId = s.rawData?.prompt_id || s.rawData?.id
     if (promptId) {
-      window.location.href = `/prompts?prompt_id=${encodeURIComponent(String(promptId))}`
+      window.location.href = `/prompts/${encodeURIComponent(String(promptId))}.html`
     } else {
       window.location.href = '/prompts'
     }

@@ -1,13 +1,10 @@
 <template>
-  <article
+  <a
     class="deal-card"
     :class="{ 'is-pinned': deal.pinned, 'is-expired': deal.is_expired }"
-    role="button"
-    tabindex="0"
+    :href="detailHref"
     :aria-label="`${deal.provider}：${deal.title}`"
-    @click="$emit('open', deal)"
-    @keydown.enter.prevent="$emit('open', deal)"
-    @keydown.space.prevent="$emit('open', deal)"
+    @click="onOpenClick"
   >
     <header class="deal-head">
       <div class="deal-brand">
@@ -84,7 +81,7 @@
       </div>
       <span v-if="expiryText" class="deal-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</span>
     </footer>
-  </article>
+  </a>
 </template>
 
 <script setup lang="ts">
@@ -117,7 +114,23 @@ interface TokenDeal {
 }
 
 const props = defineProps<{ deal: TokenDeal }>()
-defineEmits<{ open: [deal: TokenDeal] }>()
+const emit = defineEmits<{ open: [deal: TokenDeal] }>()
+
+/**
+ * 详情页的伪静态地址 —— 卡片渲染成真 `<a href>`，让爬虫有一条站内普通链接
+ * 能发现 `/tokens/<id>.html`（没有它，新地址只能靠外链被发现）。
+ */
+const detailHref = computed(() => `/tokens/${encodeURIComponent(props.deal.id)}.html`)
+
+/**
+ * 普通左键点击 → 阻止跳转、就地打开详情弹窗（保持列表状态与原有交互）。
+ * 带修饰键或中键的点击不拦截，交给浏览器在新标签页打开落地页。
+ */
+function onOpenClick(e: MouseEvent) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+  e.preventDefault()
+  emit('open', props.deal)
+}
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
 const SOURCE_LABELS: Record<string, string> = {
@@ -221,6 +234,9 @@ const expiryWarn = computed(() => {
   border: 0.5px solid var(--border);
   border-radius: 14px;
   cursor: pointer;
+  /* 根元素是 <a>：清掉浏览器默认链接色与下划线，保持原有卡片视觉 */
+  color: inherit;
+  text-decoration: none;
   transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .deal-card:hover {
