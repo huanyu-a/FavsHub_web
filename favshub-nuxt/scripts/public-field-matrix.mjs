@@ -22,9 +22,11 @@ const EMPTY_ONLY = ['verified_by']
 // 前端依赖、脱敏时必须保留的字段（防「脱敏过界」）
 const MUST_KEEP = ['verified_at', 'note_html', 'reject_reason']  // 仅 token_deals 适用
 
-let pass = 0, fail = 0
+let pass = 0, fail = 0, skip = 0
 const bad = (msg, detail) => { fail++; console.log(`  ✗ ${msg}${detail ? ' — ' + detail : ''}`) }
 const ok = (msg) => { pass++; console.log(`  ✓ ${msg}`) }
+// 跳过：**不计入通过**，单独计数并在汇总里显示，避免「skip 冒充 pass」
+const skipped = (msg) => { skip++; console.log(`  · ${msg}`) }
 
 /** 找到响应里的「行数组」（不同端点字段名不同） */
 function rowsOf(json) {
@@ -38,9 +40,25 @@ function rowsOf(json) {
 
 async function probe(label, path, opts = {}) {
   const res = await fetch(BASE + path)
-  if (res.status !== 200) { console.log(`  · ${label}: 跳过（HTTP ${res.status}）`); return }
+  // ⚠️ 跳过 = **没测**，不是「没问题」。
+  //
+  // 上一版把 skip 和 pass 混在一起数，于是「prompts 详情」档因为 `rowsOf()` 不认识
+  // `{ prompt }`（键名表里只有 `prompts`）一直走这里，探针显示「10 通过 / 0 失败」——
+  // 假绿灯，掩盖了详情端点真实的 `deleted_at` 泄露。
+  //
+  // 现在：**取不到数据一律记失败**。想让某档跳过，必须显式传 `allowSkip: '理由'`，
+  // 并在输出里用 `·` 标出来（不计入通过数，但也不算失败，便于「本就没数据」的端点）。
+  if (res.status !== 200) {
+    if (opts.allowSkip) { skipped(`${label}: 跳过（HTTP ${res.status}，${opts.allowSkip}）`); return }
+    bad(`${label} 取数失败 HTTP ${res.status}（探针无法验证 = 不通过）`)
+    return
+  }
   const rows = rowsOf(await res.json())
-  if (!rows.length) { console.log(`  · ${label}: 跳过（空结果）`); return }
+  if (!rows.length) {
+    if (opts.allowSkip) { skipped(`${label}: 跳过（空结果，${opts.allowSkip}）`); return }
+    bad(`${label} 响应解析不出任何行（探针无法验证 = 不通过；若是端点返回结构变了，需更新 rowsOf 键名表）`)
+    return
+  }
   const keys = new Set(rows.flatMap(r => Object.keys(r || {})))
 
   for (const k of INTERNAL_KEYS) {
@@ -63,8 +81,10 @@ async function probe(label, path, opts = {}) {
 /** HTML 页面：SSR payload 里不得出现内部键 */
 async function probeHtml(label, path) {
   const res = await fetch(BASE + path)
-  if (res.status !== 200) { console.log(`  · ${label}: 跳过（HTTP ${res.status}）`); return }
+  // 同上：页面取不到 = 没测 = 不算通过
+  if (res.status !== 200) { bad(`${label} 取数失败 HTTP ${res.status}（探针无法验证 = 不通过）`); return }
   const html = await res.text()
+  if (html.length < 500) { bad(`${label} 响应过短（${html.length} 字节），疑似异常页`); return }
   const hits = INTERNAL_KEYS.filter(k => html.includes(`"${k}"`))
   if (hits.length) bad(`${label} SSR payload 含 ${hits.join(',')}`)
   else ok(`${label}: SSR payload 无内部字段`)
@@ -101,7 +121,7 @@ async function main() {
   await probe('tags', '/api/tags', { allowKeys: allowed })
   await probe('token-keys', '/api/token-keys?limit=3', { allowKeys: allowed })
 
-  console.log(`\n═══ 结果：${pass} 通过 / ${fail} 失败 ═══`)
+  console.log(`\n═══ 结果：${pass} 通过 / ${fail} 失败${skip ? ` / ${skip} 跳过（未验证）` : ''} ═══`)
   process.exit(fail ? 1 : 0)
 }
 
