@@ -147,14 +147,15 @@ export async function submitGuestDeal(db: DB, event: any, body: any): Promise<Gu
       db.prepare(`
         INSERT INTO token_deals (
           id, user_id, provider, title, url, call_url, quota, models, region, quality,
-          source_tag, expires_at, pinned, note, status, reject_reason,
+          source_tag, category, expires_at, pinned, note, real_name, real_name_other,
+          status, reject_reason,
           vote_up, vote_down, rating_sum, rating_count, created_at, updated_at,
           guest_name, guest_fingerprint
-        ) VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', '', 0, 0, 0, 0, ?, ?, ?, ?)
+        ) VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 'pending', '', 0, 0, 0, 0, ?, ?, ?, ?)
       `).run(
         id, d.provider, d.title, d.url, d.callUrl, d.quota,
-        JSON.stringify(d.models), d.region, d.quality, d.sourceTag,
-        d.expiresAt, d.note, now, now, nickname, fingerprint,
+        JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
+        d.expiresAt, d.note, d.realName, d.realNameOther, now, now, nickname, fingerprint,
       )
       // 占用配额：同 IP 只保留最近一次成功提交的时间
       db.prepare('INSERT OR REPLACE INTO guest_submit_quota (ip_hash, last_at) VALUES (?, ?)')

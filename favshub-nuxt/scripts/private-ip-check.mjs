@@ -110,6 +110,70 @@ for (const [h, want] of HOSTNAME_CASES) {
   if (isPrivateHostname(h) === want) { pass++ } else { fails.push(`isPrivateHostname(${JSON.stringify(h)}) 应为 ${want}，实际 ${!want}`) }
 }
 
+// ── 7. 表结构完整性：前缀字节数不足的表项是**永不生效的死代码** ──
+// 这正是 2026-10-30 那个 NAT64 bug 的形态（写了 4 字节前缀却要按 96 位比 → prefix[4..11] 为
+// undefined → 恒为 false）。运行期测试只能证明「已知地址判对了」，证明不了「表里每一项都活着」，
+// 所以这里直接对源码做结构断言：任何一项的前缀字节数不足就红。
+{
+  const src = readFileSync(SRC, 'utf8')
+
+  // 具名常量里的字节数组长度（V4_MAPPED_PREFIX 等）
+  const constLens = {}
+  for (const m of src.matchAll(/const\s+([A-Z0-9_]+)\s*=\s*\[([0-9xa-fA-F,\s]+)\]/g)) {
+    constLens[m[1]] = m[2].split(',').map(x => x.trim()).filter(Boolean).length
+  }
+
+  const TABLES = [['PRIVATE_V4_CIDRS', 4], ['PRIVATE_V6_CIDRS', 16], ['V6_EMBEDDED_V4', 16]]
+  let checkedEntries = 0
+  for (const [name, sizeBytes] of TABLES) {
+    const at = src.indexOf(`const ${name}`)
+    if (at < 0) { fails.push(`找不到地址段表 ${name}`); continue }
+    const open = src.indexOf('[', src.indexOf('=', at))
+    const lines = src.slice(open).split('\n')
+    let seen = 0
+    for (const raw of lines.slice(1)) {
+      const line = raw.split('//')[0].trim()
+      if (!line) continue
+      if (line.startsWith(']')) break
+      // [[a, b, c], bits]  或  [IDENT, bits, offset]
+      const inline = line.match(/^\[\[([0-9xa-fA-F,\s]+)\]\s*,\s*(\d+)/)
+      const named = line.match(/^\[([A-Z0-9_]+)\s*,\s*(\d+)/)
+      let prefixLen = null, bits = null
+      if (inline) {
+        prefixLen = inline[1].split(',').map(x => x.trim()).filter(Boolean).length
+        bits = Number(inline[2])
+      } else if (named) {
+        prefixLen = constLens[named[1]] ?? null
+        bits = Number(named[2])
+      } else {
+        fails.push(`${name} 里有无法解析的表项：${line.slice(0, 60)}`)
+        continue
+      }
+      seen++; checkedEntries++
+      if (prefixLen === null) { fails.push(`${name} 的 ${named ? named[1] : '?'} 常量长度未知`); continue }
+      const need = Math.ceil(bits / 8)
+      if (prefixLen < need) {
+        fails.push(`${name} 的表项 /${bits} 前缀只有 ${prefixLen} 字节，需要 ${need} 字节 → 该项永不生效（死代码）`)
+      }
+      if (bits <= 0 || bits > sizeBytes * 8) {
+        fails.push(`${name} 的表项前缀长度 /${bits} 超出 1..${sizeBytes * 8}`)
+      }
+    }
+    if (seen < 2) fails.push(`${name} 只解析到 ${seen} 个表项，解析逻辑可能已失效`)
+  }
+  const structural = []
+  if (checkedEntries < 8) structural.push(`只解析到 ${checkedEntries} 个表项，解析逻辑可能已失效`)
+  const DRIFT = [
+    ['源码含加载期表自检', /validateCidrTable\('PRIVATE_V4_CIDRS'/.test(src) && /validateCidrTable\('V6_EMBEDDED_V4'/.test(src)],
+    ['源码含告警只报一次（避免刷日志）', /warnCidrOnce\(/.test(src)],
+    ['已记录 Teredo 已知缺口', /Teredo/.test(src)],
+  ]
+  if (structural.length) for (const m of structural) fails.push(m)
+  else pass++
+  for (const [name, okd] of DRIFT) { if (okd) pass++; else fails.push(name) }
+  console.log(`  地址段表结构检查：解析 ${checkedEntries} 项 + ${DRIFT.length} 条防漂移断言`)
+}
+
 console.log(`内网语料 ${PRIVATE.length} 项 + 公网语料 ${PUBLIC.length} 项 + 域名 ${HOSTNAME_CASES.length} 项`)
 if (fails.length) {
   console.log(`\n✗ 失败 ${fails.length} 项：`)

@@ -585,7 +585,12 @@ async function main() {
   }
 
   await stopApp()
-  try { const { rmSync } = await import('node:fs'); rmSync(dbPath, { force: true }) } catch {}
+  // 清理临时库：**必须连 WAL/SHM 边车一起删** —— 只删 .db 会留下 -wal/-shm，
+  // 在 data/ 里越攒越多（本仓 WAL 模式下每次运行都会生成这两个文件）。
+  try {
+    const { rmSync } = await import('node:fs')
+    for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true })
+  } catch {}
 }
 
 let exitCode = 0

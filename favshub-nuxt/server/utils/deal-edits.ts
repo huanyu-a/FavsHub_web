@@ -401,11 +401,13 @@ export function reviewDealEdit(
       UPDATE token_deals SET
         provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
         region = ?, quality = ?, source_tag = ?, expires_at = ?, note = ?,
+        real_name = ?, real_name_other = ?,
         status = ?, reject_reason = ?, updated_at = ?
       WHERE id = ?
     `).run(
       d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
       d.region, d.quality, d.sourceTag, d.expiresAt, d.note,
+      d.realName, d.realNameOther,
       nextStatus, nextStatus === 'pending' ? '' : deal.reject_reason, now, deal.id,
     )
     db.prepare(

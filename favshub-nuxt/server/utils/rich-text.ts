@@ -78,7 +78,11 @@ export function renderRichText(source: unknown): string {
 
   let html: string
   try {
-    html = marked.parse(raw, { async: false }) as string
+    // breaks: true —— 用户拿「单换行」当排版手段（实测 71 条有备注的通告里 14 条含 \n，
+    // 只有 3 条含 Markdown 标记），而 marked 默认 breaks:false 会把单换行折叠成空格，
+    // 「第一步：注册\n第二步：实名」会渲染成一整行 —— 这是「备注不支持富文本」的真实根因。
+    // 只影响 <br> 的生成，消毒白名单与降级路径均不变（XSS 面不变）。
+    html = marked.parse(raw, { async: false, breaks: true }) as string
   } catch {
     // 解析异常时更保守：只输出转义文本
     return escapeHtml(raw)

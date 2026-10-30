@@ -104,9 +104,14 @@ python3 ~/favshub-poll.py --init --site {BASE} --target qqbot:123456789 --label 
 > cron 不做 `~` 展开，两个路径都要写全；`python3` 也建议写成 `command -v python3` 得到的绝对路径
 > （cron 的 `PATH` 很窄，找不到命令时任务会静默失败）。
 
-节奏怎么选：站点侧限 **60 次/小时/IP**，`*/2` = 30 次/小时，是「够快又不会撞限流」的档位；
+节奏怎么选：这条通道（`/api/token-deals/changes`、`feed.*`、`deal-subscriptions`）站点侧限
+**60 次/小时/IP**，`*/2` = 30 次/小时，是「够快又不会撞限流」的档位；
 `*/10` 会把延迟拉到十几分钟（发布后要等一阵群里才看到）。**不要**写成 `* * * * *`（60 次/小时恰好顶格，
 多机部署或手动补跑就会 429）。通告不是秒级数据，`*/2`～`*/5` 都合理。
+
+> 全站还有一层 IP 分层限频（读接口 600 次/分钟、写接口 120 次/分钟、并发 24 —— 见 `SKILL.md`
+> 「限频与并发」）。按 `*/2`～`*/5` 跑的话**先撞到的是上面这条 60 次/小时**，全站那层是给
+> 「有人在拿你的令牌扫站」这种情形兜底的，不需要你为它调整节奏。
 
 ### 第 4 步：自检
 
@@ -190,15 +195,23 @@ def http_json(url, payload=None, timeout=TIMEOUT):
 
 
 def render_for(target, ev):
-    """按通道挑格式：钉钉群机器人支持 Markdown，QQ 官方机器人只吃纯文本。
+    """按通道挑格式：钉钉群机器人与 QQ 官方机器人都支持 Markdown，其余通道用纯文本。
 
     事件同时带两个字段：
       - ``text``     单行纯文本（≤200 字，``【上新】服务商｜标题｜额度｜链接``）
       - ``markdown`` 多行富文本（标题 / 加粗 / 列表 / 可点链接，字段更全）
-    把 ``**`` 之类的符号发到 QQ 官方机器人上会原样显示，观感很差，所以按目标前缀分流。
+
+    判定规则与站内消费端 ``favshub-nuxt/scripts/qq-outbox-deliver.py`` **逐字一致**：
+    取 ``:`` 之前的前缀做**精确比对**（``channel in ("qqbot", "dingtalk")``），
+    不用 ``startswith`` —— 后者会把 ``dingtalk-group:`` 这种非官方目标也当成富文本通道。
+
+    钉钉群机器人用 ``###`` 触发 markdown 卡片；QQ 官方机器人由 hermes 侧嗅探 ``###``
+    后改发 ``msg_type=2``，同样支持 markdown。OneBot 等纯文本通道（CQ 码）不支持，
+    仍只用 ``text``，否则 ``**`` 会原样显示、观感很差。
     """
     md = ev.get("markdown") or ""
-    if str(target).lower().startswith("dingtalk") and md:
+    channel = str(target).split(":", 1)[0].lower()
+    if md and channel in ("qqbot", "dingtalk"):
         return md
     return ev.get("text") or md
 

@@ -25,10 +25,36 @@
 // NUXT_TRUST_PROXY=true 的作用: 让 IP 级限频读取 X-Forwarded-For，
 // 从而把「限频压测」隔离到专用 IP（198.51.100.77），不污染其余用例。
 //
+// ⚠️ 2026-10-30 起 AI 通道配额是「每令牌 10 次/分钟 且 50 次/30 分钟」（T5 限流收紧），
+//    而本脚本**一个令牌要打 40~90 个 AI 请求**（这是功能回归，不是并发/压测），
+//    默认配额下跑到第 11 个就 429 —— 后续所有用例会被连锁打红。因此：
+//
+//      · 跑**功能回归**（第 0~5、7 节）时，用环境变量临时放宽 AI 配额（这就是它存在的意义）：
+//          FAVSHUB_RL_AI_PER_MIN=100000 FAVSHUB_RL_AI_BURST=100000 \
+//          FAVSHUB_RL_AI_IP_PER_MIN=100000 FAVSHUB_RL_AI_IP_BURST=100000 \
+//          FAVSHUB_RL_AI_CONCURRENCY=100 FAVSHUB_RL_AI_IP_CONCURRENCY=100
+//        （全站 IP 分层限频保持默认即可：本节 77 个写请求 < 120/分钟）
+//
+//    二者对阈值的要求**互相冲突**（功能回归要松、限频压测要紧），所以分两种运行模式：
+//
+//      node scripts/ai-api-smoke-write.mjs [baseUrl] [dbPath]           # 默认：功能回归
+//      node scripts/ai-api-smoke-write.mjs [baseUrl] [dbPath] --limit  # 只跑第 6 节限频
+//
+//    两种模式各起一次服务、各用自己的阈值。`--limit` 模式要求**默认 AI 配额**
+//    （否则 warn 跳过而不是误报失败）。
+//
 // 退出码: 0 全通过 / 1 有失败项
 const BASE = process.argv[2] || 'http://127.0.0.1:3210'
 const DB_PATH = process.argv[3] || process.env.SMOKE_DB || ''
 const BURST_IP = '198.51.100.77'
+/**
+ * `--limit` 模式：只跑第 6 节限频压测。
+ *
+ * 功能回归（第 0~5、7 节）每个令牌要打 40~90 个 AI 请求，必须放宽配额才跑得完；
+ * 而限频压测要在**默认配额**下验证「第 N+1 次才 429」。两者不能在同一进程里共存，
+ * 所以拆模式：功能回归不跑第 6 节，压测模式只跑第 6 节（其余节整段跳过）。
+ */
+const LIMIT_ONLY = process.argv.includes('--limit')
 
 const ADMIN_USER = 'smokeadmin'
 const USER_A = 'aiskill_a'
@@ -135,6 +161,15 @@ let adminTok, tokA, tokB
 {
   const a = await ensureAuth(admin, ADMIN_USER, 'AI 冒烟管理员')
   check('管理员账号可用', a.status === 200, 'status=' + a.status)
+
+  if (LIMIT_ONLY) {
+    // 压测模式只要「用户 A 能用 + 能建令牌」，其余账号断言跳过（也避免多打请求污染计数）
+    const bb = await ensureAuth(userA, USER_A, 'AI 冒烟用户 A')
+    check('用户 A 可用', bb.status === 200, 'status=' + bb.status)
+    console.log('  [MODE] --limit：仅执行第 6 节限频压测，其余小节跳过')
+    await limitSection()
+    await reportAndExit()
+  }
   // is_admin 仅反映 DB 字段；管理员身份的真正证明是能创建 delete scope 令牌（见下）
   check('管理员响应含 is_admin 字段', typeof a.isAdmin === 'boolean', 'is_admin=' + a.isAdmin)
 
@@ -503,24 +538,99 @@ let dealA = null
   check('删除不存在的通告 → 404', ghostDel.status === 404, 'status=' + ghostDel.status)
 }
 
-// ─── 6. 限频 ────────────────────────────────────────────────────
-console.log('=== 6. 限频（专用 IP，需 NUXT_TRUST_PROXY=true） ===')
-{
-  const MAX = 400
-  let successes = 0
-  let first429At = null
-  let body429 = null
-  for (let i = 0; i < MAX; i++) {
-    const r = await api('/api/ai/stats', tokA, { headers: { 'x-forwarded-for': BURST_IP } })
-    if (r.status === 429) { first429At = i + 1; body429 = r.json; break }
-    if (r.status === 200) successes++
-    else { warn(`压测第 ${i + 1} 次出现非 200/429 状态: ${r.status}`); break }
+// ─── 6. 限频（函数形式：两种运行模式都要能单独调用它） ──────────
+async function limitSection() {
+  console.log('=== 6. 限频（专用 IP + 专用新令牌，需 NUXT_TRUST_PROXY=true） ===')
+  // ⚠️ 本节的期望阈值**从服务端自己广播的文案里反解析**，不硬编码。
+  //    `GET /api/ai/describe` 的 `errors[429]` 由 `aiRateLimitText()`（服务端阈值表）生成，
+  //    所以这样断言同时证明了两件事：限频真的会触发 429、**且触发点与配置一致**
+  //    （任何一方漂移都会红）。运营方用 FAVSHUB_RL_* 改了阈值，本断言自动跟着走。
+  //
+  //    令牌级与 IP 级是两个独立的桶，实际触发点 = 两者中更严的那个。
+  //
+  //    必须用**新令牌 + 新 IP**：本节之前的用例已经把 tokA 的分钟桶吃掉几十次，
+  //    沿用旧令牌会让触发点随机漂移（历史版本正是因为用旧令牌 + 400 次盲打才写的 200~305 这种宽区间）。
+  const probe = await createToken(userA, '冒烟-限频探针', ['read'])
+  if (probe.status !== 200 || !probe.plain) {
+    bad('创建限频探针令牌失败', 'status=' + probe.status)
+  } else {
+    const BURST_IP2 = BURST_IP
+    const d = await api('/api/ai/describe', probe.plain, { headers: { 'x-forwarded-for': BURST_IP2 } })
+    const text429 = String(d.json?.errors?.[429] || '')
+    const numAfter = (re) => {
+      const m = re.exec(text429)
+      return m ? Number(m[1]) : null
+    }
+    const tokPerMin = numAfter(/每令牌 (\d+) 次\/分钟/)
+    const ipPerMin = numAfter(/同 IP 兜底 (\d+) 次\/分钟/)
+    check('describe.errors[429] 可反解析出令牌分钟配额', Number.isFinite(tokPerMin) && tokPerMin > 0, 'text=' + text429)
+    check('describe.errors[429] 可反解析出 IP 兜底分钟配额', Number.isFinite(ipPerMin) && ipPerMin > 0, 'text=' + text429)
+
+    if (Number.isFinite(tokPerMin) && Number.isFinite(ipPerMin)) {
+      // 实际先撞的是两者中更严的（令牌级设计上应比 IP 兜底严）
+      const expected = Math.min(tokPerMin, ipPerMin)
+      // 阈值被运营方调得很大时（例如为了跑完整回归套件而临时放宽），
+      // 「打满它」既不现实也没有意义 —— 显式跳过而不是误报，并按 warn 留痕。
+      const MAX_PROBE = 600
+      if (expected > MAX_PROBE) {
+        warn(`当前令牌分钟配额被覆盖为 ${expected}（> ${MAX_PROBE}），跳过限频压测；`
+          + '要跑本节请用默认阈值（不设 FAVSHUB_RL_AI_PER_MIN/_BURST）另起一次服务')
+      } else {
+      const burst = await createToken(userA, '冒烟-限频压测', ['read'])
+      if (burst.status !== 200 || !burst.plain) {
+        bad('创建压测令牌失败', 'status=' + burst.status)
+      } else {
+        const MAX = expected + 5
+        let successes = 0
+        let first429At = null
+        let body429 = null
+        let retryAfter = null
+        for (let i = 0; i < MAX; i++) {
+          const r = await api('/api/ai/stats', burst.plain, { headers: { 'x-forwarded-for': BURST_IP2 } })
+          if (r.status === 429) {
+            first429At = i + 1
+            body429 = r.json
+            retryAfter = r.headers.get('retry-after')
+            break
+          }
+          if (r.status === 200) successes++
+          else { warn(`压测第 ${i + 1} 次出现非 200/429 状态: ${r.status}`); break }
+        }
+        check(`限频触发 429（令牌 ${tokPerMin} 次/分钟 vs IP 兜底 ${ipPerMin} 次/分钟，取较严者 ${expected}）`,
+          first429At !== null, '未在 ' + MAX + ' 次内触发')
+        check(`触发点与配置一致：第 ${expected + 1} 次才 429（前 ${expected} 次全 200）`,
+          first429At === expected + 1 && successes === expected,
+          'first429At=' + first429At + ' successes=' + successes + ' expected=' + expected)
+        check('429 响应体含 error 文案且点名限流层', !!body429?.error && /每令牌|同 IP 兜底/.test(String(body429.error || '')), JSON.stringify(body429))
+        check('429 带合法 Retry-After（秒）',
+          Number.isFinite(Number(retryAfter)) && Number(retryAfter) >= 1 && Number(retryAfter) <= 3600,
+          'retry-after=' + retryAfter)
+        console.log(`  [INFO] 第 ${first429At ?? '—'} 次请求触发 429，此前成功 ${successes} 次；`
+          + `Retry-After=${retryAfter}s；body=${JSON.stringify(body429)}`)
+      }
+      }
+    }
   }
-  check('限频触发 429（IP 级 300 次/分钟）', first429At !== null, '未在 ' + MAX + ' 次内触发')
-  check('429 前成功次数在 200–305 之间', successes >= 200 && successes <= 305, 'successes=' + successes)
-  check('429 响应体含 error 文案', !!body429?.error, JSON.stringify(body429))
-  console.log(`  [INFO] 第 ${first429At ?? '—'} 次请求触发 429，此前成功 ${successes} 次`)
 }
+
+/** 收尾：打印汇总并按失败数决定退出码（两种模式共用） */
+async function reportAndExit() {
+  console.log('')
+  console.log('========================================')
+  console.log('通过: ' + pass + '  失败: ' + fail)
+  if (failures.length) {
+    console.log('失败项:')
+    for (const f of failures) console.log('  - ' + f)
+  }
+  if (warnings.length) {
+    console.log('警告:')
+    for (const w of warnings) console.log('  - ' + w)
+  }
+  process.exit(fail > 0 ? 1 : 0)
+}
+
+// --limit 模式已在第 0 节（拿到可用令牌后）调用并退出，走到这里的一定是功能回归模式
+await limitSection()
 
 // ─── 7. 审计 ────────────────────────────────────────────────────
 console.log('=== 7. 审计日志 ===')
@@ -553,15 +663,4 @@ console.log('=== 7. 审计日志 ===')
 }
 
 // ════════════════════════════════════════════════════════════════
-console.log('')
-console.log('========================================')
-console.log('通过: ' + pass + '  失败: ' + fail)
-if (failures.length) {
-  console.log('失败项:')
-  for (const f of failures) console.log('  - ' + f)
-}
-if (warnings.length) {
-  console.log('警告:')
-  for (const w of warnings) console.log('  - ' + w)
-}
-process.exit(fail > 0 ? 1 : 0)
+await reportAndExit()

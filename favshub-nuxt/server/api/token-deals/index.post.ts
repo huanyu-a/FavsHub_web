@@ -60,13 +60,14 @@ export default defineEventHandler(async (event) => {
     db.prepare(`
       INSERT INTO token_deals (
         id, user_id, provider, title, url, call_url, quota, models, region, quality,
-        source_tag, category, expires_at, pinned, note, status, reject_reason,
+        source_tag, category, expires_at, pinned, note, real_name, real_name_other,
+        status, reject_reason,
         vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', 0, 0, 0, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
     `).run(
       id, user.id, d.provider, d.title, d.url, d.callUrl, d.quota,
       JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
-      d.expiresAt, d.note, status, now, now,
+      d.expiresAt, d.note, d.realName, d.realNameOther, status, now, now,
     )
   } catch (err: any) {
     console.error('发布 Token 白嫖通告失败:', err)
@@ -79,11 +80,19 @@ export default defineEventHandler(async (event) => {
   }
 
   // QQ 机器人通知（fire-and-forget：失败只告警，绝不阻断主请求）
+  //
+  // 2026-10-30 修：这里原先传的是**提交载荷** `d`（camelCase、没有 id），
+  // 于是「新通告发布」这条通知永远拼不出详情链接，到期行也读不到。
+  // 统一改成与 approve / delete 路径同一形状：**带 id 的库行**。
+  // 注意库行里含 verified_by / guest_fingerprint / deleted_by 等内部列 ——
+  // 通知正文的白名单在 `utils/qq-notify.ts`（与 deal-events 共用归一化），
+  // 本文件只负责给对形状，脱敏由那一层单点负责。
   try {
+    const row = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(id)
     if (isAdmin) {
-      notifyTokenDealPublished(d)
+      notifyTokenDealPublished(row)
     } else {
-      notifyTokenDealPending(d, user.username)
+      notifyTokenDealPending(row, user.username)
     }
   } catch (err: any) {
     console.warn('[QQBot] 通告提交通知入队失败（忽略）:', err?.message || err)

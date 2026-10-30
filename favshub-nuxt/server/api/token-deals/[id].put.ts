@@ -57,11 +57,13 @@ export default defineEventHandler(async (event) => {
       UPDATE token_deals SET
         provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
         region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
+        real_name = ?, real_name_other = ?,
         status = ?, reject_reason = '', updated_at = ?
       WHERE id = ?
     `).run(
       d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
       d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
+      d.realName, d.realNameOther,
       status, Date.now(), id,
     )
   } catch (err: any) {

@@ -267,6 +267,10 @@ export const tokenDeals = sqliteTable('token_deals', {
   verifiedAt: integer('verified_at').default(0),
   verifiedBy: text('verified_by').default(''),   // 核验人（管理员用户名，对外不下发）
   verifyNote: text('verify_note').default(''),
+  // 是否实名（2026-10-30 第三批）：'' = 未填 | no（否）| id_card（身份证）| face（人脸）| other（其他）
+  // real_name_other 存「其他」的手填文案，仅 real_name='other' 时有意义
+  realName: text('real_name').default(''),
+  realNameOther: text('real_name_other').default(''),
   voteUp: integer('vote_up').default(0),         // 缓存计数
   voteDown: integer('vote_down').default(0),
   ratingSum: integer('rating_sum').default(0),

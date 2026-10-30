@@ -33,6 +33,7 @@ const check = (name, cond, detail = '') => {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
 const DEAL_ID = 'deal_cacheprivacy_0001'
+let dbPath = ''
 let appProcess = null
 
 function ensureNativeModule() {
@@ -77,7 +78,7 @@ async function get(path, cookie) {
 
 try {
   mkdirSync(join(ROOT, 'data'), { recursive: true })
-  const dbPath = join(ROOT, 'data', `cache-privacy-${Date.now()}.db`)
+  dbPath = join(ROOT, 'data', `cache-privacy-${Date.now()}.db`)
   console.log(`▶ 启动应用（PORT=${APP_PORT}）`)
   await startApp(dbPath)
 
@@ -146,6 +147,11 @@ try {
   fails.push(`执行异常：${err.message}`)
 } finally {
   if (appProcess) { appProcess.kill('SIGTERM'); await sleep(300); if (!appProcess.killed) appProcess.kill('SIGKILL') }
+  // 清理临时库（含 WAL/SHM 边车），避免在 data/ 里越攒越多
+  try {
+    const { rmSync } = await import('node:fs')
+    for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true })
+  } catch { /* 清理失败不影响验收结论 */ }
 }
 
 if (fails.length) {

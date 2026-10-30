@@ -341,3 +341,93 @@ export function verifyDrawToken(
   }
   return false
 }
+
+// ════════════════════════════════════════════════════════════════
+// 领取地址里的邀请码占位符（2026-10-30）
+//
+// 需求：领取地址里可以写 `{邀请码}`，例如
+//   https://platform.lyrouter.com/ai_gateway/workspace/login?action=register&referral_code={邀请码}&share_v=2
+// 用户抽中码时，服务端把占位符替换成**本次抽中的那个码**，返回完整地址。
+//
+// 三条硬约束（改这里之前先读完）：
+//
+//   1. **替换只发生在「已抽中该码」的响应里**（`GET /:id/invite-code` 的 `claim_url`）。
+//      通告详情 / 列表 / feed / AI 通道一律只给原文模板，**绝不出现任何码**，也不出现半替换的串：
+//      码池不进详情是本仓的安全不变量（一旦进详情，前端「按比例只出现一个」就是障眼法）。
+//      未抽中时 `resolveClaimUrl` 的调用方必须落 `claim_url: ''`，而不是把空值填进模板。
+//
+//   2. 替换值**一律 `encodeURIComponent`**。占位符几乎总落在 query 里
+//      （`?referral_code={邀请码}&share_v=2`），不编码的话码里的 `&` / `#` / `=` / 空格
+//      会直接截断或改写整个 URL。路径位置同样按路径段编码，结果一致 ——
+//      这里**刻意不做「按位置分支编码」**：多一条分支就多一次「某条忘了编码」的机会。
+//
+//   3. 替换逻辑**只此一处**（纯函数）。端点里不许再 `replace` 一遍 ——
+//      多写一遍就迟早出现「某条路径漏了编码」。
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * 兼容写法：`{邀请码}` / `{code}` / `{invite_code}`，**半角与全角花括号都认**。
+ *
+ * 全角是为中文输入法准备的 —— 实测「｛邀请码｝」是很容易踩的输入结果，
+ * 而它对用户来说与半角完全一样，没有理由因此让功能不生效。
+ */
+export const CLAIM_CODE_PLACEHOLDERS = ['{邀请码}', '{code}', '{invite_code}'] as const
+
+/** 半角/全角花括号 + 三种占位符名（共享的真源，两个正则都由它派生，避免两处漂移） */
+const CLAIM_PLACEHOLDER_PATTERN = '[｛{](?:邀请码|code|invite_code)[｝}]'
+/** 全局替换用（`String.replace` 对 `/g` 正则会自行重置 lastIndex，可安全复用） */
+const CLAIM_PLACEHOLDER_RE = new RegExp(CLAIM_PLACEHOLDER_PATTERN, 'g')
+/** 仅判定用（非全局，避免 `test()` 的 lastIndex 状态污染 —— `/g` + `test` 是有名的坑） */
+const CLAIM_PLACEHOLDER_TEST_RE = new RegExp(CLAIM_PLACEHOLDER_PATTERN)
+
+/**
+ * 取通告的「领取地址」及其来源字段。
+ *
+ * 选序（从需求口径出发，并补掉一个会让功能形同虚设的坑）：
+ *   1. `call_url` 里写了占位符 → 用它；
+ *   2. `url` 里写了占位符 → 用它；
+ *   3. 都没写占位符 → `call_url` 非空则用它，否则 `url`（即需求里的「call_url，若为空则 url」）。
+ *
+ * 为什么第 2 步要插在「call_url 优先」之前：最常见的填法是
+ * `url` = 带 `{邀请码}` 的注册/领取页、`call_url` = API 基址（拉模型用）。
+ * 若死守「call_url 优先」，这类通告抽码后拿到的 `claim_url` 会是 API 基址、
+ * 占位符被静默忽略 —— 用户以为写对了，功能却静默不生效。
+ * `claim_url_source` 会如实告诉前端这次用的是哪个字段，行为对前端是透明的。
+ */
+export function claimUrlTemplateOf(
+  deal: { call_url?: unknown; url?: unknown } | null | undefined,
+): { source: 'call_url' | 'url'; template: string } {
+  const callUrl = String(deal?.call_url ?? '').trim()
+  const url = String(deal?.url ?? '').trim()
+  if (hasClaimCodePlaceholder(callUrl)) return { source: 'call_url', template: callUrl }
+  if (hasClaimCodePlaceholder(url)) return { source: 'url', template: url }
+  if (callUrl) return { source: 'call_url', template: callUrl }
+  return { source: 'url', template: url }
+}
+
+/** 领取地址模板里是否写了邀请码占位符（详情页据此提示「需先抽码」，不必暴露码池） */
+export function hasClaimCodePlaceholder(template: unknown): boolean {
+  const t = String(template ?? '')
+  if (!t) return false
+  return CLAIM_PLACEHOLDER_TEST_RE.test(t)
+}
+
+/**
+ * 把模板里的占位符替换成本次抽中的码。
+ *
+ * - 没有码（码池空 / 调用方未传）→ 返回 `''`：**绝不用空串替换出一个残缺 URL**，
+ *   调用方据此区分「抽到了」与「没抽到」；
+ * - 模板里没有占位符 → 原样返回（领取地址就是模板本身，前端可以直接拿它当链接用）。
+ *
+ * 替换值走 `encodeURIComponent`；用**函数式替换**而不是字符串替换，是因为
+ * `String.replace` 的字符串参数会把 `$&` / `$'` / `$1` 当特殊记号 ——
+ * 码里真出现 `$&` 就会被替换成别的内容（实测会注入匹配到的占位符本身）。函数式替换没有这个坑。
+ */
+export function resolveClaimUrl(template: unknown, code: unknown): string {
+  const t = String(template ?? '')
+  const c = String(code ?? '')
+  if (!t || !c) return ''
+  const encoded = encodeURIComponent(c)
+  return t.replace(CLAIM_PLACEHOLDER_RE, () => encoded)
+}
+

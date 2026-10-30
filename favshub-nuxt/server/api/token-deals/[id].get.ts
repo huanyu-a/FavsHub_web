@@ -14,7 +14,7 @@ import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
 import { myVoteFor } from '../../utils/deal-votes'
 import { renderRichText } from '../../utils/rich-text'
-import { hasAvailableInviteCode } from '../../utils/invite-codes'
+import { claimUrlTemplateOf, hasAvailableInviteCode, hasClaimCodePlaceholder } from '../../utils/invite-codes'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -131,6 +131,12 @@ export default defineEventHandler(async (event) => {
     console.warn('[token-deals] 读取游客评测摘要失败:', err?.message)
   }
 
+  // 领取地址占位符（2026-10-30）：详情只回答「这条的领取地址要不要抽码」，
+  // **不做任何替换** —— 详情响应里永远不出现码、也不出现 claim_url（码池不进详情是不变量，
+  // 替换只发生在 GET /:id/invite-code 那次「已抽中」的响应里）。
+  // `url` / `call_url` 仍是作者填的原文模板：编辑器要回填它，剥掉占位符就没法再编辑。
+  const claim = claimUrlTemplateOf(row)
+
   return {
     deal: {
       ...row,
@@ -165,6 +171,10 @@ export default defineEventHandler(async (event) => {
       // 邀请码（2026-10-30）：这里只告诉前端「还有没有可用码」，
       // 码本身走 GET /:id/invite-code 单独抽一个 —— 码池绝不随详情下发
       has_invite_code: hasAvailableInviteCode(db, id),
+      // 领取地址的来源字段与「是否写了 {邀请码} 占位符」：
+      // 前端据此提示「先抽码才有完整链接」，并在抽中后用响应里的 claim_url 跳转
+      claim_url_source: claim.source,
+      claim_url_has_placeholder: hasClaimCodePlaceholder(claim.template),
       nexus: loadNexusInfo(db, id),
     },
     // 公开侧只露「何时核验过」，不露核验人（后台才看得到）

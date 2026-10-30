@@ -10,6 +10,10 @@ import { join } from 'node:path'
 import { SYSTEM_CONFIG_DEFAULTS } from '../utils/constants'
 import { seedDefaultCollections } from '../utils/seed-collections'
 import { seedDefaultTokenDeals } from '../utils/seed-token-deals'
+import {
+  SKILL_GUIDE_ANNOUNCEMENT_BODY,
+  SKILL_GUIDE_ANNOUNCEMENT_TITLE,
+} from './seeds/skill-guide-announcement'
 
 /**
  * `bookmarks.has_sync` 生成列的**单点定义**，供两处共用：
@@ -540,6 +544,79 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'token_deals', 'verified_at', 'ALTER TABLE token_deals ADD COLUMN verified_at INTEGER DEFAULT 0')
   ensureColumn(db, 'token_deals', 'verified_by', "ALTER TABLE token_deals ADD COLUMN verified_by TEXT DEFAULT ''")
   ensureColumn(db, 'token_deals', 'verify_note', "ALTER TABLE token_deals ADD COLUMN verify_note TEXT DEFAULT ''")
+  // 2026-10-30 是否实名（需求原话「否、身份证、人脸、其他（手动添加）」）：
+  //   real_name       —— ''（未填）| no（否）| id_card（身份证）| face（人脸）| other（其他）
+  //   real_name_other —— 「其他」的手填文案，仅在 real_name='other' 时有意义
+  //     （服务端在 real_name 非 other 时强制清空，避免留下脏文案）
+  // 取 `DEFAULT ''` 而非可空列：`ALTER TABLE ADD COLUMN ... DEFAULT ''` 让**存量行直接读作空串**
+  // 而不是 NULL（已实测 typeof()='text'、IS NULL=0），前端徽标只需判空串，不必再防 null。
+  ensureColumn(db, 'token_deals', 'real_name', "ALTER TABLE token_deals ADD COLUMN real_name TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'real_name_other', "ALTER TABLE token_deals ADD COLUMN real_name_other TEXT DEFAULT ''")
+  // 兜底归一：若某库这两列是被手工加成可空列（或将来由别的写入路径塞进 NULL），
+  // 读取侧会把 NULL 渲染成 'null' 字样。无 NULL 时不写库（不会每次启动都白写一遍）。
+  try {
+    const nulls = db.prepare(
+      'SELECT COUNT(*) AS c FROM token_deals WHERE real_name IS NULL OR real_name_other IS NULL'
+    ).get() as { c: number }
+    if (nulls.c > 0) {
+      const fixed = db.prepare(
+        "UPDATE token_deals SET real_name = COALESCE(real_name, ''),"
+        + " real_name_other = COALESCE(real_name_other, '')"
+        + ' WHERE real_name IS NULL OR real_name_other IS NULL'
+      ).run() as unknown as { changes: number }
+      console.log(`[DB] 迁移: token_deals 实名列 NULL → '' 归一 ${fixed.changes} 行`)
+    }
+  } catch (err: any) {
+    console.warn('[DB] 实名列 NULL 归一失败（忽略）:', err.message)
+  }
+
+  // ── 游客评测：软删除三列 + 处置审计表（2026-10-30，由 task-5 的惰性补列收编而来）──
+  //
+  // 为什么搬到启动迁移：原先只在 `utils/guest-reviews.ts` 的 `ensureGuestReviewSchema()` 里
+  // 惰性补列 —— 哪个端点先被访问才补哪个，正确性靠「本文件里 11 个调用点都记得先调它」维持。
+  // 这个坑已经真的踩了：既有「待审队列」端点 `GET /api/guest-reviews` 加了
+  // `g.deleted_at IS NULL` 却没调 guard，**全新库上第一次访问就 500 no such column**，
+  // 而类型检查与构建都抓不到（`PRAGMA` 探测出来的列不参与静态检查）。
+  // 移到启动迁移后这一整类失效模式消失；`guest-reviews.ts` 里那段**保留不动**
+  // （重复调用查 `table_xinfo` 后是空操作），作为「表被别的路径新建」时的兜底。
+  // 下面 SQL 与 `ensureGuestReviewSchema()` 保持同源（照抄；改一处请同步另一处）。
+  ensureColumn(db, 'token_deal_guest_reviews', 'deleted_at', 'ALTER TABLE token_deal_guest_reviews ADD COLUMN deleted_at INTEGER DEFAULT NULL')
+  ensureColumn(db, 'token_deal_guest_reviews', 'deleted_by', 'ALTER TABLE token_deal_guest_reviews ADD COLUMN deleted_by INTEGER DEFAULT NULL')
+  // 删除前的审核状态：恢复时要还原回 approved / pending，而不是一律回到 pending
+  ensureColumn(db, 'token_deal_guest_reviews', 'deleted_status', "ALTER TABLE token_deal_guest_reviews ADD COLUMN deleted_status TEXT DEFAULT ''")
+
+  // 处置审计表：只记「谁·何时·对哪条·做了什么（含前后状态）·理由」，
+  // **不存评测正文、不存 IP、不存指纹** —— 审计表不该成为第二个泄露面。
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS guest_review_admin_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        review_id TEXT NOT NULL,
+        deal_id TEXT NOT NULL DEFAULT '',
+        action TEXT NOT NULL,
+        from_status TEXT NOT NULL DEFAULT '',
+        to_status TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        actor_id INTEGER,
+        actor_name TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL
+      );
+    `)
+  } catch (err: any) {
+    console.error('[DB] 创建 guest_review_admin_actions 表失败:', err.message)
+  }
+  // 索引逐条独立 try/catch：一条失败不该拖垮其余（与 createIndexes 同风格）
+  for (const sql of [
+    'CREATE INDEX IF NOT EXISTS idx_gra_review ON guest_review_admin_actions(review_id, created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_gra_created ON guest_review_admin_actions(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_tdgr_deleted ON token_deal_guest_reviews(deleted_at)',
+  ]) {
+    try {
+      db.exec(sql)
+    } catch (err: any) {
+      console.warn('[DB] 游客评测管理索引创建失败（不影响其他索引）:', err.message)
+    }
+  }
 
   // 删除旧的 category_name 列（SQLite 需要重建表）
   try {
@@ -1938,6 +2015,36 @@ export function createAnnouncementsSchema(db: Database.Database) {
     }
   } catch (err: any) {
     console.warn('[DB] 灌入默认公告失败:', err.message)
+  }
+
+  // ── 技能包引导公告（2026-10-30）──
+  //
+  // 需求：「增加一条公告，引导用户在 agent 端安装 favshub-data-ops 用来及时接收白嫖通告」。
+  //
+  // 为什么不能靠上面那段「表为空才插」：生产 announcements 表**已经有 1 条**欢迎公告，
+  // count>0 使上面那段永远不触发，新公告永远出不来。所以这里按**标题幂等** upsert：
+  // 标题即幂等键，重复启动/重复部署都只会有一条（`WHERE NOT EXISTS` 是原子的，
+  // 不会出现「先查后插」的并发重复）。
+  //
+  // 文案与标题来自 server/database/seeds/skill-guide-announcement.ts
+  // （由 /tmp/announcement-skill-guide.md 生成，正文含 ```bash 代码块与表格，勿手改）。
+  // 独立 try/catch 且只 warn：公告灌不进去不该让站点起不来（与上面同风格）。
+  try {
+    const now = Date.now()
+    const created = db.prepare(`
+      INSERT INTO announcements (title, content, content_type, status, pinned, created_at, updated_at)
+      SELECT ?, ?, 'markdown', 'published', 1, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM announcements WHERE title = ?)
+    `).run(
+      SKILL_GUIDE_ANNOUNCEMENT_TITLE,
+      SKILL_GUIDE_ANNOUNCEMENT_BODY,
+      now,
+      now,
+      SKILL_GUIDE_ANNOUNCEMENT_TITLE, // 第 4 个参数与第 1 个相同：标题就是幂等键
+    ) as unknown as { changes: number }
+    if (created.changes > 0) console.log('[DB] 已灌入技能包引导公告')
+  } catch (err: any) {
+    console.warn('[DB] 灌入技能包引导公告失败:', err.message)
   }
 }
 

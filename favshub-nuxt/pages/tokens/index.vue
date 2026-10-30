@@ -227,7 +227,14 @@ useHead({
 })
 
 const search = ref('')
-const sort = ref('nexus')
+/**
+ * 默认排序（2026-10-30 需求：「/tokens 默认按最新排序」）。
+ *
+ * 原来是 `nexus`（Nexus 实测优先），而列表页**始终**把这个值作为 `sort` 查询参数发给
+ * `/api/token-deals`，所以服务端默认值改不改都不影响页面首屏 —— 页面侧改这里就够了。
+ * 「Nexus 实测」仍是排序条上的一个可选项，用户点了就切回去。
+ */
+const sort = ref('latest')
 const quality = ref('')
 const sourceTag = ref('')
 const category = ref('')

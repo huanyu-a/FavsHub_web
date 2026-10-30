@@ -45,6 +45,24 @@ export const DEAL_CATEGORY_LABELS: Record<string, string> = {
 /** 通告状态 — 发布后进入 pending，管理员审核通过才公开 */
 export const DEAL_STATUS = ['pending', 'approved', 'rejected'] as const
 
+/**
+ * 是否实名（2026-10-30，原话「否、身份证、人脸、其他（手动添加）」）。
+ *
+ * 与其它枚举不同，本字段**允许空串** = 未填 —— 存量通告迁移后就是这个值，
+ * 前端据此**不渲染徽标**（否则 80 条老数据会一起冒出「需实名」）。
+ * 取值非法（如 'passport'）一律 400，不静默降级成未填。
+ */
+export const REAL_NAME_VALUES = ['no', 'id_card', 'face', 'other'] as const
+export type RealNameValue = (typeof REAL_NAME_VALUES)[number]
+
+/** 徽标文案（前端可自行覆盖，这里给一份默认口径，供文档/后台复用） */
+export const REAL_NAME_LABELS: Record<string, string> = {
+  no: '无需实名',
+  id_card: '需身份证',
+  face: '需人脸',
+  other: '需实名',
+}
+
 /** 字段长度上限 */
 export const LIMITS = {
   provider: 60,
@@ -57,6 +75,8 @@ export const LIMITS = {
    * 富文本在服务端用白名单消毒（见 `server/utils/rich-text.ts`），前后端同时校验此上限。
    */
   note: 2000,
+  /** 是否实名 → 「其他」的手填文案长度上限（如「需上传护照」「需银行卡验证」） */
+  realNameOther: 40,
   models: 20,
   modelName: 60,
   reviewContent: 1000,
@@ -110,6 +130,32 @@ export interface DealPayload {
   category: string
   expiresAt: number | null
   note: string
+  /** 是否实名：''=未填 | no | id_card | face | other */
+  realName: string
+  /** 「其他」的手填文案；real_name !== 'other' 时恒为空串 */
+  realNameOther: string
+}
+
+/**
+ * 归一化「是否实名」两列 —— **三条写路径共用的唯一实现**。
+ *
+ * 三条写路径（Web `POST` / `PUT`、修改建议审核、AI patch）落库前**都必须**经
+ * `validateDealPayload()`，所以规则写在这里即对三者一致生效。
+ * 端点上不要再写一遍 `if (realName !== 'other') ...` —— 校验与清空规则只许有一处，
+ * 否则迟早出现「直接编辑会清空、走建议通道却留下脏文案」这类旁路（本仓吃过同类亏）。
+ *
+ * 规则：
+ *   1. `real_name_other` 只在 `real_name === 'other'` 时有意义，其余情况**强制清空**；
+ *   2. 枚举合法性由 `validateDealPayload` 判定（非法值返回 400，不在这里静默降级）。
+ */
+export function normalizeRealName(
+  rawName: unknown,
+  rawOther: unknown,
+): { realName: string; realNameOther: string } {
+  const realName = String(rawName ?? '').trim()
+  // 截断是纵深防御：长度上限由 validateDealPayload 显式拒绝，这里保证任何调用方都拿不到超长值
+  const other = String(rawOther ?? '').trim().slice(0, LIMITS.realNameOther)
+  return { realName, realNameOther: realName === 'other' ? other : '' }
 }
 
 export type ValidateResult =
@@ -156,6 +202,17 @@ export function validateDealPayload(body: any): ValidateResult {
   const category = String(body?.category ?? 'token')
   if (!DEAL_CATEGORIES.includes(category as any)) return { ok: false, error: '通告分类取值非法' }
 
+  // 是否实名：空串 = 未填（允许），其余必须是枚举值 —— 非法值显式拒绝，不静默降级
+  const realNameRaw = String(body?.real_name ?? body?.realName ?? '').trim()
+  if (realNameRaw && !REAL_NAME_VALUES.includes(realNameRaw as any)) {
+    return { ok: false, error: '是否实名取值非法（可选：否 / 身份证 / 人脸 / 其他，留空表示未填）' }
+  }
+  const realNameOtherRaw = String(body?.real_name_other ?? body?.realNameOther ?? '').trim()
+  if (realNameOtherRaw.length > LIMITS.realNameOther) {
+    return { ok: false, error: `实名方式说明不能超过 ${LIMITS.realNameOther} 字` }
+  }
+  const { realName, realNameOther } = normalizeRealName(realNameRaw, realNameOtherRaw)
+
   let expiresAt: number | null = null
   const rawExpires = body?.expires_at ?? body?.expiresAt
   if (rawExpires !== null && rawExpires !== undefined && rawExpires !== '') {
@@ -179,6 +236,8 @@ export function validateDealPayload(body: any): ValidateResult {
       category,
       expiresAt,
       note,
+      realName,
+      realNameOther,
     },
   }
 }
@@ -270,10 +329,20 @@ export function parseDealModels(raw: unknown): string[] {
 // 提案通过时才把 patch 合并进主表 —— 提案期间主表内容不受影响。
 // ════════════════════════════════════════════════════════════════
 
-/** 提案可修改的字段白名单（不含 status / pinned / user_id / 计数列 —— 由权限与站点规则决定） */
+/**
+ * 提案可修改的字段白名单（不含 status / pinned / user_id / 计数列 —— 由权限与站点规则决定）。
+ *
+ * 这份白名单是**三处共用**的单一真源：修改建议通道（`extractDealPatch`）、
+ * AI patch 通道（`ai-service.ts` 的 `DEAL_UPDATABLE`）、以及各端点的字段标签。
+ * 新增可改字段时只改这里 + 三处落库 UPDATE 的列清单（少改一处会「校验通过但没写库」）。
+ */
 export const DEAL_PATCHABLE = [
   'provider', 'title', 'url', 'call_url', 'quota', 'models',
   'region', 'quality', 'source_tag', 'category', 'expires_at', 'note',
+  // 是否实名（2026-10-30）：与其余内容字段同级，可走建议通道与 AI patch。
+  // 枚举校验与「real_name_other 清空规则」收口在 `validateDealPayload`/`normalizeRealName`，
+  // 三条写路径共用，不存在「直接编辑被拒、走建议通道却写进去」的旁路。
+  'real_name', 'real_name_other',
 ] as const
 
 /** 字段中文名，供 diff 展示 */
@@ -290,6 +359,8 @@ export const DEAL_FIELD_LABELS: Record<string, string> = {
   category: '分类',
   expires_at: '有效期',
   note: '备注',
+  real_name: '是否实名',
+  real_name_other: '实名方式说明',
 }
 
 /** snake_case → camelCase 别名（请求体两种写法都接受） */
@@ -297,7 +368,10 @@ const DEAL_FIELD_ALIASES: Record<string, string> = {
   call_url: 'callUrl',
   source_tag: 'sourceTag',
   expires_at: 'expiresAt',
+  real_name: 'realName',
+  real_name_other: 'realNameOther',
 }
+
 
 /** 从请求体读取某字段，兼容 snake_case 与 camelCase；`present` 表示「显式出现」 */
 export function readDealField(body: any, key: string): { present: boolean; value: any } {
@@ -337,6 +411,9 @@ export function dealToPatchShape(deal: any): Record<string, any> {
     category: deal?.category,
     expires_at: deal?.expires_at ?? null,
     note: deal?.note,
+    // 未填（空串）是合法值，故用 `?? ''` 兜住「旧库列尚未迁移」的 undefined
+    real_name: deal?.real_name ?? '',
+    real_name_other: deal?.real_name_other ?? '',
   }
 }
 
@@ -350,7 +427,13 @@ export function validateDealPatch(deal: any, patch: Record<string, any>): Valida
   return validateDealPayload(merged)
 }
 
-/** 把校验后的 DealPayload 收敛回 snake_case patch（只保留 keys 指定的字段） */
+/**
+ * 把校验后的 DealPayload 收敛回 snake_case patch（只保留 keys 指定的字段）。
+ *
+ * `full` **必须覆盖 `DEAL_PATCHABLE` 的每一个键**：`diffDealPatch` 是按 keys 逐个比值的，
+ * 漏掉某键会让 `out[key]` 变成 `undefined`，被当成「改成空」而**每条通告都会误报一次该字段变更**
+ * （进而发出一条假的 `updated` 事件）。`category` 此前正是这么漏的，已一并补齐。
+ */
 export function payloadToPatch(d: DealPayload, keys: Iterable<string>): Record<string, any> {
   const full: Record<string, any> = {
     provider: d.provider,
@@ -362,8 +445,11 @@ export function payloadToPatch(d: DealPayload, keys: Iterable<string>): Record<s
     region: d.region,
     quality: d.quality,
     source_tag: d.sourceTag,
+    category: d.category,
     expires_at: d.expiresAt,
     note: d.note,
+    real_name: d.realName,
+    real_name_other: d.realNameOther,
   }
   const out: Record<string, any> = {}
   for (const k of keys) out[k] = full[k]

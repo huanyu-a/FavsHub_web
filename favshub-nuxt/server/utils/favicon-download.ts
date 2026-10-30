@@ -65,7 +65,11 @@ const V4_COMPAT_PREFIX = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
  * IPv6 中**内嵌 IPv4** 的形式：`[前缀, 位数, 内层 IPv4 起始字节]`。
  * 必须先剥出内层 IPv4 再按 IPv4 规则判，否则 `2002:7f00:1::`（6to4 封装的 127.0.0.1）
  * 这类地址能直接绕过整张表。
- */
+ 
+ * **已知缺口（有意记录，未覆盖）**：Teredo `2001::/32` 的内嵌 IPv4 藏在 bit 32–63 且**按位取反**，
+ * 上面的 `V6_EMBEDDED_V4` 递归覆盖不了它。利用它需要 Teredo 基础设施（客户端与中继），
+ * 2026-10-30 评估为低风险；真要覆盖得单独实现「取反后再按 IPv4 判」的分支。
+*/
 const V6_EMBEDDED_V4: Array<[number[], number, number]> = [
   [V4_MAPPED_PREFIX, 96, 12],                             // ::ffff:0:0/96
   [V4_COMPAT_PREFIX, 96, 12],                             // ::/96
@@ -153,17 +157,62 @@ function matchCidr(bytes: number[], prefix: number[], bits: number): boolean {
 }
 
 /**
+ * 地址段表自检 —— 在**模块加载时**跑一遍。
+ *
+ * 动机：2026-10-30 的 NAT64 词条 `64:ff9b::/96` 因为前缀字节数不足而成了永不生效的死代码，
+ * 但直到有人构造出对应地址去测才暴露。配置类错误应当在**启动日志**里就可见，
+ * 而不是等某个请求走到这条路径。
+ *
+ * 刻意**只报错、不抛出**：这是线上站点的启动路径，一个表项拼错不该把整站拽下来。
+ * 运行期的 `matchAnyCidr` 仍按 fail-closed 处理（该项按内网拦截），安全性不依赖这里；
+ * CI 侧另有 `scripts/private-ip-check.mjs` 对每个表项做断言，写错在合入前就会变红。
+ */
+function validateCidrTable(name: string, table: Array<[number[], number, number?]>, sizeBytes: number): void {
+  const problems: string[] = []
+  table.forEach((entry, i) => {
+    const prefix = entry[0]
+    const bits = entry[1]
+    const need = Math.ceil(bits / 8)
+    if (!Array.isArray(prefix) || prefix.length < need) {
+      problems.push(`[${name}][${i}] /${bits} 需要 ${need} 字节前缀，实际只有 ${prefix?.length ?? 0} 字节（该项会永不生效）`)
+    }
+    if (!Number.isInteger(bits) || bits <= 0 || bits > sizeBytes * 8) {
+      problems.push(`[${name}][${i}] 前缀长度 /${bits} 超出 1..${sizeBytes * 8}`)
+    }
+    if (Array.isArray(prefix) && prefix.some(b => !Number.isInteger(b) || b < 0 || b > 0xff)) {
+      problems.push(`[${name}][${i}] 前缀里存在非 0-255 的字节`)
+    }
+  })
+  if (problems.length) {
+    console.error('[SSRF] 内网地址段表存在配置错误（这些项在匹配时按内网拦截）：\n  ' + problems.join('\n  '))
+  }
+}
+
+validateCidrTable('PRIVATE_V4_CIDRS', PRIVATE_V4_CIDRS, 4)
+validateCidrTable('PRIVATE_V6_CIDRS', PRIVATE_V6_CIDRS, 16)
+validateCidrTable('V6_EMBEDDED_V4', V6_EMBEDDED_V4, 16)
+
+/**
  * 命中表中任意一项即算内网。
  *
  * 表项本身写错时**按内网处理（fail-closed）**并大声报错：宁可多拦一个地址，
  * 也不能让一道安全控制悄无声息地失效 —— 这正是本次踩到的坑。
  */
+/** 已告警过的问题（避免每次请求都刷同一行日志；表写错是**配置期**问题，报一次就够） */
+const warnedCidrProblems = new Set<string>()
+
+function warnCidrOnce(key: string, message: string): void {
+  if (warnedCidrProblems.has(key)) return
+  warnedCidrProblems.add(key)
+  console.error(`[SSRF] 内网地址段表配置错误（后续同类不再重复打印）：${message}`)
+}
+
 function matchAnyCidr(bytes: number[], table: Array<[number[], number]>): boolean {
   for (const [prefix, bits] of table) {
     try {
       if (matchCidr(bytes, prefix, bits)) return true
     } catch (e) {
-      console.error('[SSRF] 内网地址段表配置错误，该项已按内网拦截:', (e as Error).message)
+      warnCidrOnce((e as Error).message, (e as Error).message)
       return true
     }
   }

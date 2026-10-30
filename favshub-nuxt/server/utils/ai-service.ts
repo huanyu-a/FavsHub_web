@@ -740,13 +740,14 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
   db.prepare(`
     INSERT INTO token_deals (
       id, user_id, provider, title, url, call_url, quota, models, region, quality,
-      source_tag, expires_at, pinned, note, status, reject_reason,
+      source_tag, category, expires_at, pinned, note, real_name, real_name_other,
+      status, reject_reason,
       vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', 0, 0, 0, 0, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
   `).run(
     id, userId, d.provider, d.title, d.url, d.callUrl, d.quota,
-    JSON.stringify(d.models), d.region, d.quality, d.sourceTag,
-    d.expiresAt, d.note, status, now, now,
+    JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
+    d.expiresAt, d.note, d.realName, d.realNameOther, status, now, now,
   )
 
   // 管理员直接上线 → 对外「上新」事件
@@ -818,8 +819,16 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     region: deal.region,
     quality: deal.quality,
     source_tag: deal.source_tag,
+    // 既有缺陷修复（2026-10-30，非本批引入）：`category` 原先既不在 merged 底稿、也不在
+    // compare 与 UPDATE 段，于是 AI 通道 PUT 一个 category 会「校验通过 → changes 里没有 →
+    // 库里没变 → 接口回『已保存』」，属对调用方撒谎。三处一并补齐。
+    category: deal.category,
     expires_at: deal.expires_at,
     note: deal.note,
+    // 是否实名（2026-10-30）：以库中现值为底，未传则保持 —— 与其余字段同规。
+    // 校验（枚举 + real_name_other 清空规则）仍由 validateDealPayload 单点负责。
+    real_name: deal.real_name ?? '',
+    real_name_other: deal.real_name_other ?? '',
   }
   for (const [k, v] of fields) merged[k] = v
 
@@ -839,8 +848,12 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     ['region', d.region, deal.region],
     ['quality', d.quality, deal.quality],
     ['source_tag', d.sourceTag, deal.source_tag],
+    ['category', d.category, deal.category],
     ['expires_at', d.expiresAt, deal.expires_at],
     ['note', d.note, deal.note],
+    // 是否实名：同样进 changes，dry_run 能预演、正式执行能如实报告
+    ['real_name', d.realName, deal.real_name ?? ''],
+    ['real_name_other', d.realNameOther, deal.real_name_other ?? ''],
   ]
   const changes: Record<string, any> = {}
   for (const [k, next, prev] of compare) {
@@ -855,12 +868,14 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
   db.prepare(`
     UPDATE token_deals SET
       provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
-      region = ?, quality = ?, source_tag = ?, expires_at = ?, note = ?,
+      region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
+      real_name = ?, real_name_other = ?,
       status = ?, reject_reason = '', updated_at = ?
     WHERE id = ?
   `).run(
     d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
-    d.region, d.quality, d.sourceTag, d.expiresAt, d.note,
+    d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
+    d.realName, d.realNameOther,
     status, Date.now(), id,
   )
 

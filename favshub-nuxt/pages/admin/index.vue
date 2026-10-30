@@ -81,6 +81,11 @@
             <span class="nav-label">白嫖通告</span>
             <span v-if="dealPendingTotal" class="nav-card-badge">{{ dealPendingTotal }}</span>
           </NuxtLink>
+          <NuxtLink v-if="isAdmin" to="/admin/guest-reviews" class="nav-card">
+            <i class="ri-chat-check-line nav-icon"></i>
+            <span class="nav-label">游客评测</span>
+            <span v-if="guestReviewPendingTotal" class="nav-card-badge">{{ guestReviewPendingTotal }}</span>
+          </NuxtLink>
           <NuxtLink to="/admin/search-engines" class="nav-card">
             <i class="ri-search-line nav-icon"></i>
             <span class="nav-label">搜索引擎</span>
@@ -128,6 +133,8 @@ const dealPendingTotal = computed(() =>
 )
 // 提示词修改审核待审数
 const promptPendingTotal = computed(() => stats.value.promptReviews?.pending || 0)
+// 游客评测待审数：单独一个数（dealPendingTotal 里已把它算进「白嫖通告」汇总，这里只显示本项，避免重复计数）
+const guestReviewPendingTotal = computed(() => stats.value.guestReviews?.pending || 0)
 // ── 数据导出 ──
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)

@@ -1,11 +1,15 @@
 /**
  * GET /api/token-deals — Token 白嫖通告列表
- * Query: page, limit, search, region, quality, source_tag, category, stale, sort (nexus|latest|hot|rating|expiring|verified), mine
+ * Query: page, limit, search, region, quality, source_tag, category, stale, sort (latest|nexus|hot|rating|expiring|verified), mine
  *
  * `stale=1` 只返回「待复核」条目（超过 deal_verify_stale_days 没人工核验，含从未核验）。
  * `sort=verified` 把最近核验过的排前面（未核验的垫底）。
  *
- * 默认排序为 `nexus`：置顶 → 已接入 Nexus 且启用 → 已接入但禁用 → 未接入，
+ * **默认排序 `latest`**（2026-10-30 需求：「/tokens 默认按最新排序」，此前默认 `nexus`）：
+ * 置顶 → 最新发布。全站列表此前一进来是「Nexus 接入优先」，新通告容易被压在后面，
+ * 与「通告板看新货」的使用预期相反；排序偏好是用户自己的事，故改为**显式传 `sort=nexus` 才用**。
+ *
+ * `sort=nexus`：置顶 → 已接入 Nexus 且启用 → 已接入但禁用 → 未接入，
  * 同档内按评测可用率降序、平均耗时升序。数据来自 `nexus_channels` / `nexus_deal_map`
  * （由定时同步任务写入，见 scripts/sync-nexus.mjs）。
  */
@@ -63,7 +67,8 @@ export default defineEventHandler(async (event) => {
   const quality = String(query.quality || '').trim()
   const sourceTag = String(query.source_tag || '').trim()
   const category = String(query.category || '').trim()
-  const sort = String(query.sort || 'nexus')
+  // 默认「最新」：需求「/tokens 默认按最新排序」。nexus 排序改为显式传参才生效（见文件头说明）。
+  const sort = String(query.sort || 'latest')
   const mine = query.mine === '1' || query.mine === 'true'
   const staleOnly = query.stale === '1' || query.stale === 'true'
 
@@ -126,7 +131,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const defaultOrder = 'd.pinned DESC, d.created_at DESC'
-  let orderClause = hasNexus ? NEXUS_ORDER : defaultOrder
+  // 起点即「最新」：只有**显式** sort=nexus（且 Nexus 表已迁移）才切到 Nexus 优先。
+  // 这样未知 / 拼错的 sort 值退回默认，而不是悄悄给出另一种排序（与「默认最新」自述一致）。
+  let orderClause = sort === 'nexus' && hasNexus ? NEXUS_ORDER : defaultOrder
   if (sort === 'latest') {
     orderClause = defaultOrder
   } else if (sort === 'hot') {

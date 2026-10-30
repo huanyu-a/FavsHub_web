@@ -8,6 +8,7 @@
  */
 import { getRawDb } from '../../database'
 import { defineAiHandler, parseScopes, AI_BATCH_LIMIT } from '../../utils/ai-auth'
+import { aiRateLimitText } from '../../utils/rate-limit'
 import { isUserAdmin } from '../../utils/ai-service'
 import { SKILL_MANIFEST_META } from '../../utils/skill-manifest'
 
@@ -131,12 +132,22 @@ export default defineAiHandler('read', async (_event, token) => {
           verified_at: '毫秒时间戳，0 = 从未人工核验（**只读**：核验只能由管理员在后台操作）',
           verify_note: '字符串，最近一次人工核验备注（只读）',
           verify_stale: '布尔（列表/详情派生字段）：超过 deal_verify_stale_days 天没核验',
+          real_name: "是否实名：''（未填）| no（否）| id_card（身份证）| face（人脸）| other（其他）",
+          real_name_other: '字符串，≤40；「其他」的手填文案，**仅 real_name=other 时有意义**，其余取值服务端强制清空',
         },
         note: '**内部字段一律不返回**：verified_by（核验人）、guest_fingerprint（游客身份指纹）、deleted_by（执行删除的用户 id）。这些字段在表里存在，但任何对外通道都不下发，请勿依赖。'
           + '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
           + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。'
           + '每条通告还有人工核验时间轴（verified_at / verify_stale）：`verified_at` 是站点最近一次确认「此刻仍可用」的时间，'
-          + '`verify_stale=true` 表示超过阈值（默认 30 天）没核验 —— 只是提示，不代表已失效。推荐给用户时优先推「最近核验 + 社区投票健康」的条目，并如实转述核验日期。',
+          + '`verify_stale=true` 表示超过阈值（默认 30 天）没核验 —— 只是提示，不代表已失效。推荐给用户时优先推「最近核验 + 社区投票健康」的条目，并如实转述核验日期。'
+          + '**领取地址的邀请码占位符**：`url` 与 `call_url` 里可以写 `{邀请码}`（兼容 `{code}` / `{invite_code}`，半角全角花括号都认），'
+          + '「领取地址」的选序是 **占位符优先**：先看 call_url、再看 url，哪个含占位符就用哪个；两边都没有占位符时才退回「call_url 非空则用它，否则用 url」——'
+          + '这样 `url` 写了 `{邀请码}`、`call_url` 是 API 基址这种最常见的填法不会被静默忽略。响应里的 `claim_url_source` 会说明模板取自哪个字段。'
+          + '访客在公开抽码端点 `GET /api/token-deals/:id/invite-code` 抽中码时，'
+          + '服务端把占位符替换成**本次抽中的那个码**（值做过 `encodeURIComponent`）并在该响应里给出 `claim_url`；'
+          + '该端点在没抽中时 `claim_url` 为空串。**通告详情与列表永不含任何码**、也不含替换后的地址 —— 码池不进详情是本站的安全不变量，'
+          + '请勿尝试从详情 / 列表 / 本 AI 通道里取码，也不要把 `{邀请码}` 当作可直接使用的链接。'
+          + '`real_name` 为空串表示作者未标注（存量通告即为此值），此时不要替它推断「无需实名」。',
       },
       token_deal_edits: {
         table: 'token_deal_edits',
@@ -179,9 +190,9 @@ export default defineAiHandler('read', async (_event, token) => {
       { method: 'POST', path: '/api/ai/tags', scope: 'write', body: '{ name, color?, dry_run? }' },
       { method: 'DELETE', path: '/api/ai/tags/:id', scope: 'delete', body: '{ confirm: true, dry_run? }', note: '仅管理员' },
 
-      { method: 'GET', path: '/api/ai/token-deals', scope: 'read', params: ['q', 'region', 'quality', 'mine', 'limit', 'page'] },
-      { method: 'POST', path: '/api/ai/token-deals', scope: 'write', body: '{ provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }' },
-      { method: 'PUT', path: '/api/ai/token-deals/:id', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, dry_run? }', note: '**部分更新**：只传要改的字段，未传保持原值；作者或管理员。修改他人通告请改用建议通道' },
+      { method: 'GET', path: '/api/ai/token-deals', scope: 'read', params: ['q', 'region', 'quality', 'mine', 'limit', 'page'], note: '列表按「置顶 → 最新发布」排序（与站点默认排序一致）' },
+      { method: 'POST', path: '/api/ai/token-deals', scope: 'write', body: '{ provider, title, url, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, real_name?, real_name_other?, dry_run? }', note: 'real_name = "" | no | id_card | face | other（"" = 未填）；real_name_other 仅在 real_name=other 时保留' },
+      { method: 'PUT', path: '/api/ai/token-deals/:id', scope: 'write', body: '{ provider?, title?, url?, call_url?, quota?, models?, region?, quality?, source_tag?, expires_at?, note?, real_name?, real_name_other?, dry_run? }', note: '**部分更新**：只传要改的字段，未传保持原值；作者或管理员。修改他人通告请改用建议通道。把 real_name 从 other 改成别的取值会**同时清空** real_name_other（服务端规则，非可选）' },
       { method: 'DELETE', path: '/api/ai/token-deals/:id', scope: 'delete', body: '{ confirm: true, dry_run? }', note: '作者或管理员' },
       { method: 'GET', path: '/api/ai/token-deals/:id/card.png', scope: 'read', params: ['style=magazine|neon|clay', 'refresh=0|1'], returns: 'image/png 二进制（900×1200）', note: '生成通告分享卡片，与网页分享面板同一份绘制逻辑；响应头 x-card-style / x-card-cached 便于核对' },
 
@@ -220,7 +231,9 @@ export default defineAiHandler('read', async (_event, token) => {
       403: 'scope 不足 / 越权写入他人文件夹 / 非管理员执行管理员专属操作 / 直接编辑他人已公开通告（error 内含修改建议通道指引）',
       404: '资源不存在或不属于当前令牌（两者不区分；他人已公开通告的越权编辑除外，见 403）',
       409: '唯一约束冲突（如同一用户下 URL 重复）',
-      429: '超出限频（每令牌 600 次/分钟）',
+      // 文案由阈值表生成（server/utils/rate-limit.ts）——限流数值只有一处真源，
+      // 避免「describe 里写 600/分钟、代码里已经是 10/分钟」这种漂移
+      429: `超出限频（${aiRateLimitText()}）`,
       500: '服务器内部错误（细节不返回给客户端）',
     },
 

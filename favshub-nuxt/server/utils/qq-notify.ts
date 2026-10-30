@@ -23,6 +23,12 @@ import { join } from 'node:path'
 import { getRawDb } from '../database'
 import { getConfig } from './config'
 import { parseAdminUsers } from './auth'
+// 到期日期与事件流共用同一个显式东八区格式化器。
+// 原实现用 `new Date(ms).getMonth()` —— 结果**取决于进程的 TZ 环境变量**：
+// 生产 compose.yaml 恰好设了 TZ=Asia/Shanghai 所以没暴露（Node 自带 tz 数据，
+// 即便镜像没装 tzdata 也生效），但本地起服务、去掉 TZ 或换部署方式时，
+// 「11-01 00:30 +08:00」就会被算成 10-31。这里收口成不依赖环境变量的算法。
+import { formatEventDay } from './deal-events'
 
 /** 出站队列条目 */
 interface QueueItem {
@@ -431,6 +437,25 @@ function clipText(text: unknown, n: number): string {
 }
 
 /**
+ * 通告入参取字段 —— 同一条通告在不同调用点有两种形状：
+ *   - **库行**（snake_case，带 `id`）：审核通过 / 驳回 / 删除等路径；
+ *   - **提交载荷**（camelCase，`validateDealPayload` 的 data，**没有 id**；游客路径甚至只有
+ *     `{ dealId, nickname, title }`）：管理员直接发布 / 游客与用户投稿待审路径。
+ *
+ * 两种都认。此前只认库行形状，于是「新通告发布」这类通知会静默少掉到期行与详情链接
+ * （`dealLink()` 读 `deal.id` 得到 undefined 后直接返回空串，text 里的链接也随之消失）。
+ */
+function dealValue(deal: any, snake: string, camel: string): any {
+  if (deal == null) return undefined
+  return deal[snake] !== undefined ? deal[snake] : deal[camel]
+}
+
+/** 通告 id：库行 `id` / 提交载荷 `dealId`（游客路径只有后者） */
+function dealIdOf(deal: any): string {
+  return String(dealValue(deal, 'id', 'dealId') ?? '').trim()
+}
+
+/**
  * 通告摘要行：`服务商｜额度 xxx` —— 只有标题的群通知几乎无法判断要不要点，
  * 至少把「谁的、给多少」摆在标题下一行。
  */
@@ -459,9 +484,9 @@ function siteBase(): string {
   return ''
 }
 
-/** 通告详情链接（伪静态路径：/tokens/<id>.html） */
+/** 通告详情链接（伪静态路径：/tokens/<id>.html；库行 id 与提交载荷 dealId 都认） */
 function dealLink(deal: any): string {
-  const id = String(deal?.id ?? '').trim()
+  const id = dealIdOf(deal)
   if (!id) return ''
   return `${siteBase()}/tokens/${encodeURIComponent(id)}.html`
 }
@@ -469,8 +494,11 @@ function dealLink(deal: any): string {
 /** 通告字段清单（Markdown 列表用，每项一条） */
 function dealFactList(deal: any): string[] {
   const out: string[] = []
-  // 云服务器通告的「额度 / 模型」两行没有意义，用分类代替位置
-  if (String(deal?.category ?? 'token') === 'cloud') out.push('分类 免费云服务器')
+  // 云服务器 / 客户端额度的「额度 / 模型」两行没有意义，用分类代替位置
+  // （措辞与事件流、后台表单、详情页 fact-label 统一为「分类」）
+  const category = String(deal?.category ?? 'token')
+  if (category === 'cloud') out.push('分类 免费云服务器')
+  else if (category === 'client') out.push('分类 客户端额度')
   const provider = clipText(deal?.provider, 24)
   if (provider) out.push(`服务商 ${provider}`)
   const quota = clipText(deal?.quota, 40)
@@ -482,10 +510,12 @@ function dealFactList(deal: any): string[] {
   }
   const modelText = clipText(models.join(' / '), 60)
   if (modelText) out.push(`模型 ${modelText}`)
-  const expires = Number(deal?.expires_at ?? 0)
+  // 东八区 MM-DD：与事件流 formatEventDay 同一口径。原实现读进程本地时区，
+  // 结果随 TZ 环境变量漂移（生产恰好是 TZ=Asia/Shanghai 才没暴露）—— 这里改成显式 +08:00。
+  const expires = Number(dealValue(deal, 'expires_at', 'expiresAt') ?? 0)
   if (expires > 0) {
-    const d = new Date(expires)
-    out.push(`到期 ${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    const day = formatEventDay(expires)
+    if (day) out.push(`到期 ${day}`)
   }
   return out
 }
@@ -510,23 +540,20 @@ function mdCard(
   return lines.join('\n')
 }
 
+/**
+ * 通告类通知的 Markdown —— 直接复用 `mdCard`，让「### 标题 / **标题** / `- ` 字段行 /
+ * 一段尾巴 / 可点链接」只有一份实现（此前这里另写了一遍同样的骨架，改一处忘一处）。
+ */
 function noticeMd(
   head: string,
   deal: any,
   opts: { tail?: string; link?: string; linkLabel?: string } = {},
 ): string {
-  const title = clipText(deal?.title, 70)
-  const lines = [`### ${head}`, `**${title}**`]
-  const facts = dealFactList(deal)
-  if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
-  if (opts.tail) lines.push('', opts.tail)
-  if (opts.link) lines.push('', `[${opts.linkLabel || '查看通告'}](${opts.link})`)
-  return lines.join('\n')
+  return mdCard(head, String(deal?.title ?? ''), dealFactList(deal), opts)
 }
 
-/** 拼「标题 + 摘要 + 链接」三行式正文 */
+/** 拼「摘要 + 链接」正文（标题行由各调用方自己拼） */
 function dealBody(deal: any, opts: { withLink?: boolean } = {}): string {
-  const title = escapeCqText(String(deal?.title ?? ''))
   const facts = dealFacts(deal)
   const link = opts.withLink === false ? '' : dealLink(deal)
   return [facts, link].filter(Boolean).join('\n')

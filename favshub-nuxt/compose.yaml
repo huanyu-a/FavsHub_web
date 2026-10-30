@@ -17,6 +17,25 @@ services:
       - NUXT_QQ_BOT_ACCESS_TOKEN=${NUXT_QQ_BOT_ACCESS_TOKEN:-}
       # QQ 机器人 outbox 目录（容器内路径，须在挂载卷内供宿主机投递脚本消费；热配置 qq_outbox_path 优先）
       - NUXT_QQ_OUTBOX_DIR=${NUXT_QQ_OUTBOX_DIR:-/opt/favshub/data}
+      # ── 限流阈值（2026-10-30 第三批）──
+      # 这些变量**必须在这里显式声明**才会进容器：compose 没有 env_file，
+      # 只往 .env 里加 FAVSHUB_RL_* 是不会生效的（历史教训，见 CLAUDE.md「限流与并发」）。
+      # 改完需 `docker compose up -d` 重建容器（阈值在进程启动时读一次并缓存，不热更新）。
+      # AI 通道：令牌级（用户原话「一分钟10次、半小时50次」）
+      - FAVSHUB_RL_AI_PER_MIN=${FAVSHUB_RL_AI_PER_MIN:-10}
+      - FAVSHUB_RL_AI_BURST=${FAVSHUB_RL_AI_BURST:-50}
+      # AI 通道：IP 兜底（防无效令牌爆破）
+      - FAVSHUB_RL_AI_IP_PER_MIN=${FAVSHUB_RL_AI_IP_PER_MIN:-60}
+      - FAVSHUB_RL_AI_IP_BURST=${FAVSHUB_RL_AI_IP_BURST:-200}
+      # AI 并发（在途请求数上限）
+      - FAVSHUB_RL_AI_CONCURRENCY=${FAVSHUB_RL_AI_CONCURRENCY:-4}
+      - FAVSHUB_RL_AI_IP_CONCURRENCY=${FAVSHUB_RL_AI_IP_CONCURRENCY:-8}
+      # 全站 /api/** 分层限频与并发
+      - FAVSHUB_RL_SITE_ENABLED=${FAVSHUB_RL_SITE_ENABLED:-true}
+      - FAVSHUB_RL_SITE_READ_PER_MIN=${FAVSHUB_RL_SITE_READ_PER_MIN:-600}
+      - FAVSHUB_RL_SITE_WRITE_PER_MIN=${FAVSHUB_RL_SITE_WRITE_PER_MIN:-120}
+      - FAVSHUB_RL_SITE_ASSET_PER_MIN=${FAVSHUB_RL_SITE_ASSET_PER_MIN:-1200}
+      - FAVSHUB_RL_SITE_CONCURRENCY=${FAVSHUB_RL_SITE_CONCURRENCY:-24}
     dns:
       - 119.29.29.29
       - 223.5.5.5

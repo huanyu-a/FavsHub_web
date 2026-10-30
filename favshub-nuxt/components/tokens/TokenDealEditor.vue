@@ -90,6 +90,12 @@
                 placeholder="https://..."
               >
               <span class="field-hint">必须为 http(s) 链接，用于一键导入书签</span>
+              <!-- 邀请码占位符（2026-10-30）：服务端只在该访客「已抽中码」的那次响应里替换 -->
+              <span class="field-hint">
+                可写邀请码占位符 <code class="tde-code">{邀请码}</code>
+                （也认 <code class="tde-code">{code}</code> / <code class="tde-code">{invite_code}</code>，全角花括号同样有效）：
+                访客抽中邀请码后，服务端会把它替换成那次抽中的码并做 URL 编码，给出完整领取地址。
+              </span>
             </label>
 
             <label class="tde-field">
@@ -100,6 +106,10 @@
                 :maxlength="LIMITS.callUrl"
                 placeholder="https://api.example.com/v1（可选）"
               >
+              <span class="field-hint">
+                这里也可以写 <code class="tde-code">{邀请码}</code> 占位符；
+                两个地址都写了占位符时，以 API 调用地址为准。
+              </span>
             </label>
 
             <label class="tde-field">
@@ -172,6 +182,37 @@
                   @click="form.source_tag = s.value"
                 >{{ s.label }}</button>
               </div>
+            </div>
+
+            <!-- 是否实名（2026-10-30）—— 领取门槛属性。
+                 「未标注」是默认可选项：存量通告都是未填，编辑时必须能原样存回未填，
+                 否则一打开编辑器就被迫替作者瞎标一个。选「其他」才出现手填文案。 -->
+            <div class="tde-field">
+              <span class="field-label">是否实名</span>
+              <div class="chip-row">
+                <button
+                  v-for="r in REAL_NAME_OPTIONS"
+                  :key="r.value"
+                  type="button"
+                  class="chip"
+                  :class="{ active: form.real_name === r.value }"
+                  @click="form.real_name = r.value"
+                >{{ r.label }}</button>
+              </div>
+              <input
+                v-if="form.real_name === 'other'"
+                v-model="form.real_name_other"
+                type="text"
+                :maxlength="LIMITS.realNameOther"
+                placeholder="如：需上传护照 / 需银行卡四要素验证"
+              >
+              <span v-if="form.real_name === 'other'" class="field-hint">
+                {{ form.real_name_other.length }} / {{ LIMITS.realNameOther }}
+                · 仅选「其他」时保留，改成别的选项会自动清空
+              </span>
+              <p v-else class="tde-hint">
+                选「其他」可手填具体方式；选「未标注」时详情页不显示实名徽标。
+              </p>
             </div>
           </fieldset>
 
@@ -418,6 +459,10 @@ interface ITokenDeal {
   category?: string
   expires_at?: number | null
   note?: string
+  /** 是否实名（2026-10-30）：'' = 未填 | no | id_card | face | other */
+  real_name?: string
+  /** 「其他」的手填文案，仅 real_name === 'other' 时有意义 */
+  real_name_other?: string
 }
 
 const props = defineProps<{
@@ -443,6 +488,8 @@ const LIMITS = {
   models: 20,
   modelName: 60,
   comment: 200,
+  /** 是否实名 →「其他」手填文案上限，与 server/utils/token-deals.ts 的 LIMITS.realNameOther 一致 */
+  realNameOther: 40,
   /** 邀请码：与 server/utils/invite-codes.ts 的 INVITE_CODE_LIMITS 保持一致 */
   inviteCodes: 20,
   inviteCode: 300,
@@ -465,6 +512,27 @@ const CATEGORY_OPTIONS = [
   { value: 'cloud', label: '免费云服务器' },
   { value: 'client', label: '客户端额度' },
 ]
+
+/**
+ * 是否实名（2026-10-30）—— 与 server/utils/token-deals.ts 的 REAL_NAME_VALUES 一致。
+ *
+ * 额外给一个「未填」选项：存量通告都是未填，编辑时必须能原样保存回未填，
+ * 否则一打开编辑器就被迫选一个，等于替作者瞎标。
+ */
+const REAL_NAME_OPTIONS = [
+  { value: '', label: '未标注' },
+  { value: 'no', label: '否' },
+  { value: 'id_card', label: '身份证' },
+  { value: 'face', label: '人脸' },
+  { value: 'other', label: '其他' },
+]
+const REAL_NAME_LABELS: Record<string, string> = {
+  '': '未标注',
+  no: '否',
+  id_card: '身份证',
+  face: '人脸',
+  other: '其他',
+}
 
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外（需代理）' }
 const SOURCE_LABELS: Record<string, string> = {
@@ -512,10 +580,11 @@ const submitLabel = computed(() => {
   return isEdit.value ? '保存修改' : '提交通告'
 })
 
-/** 与 server/utils/token-deals.ts 的 DEAL_PATCHABLE 对应 */
+/** 与 server/utils/token-deals.ts 的 DEAL_PATCHABLE 对应（顺序也一致，决定 diff 的展示顺序） */
 const PATCHABLE = [
   'provider', 'title', 'url', 'call_url', 'quota', 'models',
   'region', 'quality', 'source_tag', 'category', 'expires_at', 'note',
+  'real_name', 'real_name_other',
 ] as const
 
 const FIELD_LABELS: Record<string, string> = {
@@ -531,6 +600,8 @@ const FIELD_LABELS: Record<string, string> = {
   category: '分类',
   expires_at: '有效期',
   note: '备注',
+  real_name: '是否实名',
+  real_name_other: '实名方式说明',
 }
 
 /** 编辑器里的邀请码草稿；`copy_count` / `exhausted` 来自服务端，只读回显 */
@@ -557,6 +628,10 @@ const form = ref({
   source_tag: 'official',
   category: 'token',
   note: '',
+  /** 是否实名（2026-10-30）：'' = 未标注 */
+  real_name: '',
+  /** 「其他」的手填文案：real_name !== 'other' 时提交前会被清空（与服务端同一规则） */
+  real_name_other: '',
   /** 邀请码池（2026-10-30）：全量提交，服务端做全量替换 */
   inviteCodes: [] as InviteCodeDraft[],
 })
@@ -703,6 +778,10 @@ function currentPatch(): Record<string, any> {
   category: f.category || 'token',
     expires_at: toExpiresAt(expiresDate.value),
     note: f.note.trim(),
+    real_name: f.real_name,
+    // 与服务端 `normalizeRealName` 同一规则：非「其他」时文案一律为空
+    // （这里先清空，提案模式的 diff 才不会把一句残留文案当成改动提交上去）
+    real_name_other: f.real_name === 'other' ? f.real_name_other.trim() : '',
   }
 }
 
@@ -730,6 +809,8 @@ const changedFields = computed(() => {
 
 /** diff 展示用：把枚举值与时间戳渲染成人话 */
 function displayValue(field: string, value: any): string {
+  // 是否实名的空串是「未标注」，不是「空」，先于下面那条空值兜底处理
+  if (field === 'real_name') return REAL_NAME_LABELS[String(value ?? '')] ?? String(value ?? '')
   if (value === null || value === undefined || value === '') return '（空）'
   if (field === 'models') return Array.isArray(value) && value.length ? value.join('、') : '（空）'
   if (field === 'region') return REGION_LABELS[value] || String(value)
@@ -1004,6 +1085,8 @@ onMounted(() => {
       // 导致编辑一条「免费云服务器 / 客户端额度」通告时分类被静默改回 API 额度
       category: d.category || 'token',
       note: d.note || '',
+      real_name: d.real_name || '',
+      real_name_other: d.real_name_other || '',
       inviteCodes: [],
     }
     expiresDate.value = toDateInput(d.expires_at)
@@ -1163,6 +1246,15 @@ onUnmounted(() => {
   margin-top: 4px;
   font-size: 11px;
   color: var(--text-tertiary);
+}
+/* 字段提示里内嵌的占位符示例（如 {邀请码}），与正文区分开但不抢眼 */
+.tde-code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }

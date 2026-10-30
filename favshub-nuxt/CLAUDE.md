@@ -50,7 +50,7 @@ docker compose up -d  # http://localhost:3090
 | `NUXT_DB_PATH` | SQLite 路径 | `./data/favshub.db` |
 | `NUXT_CORS_ORIGIN` | CORS | `http://localhost:3000` |
 | `NUXT_ADMIN_USERS` | 额外管理员用户名（逗号分隔）；**AI 通道的管理员判定同样读取它** | 空 |
-| `NUXT_TRUST_PROXY` | 信任 X-Forwarded-For | `false` |
+| `NUXT_TRUST_PROXY` | 信任 `X-Real-IP` / `X-Forwarded-For`（见「限流与并发 → 取真实 IP」；本站双层反代下**不需要**开） | `false` |
 
 > ⚠️ **容器/本机的 DNS 不可使用 fake-ip 模式**（Clash、mihomo TUN 等，2026-10-30 实测）。
 > fake-ip 会把**所有域名**解析到 `198.18.0.0/15`，而该段被 `server/utils/favicon-download.ts`
@@ -61,6 +61,9 @@ docker compose up -d  # http://localhost:3090
 > 攻击者用自控权威 DNS 指到内网的解析结果。
 
 | `NUXT_PUBLIC_BASE_URL` | 站点对外地址（canonical / og:url / og:image / sitemap.xml 用） | `https://hao.bx9y.com.cn` |
+
+限流阈值用 `FAVSHUB_RL_*`（**不走 runtimeConfig**，`server/utils/rate-limit.ts` 直接读 `process.env`，
+进程启动时读一次并缓存；非法值告警后回退默认）。完整清单与默认值见「限流与并发」一节的阈值表。
 
 `.env.example` 中的 `PORT=3001` 无效（Nuxt dev 端口由 `devServer.port` 固定为 `3000`）。
 
@@ -609,7 +612,9 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **写保护**：单请求批量上限 50（超出 400）；所有写操作支持 `dry_run: true` 只返回 `changes` 不落库；
   删除必须携带 `confirm: true`（否则 400），且不支持批量删除。
 - **可见性**：非管理员经 AI 写入的数据强制 `login_required = 1`（仅自己可见），与 Web 端点一致。
-- **限频**：IP 级 300 次/分钟（兜底防令牌暴力猜测）→ 令牌级 600 次/分钟。
+- **限频**（2026-10-30 全面收紧，详见「限流与并发」）：同 IP 兜底 60 次/分钟 + 200 次/30 分钟
+  → 令牌 10 次/分钟 **且** 50 次/30 分钟（两个窗口都要过）→ 并发上限（令牌 4 / IP 8）。
+  超限 429 + `Retry-After`。
 - **审计**：`ai_audit_logs` 记录 `token_id / user_id / method / path / scope / status_code / ip`，
   在 `finally` 中 best-effort 落库，**绝不记录请求体内容**；限频在鉴权阶段拦截，故 429 不入审计。
 - **管理员判定**：`ai-service.isUserAdmin` 与 Web 端 `requireAdmin` 同序 —— `NUXT_ADMIN_USERS` → DB `is_admin`。
@@ -639,6 +644,102 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - **PAT 通道**：`/api/ai/*`、`/api/mcp` 禁止回退 JWT 校验；PAT 比对用 `timingSafeEqual`（先判长度，
   否则长度不等会抛 `RangeError`）；明文令牌**只回一次**、不入库、不入审计、不打日志；
   `delete` scope 仅管理员可签发；越权一律 404
+
+## 限流与并发（rate-limit）
+
+三层防护，全部**进程内存**实现（`server/utils/rate-limit.ts`，T5 于 2026-10-30 重写）：
+
+| 层 | 位置 | 作用域 | 键 |
+|---|---|---|---|
+| L1 全站 IP 分层 | `server/middleware/rate-limit.ts` | `**只**拦 `/api/**`；页面 SSR / 静态资源根本不进函数 | 来源 IP |
+| L2 AI 通道 | `server/utils/ai-auth.ts` | `/api/ai/**` 与 `/api/mcp`（同一 `authenticateAi`） | 令牌 + 来源 IP |
+| L3 端点自带 | 各端点 `checkRateLimit(...)` 调用点（30+ 处，固定窗口） | 单端点业务语义 | 用户 / IP / 指纹 |
+
+L1 是**最外层兜底**，阈值刻意高于所有 L3 业务限频 —— 正常用户应当先撞到语义更准确的业务 429。
+
+### 阈值表（默认值，全部可用 `FAVSHUB_RL_*` 覆盖）
+
+| 层 | 限值 | 环境变量 |
+|---|---|---|
+| 令牌 · 短窗口 | 10 次/分钟 | `FAVSHUB_RL_AI_PER_MIN` / `FAVSHUB_RL_AI_WINDOW_MS` |
+| 令牌 · 长窗口 | 50 次/30 分钟 | `FAVSHUB_RL_AI_BURST` / `FAVSHUB_RL_AI_BURST_WINDOW_MS` |
+| 令牌 · 并发 | 4 在途 | `FAVSHUB_RL_AI_CONCURRENCY` |
+| IP 兜底 | 60 次/分钟、200 次/30 分钟 | `FAVSHUB_RL_AI_IP_PER_MIN` / `FAVSHUB_RL_AI_IP_BURST` |
+| IP · 并发 | 8 在途 | `FAVSHUB_RL_AI_IP_CONCURRENCY` |
+| 全站读（GET/HEAD） | 600 次/分钟 | `FAVSHUB_RL_SITE_READ_PER_MIN` |
+| 全站写（POST/PUT/PATCH/DELETE） | 120 次/分钟 | `FAVSHUB_RL_SITE_WRITE_PER_MIN` |
+| 全站资源类读（`/api/favicon`） | 1200 次/分钟 | `FAVSHUB_RL_SITE_ASSET_PER_MIN` |
+| 全站窗口长度 | 60 秒 | `FAVSHUB_RL_SITE_WINDOW_MS` |
+| 全站同 IP 并发 | 24 在途 | `FAVSHUB_RL_SITE_CONCURRENCY` |
+| 总开关 | 开 | `FAVSHUB_RL_SITE_ENABLED`（`0` 关掉 L1） |
+| 探活豁免（精确路径，逗号分隔） | `/api/health` | `FAVSHUB_RL_SITE_EXEMPT` |
+| 资源档路径（精确路径，逗号分隔） | `/api/favicon` | `FAVSHUB_RL_SITE_ASSET_PATHS` |
+| 限流键总数上限 | 20000 | `FAVSHUB_RL_MAX_KEYS` |
+
+**AI 通道两个窗口是「且」不是「或」**：先过短窗口再过长窗口，任一不过即 429。
+
+### 窗口算法：滑动窗口（逐请求时间戳）
+
+`consumeWindow(key, limit, windowMs)` 保存窗口内每次请求的时间戳，精度到单请求，**没有固定窗口的
+边界双倍突发问题**（固定窗口在最坏情况下能放过 2×limit，对「10 次/分钟」是不可接受的 2 倍误差）。
+L3 的既有 `checkRateLimit` 仍是固定窗口（30+ 调用点、阈值小，行为稳定，未动）。
+
+内存边界（三条硬约束，改这里必须同时保住）：
+
+1. **被拒的请求不落桶** → 挨打时数组不再增长，单键上限 = limit 个时间戳；
+2. 数组用 head 游标 + 超过 64 条时 slice 压缩，长度压在 `limit + 64` 内；
+3. 键数超过 `FAVSHUB_RL_MAX_KEYS` 时按「最久未使用」淘汰（Map 删后重插维持顺序），
+   清理在 `sweepRateLimitState()` 里做（每 5 分钟一次 + 超限时每秒最多一次的兜底）。
+
+### 并发计数器：释放纪律（最容易写错的地方）
+
+`acquireRequestSlot()` 把槽位挂在 **`event.node.res.once('close')`** 上，并返回**幂等**的 release：
+
+- 正常返回 → 响应结束触发 `close` → 释放；
+- 处理器抛错 → `defineAiHandler` 的 `finally` 释放（`close` 随后也会触发，幂等不重复扣）；
+- **客户端中途断开 / 超时** → 连接关闭触发 `close` → 释放。
+
+L1 中间件无法用 `try/finally` 包住下游，**只靠 `close`**，因此「close 一定触发」是这个设计的前提
+（Node 的 `ServerResponse` 在响应完成与连接提前终止两种情况下都会 emit `close`）。
+`scripts/third-batch-ratelimit.mjs` 用「打满 → 中止连接 → 再打满」多轮断言了计数不泄漏。
+
+### 取真实 IP：只许复用 `getClientIP()`
+
+`server/utils/rate-limit.ts` 的 `getClientIP(event)` 是**唯一**取 IP 入口，优先级：
+
+1. `NUXT_TRUST_PROXY=true` → 先 `X-Real-IP`，再 `X-Forwarded-For` 首段；
+2. 直连对端是**内网地址** → 采信 `X-Real-IP`（本站「宝塔 nginx → docker nginx → 应用」走这条：
+   `nginx.conf` 用 `realip` + `real_ip_recursive on` 还原真实客户端 IP，再 `proxy_set_header X-Real-IP $remote_addr`）；
+3. 否则回退 H3 的对端地址。
+
+⚠️ **不要在任何新代码里自己读 `x-forwarded-for` / `x-real-ip`**：多一处自造取 IP 逻辑 = 多一个
+「伪造头绕过限流」的入口。备别忘了第 2 条成立的前提是反代**覆盖**（而非追加）`X-Real-IP`。
+
+限流键在 IP 上再套一层 `rateKeyForIp()`（`server/utils/deal-subscriptions.ts`）：IPv6 收敛到 /64
+（否则换一个地址就重置配额），再做 sha256 截断（内存里不存明文 IP）。
+
+### 可测性：为什么不真等 30 分钟也能验证
+
+所有阈值与窗口都能用环境变量覆盖，所以自测把「50 次/30 分钟」缩成「5 次/3 秒」跑**同一条代码路径**；
+`consumeWindow(..., now?)` 另留可注入时钟。验证「两个窗口都生效」用的是**两次隔离实验**：
+一次把短窗口调松、只让长窗口成为瓶颈（第 6 次被拒），一次把长窗口调松、只让短窗口成为瓶颈。
+见 `scripts/third-batch-ratelimit.mjs`。
+
+### 局限（内存实现，多实例部署前必须处理）
+
+- **重启即清空**：配额不是账本，不能拿「还有多少额度」做业务判断。
+- **单实例前提**：多实例/多副本时每个进程各算一份，实际阈值被放大 N 倍。届时需迁移到
+  Redis 等共享存储（`consumeWindow` 的调用点已收敛，替换面小）。
+- **IPv6 /64 聚合**：一个 /64 段内所有地址共享配额。
+- **键淘汰**：超 `FAVSHUB_RL_MAX_KEYS` 后最久未使用的键会被丢弃 → 该键配额重置（极端情况）。
+- **共享出口 IP**：公司/校园 NAT 后多人共用一个配额桶；全站写档 120/分钟 就是为此留出的余量。
+
+### 调优提醒
+
+10 次/分钟 + 50 次/30 分钟对**交互式** AI 助手偏紧：一次「整理 20 条书签」的会话约需 20~40 个请求
+（`PUT /api/ai/bookmarks/:id` 没有批量版），两个连续任务就可能撞到 30 分钟窗口，且要等最长 30 分钟。
+若线上出现「助手正常干活被打 429」，优先调 `FAVSHUB_RL_AI_BURST`（例如 200）而不是放宽短窗口 ——
+短窗口挡突发、长窗口挡持续刷量，二者职责不同。
 
 ## 部署
 

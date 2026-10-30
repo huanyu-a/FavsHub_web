@@ -23,7 +23,10 @@
  * 事件是**附加产物**，绝不能因为事件写入失败而把「删除通告」这种主操作一起回滚。
  */
 import type Database from 'better-sqlite3'
-import { isPubliclyVisible, INVALID_REASON_LABELS, parseDealModels, DEAL_FIELD_LABELS } from './token-deals'
+import {
+  isPubliclyVisible, INVALID_REASON_LABELS, parseDealModels,
+  DEAL_FIELD_LABELS, DEAL_CATEGORY_LABELS, REAL_NAME_LABELS,
+} from './token-deals'
 import { getConfig } from './config'
 
 /** 事件类型 */
@@ -161,17 +164,65 @@ export interface FieldDiff {
   to: any
 }
 
-/** 单行文案：QQ / 群消息友好，≤ 200 字（富文本用 renderDealEventMarkdown） */
+/**
+ * 事件标题里的中文标签 —— 纯文本与 Markdown 共用一套，避免两边说法不一致。
+ * 两个特例：`online+restored` 是「回来了」而不是「上新」；`pinned+unpin` 是「取消」。
+ */
+function eventLabel(kind: string, reason: string): string {
+  if (kind === 'online' && reason === 'restored') return '恢复上架'
+  if (kind === 'pinned' && reason === 'unpin') return '取消置顶'
+  return DEAL_EVENT_LABELS[kind] || kind
+}
+
+/** 置顶动作的中文说法（供 `reason_label`；下架 / 失效原因见 OFFLINE_REASON_LABELS、INVALID_REASON_LABELS） */
+export const PIN_REASON_LABELS: Record<string, string> = {
+  pin: '已置顶',
+  unpin: '取消置顶',
+}
+
+/**
+ * reason 的中文说法 —— 视图里的 `reason_label` 与文案标题必须同一口径。
+ *
+ * 此前 `pinned` 事件的 `reason_label` 恒为空串（`pin` / `unpin` 都不在那两张原因表里），
+ * 对外视图于是自相矛盾：标题写「取消置顶」，`reason_label` 却是空。
+ */
+export function eventReasonLabel(kind: string, reason: string): string {
+  const r = String(reason || '')
+  if (!r) return ''
+  if (kind === 'pinned') return PIN_REASON_LABELS[r] || ''
+  return OFFLINE_REASON_LABELS[r] || INVALID_REASON_LABELS[r] || ''
+}
+
+/**
+ * 快照里「读者真正关心的字段」—— 单行文案 / 富文本 / 上新 / 变更兜底共用同一份口径。
+ *
+ * 品级 / 地区是站内运营字段，不进任何推送文案（1.9.6 约定）；分类措辞跟站点 UI 一致，
+ * 统一叫「分类」（详情页 fact-label、后台编辑表单、字段差异表都是这个词）。
+ */
+function snapshotFacts(snap: DealEventSnapshot): string[] {
+  const facts: string[] = []
+  // 云服务器 / 客户端额度的「看点」与 API 额度不同：先说分类，读者才知道拿什么标准衡量
+  if (snap.category === 'cloud') facts.push('分类 免费云服务器')
+  else if (snap.category === 'client') facts.push('分类 客户端额度')
+  if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
+  if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
+  if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)
+  if (snap.rating) facts.push(`评分 ${snap.rating}`)
+  return facts
+}
+
+/**
+ * 单行文案：QQ 群 / 短信类窄通道用，≤ 200 字（富文本用 renderDealEventMarkdown）。
+ *
+ * `redacted`（通告此刻已不可见）时**不追加可点链接**：点进去是 404，与富文本同一条约定。
+ */
 export function renderDealEventText(
   kind: string,
   reason: string,
   snap: DealEventSnapshot,
-  opts: { baseUrl?: string; changes?: FieldDiff[] } = {},
+  opts: { baseUrl?: string; changes?: FieldDiff[]; redacted?: boolean } = {},
 ): string {
-  const label = kind === 'online' && reason === 'restored'
-    ? '恢复上架'
-    : (kind === 'pinned' && reason === 'unpin' ? '取消置顶' : (DEAL_EVENT_LABELS[kind] || kind))
-  const head = `【${label}】${clip(snap.provider, 20)}`
+  const head = `【${eventLabel(kind, reason)}】${clip(snap.provider, 20)}`
   const title = clip(snap.title, 40)
   const base = String(opts.baseUrl || '').replace(/\/+$/, '')
   const link = base ? `${base}${snap.share_path}` : snap.share_path
@@ -185,13 +236,20 @@ export function renderDealEventText(
     return clip(`${head}｜${title}${diffs ? `｜${diffs}` : ''}`, 200)
   }
   if (kind === 'pinned') {
-    return clip(`${head}｜${title}｜${link}`, 200)
+    return clip(opts.redacted ? `${head}｜${title}` : `${head}｜${title}｜${link}`, 200)
   }
   // online：上新信息量最大，带上额度 / 到期 / 链接
+  //
+  // 但**脱敏时一个字段都不带**：只剩「标签+服务商｜标题」，与富文本口径一致
+  // （富文本在脱敏时也只给标题 + 一句状态说明）。此前这里漏掉了 `到期`——
+  // 它躲在 `offlineSnapshot()` 保留下来的 `expires_at` 里（下架事件要拿它渲染「原到期」），
+  // 于是同一条脱敏事件，窄通道的 text 露了到期、富文本却没露，两个通道自相矛盾。
   const parts = [head, title]
-  if (snap.quota) parts.push(`额度 ${clip(snap.quota, 16)}`)
-  if (snap.expires_at) parts.push(`到期 ${formatEventDay(snap.expires_at)}`)
-  parts.push(link)
+  if (!opts.redacted) {
+    if (snap.quota) parts.push(`额度 ${clip(snap.quota, 16)}`)
+    if (snap.expires_at) parts.push(`到期 ${formatEventDay(snap.expires_at)}`)
+    parts.push(link)
+  }
   return clip(parts.join('｜'), 200)
 }
 
@@ -218,16 +276,23 @@ export function renderDealEventMarkdown(
   snap: DealEventSnapshot,
   opts: { baseUrl?: string; changes?: FieldDiff[]; redacted?: boolean } = {},
 ): string {
-  const label = kind === 'online' && reason === 'restored'
-    ? '恢复上架'
-    : (kind === 'pinned' && reason === 'unpin' ? '取消置顶' : (DEAL_EVENT_LABELS[kind] || kind))
   const base = String(opts.baseUrl || '').replace(/\/+$/, '')
   const link = base ? `${base}${snap.share_path}` : snap.share_path
   const provider = clip(snap.provider, 20) || '未知来源'
   // 首行用 `### ` 标题：钉钉群机器人只在消息含 `### ` / `\n---` / `<font ` 时才走 markdown 卡片，
   // 否则整条按纯文本发（`**` 与 `>` 会原样露出来）。
-  const lines = [`### ${eventEmoji(kind, reason)}【${label}】${provider}`, `**${clip(snap.title, 60)}**`]
+  //
+  // 五类事件共用同一具骨架（订阅方一眼能对齐排版）：
+  //   1) `### <emoji>【<标签>】<服务商>`  2) `**<标题>**`
+  //   3) 空行 + 至少一条 `- ` 字段行      4) 空行 + 链接行（下架 / 脱敏除外）
+  // 只做样式统一，不改语义：下架仍是「标题 + 原因」，脱敏仍然只有标题、不给字段与可点链接。
+  const lines = [
+    `### ${eventEmoji(kind, reason)}【${eventLabel(kind, reason)}】${provider}`,
+    `**${clip(snap.title, 60) || '（无标题）'}**`,
+  ]
 
+  // 下架事件先处理：它本身就是「最小信息」形态（见 offlineSnapshot），
+  // 额度 / 模型 / 领取链接随内容一起消失，不该继续分发，也不给可点链接。
   if (kind === 'offline') {
     const why = OFFLINE_REASON_LABELS[reason] || INVALID_REASON_LABELS[reason] || ''
     lines.push('', why ? `- 状态：已下架（${why}）` : '- 状态：已下架')
@@ -235,33 +300,50 @@ export function renderDealEventMarkdown(
     return lines.join('\n')
   }
 
-  if (kind === 'updated' || kind === 'renewed') {
-    const diffs = (opts.changes || []).map(renderDiff).filter(Boolean)
-    if (diffs.length) lines.push('', ...diffs.map(d => `- ${d}`))
-    lines.push('', `[查看通告](${link})`)
-    return lines.join('\n')
-  }
-
-  // online / pinned：把能公开的字段一次说全，省得点进去才知道额度多少
-  const facts: string[] = []
-  // 云服务器与 API 额度的「看点」完全不同：先说分类，读者才知道该拿什么标准衡量
-  if (snap.category === 'cloud') facts.push('类型 免费云服务器')
-  else if (snap.category === 'client') facts.push('类型 客户端额度')
-  if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
-  if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
-  if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)
-  if (snap.rating) facts.push(`评分 ${snap.rating}`)
-  if (facts.length) lines.push('', ...facts.map(f => `- ${f}`))
-  // 领取地址是「现在还能不能薅」的关键，官网地址放其后做核对
-  if (snap.call_url) lines.push('', `领取：${snap.call_url}`)
-  if (snap.url) lines.push('', `官网：${snap.url}`)
+  // 脱敏（通告此刻已不可见）：连富文本也只留标题，字段与可点链接一律不出。
+  // **必须放在变更类分支之前** —— 否则 updated / renewed 会绕过这里，
+  // 照样推一条指向 404 的 `[查看通告](...)`（历史行为，本次一并收口）。
   if (opts.redacted) {
-    // 通告此刻已不可见：不推可点链接（点进去是 404），只留一句说明
     lines.push('', '（该通告已从站点下架或失效，详情页不再可访问）')
     return lines.join('\n')
   }
+
+  // 变更 / 续期：字段差异就是这条消息的全部价值
+  let facts: string[]
+  if (kind === 'updated' || kind === 'renewed') {
+    facts = (opts.changes || []).map(renderDiff).filter(Boolean)
+    // 差异丢失（脏 meta / 早期事件）时退回当前值：宁可少说，也不能只发一个空壳标题
+    if (!facts.length) facts = snapshotFacts(snap)
+    if (!facts.length) facts.push('内容有更新（详见通告页）')
+  } else {
+    // online / pinned：把能公开的字段一次说全，省得点进去才知道额度多少
+    facts = snapshotFacts(snap)
+    if (!facts.length) {
+      facts.push(kind === 'pinned'
+        ? (reason === 'unpin' ? '已取消置顶' : '已置顶')
+        : '已上架')
+    }
+  }
+  lines.push('', ...facts.map(f => `- ${f}`))
+
+  // 领取地址是「现在还能不能薅」的关键，官网地址放其后做核对（仅上架类事件带）
+  if (kind === 'online' || kind === 'pinned') {
+    if (snap.call_url) lines.push('', `领取：${snap.call_url}`)
+    if (snap.url) lines.push('', `官网：${snap.url}`)
+  }
   lines.push('', `[查看通告](${link})`)
   return lines.join('\n')
+}
+
+/**
+ * 枚举字段值的中文说法（**仅展示层**，不改事件负载里的原始值）。
+ * 不认识的取值返回 null，由调用方回落成原样输出。
+ */
+function enumValueLabel(field: string, value: any): string | null {
+  const v = String(value)
+  if (field === 'category') return DEAL_CATEGORY_LABELS[v] || null
+  if (field === 'real_name') return REAL_NAME_LABELS[v] || null
+  return null
 }
 
 /** 单条差异的中文渲染：`额度 100 → 200`、`支持模型 +GLM 5 -MiMo` */
@@ -275,7 +357,11 @@ function renderDiff(diff: FieldDiff): string {
     if (v == null || v === '') return '空'
     if (Array.isArray(v)) return v.length ? clip(v.join('/'), 30) : '空'
     if (diff.field === 'expires_at' && typeof v === 'number') return formatEventDay(v)
-    return clip(v, 24)
+    // 枚举字段只在**展示层**翻成中文：`category: 'cloud'` 是说给机器听的，
+    // 中文消息里必须写「免费云服务器」。事件负载里的 from/to 原样保留，
+    // 订阅方的过滤/程序化处理不受影响。
+    const label = enumValueLabel(diff.field, v)
+    return clip(label ?? v, 24)
   }
   // 数组字段只说「加了什么 / 去了什么」，比把两个长列表截断后并排摆着有用
   if (Array.isArray(diff.from) && Array.isArray(diff.to)) {
@@ -377,7 +463,7 @@ export function toEventView(row: DealEventRow, opts: { baseUrl?: string } = {}):
     kind: row.kind,
     kind_label: DEAL_EVENT_LABELS[row.kind] || row.kind,
     reason: row.reason,
-    reason_label: OFFLINE_REASON_LABELS[row.reason] || INVALID_REASON_LABELS[row.reason] || '',
+    reason_label: eventReasonLabel(row.kind, row.reason),
     created_at: row.created_at,
     text: renderDealEventText(row.kind, row.reason, snap, { baseUrl: opts.baseUrl, changes }),
     markdown: renderDealEventMarkdown(row.kind, row.reason, snap, { baseUrl: opts.baseUrl, changes }),
@@ -424,7 +510,7 @@ export function publicEventViews(
     view.deal = redacted as DealEventSnapshot
     view.changes = []
     // 文案也按脱敏后的快照重渲染，避免里面残留额度 / 链接
-    view.text = renderDealEventText(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl })
+    view.text = renderDealEventText(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl, redacted: true })
     view.markdown = renderDealEventMarkdown(row.kind, row.reason, redacted as DealEventSnapshot, { baseUrl: opts.baseUrl, redacted: true })
     view.deal_redacted = true
     return view

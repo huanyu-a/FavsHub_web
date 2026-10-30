@@ -33,6 +33,12 @@
             </div>
           </div>
           <div class="tdd-head-side">
+            <!-- 分类（2026-10-30）：从正文事实区移到 header，改用彩色徽标 -->
+            <span
+              v-if="deal"
+              class="tdd-category"
+              :class="`is-${categoryMeta.tone}`"
+            >{{ categoryMeta.label }}</span>
             <span v-if="deal" class="tdd-quality" :class="qualityClass">{{ deal.quality }}</span>
             <button type="button" class="tdd-close" :title="isPage ? '返回通告列表' : '关闭'" @click="close">
               <i class="ri-close-line"></i>
@@ -52,511 +58,515 @@
         </div>
 
         <div v-else-if="deal" class="tdd-body">
-          <!-- 生命周期提示：已失效 / 已过期 / 已删除（仅作者与管理员能打开这类条目） -->
-          <div v-if="deal.is_deleted || deal.is_invalid || deal.is_expired" class="tdd-status is-invalid">
-            <i class="ri-forbid-2-line"></i>
-            <div>
-              <strong>
-                {{ deal.is_deleted ? '已删除' : (deal.is_invalid ? (deal.invalid_reason_label || '已失效') : '已过期') }}
-              </strong>
-              <p v-if="deal.is_deleted">
-                该通告已从公开列表移除，投票、评测与修改建议均已保留。恢复请联系管理员。
+          <div class="tdd-body-inner">
+            <!-- 生命周期提示：已失效 / 已过期 / 已删除（仅作者与管理员能打开这类条目） -->
+            <div v-if="deal.is_deleted || deal.is_invalid || deal.is_expired" class="tdd-status is-invalid">
+              <i class="ri-forbid-2-line"></i>
+              <div>
+                <strong>
+                  {{ deal.is_deleted ? '已删除' : (deal.is_invalid ? (deal.invalid_reason_label || '已失效') : '已过期') }}
+                </strong>
+                <p v-if="deal.is_deleted">
+                  该通告已从公开列表移除，投票、评测与修改建议均已保留。恢复请联系管理员。
+                </p>
+                <p v-else-if="deal.is_invalid">
+                  该通告已被判定失效，不再对外展示，也不再接收新的投票与评测。
+                  <template v-if="deal.is_owner">如为误判，可联系管理员复核。</template>
+                </p>
+                <p v-else>
+                  有效期已结束，该通告不再对外展示。
+                  <template v-if="deal.can_edit">编辑并把有效期延后即可重新上架。</template>
+                </p>
+              </div>
+            </div>
+
+            <!-- 审核状态提示 -->
+            <div v-if="deal.status !== 'approved'" class="tdd-status" :class="`is-${deal.status}`">
+              <i :class="deal.status === 'pending' ? 'ri-time-line' : 'ri-close-circle-line'"></i>
+              <div>
+                <strong>{{ deal.status === 'pending' ? '待审核' : '未通过审核' }}</strong>
+                <p v-if="deal.status === 'pending'">该通告仅你与管理员可见，通过审核后将公开展示。</p>
+                <p v-else>{{ deal.reject_reason || '未提供驳回原因' }}</p>
+              </div>
+            </div>
+
+            <h3 class="tdd-title">{{ deal.title }}</h3>
+
+            <!-- 关键信息：2026-10-30 精简 —— 分类移到 header；有效期与 header 重复；
+                 发布者、最近核验不再以文字形式展示（核验状态改为水印徽标）。
+                 是否实名（2026-10-30 三轮）：用户要求放到本区块右端，改为小号彩色徽标，
+                 不再是底部的大水印。`real_name === ''` 时不渲染（存量空串）。 -->
+            <div class="tdd-facts">
+              <div class="tdd-fact">
+                <span class="fact-label">免费额度</span>
+                <span class="fact-value">{{ deal.quota || '未说明' }}</span>
+              </div>
+              <span
+                v-if="realNameBadge"
+                class="tdd-realname"
+                :class="`is-${realNameBadge.tone}`"
+                :title="realNameBadge.title"
+              >{{ realNameBadge.label }}</span>
+            </div>
+            <!-- 无障碍：小徽标只有 2~3 个字，「其他」的手填说明在 title 里对读屏不友好，
+                 用 sr-only 承载完整语义（含水印轮已建立的「视觉简、语义全」原则） -->
+            <span v-if="realNameBadge" class="sr-only">{{ realNameBadge.srText }}</span>
+
+            <!-- 接入信息 -->
+            <section class="tdd-section">
+              <h4 class="section-title"><i class="ri-link"></i> 接入信息</h4>
+              <div class="tdd-row">
+                <span class="row-label">领取地址</span>
+                <!-- 位置/样式还原为改动前的原样（`<a :href>` + 原文链接）。
+                     唯一的升级：值优先用服务端拼好的成品链接 `claimResolved`（= claim_url），
+                     抽中码后显示的就是已替换好邀请码的完整可用地址，而不是带占位符的模板原文。
+                     没抽中时退回原文 `deal.url` —— 此时若模板含占位符，则一行都不渲染
+                     （占位符是后端程序变量，不能让访客看到；用户要求无码时不提示）。 -->
+                <a
+                  v-if="claimReady"
+                  :href="claimReady"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="row-link"
+                >{{ claimReady }}</a>
+              </div>
+              <div v-if="showApiRow && apiReady" class="tdd-row">
+                <span class="row-label">API 地址</span>
+                <code class="row-code">{{ apiReady }}</code>
+                <button type="button" class="tdd-btn tiny" @click="copy(apiReady)">复制</button>
+              </div>
+            </section>
+
+            <!-- 邀请码（2026-10-30）：通告可配多个码，服务端按展现比例加权随机只下发一个。
+                 2026-10-30 三轮：位置与样式**还原为改动前的原样**（用户要求）。
+                 已拼好的成品链接不在这里重复展示 —— 它在「接入信息 → 领取地址」那一行，
+                 用户要的是「位置还原 + 链接值升级」，不是多一块面板。 -->
+            <section v-if="inviteCode" class="tdd-section">
+              <h4 class="section-title"><i class="ri-coupon-3-line"></i> 邀请码</h4>
+              <div class="invite-row">
+                <code class="invite-code">{{ inviteCode.code }}</code>
+                <button type="button" class="tdd-btn tiny" @click="copyInviteCode">
+                  <i :class="inviteCopied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
+                  {{ inviteCopied ? '已复制' : '复制' }}
+                </button>
+              </div>
+              <p v-if="inviteCode.label" class="invite-label">{{ inviteCode.label }}</p>
+            </section>
+
+            <!-- 核验状态水印（2026-10-30）：绝对定位的背景层，不占布局、不推正文 -->
+            <DealBadge
+              v-if="deal"
+              :tone="verifyState.tone"
+              :label="verifyState.label"
+              :sublabel="verifyState.sublabel"
+              :title="verifyState.title"
+              :sr-text="verifyState.srText"
+            />
+
+            <!-- 支持模型 -->
+            <section v-if="deal.models && deal.models.length" class="tdd-section">
+              <h4 class="section-title"><i class="ri-cpu-line"></i> 支持模型</h4>
+              <div class="tdd-models">
+                <span v-for="m in deal.models" :key="m" class="model-chip">{{ m }}</span>
+              </div>
+            </section>
+
+            <!-- 备注 -->
+            <section v-if="deal.note_html || deal.note" class="tdd-section">
+              <h4 class="section-title"><i class="ri-sticky-note-line"></i> 备注</h4>
+              <!-- 2026-10-30：备注升级为富文本（Markdown / HTML / 图片），上限 2000 字。
+                   这里渲染的是**服务端已白名单消毒**的 note_html，不是用户原文 ——
+                   备注是普通用户可写字段，对原文直接 v-html 等于开 XSS 口子。 -->
+              <div v-if="deal.note_html" class="tdd-note markdown-body" v-html="deal.note_html"></div>
+              <p v-else class="tdd-note">{{ deal.note }}</p>
+            </section>
+
+            <!-- 我的修改建议状态 -->
+            <section v-if="myEdit" class="tdd-section tdd-edit-mine">
+              <h4 class="section-title"><i class="ri-lightbulb-line"></i> 我的修改建议</h4>
+              <p class="edit-mine-hint">
+                已于 {{ formatTime(myEdit.created_at) }} 提交 {{ myEdit.diff.length }} 项修改，等待审核。
               </p>
-              <p v-else-if="deal.is_invalid">
-                该通告已被判定失效，不再对外展示，也不再接收新的投票与评测。
-                <template v-if="deal.is_owner">如为误判，可联系管理员复核。</template>
+              <ul class="edit-diff-list">
+                <li v-for="c in myEdit.diff" :key="c.field" class="edit-diff-item">
+                  <span class="diff-label">{{ c.label }}</span>
+                  <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
+                  <i class="ri-arrow-right-line diff-arrow"></i>
+                  <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
+                </li>
+              </ul>
+              <p v-if="myEdit.comment" class="edit-mine-comment">
+                <i class="ri-chat-quote-line"></i> {{ myEdit.comment }}
               </p>
-              <p v-else>
-                有效期已结束，该通告不再对外展示。
-                <template v-if="deal.can_edit">编辑并把有效期延后即可重新上架。</template>
+              <div class="edit-mine-actions">
+                <button type="button" class="tdd-btn ghost tiny" :disabled="editBusy" @click="openProposal">
+                  <i class="ri-edit-line"></i> 继续修改
+                </button>
+                <button type="button" class="tdd-btn danger tiny" :disabled="editBusy" @click="withdrawMyEdit">
+                  <i class="ri-close-line"></i> 撤回建议
+                </button>
+              </div>
+            </section>
+
+            <!-- 待我审核的修改建议 -->
+            <section v-if="deal.can_review && pendingEdits.length" class="tdd-section tdd-edit-review">
+              <h4 class="section-title">
+                <i class="ri-inbox-unarchive-line"></i> 待审核的修改建议
+                <span class="review-count">{{ pendingEdits.length }}</span>
+              </h4>
+              <ul class="review-list-edit">
+                <li v-for="e in pendingEdits" :key="e.id" class="review-edit-item">
+                  <div class="review-edit-head">
+                    <span class="review-edit-author">
+                      <i class="ri-user-line"></i> {{ e.proposer }}
+                    </span>
+                    <span class="review-edit-time">{{ formatTime(e.created_at) }}</span>
+                  </div>
+                  <p v-if="e.comment" class="review-edit-comment">{{ e.comment }}</p>
+                  <p v-if="e.is_noop" class="review-edit-noop">
+                    该建议与当前内容已无差异，可直接驳回。
+                  </p>
+                  <ul v-else class="edit-diff-list">
+                    <li v-for="c in e.diff" :key="c.field" class="edit-diff-item">
+                      <span class="diff-label">{{ c.label }}</span>
+                      <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
+                      <i class="ri-arrow-right-line diff-arrow"></i>
+                      <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
+                    </li>
+                  </ul>
+                  <div class="review-edit-actions">
+                    <button
+                      type="button"
+                      class="tdd-btn primary tiny"
+                      :disabled="editBusy || e.is_noop"
+                      @click="reviewEdit(e, 'approve')"
+                    >
+                      <i class="ri-check-line"></i> 通过
+                    </button>
+                    <button
+                      type="button"
+                      class="tdd-btn danger tiny"
+                      :disabled="editBusy"
+                      @click="rejectTarget = e"
+                    >
+                      <i class="ri-close-line"></i> 驳回
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </section>
+
+            <!-- 社区健康度 -->
+            <section class="tdd-section">
+              <h4 class="section-title"><i class="ri-pulse-line"></i> 社区健康度</h4>
+              <div class="tdd-health">
+                <button
+                  type="button"
+                  class="vote-btn is-up"
+                  :class="{ active: myVote === 'up' }"
+                  :disabled="voting"
+                  @click="vote('up')"
+                >
+                  <i class="ri-thumb-up-line"></i>
+                  <span class="vote-label">还能用</span>
+                  <span class="vote-count">{{ deal.vote_up }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="vote-btn is-down"
+                  :class="{ active: myVote === 'down' }"
+                  :disabled="voting"
+                  @click="vote('down')"
+                >
+                  <i class="ri-thumb-down-line"></i>
+                  <span class="vote-label">已失效</span>
+                  <span class="vote-count">{{ deal.vote_down }}</span>
+                </button>
+                <div class="health-rating">
+                  <div class="rating-score">
+                    <span class="score-num">{{ average ?? '—' }}</span>
+                    <span class="score-max">/ 5</span>
+                  </div>
+                  <div class="rating-stars">
+                    <i
+                      v-for="n in 5"
+                      :key="n"
+                      :class="n <= Math.round(average || 0) ? 'ri-star-fill' : 'ri-star-line'"
+                    ></i>
+                  </div>
+                  <span class="rating-count">{{ deal.rating_count }} 人评测</span>
+                </div>
+              </div>
+              <div v-if="deal.rating_count > 0" class="tdd-distribution">
+                <div v-for="n in [5, 4, 3, 2, 1]" :key="n" class="dist-row">
+                  <span class="dist-label">{{ n }} 星</span>
+                  <span class="dist-bar"><span class="dist-fill" :style="{ width: distPercent(n) }"></span></span>
+                  <span class="dist-count">{{ distribution[n] || 0 }}</span>
+                </div>
+              </div>
+              <p v-if="!authStore.isLoggedIn" class="tdd-hint">
+                无需登录即可参与 —— 投票、写评测、给评测打「有用」标都直接生效
+                （评测经审核后公开并计入评分）。
               </p>
-            </div>
-          </div>
+            </section>
 
-          <!-- 审核状态提示 -->
-          <div v-if="deal.status !== 'approved'" class="tdd-status" :class="`is-${deal.status}`">
-            <i :class="deal.status === 'pending' ? 'ri-time-line' : 'ri-close-circle-line'"></i>
-            <div>
-              <strong>{{ deal.status === 'pending' ? '待审核' : '未通过审核' }}</strong>
-              <p v-if="deal.status === 'pending'">该通告仅你与管理员可见，通过审核后将公开展示。</p>
-              <p v-else>{{ deal.reject_reason || '未提供驳回原因' }}</p>
-            </div>
-          </div>
+            <!-- 游客评测：无需登录 -->
+            <section v-if="!authStore.isLoggedIn" class="tdd-section">
+              <h4 class="section-title">
+                <i class="ri-chat-smile-2-line"></i> 游客评测（无需登录）
+              </h4>
 
-          <h3 class="tdd-title">{{ deal.title }}</h3>
-
-          <!-- 关键信息 -->
-          <div class="tdd-facts">
-            <div v-if="categoryText" class="tdd-fact">
-              <span class="fact-label">分类</span>
-              <span class="fact-value">{{ categoryText }}</span>
-            </div>
-            <div class="tdd-fact">
-              <span class="fact-label">免费额度</span>
-              <span class="fact-value">{{ deal.quota || '未说明' }}</span>
-            </div>
-            <div class="tdd-fact">
-              <span class="fact-label">有效期</span>
-              <span class="fact-value">{{ expiryText }}</span>
-            </div>
-            <div class="tdd-fact">
-              <span class="fact-label">发布者</span>
-              <span class="fact-value">{{ deal.nickname || '社区用户' }}</span>
-            </div>
-            <div class="tdd-fact">
-              <span class="fact-label">最近核验</span>
-              <span class="fact-value" :class="{ 'is-warn': verifyWarn }">
-                {{ verifyText }}
-                <em v-if="verifyWarn" class="verify-hint">待复核</em>
-              </span>
-            </div>
-          </div>
-
-          <!-- 接入信息 -->
-          <section class="tdd-section">
-            <h4 class="section-title"><i class="ri-link"></i> 接入信息</h4>
-            <div class="tdd-row">
-              <span class="row-label">领取地址</span>
-              <a :href="deal.url" target="_blank" rel="noopener noreferrer" class="row-link">{{ deal.url }}</a>
-            </div>
-            <div v-if="deal.call_url" class="tdd-row">
-              <span class="row-label">API 地址</span>
-              <code class="row-code">{{ deal.call_url }}</code>
-              <button type="button" class="tdd-btn tiny" @click="copy(deal.call_url)">复制</button>
-            </div>
-          </section>
-
-          <!-- 邀请码（2026-10-30）：通告可配多个码，服务端按展现比例加权随机只下发一个 -->
-          <section v-if="inviteCode" class="tdd-section">
-            <h4 class="section-title"><i class="ri-coupon-3-line"></i> 邀请码</h4>
-            <div class="invite-row">
-              <code class="invite-code">{{ inviteCode.code }}</code>
-              <button type="button" class="tdd-btn tiny" @click="copyInviteCode">
-                <i :class="inviteCopied ? 'ri-check-line' : 'ri-file-copy-line'"></i>
-                {{ inviteCopied ? '已复制' : '复制' }}
-              </button>
-            </div>
-            <p v-if="inviteCode.label" class="invite-label">{{ inviteCode.label }}</p>
-          </section>
-
-          <!-- 人工核验记录：站点确认「此刻仍可用」的时间线 -->
-          <section v-if="verifications.length || deal.verify_note" class="tdd-section">
-            <h4 class="section-title"><i class="ri-shield-check-line"></i> 人工核验</h4>
-            <p v-if="deal.verify_note" class="verify-note">{{ deal.verify_note }}</p>
-            <ul class="verify-list">
-              <li v-for="(v, i) in verifications" :key="i" class="verify-item">
-                <span class="verify-action" :class="`is-${v.action}`">{{ v.action_label }}</span>
-                <!-- 2026-10-30 前端脱敏：公开前台不再渲染核验人用户名（actor）。
-                     核验人属内部审计信息，只应在后台管理页出现；
-                     此前按 isAdmin 放行，导致管理员浏览公开前台时仍能看到账号名。 -->
-                <span class="verify-date">{{ formatTime(v.created_at) }}</span>
-                <span v-if="v.note" class="verify-item-note">{{ v.note }}</span>
-              </li>
-            </ul>
-          </section>
-
-          <!-- 支持模型 -->
-          <section v-if="deal.models && deal.models.length" class="tdd-section">
-            <h4 class="section-title"><i class="ri-cpu-line"></i> 支持模型</h4>
-            <div class="tdd-models">
-              <span v-for="m in deal.models" :key="m" class="model-chip">{{ m }}</span>
-            </div>
-          </section>
-
-          <!-- 备注 -->
-          <section v-if="deal.note_html || deal.note" class="tdd-section">
-            <h4 class="section-title"><i class="ri-sticky-note-line"></i> 备注</h4>
-            <!-- 2026-10-30：备注升级为富文本（Markdown / HTML / 图片），上限 2000 字。
-                 这里渲染的是**服务端已白名单消毒**的 note_html，不是用户原文 ——
-                 备注是普通用户可写字段，对原文直接 v-html 等于开 XSS 口子。 -->
-            <div v-if="deal.note_html" class="tdd-note markdown-body" v-html="deal.note_html"></div>
-            <p v-else class="tdd-note">{{ deal.note }}</p>
-          </section>
-
-          <!-- 我的修改建议状态 -->
-          <section v-if="myEdit" class="tdd-section tdd-edit-mine">
-            <h4 class="section-title"><i class="ri-lightbulb-line"></i> 我的修改建议</h4>
-            <p class="edit-mine-hint">
-              已于 {{ formatTime(myEdit.created_at) }} 提交 {{ myEdit.diff.length }} 项修改，等待审核。
-            </p>
-            <ul class="edit-diff-list">
-              <li v-for="c in myEdit.diff" :key="c.field" class="edit-diff-item">
-                <span class="diff-label">{{ c.label }}</span>
-                <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
-                <i class="ri-arrow-right-line diff-arrow"></i>
-                <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
-              </li>
-            </ul>
-            <p v-if="myEdit.comment" class="edit-mine-comment">
-              <i class="ri-chat-quote-line"></i> {{ myEdit.comment }}
-            </p>
-            <div class="edit-mine-actions">
-              <button type="button" class="tdd-btn ghost tiny" :disabled="editBusy" @click="openProposal">
-                <i class="ri-edit-line"></i> 继续修改
-              </button>
-              <button type="button" class="tdd-btn danger tiny" :disabled="editBusy" @click="withdrawMyEdit">
-                <i class="ri-close-line"></i> 撤回建议
-              </button>
-            </div>
-          </section>
-
-          <!-- 待我审核的修改建议 -->
-          <section v-if="deal.can_review && pendingEdits.length" class="tdd-section tdd-edit-review">
-            <h4 class="section-title">
-              <i class="ri-inbox-unarchive-line"></i> 待审核的修改建议
-              <span class="review-count">{{ pendingEdits.length }}</span>
-            </h4>
-            <ul class="review-list-edit">
-              <li v-for="e in pendingEdits" :key="e.id" class="review-edit-item">
-                <div class="review-edit-head">
-                  <span class="review-edit-author">
-                    <i class="ri-user-line"></i> {{ e.proposer }}
+              <!-- 已有待审评测 → 回显状态 -->
+              <div v-if="myGuestReview" class="guest-status">
+                <div class="guest-status-head">
+                  <span class="guest-badge" :class="myGuestReview.status">
+                    {{ myGuestReview.status === 'pending' ? '审核中' : '已驳回' }}
                   </span>
-                  <span class="review-edit-time">{{ formatTime(e.created_at) }}</span>
+                  <span class="guest-status-nick">{{ myGuestReview.nickname }}</span>
+                  <span class="guest-stars">
+                    <i
+                      v-for="n in 5"
+                      :key="n"
+                      :class="n <= myGuestReview.rating ? 'ri-star-fill' : 'ri-star-line'"
+                    ></i>
+                  </span>
                 </div>
-                <p v-if="e.comment" class="review-edit-comment">{{ e.comment }}</p>
-                <p v-if="e.is_noop" class="review-edit-noop">
-                  该建议与当前内容已无差异，可直接驳回。
+                <p class="guest-status-content">{{ myGuestReview.content }}</p>
+                <p v-if="myGuestReview.status === 'pending'" class="guest-status-tip">
+                  评测已提交，等待作者或管理员审核。通过后会公开显示并计入评分。
                 </p>
-                <ul v-else class="edit-diff-list">
-                  <li v-for="c in e.diff" :key="c.field" class="edit-diff-item">
-                    <span class="diff-label">{{ c.label }}</span>
-                    <span class="diff-from">{{ displayFieldValue(c.field, c.from) }}</span>
-                    <i class="ri-arrow-right-line diff-arrow"></i>
-                    <span class="diff-to">{{ displayFieldValue(c.field, c.to) }}</span>
-                  </li>
-                </ul>
-                <div class="review-edit-actions">
+                <p v-else class="guest-status-tip err">
+                  未通过审核<template v-if="myGuestReview.reject_reason">：{{ myGuestReview.reject_reason }}</template>。
+                  你可以修改后重新提交。
+                </p>
+                <div class="guest-status-actions">
                   <button
+                    v-if="myGuestReview.status === 'pending'"
                     type="button"
-                    class="tdd-btn primary tiny"
-                    :disabled="editBusy || e.is_noop"
-                    @click="reviewEdit(e, 'approve')"
+                    class="tdd-btn ghost"
+                    :disabled="guestSubmitting"
+                    @click="withdrawGuestReview"
                   >
-                    <i class="ri-check-line"></i> 通过
+                    撤回评测
                   </button>
                   <button
+                    v-else
                     type="button"
-                    class="tdd-btn danger tiny"
-                    :disabled="editBusy"
-                    @click="rejectTarget = e"
+                    class="tdd-btn ghost"
+                    @click="guestFormOpen = true"
                   >
-                    <i class="ri-close-line"></i> 驳回
+                    重新提交
                   </button>
                 </div>
-              </li>
-            </ul>
-          </section>
-
-          <!-- 社区健康度 -->
-          <section class="tdd-section">
-            <h4 class="section-title"><i class="ri-pulse-line"></i> 社区健康度</h4>
-            <div class="tdd-health">
-              <button
-                type="button"
-                class="vote-btn is-up"
-                :class="{ active: myVote === 'up' }"
-                :disabled="voting"
-                @click="vote('up')"
-              >
-                <i class="ri-thumb-up-line"></i>
-                <span class="vote-label">还能用</span>
-                <span class="vote-count">{{ deal.vote_up }}</span>
-              </button>
-              <button
-                type="button"
-                class="vote-btn is-down"
-                :class="{ active: myVote === 'down' }"
-                :disabled="voting"
-                @click="vote('down')"
-              >
-                <i class="ri-thumb-down-line"></i>
-                <span class="vote-label">已失效</span>
-                <span class="vote-count">{{ deal.vote_down }}</span>
-              </button>
-              <div class="health-rating">
-                <div class="rating-score">
-                  <span class="score-num">{{ average ?? '—' }}</span>
-                  <span class="score-max">/ 5</span>
-                </div>
-                <div class="rating-stars">
-                  <i
-                    v-for="n in 5"
-                    :key="n"
-                    :class="n <= Math.round(average || 0) ? 'ri-star-fill' : 'ri-star-line'"
-                  ></i>
-                </div>
-                <span class="rating-count">{{ deal.rating_count }} 人评测</span>
               </div>
-            </div>
-            <div v-if="deal.rating_count > 0" class="tdd-distribution">
-              <div v-for="n in [5, 4, 3, 2, 1]" :key="n" class="dist-row">
-                <span class="dist-label">{{ n }} 星</span>
-                <span class="dist-bar"><span class="dist-fill" :style="{ width: distPercent(n) }"></span></span>
-                <span class="dist-count">{{ distribution[n] || 0 }}</span>
-              </div>
-            </div>
-            <p v-if="!authStore.isLoggedIn" class="tdd-hint">
-              无需登录即可参与 —— 投票、写评测、给评测打「有用」标都直接生效
-              （评测经审核后公开并计入评分）。
-            </p>
-          </section>
 
-          <!-- 游客评测：无需登录 -->
-          <section v-if="!authStore.isLoggedIn" class="tdd-section">
-            <h4 class="section-title">
-              <i class="ri-chat-smile-2-line"></i> 游客评测（无需登录）
-            </h4>
-
-            <!-- 已有待审评测 → 回显状态 -->
-            <div v-if="myGuestReview" class="guest-status">
-              <div class="guest-status-head">
-                <span class="guest-badge" :class="myGuestReview.status">
-                  {{ myGuestReview.status === 'pending' ? '审核中' : '已驳回' }}
-                </span>
-                <span class="guest-status-nick">{{ myGuestReview.nickname }}</span>
-                <span class="guest-stars">
-                  <i
-                    v-for="n in 5"
-                    :key="n"
-                    :class="n <= myGuestReview.rating ? 'ri-star-fill' : 'ri-star-line'"
-                  ></i>
-                </span>
-              </div>
-              <p class="guest-status-content">{{ myGuestReview.content }}</p>
-              <p v-if="myGuestReview.status === 'pending'" class="guest-status-tip">
-                评测已提交，等待作者或管理员审核。通过后会公开显示并计入评分。
-              </p>
-              <p v-else class="guest-status-tip err">
-                未通过审核<template v-if="myGuestReview.reject_reason">：{{ myGuestReview.reject_reason }}</template>。
-                你可以修改后重新提交。
-              </p>
-              <div class="guest-status-actions">
+              <!-- 未提交 / 被驳回后重填 -->
+              <template v-else>
                 <button
-                  v-if="myGuestReview.status === 'pending'"
+                  v-if="!guestFormOpen"
                   type="button"
-                  class="tdd-btn ghost"
-                  :disabled="guestSubmitting"
-                  @click="withdrawGuestReview"
+                  class="tdd-btn primary guest-open-btn"
+                  @click="openGuestForm"
                 >
-                  撤回评测
+                  <i class="ri-chat-smile-2-line"></i> 写一条游客评测
                 </button>
-                <button
-                  v-else
-                  type="button"
-                  class="tdd-btn ghost"
-                  @click="guestFormOpen = true"
-                >
-                  重新提交
-                </button>
-              </div>
-            </div>
 
-            <!-- 未提交 / 被驳回后重填 -->
-            <template v-else>
-              <button
-                v-if="!guestFormOpen"
-                type="button"
-                class="tdd-btn primary guest-open-btn"
-                @click="openGuestForm"
-              >
-                <i class="ri-chat-smile-2-line"></i> 写一条游客评测
-              </button>
+                <div v-else class="review-form guest-form">
+                  <div class="guest-row">
+                    <label class="guest-field">
+                      <span class="guest-label">昵称 <em>*</em></span>
+                      <input
+                        v-model="guestNickname"
+                        type="text"
+                        class="guest-input"
+                        :maxlength="24"
+                        placeholder="展示用的名字"
+                      >
+                    </label>
+                    <label class="guest-field">
+                      <span class="guest-label">QQ 号（可选，用于头像）</span>
+                      <input
+                        v-model="guestQQ"
+                        type="text"
+                        class="guest-input"
+                        inputmode="numeric"
+                        :maxlength="11"
+                        placeholder="填了才显示 QQ 头像"
+                      >
+                    </label>
+                  </div>
+                  <p class="guest-privacy-tip">
+                    <i class="ri-shield-check-line"></i>
+                    QQ 号仅用于服务端获取头像，加密存储、不会公开展示，页面源码中也看不到。
+                  </p>
+                  <div v-if="guestAvatarPreview" class="guest-avatar-preview">
+                    <img :src="guestAvatarPreview" alt="头像预览" @error="guestAvatarBroken = true">
+                    <span>头像预览</span>
+                  </div>
 
-              <div v-else class="review-form guest-form">
-                <div class="guest-row">
-                  <label class="guest-field">
-                    <span class="guest-label">昵称 <em>*</em></span>
-                    <input
-                      v-model="guestNickname"
-                      type="text"
-                      class="guest-input"
-                      :maxlength="24"
-                      placeholder="展示用的名字"
+                  <div class="star-input">
+                    <button
+                      v-for="n in 5"
+                      :key="n"
+                      type="button"
+                      class="star-btn"
+                      :class="{ active: n <= guestRating }"
+                      :title="`${n} 星`"
+                      @click="guestRating = n"
                     >
-                  </label>
-                  <label class="guest-field">
-                    <span class="guest-label">QQ 号（可选，用于头像）</span>
-                    <input
-                      v-model="guestQQ"
-                      type="text"
-                      class="guest-input"
-                      inputmode="numeric"
-                      :maxlength="11"
-                      placeholder="填了才显示 QQ 头像"
-                    >
-                  </label>
-                </div>
-                <p class="guest-privacy-tip">
-                  <i class="ri-shield-check-line"></i>
-                  QQ 号仅用于服务端获取头像，加密存储、不会公开展示，页面源码中也看不到。
-                </p>
-                <div v-if="guestAvatarPreview" class="guest-avatar-preview">
-                  <img :src="guestAvatarPreview" alt="头像预览" @error="guestAvatarBroken = true">
-                  <span>头像预览</span>
-                </div>
+                      <i :class="n <= guestRating ? 'ri-star-fill' : 'ri-star-line'"></i>
+                    </button>
+                    <span class="star-text">{{ RATING_TEXTS[guestRating] || '' }}</span>
+                  </div>
 
+                  <textarea
+                    v-model="guestContent"
+                    class="review-input"
+                    rows="3"
+                    :maxlength="1000"
+                    placeholder="说说实际体验：延迟、稳定性、额度是否到账、有没有隐藏门槛..."
+                  ></textarea>
+
+                  <!-- 人机校验（fail-closed：挂件失败即拒绝提交，无算术题降级） -->
+                  <div class="guest-challenge">
+                    <span class="guest-label">人机校验 <em>*</em></span>
+                    <TurnstileBox
+                      v-if="challengeProvider === 'turnstile'"
+                      ref="turnstileRef"
+                      :site-key="turnstileSiteKey"
+                      @success="onTurnstileSuccess"
+                      @expired="onTurnstileExpired"
+                      @fail="onTurnstileFail"
+                    />
+                    <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeDisabledText }}</p>
+                    <p v-if="challengeRetryable" class="challenge-note">
+                      <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
+                    </p>
+                    <p v-if="challengeNote" class="challenge-note">{{ challengeNote }}</p>
+                    <button v-if="challengeFailed" type="button" class="challenge-retry" @click="retryTurnstile">
+                      <i class="ri-refresh-line"></i> 重新加载验证
+                    </button>
+                  </div>
+
+                  <div class="review-actions">
+                    <span class="char-count">{{ guestContent.length }} / 1000</span>
+                    <button
+                      type="button"
+                      class="tdd-btn ghost"
+                      @click="guestFormOpen = false"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      class="tdd-btn primary"
+                      :disabled="guestSubmitting || guestSubmitBlocked"
+                      @click="submitGuestReview"
+                    >
+                      {{ guestSubmitting ? '提交中...' : '提交评测' }}
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </section>
+
+            <!-- 我的评测 -->
+            <section v-if="authStore.isLoggedIn" class="tdd-section">
+              <h4 class="section-title">
+                <i class="ri-chat-3-line"></i> {{ myReview ? '修改我的评测' : '写下我的评测' }}
+              </h4>
+              <div class="review-form">
                 <div class="star-input">
                   <button
                     v-for="n in 5"
                     :key="n"
                     type="button"
                     class="star-btn"
-                    :class="{ active: n <= guestRating }"
+                    :class="{ active: n <= formRating }"
                     :title="`${n} 星`"
-                    @click="guestRating = n"
+                    @click="formRating = n"
                   >
-                    <i :class="n <= guestRating ? 'ri-star-fill' : 'ri-star-line'"></i>
+                    <i :class="n <= formRating ? 'ri-star-fill' : 'ri-star-line'"></i>
                   </button>
-                  <span class="star-text">{{ RATING_TEXTS[guestRating] || '' }}</span>
+                  <span class="star-text">{{ ratingText }}</span>
                 </div>
-
                 <textarea
-                  v-model="guestContent"
+                  v-model="formContent"
                   class="review-input"
                   rows="3"
                   :maxlength="1000"
                   placeholder="说说实际体验：延迟、稳定性、额度是否到账、有没有隐藏门槛..."
                 ></textarea>
-
-                <!-- 人机校验（fail-closed：挂件失败即拒绝提交，无算术题降级） -->
-                <div class="guest-challenge">
-                  <span class="guest-label">人机校验 <em>*</em></span>
-                  <TurnstileBox
-                    v-if="challengeProvider === 'turnstile'"
-                    ref="turnstileRef"
-                    :site-key="turnstileSiteKey"
-                    @success="onTurnstileSuccess"
-                    @expired="onTurnstileExpired"
-                    @fail="onTurnstileFail"
-                  />
-                  <p v-else-if="challengeProvider === 'disabled'" class="challenge-note">{{ challengeDisabledText }}</p>
-                  <p v-if="challengeRetryable" class="challenge-note">
-                    <button type="button" class="challenge-retry" @click="loadChallenge">重试加载</button>
-                  </p>
-                  <p v-if="challengeNote" class="challenge-note">{{ challengeNote }}</p>
-                  <button v-if="challengeFailed" type="button" class="challenge-retry" @click="retryTurnstile">
-                    <i class="ri-refresh-line"></i> 重新加载验证
-                  </button>
-                </div>
-
                 <div class="review-actions">
-                  <span class="char-count">{{ guestContent.length }} / 1000</span>
-                  <button
-                    type="button"
-                    class="tdd-btn ghost"
-                    @click="guestFormOpen = false"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    class="tdd-btn primary"
-                    :disabled="guestSubmitting || guestSubmitBlocked"
-                    @click="submitGuestReview"
-                  >
-                    {{ guestSubmitting ? '提交中...' : '提交评测' }}
+                  <span class="char-count">{{ formContent.length }} / 1000</span>
+                  <button type="button" class="tdd-btn primary" :disabled="submitting" @click="submitReview">
+                    {{ submitting ? '提交中...' : (myReview ? '更新评测' : '提交评测') }}
                   </button>
                 </div>
               </div>
-            </template>
-          </section>
+            </section>
 
-          <!-- 我的评测 -->
-          <section v-if="authStore.isLoggedIn" class="tdd-section">
-            <h4 class="section-title">
-              <i class="ri-chat-3-line"></i> {{ myReview ? '修改我的评测' : '写下我的评测' }}
-            </h4>
-            <div class="review-form">
-              <div class="star-input">
-                <button
-                  v-for="n in 5"
-                  :key="n"
-                  type="button"
-                  class="star-btn"
-                  :class="{ active: n <= formRating }"
-                  :title="`${n} 星`"
-                  @click="formRating = n"
-                >
-                  <i :class="n <= formRating ? 'ri-star-fill' : 'ri-star-line'"></i>
-                </button>
-                <span class="star-text">{{ ratingText }}</span>
+            <!-- 评测列表 -->
+            <section class="tdd-section">
+              <h4 class="section-title"><i class="ri-list-check"></i> 社区评测（{{ reviewTotal }}）</h4>
+              <div v-if="reviewsLoading" class="tdd-state small">
+                <i class="ri-loader-4-line spin"></i>
               </div>
-              <textarea
-                v-model="formContent"
-                class="review-input"
-                rows="3"
-                :maxlength="1000"
-                placeholder="说说实际体验：延迟、稳定性、额度是否到账、有没有隐藏门槛..."
-              ></textarea>
-              <div class="review-actions">
-                <span class="char-count">{{ formContent.length }} / 1000</span>
-                <button type="button" class="tdd-btn primary" :disabled="submitting" @click="submitReview">
-                  {{ submitting ? '提交中...' : (myReview ? '更新评测' : '提交评测') }}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- 评测列表 -->
-          <section class="tdd-section">
-            <h4 class="section-title"><i class="ri-list-check"></i> 社区评测（{{ reviewTotal }}）</h4>
-            <div v-if="reviewsLoading" class="tdd-state small">
-              <i class="ri-loader-4-line spin"></i>
-            </div>
-            <p v-else-if="reviews.length === 0" class="tdd-empty">还没有人评测，来写第一条吧。</p>
-            <ul v-else class="review-list">
-              <li v-for="r in reviews" :key="r.id" class="review-item">
-                <div class="review-head">
-                  <span class="review-avatar" :class="{ 'has-img': r.avatar }">
-                    <img
-                      v-if="r.avatar && !brokenAvatars.has(String(r.id))"
-                      :src="r.avatar"
-                      :alt="r.author"
-                      loading="lazy"
-                      @error="markAvatarBroken(r.id)"
+              <p v-else-if="reviews.length === 0" class="tdd-empty">还没有人评测，来写第一条吧。</p>
+              <ul v-else class="review-list">
+                <li v-for="r in reviews" :key="r.id" class="review-item">
+                  <div class="review-head">
+                    <span class="review-avatar" :class="{ 'has-img': r.avatar }">
+                      <img
+                        v-if="r.avatar && !brokenAvatars.has(String(r.id))"
+                        :src="r.avatar"
+                        :alt="r.author"
+                        loading="lazy"
+                        @error="markAvatarBroken(r.id)"
+                      >
+                      <template v-else>{{ initialOf(r.author) }}</template>
+                    </span>
+                    <span class="review-author">{{ r.author }}</span>
+                    <span v-if="r.source === 'guest'" class="review-tag" title="游客评测">游客</span>
+                    <span class="review-stars">
+                      <i
+                        v-for="n in 5"
+                        :key="n"
+                        :class="n <= r.rating ? 'ri-star-fill' : 'ri-star-line'"
+                      ></i>
+                    </span>
+                    <span class="review-time">{{ formatTime(r.updated_at || r.created_at) }}</span>
+                  </div>
+                  <p class="review-content">{{ r.content }}</p>
+                  <div class="review-foot">
+                    <button
+                      type="button"
+                      class="mark-btn"
+                      :class="{ active: r.my_marked }"
+                      :disabled="markingIds.has(String(r.id))"
+                      :title="r.my_marked ? '取消「有用」标记' : '标记这条评测有用'"
+                      @click="toggleMark(r)"
                     >
-                    <template v-else>{{ initialOf(r.author) }}</template>
-                  </span>
-                  <span class="review-author">{{ r.author }}</span>
-                  <span v-if="r.source === 'guest'" class="review-tag" title="游客评测">游客</span>
-                  <span class="review-stars">
-                    <i
-                      v-for="n in 5"
-                      :key="n"
-                      :class="n <= r.rating ? 'ri-star-fill' : 'ri-star-line'"
-                    ></i>
-                  </span>
-                  <span class="review-time">{{ formatTime(r.updated_at || r.created_at) }}</span>
-                </div>
-                <p class="review-content">{{ r.content }}</p>
-                <div class="review-foot">
-                  <button
-                    type="button"
-                    class="mark-btn"
-                    :class="{ active: r.my_marked }"
-                    :disabled="markingIds.has(String(r.id))"
-                    :title="r.my_marked ? '取消「有用」标记' : '标记这条评测有用'"
-                    @click="toggleMark(r)"
-                  >
-                    <i :class="r.my_marked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'"></i>
-                    <span class="mark-text">有用</span>
-                    <span v-if="r.mark_count" class="mark-count">{{ r.mark_count }}</span>
-                  </button>
-                  <span v-if="!r.mark_count" class="mark-hint">还没人标过</span>
-                </div>
-              </li>
-            </ul>
-            <button
-              v-if="reviewPage < reviewPagination.totalPages"
-              type="button"
-              class="tdd-btn ghost more-btn"
-              :disabled="reviewsLoading"
-              @click="loadMoreReviews"
-            >
-              加载更多评测
-            </button>
-          </section>
+                      <i :class="r.my_marked ? 'ri-thumb-up-fill' : 'ri-thumb-up-line'"></i>
+                      <span class="mark-text">有用</span>
+                      <span v-if="r.mark_count" class="mark-count">{{ r.mark_count }}</span>
+                    </button>
+                    <span v-if="!r.mark_count" class="mark-hint">还没人标过</span>
+                  </div>
+                </li>
+              </ul>
+              <button
+                v-if="reviewPage < reviewPagination.totalPages"
+                type="button"
+                class="tdd-btn ghost more-btn"
+                :disabled="reviewsLoading"
+                @click="loadMoreReviews"
+              >
+                加载更多评测
+              </button>
+            </section>
+
+            </div>
         </div>
 
         <!-- 底部操作 -->
@@ -566,9 +576,23 @@
               <i class="ri-bookmark-line"></i>
               {{ importing ? '导入中...' : '导入我的书签' }}
             </button>
-            <a :href="deal.url" target="_blank" rel="noopener noreferrer" class="tdd-btn ghost">
+            <!-- 抽中码后用服务端拼好的成品链接；未抽中且原文含程序占位符时降级为不可点（避免打开坏页面） -->
+            <a
+              v-if="!goBlocked"
+              :href="claimResolved || deal.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="tdd-btn ghost"
+            >
               <i class="ri-external-link-line"></i> 前往领取
             </a>
+            <span
+              v-else
+              class="tdd-btn ghost is-disabled"
+              title="该平台需邀请码，抽取后自动生成领取地址"
+            >
+              <i class="ri-external-link-line"></i> 前往领取
+            </span>
             <button
               v-if="deal.status === 'approved'"
               type="button"
@@ -655,6 +679,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
+import DealBadge from '~/components/tokens/DealBadge.vue'
 
 interface ITokenDeal {
   id: string
@@ -675,6 +700,20 @@ interface ITokenDeal {
   note_html?: string
   /** 2026-10-30：是否还有可用邀请码（码池不下发，码本身走 /invite-code 单独抽） */
   has_invite_code?: boolean
+  /**
+   * 是否实名（2026-10-30，契约见 T2）：''（未填）| 'no' | 'id_card' | 'face' | 'other'
+   * 注意：存量数据迁移后是**空串**，空串一律不渲染徽标。
+   */
+  real_name?: string
+  /** 「其他」的手填文案（服务端仅在 real_name==='other' 时保留，上限 40 字） */
+  real_name_other?: string
+  /**
+   * 领取地址里的 {邀请码} 占位符（2026-10-30）：
+   * 详情只回答「这条要不要先抽码」，**永远不下发码、也不下发 claim_url**；
+   * 替换后的成品地址只出现在 GET /:id/invite-code「已抽中」的那次响应里。
+   */
+  claim_url_source?: 'call_url' | 'url'
+  claim_url_has_placeholder?: boolean
   status?: string
   reject_reason?: string
   /** 公开接口不再下发 username（避免泄露账号名），这里保留可选仅作历史兼容 */
@@ -846,7 +885,16 @@ const shareOpen = ref(false)
 // ── 邀请码（2026-10-30）──
 // 码池**不会**随详情下发，这里拿到的永远是服务端按展现比例加权随机抽中的**那一个**
 // `t` 是抽中凭证：复制上报时必须带上，否则服务端无法确认「确实刚发过这个码」
-const inviteCode = ref<{ id: number; code: string; label: string; t: string } | null>(null)
+// `claim_url` 是「已替换好 {邀请码} 的成品领取地址」（未抽中 / 模板无占位符时为空串），
+// `claim_url_source` 说明这个模板取自 call_url 还是 url —— 前端只呈现，绝不自己替换。
+const inviteCode = ref<{
+  id: number
+  code: string
+  label: string
+  t: string
+  claim_url: string
+  claim_url_source: 'call_url' | 'url' | ''
+} | null>(null)
 const inviteCopied = ref(false)
 
 // ── 修改建议 ──
@@ -920,11 +968,20 @@ const initial = computed(() => (deal.value?.provider || '?').trim().charAt(0).to
 const regionLabel = computed(() => REGION_LABELS[deal.value?.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[deal.value?.source_tag || 'official'] || '官方直营')
 const isCloud = computed(() => deal.value?.category === 'cloud')
-const categoryText = computed(() => {
-  if (deal.value?.category === 'cloud') return '免费云服务器'
-  if (deal.value?.category === 'client') return '客户端额度'
-  return ''
-})
+
+/**
+ * 分类徽标（2026-10-30）：分类从正文事实区移到 header，并按分类给不同颜色。
+ * 三种取值都要有徽标（默认的 token 也要）—— 否则正文那条「分类」被移走后，
+ * 大多数通告的分类信息就整个消失了。配色全部走站点既有变量（tokens.css）。
+ */
+const CATEGORY_META: Record<string, { label: string; tone: string }> = {
+  token: { label: 'API 额度', tone: 'blue' },
+  cloud: { label: '免费云服务器', tone: 'purple' },
+  client: { label: '客户端额度', tone: 'primary' },
+}
+const categoryMeta = computed(
+  () => CATEGORY_META[String(deal.value?.category || 'token')] || CATEGORY_META.token!,
+)
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {
@@ -943,19 +1000,136 @@ const average = computed(() => {
   return Number(((d.rating_sum || 0) / d.rating_count).toFixed(1))
 })
 
-const verifications = ref<IVerification[]>([])
-
-/** 最近核验的一句话（详情页事实行） */
-const verifyText = computed(() => {
+/**
+ * 核验状态大徽标（2026-10-30）
+ *
+ * 原来这里是「最近核验 N 天前」文字事实行 + 正文里的「人工核验」时间线区块，现已全部删除，
+ * 改为详情正文中部一个圆形大徽标（见模板）。判定口径与列表卡片一致：
+ *   - 从未核验（verify_age_days < 0）或超过新鲜度阈值（verify_stale）→ 待核验（黄）
+ *   - 其余 → 已核验（绿）
+ * 徽标内保留一行小字说明新鲜度（「N 天前」），否则「最近核验」的信息就彻底没了。
+ */
+const verifyState = computed(() => {
   const d = deal.value
-  if (!d) return '—'
-  const days = Number(d.verify_age_days ?? -1)
-  if (!Number.isFinite(days) || days < 0) return '从未核验'
-  if (days <= 0) return '今日已核验'
-  return `${days} 天前`
+  const days = Number(d?.verify_age_days ?? -1)
+  const never = !d || !Number.isFinite(days) || days < 0
+  const pending = never || !!d?.verify_stale
+  const fresh = never
+    ? '从未核验'
+    : (days <= 0 ? '今日核验' : `${days} 天前核验`)
+  // 核验备注（verify_note）原来是「人工核验」区块里的一段正文，该区块按需求整块删除了；
+  // 这里把它挪进徽标的 title，内容不丢，但不再占正文版面（移动端无 hover，故只作兜底）。
+  const note = String(d?.verify_note || '').trim()
+  const base = pending
+    ? `站点尚未确认该通告当前可用（${fresh}）`
+    : `站点已人工确认该通告当前可用（${fresh}）`
+  return {
+    tone: pending ? 'pending' : 'ok',
+    label: pending ? '待核验' : '已核验',
+    sublabel: fresh,
+    title: note ? `${base}：${note}` : base,
+    // 读屏文本：水印层是装饰（aria-hidden），真实状态靠这段文字传达，
+    // 否则视觉降级会连带把「是否已核验」这个有意义的状态从无障碍树里抹掉。
+    srText: `核验状态：${pending ? '待核验' : '已核验'}（${fresh}）`,
+  }
 })
 
-const verifyWarn = computed(() => !!deal.value?.verify_stale)
+// ── 是否实名徽标（2026-10-30）────────────────────────────────
+// 契约（T2）：real_name ∈ '' | 'no' | 'id_card' | 'face' | 'other'；'' = 未填 → **不渲染徽标**
+// （存量数据迁移后全是空串，无条件渲染会一次性冒出几十个空徽标）。
+// real_name_other 仅在 other 时有意义（服务端在其它取值时强制清空），上限 40 字。
+const REAL_NAME_META: Record<string, { label: string; tone: string }> = {
+  no: { label: '无需实名', tone: 'ok' },
+  id_card: { label: '需身份证', tone: 'blue' },
+  face: { label: '需人脸', tone: 'purple' },
+  other: { label: '需实名', tone: 'pending' },
+}
+/**
+ * 是否实名（2026-10-30 三轮）：从底部方形水印改为 `.tdd-facts` 里的**小号彩色徽标**
+ * （用户要求「需实名应放置在红框这个位置」——红框在「免费额度」那行右侧）。
+ *
+ * 小徽标只能放 2~3 个字，所以「其他」的手填 40 字说明这样承载：
+ *   - `title`：鼠标悬停看到全文；
+ *   - `srText`：读屏完整读取（视觉简、语义全）；
+ *   - 徽标本体只显示「需实名」。
+ * `real_name === ''` 时返回 null → 不渲染（存量 80 条空串，必须保持静默）。
+ */
+const realNameBadge = computed(() => {
+  const key = String(deal.value?.real_name || '')
+  const meta = REAL_NAME_META[key]
+  if (!meta) return null
+  const other = key === 'other' ? String(deal.value?.real_name_other || '').trim() : ''
+  return {
+    tone: meta.tone,
+    label: meta.label,
+    title: other ? `${meta.label}：${other}` : meta.label,
+    srText: other ? `是否实名：${meta.label}（${other}）` : `是否实名：${meta.label}`,
+  }
+})
+
+// ── 领取地址的 {邀请码} 占位符（2026-10-30）──────────────────
+/**
+ * 与 server/utils/invite-codes.ts 的 CLAIM_PLACEHOLDER_PATTERN 同形：
+ * `{邀请码}` / `{code}` / `{invite_code}`，半角与全角花括号都认。
+ *
+ * ⚠️ 这里**只用于「要不要把它渲染成可点链接」的显示判定，绝不做替换**。
+ * 替换只发生在服务端、只在「确实抽中该码」的那次响应里（那是唯一会让码进入响应的地方）。
+ * 这层判定是兜底：详情接口的 `claim_url_has_placeholder` 只看 claim 模板（call_url 优先），
+ * 万一占位符写在了另一个字段上，这层能保证前端不会把带 `{邀请码}` 的原文做成链接给用户点。
+ */
+const CLAIM_PLACEHOLDER_RE = /[｛{](?:邀请码|code|invite_code)[｝}]/
+
+/** claim 模板取自哪个字段（详情接口给，缺省按 url） */
+const claimSource = computed<'call_url' | 'url'>(
+  () => (deal.value?.claim_url_source === 'call_url' ? 'call_url' : 'url'),
+)
+/** claim 模板原文（source 指向的那个字段；call_url 为空时服务端口径会回落到 url） */
+const claimRaw = computed(() => {
+  const d = deal.value
+  if (!d) return ''
+  const callUrl = String(d.call_url || '').trim()
+  if (claimSource.value === 'call_url' && callUrl) return callUrl
+  return String(d.url || '').trim()
+})
+/** 模板里是否还有未替换的占位符（服务端标记 + 本地兜底判定，任一为真即视为「要先抽码」） */
+const claimHasPlaceholder = computed(() =>
+  !!deal.value?.claim_url_has_placeholder || CLAIM_PLACEHOLDER_RE.test(claimRaw.value),
+)
+/** 服务端替换好的成品链接；没有占位符时不用它（那时它等于原文，展示原文即可） */
+const claimResolved = computed(() =>
+  claimHasPlaceholder.value ? String(inviteCode.value?.claim_url || '') : '',
+)
+
+/**
+ * 「领取地址」那一行要显示的**成品链接**（2026-10-30 三轮：位置还原 + 值升级）。
+ *
+ * 优先级：
+ *   1. 已抽中 → 服务端拼好的 `claim_url`（完整可用，已做 URL 编码）；
+ *   2. 模板无占位符 → 原文（`url`），与改动前的展示一致；
+ *   3. 模板有占位符但还没抽中 → 空串 → 整行不渲染。
+ *      占位符是后端程序变量，不能让访客看到；用户也明确要求「没有码就什么都不显示」。
+ */
+const claimReady = computed(() => {
+  if (claimResolved.value) return claimResolved.value
+  if (claimHasPlaceholder.value) return ''
+  return String(deal.value?.url || '').trim()
+})
+/** 来源就是 call_url 时，成品链接已经出现在「领取地址」那一行，不必再重复一行 */
+const showApiRow = computed(() => !!deal.value?.call_url && claimSource.value !== 'call_url')
+/**
+ * 「API 地址」那一行要显示的值。
+ * 占位符也可能写在 `call_url` 上（服务端 claim_url_source 会指过来）：
+ * 此时若还按原文显示 `call_url`，就会把 `{邀请码}` 字面泄给访客 —— 所以同上三级降级。
+ */
+const apiReady = computed(() => {
+  const callUrl = String(deal.value?.call_url || '').trim()
+  if (!callUrl) return ''
+  if (claimSource.value !== 'call_url') return callUrl
+  if (claimResolved.value) return claimResolved.value
+  return claimHasPlaceholder.value ? '' : callUrl
+})
+/** 底部「前往领取」是否会被坏链接带偏（模板含未替换占位符且还没抽到码） */
+const goBlocked = computed(() => claimHasPlaceholder.value && !claimResolved.value)
 
 const expiryText = computed(() => {
   const ts = deal.value?.expires_at
@@ -1039,7 +1213,8 @@ function onBackdrop() {
 /** 把详情载荷写入各响应式状态（SSR 预取与客户端拉取共用同一份逻辑） */
 function applyDealPayload(data: IDealDetailPayload) {
   deal.value = data.deal
-  verifications.value = data.verifications || []
+  // 2026-10-30：载荷里的 verifications 不再渲染（核验时间线整块已删除，改为状态大徽标），
+  // 接口仍按原样返回该字段，这里只是不再读写它。
   myVote.value = data.my_vote
   myReview.value = data.my_review
   myEdit.value = data.edits?.my_edit ?? null
@@ -1484,17 +1659,33 @@ async function removeDeal() {
 async function loadInviteCode() {
   inviteCode.value = null
   inviteCopied.value = false
-  if (!deal.value?.has_invite_code) return
+  // 有码要抽，或领取地址里写了 {邀请码} 占位符（抽码后才会有替换好的成品地址）时才请求
+  if (!deal.value?.has_invite_code && !deal.value?.claim_url_has_placeholder) return
   try {
     const res = await $fetch<{
-      data: { id: number | null; code: string | null; label: string; t: string }
+      data: {
+        id: number | null
+        code: string | null
+        label: string
+        t: string
+        claim_url?: string
+        claim_url_source?: 'call_url' | 'url'
+      }
     }>(
       `/api/token-deals/${props.dealId}/invite-code`,
       { credentials: 'include' },
     )
     const d = res?.data
     inviteCode.value = d?.code
-      ? { id: Number(d.id), code: String(d.code), label: String(d.label || ''), t: String(d.t || '') }
+      ? {
+          id: Number(d.id),
+          code: String(d.code),
+          label: String(d.label || ''),
+          t: String(d.t || ''),
+          // 未抽中 / 模板无占位符时服务端给空串 —— 前端据此回退到原文展示
+          claim_url: String(d.claim_url || ''),
+          claim_url_source: d.claim_url_source === 'call_url' ? 'call_url' : 'url',
+        }
       : null
   } catch {
     inviteCode.value = null
@@ -1729,6 +1920,32 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 16px;
 }
+/* ── 水印徽标的定位基准（2026-10-30 改版）──
+   为什么需要这一层 `.tdd-body-inner`：
+   `.tdd-body` 在弹窗形态下是**滚动容器**（`overflow-y:auto`）。若徽标以 `.tdd-body`
+   为基准做 `top:50%`，它锚定的是**首屏（可见区）中部**而不是「详情内容中部」，
+   而且会随内容一起滚出视野 —— 那既不是用户要的「页面中部」，也不是「背景图」。
+   所以新增一层与内容等高的内层容器，让水印跟随**内容**（而不是视口）定位：
+     - `position: relative`：作为水印的定位基准（相对内容高度）；
+     - `isolation: isolate`：**自建层叠上下文**。没有它，`z-index:-1` 的水印会跑到更外层
+       祖先（.tdd-modal / .tdd-backdrop）的背景后面而整层看不见；
+       有了它，水印落在正文内容之下、正文仍正常显示（这是「不影响正式内容」的机制保证）；
+     - `min-height: 100%`：内容不足一屏时也让水印有完整的定位空间。 */
+.tdd-body-inner {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+}
+/* 水印必须压在内容之下：给内容区块一个非负层叠位置。
+   （正常流元素本来在负 z-index 之上，这层显式声明让意图可读，
+   并防御后续有人给区块加 position 却没定义 z-index 时水印意外盖上去。） */
+.tdd-body-inner > .tdd-section,
+.tdd-body-inner > .tdd-facts,
+.tdd-body-inner > .tdd-title,
+.tdd-body-inner > .tdd-status {
+  position: relative;
+  z-index: 0;
+}
 .tdd-state {
   display: flex;
   flex-direction: column;
@@ -1769,8 +1986,11 @@ onUnmounted(() => {
 }
 
 .tdd-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* 事实区一行：左边「免费额度」卡片，右边是否实名小徽标（2026-10-30 三轮）。
+     原来是 grid(auto-fit)，徽标会被排成独立一列；改成 flex 让徽标贴右端。 */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -1781,8 +2001,56 @@ onUnmounted(() => {
   padding: 12px;
   border-radius: 10px;
   background: var(--surface-sunken);
+  /* 撑满剩余宽度，让徽标被推到右端 */
+  flex: 1 1 140px;
+  min-width: 0;
 }
 .fact-label { font-size: 11px; color: var(--text-tertiary); }
+/* 读屏专用：视觉隐藏但仍可被辅助技术读取（与本仓 TokenFilterBar / keys.vue 的写法一致）。
+   为什么详情页需要自己一份：scoped 样式不跨组件生效，
+   而「是否实名」的 sr-only 文本现在渲染在**本组件**里（不再经 DealBadge）。
+   必须是 1px + clip，不能用 display:none —— 后者读屏也读不到。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* ── 是否实名小徽标（2026-10-30 三轮）──
+   用户要求：放在「免费额度」那一行的右侧，小号彩色标签，**不是水印**。
+   直接复用 header 分类徽标（.tdd-category）的视觉语言：12px / 圆角 6px / 600 字重。
+   文案只有 2~3 个字（无需实名 / 需身份证 / 需人脸 / 需实名）；
+   「其他」的手填 40 字放不下，走 title 悬浮提示 + sr-only 完整文本。 */
+.tdd-realname {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+.tdd-realname.is-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
+}
+.tdd-realname.is-blue {
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 82%, var(--text-primary));
+}
+.tdd-realname.is-purple {
+  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
+}
+.tdd-realname.is-pending {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
+}
 .fact-value { font-size: 13px; color: var(--text-primary); }
 
 .tdd-section { margin-bottom: 16px; }
@@ -2637,57 +2905,50 @@ onUnmounted(() => {
   .tdd-foot-left, .tdd-foot-right { width: 100%; }
   .tdd-foot-left .tdd-btn, .tdd-foot-right .tdd-btn { flex: 1; justify-content: center; }
 }
-/* 人工核验（2026-10-20） */
-.fact-value.is-warn {
-  color: var(--warning);
+
+/* ── 窄屏 header：让右侧徽标组整体换行（2026-10-30）──
+   按盒模型测算：`.tdd-head-side` 里「分类徽标（最长『免费云服务器』6 字 ≈ 88px）+ 品质徽标 40px
+   + 关闭按钮 28px + 两个 gap 16px = 172px」，且 `flex-shrink: 0`（不可压缩）。
+   于是标题可用宽度 = 内容宽 − 172 − 图标 46：
+     360 → 109px、375 → 124px、390 → 139px、414 → 163px、430 → 179px
+   而标题下面那行「国内直连 · 官方直营 · 永久有效」约需 170px —— 414px 下会被折成两行。
+   不溢出，但很难看。所以断点取 480px（覆盖 360–430 全系手机竖屏）：
+   标题独占第一行、徽标组整体落到第二行右对齐。
+   不隐藏任何内容（分类/品质/关闭都还在），只改排布。
+   `flex: 1 1 100%` 让 `.tdd-head-main` 占据整行，`.tdd-head-side` 靠 `margin-left:auto` 右对齐。 */
+@media (max-width: 480px) {
+  .tdd-head { flex-wrap: wrap; row-gap: 10px; }
+  .tdd-head-main { flex: 1 1 100%; }
+  .tdd-head-side { margin-left: auto; }
 }
-.verify-hint {
-  margin-left: 6px;
-  font-size: 11px;
-  font-style: normal;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--warning-light, rgba(255, 159, 10, 0.12));
-  color: var(--warning);
+/* ── 分类彩色徽标（2026-10-30）：从正文事实区移到 header ──
+   与 .tdd-quality 同一尺寸语言（12px / 6px 圆角），只是每种分类一个色。
+   配色全部走站点既有变量，亮暗主题自动跟随；透视度与 .tdd-quality 的既有做法一致。 */
+.tdd-category {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
 }
-.verify-note {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
+.tdd-category.is-blue {
+  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-blue) 82%, var(--text-primary));
 }
-.verify-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.tdd-category.is-purple {
+  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
 }
-.verify-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
+.tdd-category.is-primary {
+  background: var(--primary-light);
+  color: var(--primary);
 }
-.verify-action {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  color: var(--text-tertiary);
-}
-.verify-action.is-alive {
-  color: var(--success);
-}
-.verify-action.is-dead {
-  color: var(--danger, #ff453a);
-}
-.verify-date {
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-.verify-item-note {
-  color: var(--text-tertiary);
+
+/* 底部「前往领取」在地址含未替换占位符时的降级态：不可点，但仍占位不跳版 */
+.tdd-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 </style>

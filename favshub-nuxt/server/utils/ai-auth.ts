@@ -10,13 +10,18 @@
  * 安全设计：
  *   - 明文令牌只在创建响应中出现一次；库中仅存 SHA-256 hex（`token_hash`）。
  *   - `delete` 权限必须显式授予，且仅管理员可创建含该权限的令牌（在创建端点校验）。
- *   - 所有请求先过 IP 级兜底限频（防无效令牌暴力猜测），再过令牌级限频。
+ *   - 所有请求先过 IP 级兜底限频（防无效令牌暴力猜测），再过令牌级限频；两层都是
+ *     「短窗口 + 长窗口」双窗口（两个都必须过，不是二选一），阈值/窗口见 CLAUDE.md。
+ *   - 通过鉴权后再占 per-令牌 / per-IP 并发槽位，槽位在 finally 与 res.close 双路释放。
  *   - 审计在 finally 中落库，best-effort（失败不阻断业务）。
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createError, defineEventHandler, getHeader, getRequestURL, type H3Event } from 'h3'
 import { getRawDb } from '../database'
-import { checkRateLimit, getClientIP } from './rate-limit'
+import {
+  acquireRequestSlot, consumeWindow, getClientIP, getRateLimitConfig, rateLimitError, windowLabel,
+} from './rate-limit'
+import { rateKeyForIp } from './deal-subscriptions'
 
 /** 令牌前缀 — 用于通道识别与展示 */
 export const PAT_PREFIX = 'favs_ai_'
@@ -127,13 +132,43 @@ export function verifyPat(raw: string): AiTokenRow | null {
 // ─── 鉴权入口 ───────────────────────────────────────────────────
 
 /**
+ * 取客户端 IP 并缓存到 event.context —— 一次请求里鉴权、并发、审计三处都要用，
+ * 只解析一次（`getClientIP` 每次都会读 runtimeConfig 与请求头）。
+ */
+function clientIpOf(event: H3Event): string {
+  const ctx = event.context as any
+  if (!ctx.aiClientIp) ctx.aiClientIp = getClientIP(event)
+  return ctx.aiClientIp as string
+}
+
+/** 双窗口限流的一层：不通过就抛 429（带 Retry-After） */
+function enforceAiWindow(
+  event: H3Event,
+  key: string,
+  limit: number,
+  windowMs: number,
+  label: string,
+): void {
+  const d = consumeWindow(key, limit, windowMs)
+  if (!d.allowed) {
+    throw rateLimitError(event, label, d.retryAfterSec, 'AI 通道有每分钟与每 30 分钟两层配额')
+  }
+}
+
+/**
  * AI 通道鉴权：解析 Bearer PAT → 校验 → IP 兜底限频 + 令牌级限频 → 懒更新 last_used_at。
  * 任何环节失败均抛 401/429，绝不回退 JWT。
  */
 export function authenticateAi(event: H3Event): AiTokenRow {
-  // IP 级兜底限频：拦截无效令牌暴力猜测（比令牌级限频宽松，但足以抑制扫描）
-  const ip = getClientIP(event)
-  checkRateLimit(`ai_ip:${ip}`, 300, 60_000)
+  const cfg = getRateLimitConfig().ai
+  const ip = clientIpOf(event)
+
+  // IP 级兜底限频：拦截无效令牌暴力猜测（比令牌级宽松，但足以抑制扫描）。
+  // 键用 rateKeyForIp（既有实现）：IPv6 收敛到 /64，换地址不能重置配额；值经 sha256 截断，不落明文 IP。
+  enforceAiWindow(event, `ai_ip:${rateKeyForIp(ip)}`, cfg.ipPerMin, cfg.windowMs,
+    `AI 同 IP 兜底 ${cfg.ipPerMin} 次/${windowLabel(cfg.windowMs)}`)
+  enforceAiWindow(event, `ai_ip_burst:${rateKeyForIp(ip)}`, cfg.ipBurst, cfg.burstWindowMs,
+    `AI 同 IP 兜底 ${cfg.ipBurst} 次/${windowLabel(cfg.burstWindowMs)}`)
 
   const header = getHeader(event, 'authorization') || ''
   if (!header.startsWith('Bearer ')) {
@@ -162,8 +197,12 @@ export function authenticateAi(event: H3Event): AiTokenRow {
     })
   }
 
-  // 令牌级限频（每令牌 600 次/分钟）
-  checkRateLimit(`ai:${row.id}`, 600, 60_000)
+  // 令牌级限频：短窗口 + 长窗口，**两个都要过**（不是二选一）。
+  // 短窗口挡住瞬时突发（10 次/分钟），长窗口挡住「按分钟顶格慢慢刷」（50 次/30 分钟）。
+  enforceAiWindow(event, `ai:${row.id}`, cfg.perMin, cfg.windowMs,
+    `AI 每令牌 ${cfg.perMin} 次/${windowLabel(cfg.windowMs)}`)
+  enforceAiWindow(event, `ai_burst:${row.id}`, cfg.burst, cfg.burstWindowMs,
+    `AI 每令牌 ${cfg.burst} 次/${windowLabel(cfg.burstWindowMs)}`)
 
   // 懒更新 last_used_at（5 分钟节流，降低写压力）
   const now = Date.now()
@@ -225,7 +264,7 @@ export function auditAi(event: H3Event, statusCode: number) {
       path,
       scope,
       statusCode,
-      getClientIP(event),
+      clientIpOf(event),
       `${event.method} ${path} -> ${statusCode}`,
       Date.now(),
     )
@@ -252,14 +291,39 @@ export function defineAiHandler(
     const need = typeof scope === 'function' ? scope(event) : scope
     ;(event.context as any).aiScope = need
 
+    const cfg = getRateLimitConfig().ai
+    const releases: Array<() => void> = []
     let status = 200
     try {
       requireScope(event, need)
+
+      // 并发上限（在途请求数）：令牌级更严，IP 级兜底防「一个 IP 开一堆令牌/连接」。
+      // 先拿令牌槽再拿 IP 槽；第二个拿不到时第一个已在 releases 里，finally 会释放。
+      // 释放是幂等的，且同时挂在 res 的 close 上 —— 异常、超时、客户端中途断开都会释放。
+      const tokenSlot = acquireRequestSlot(event, `ai_c:${token.id}`, cfg.concurrency)
+      if (!tokenSlot) {
+        throw rateLimitError(event, `AI 同令牌并发上限 ${cfg.concurrency}`, 1,
+          '同一令牌的在途请求过多，请串行调用或稍后再试')
+      }
+      releases.push(tokenSlot)
+
+      const ipSlot = acquireRequestSlot(
+        event, `ai_c_ip:${rateKeyForIp(clientIpOf(event))}`, cfg.ipConcurrency)
+      if (!ipSlot) {
+        throw rateLimitError(event, `AI 同 IP 并发上限 ${cfg.ipConcurrency}`, 1,
+          '同一来源 IP 的在途请求过多，请串行调用或稍后再试')
+      }
+      releases.push(ipSlot)
+
       return await handler(event, token)
     } catch (err: any) {
       status = Number(err?.statusCode) || 500
       throw err
     } finally {
+      // 幂等释放：即使 res.close 已经放过一遍，这里也只是空操作
+      for (const release of releases) {
+        try { release() } catch { /* 释放失败不能掩盖原始错误 */ }
+      }
       auditAi(event, status)
     }
   })
