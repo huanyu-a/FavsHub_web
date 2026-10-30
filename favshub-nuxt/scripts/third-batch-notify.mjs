@@ -276,14 +276,11 @@ async function main() {
         cardA.md.split('\n').filter(l => l.includes('到期')).join(' | '))
       check('(j) 站内通知首行 `### `', cardA.md.startsWith('### '), cardA.md.split('\n')[0])
       check('(j) 站内通知含 `- ` 字段行', /(^|\n)- \S/.test(cardA.md))
-      if (cardA.md.includes(`[查看通告](`) && cardA.md.includes(`/tokens/${idA}.html`)) {
-        ok('(j) 站内通知含可点详情链接（伪静态地址）')
-      } else {
-        warn('(j) 「管理员直接发布」的通知没有详情链接：`server/api/token-deals/index.post.ts` 把' +
-          '**提交载荷**（camelCase、无 id）传给了 notifyTokenDealPublished，站内这一侧拿不到 id 就补不出链接。' +
-          '调用点一行即可修：`notifyTokenDealPublished(d)` → `notifyTokenDealPublished({ ...d, id })`（或改传库行）。' +
-          `该文件不在 task-6 写域，已列入报告待派。实测卡片尾部：${JSON.stringify(cardA.md.split('\n').slice(-1)[0])}`)
-      }
+      // 链接文案有两处来源：事件卡用「查看通告」，通知卡用「查看详情」——两种都认，
+      // 之前只认前者，导致明明有链接却走到 warn 分支（断言过时，不是真缺陷）。
+      const hasLink = /\[(查看通告|查看详情)\]\(/.test(cardA.md) && cardA.md.includes(`/tokens/${idA}.html`)
+      check('(j) 站内通知含可点详情链接（伪静态地址）', hasLink,
+        `尾部=${JSON.stringify(cardA.md.split('\n').slice(-1)[0])}`)
       check('站内通知 text 保持紧凑（无空行）', !cardA.text.includes('\n\n'), JSON.stringify(cardA.text).slice(0, 120))
       check('站内通知 text 不含 markdown 标记（纯文本兜底）', !cardA.text.includes('### ') && !cardA.text.includes('**'))
     }

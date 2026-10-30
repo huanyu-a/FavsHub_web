@@ -2,7 +2,7 @@
   <!-- 装饰层：读屏不可见（真实状态由下方 .sr-only 承载），不参与布局、不挡点击 -->
   <div
     class="deal-badge"
-    :class="[`is-${tone}`, 'is-circle', `is-anchor-${anchor}`, { 'is-seal-secondary': secondary }]"
+    :class="[`is-${tone}`, 'is-circle', 'is-anchor-top']"
     aria-hidden="true"
   >
     <!-- title 是「其他」40 字手填文案的悬停出口（圆内只显示「需实名」三个字）。
@@ -70,19 +70,10 @@ withDefaults(defineProps<{
   title?: string
   /** 读屏文本：视觉上看不见，但承载真实语义（如「核验状态：已核验」） */
   srText: string
-  /**
-   * 锚点：top=内容区上部（核验）/ bottom=内容区下部（是否实名）。
-   * 两个水印要分居上下，否则会互相重叠。
-   */
-  anchor?: 'top' | 'bottom'
-  /** 是否为「次要水印」：次要水印小一号，避免与主水印相交 */
-  secondary?: boolean
 }>(), {
   sublabel: '',
   tone: 'neutral',
   title: '',
-  anchor: 'top',
-  secondary: false,
 })
 </script>
 
@@ -139,26 +130,19 @@ withDefaults(defineProps<{
   gap: calc(var(--badge-size) * 0.02);
 }
 
-/* ── 锚点（显式类，由模板绑定 `is-anchor-${anchor}`）──
-   两个水印分居上下，避免互相重叠：
-     top    = 内容区上部（核验水印）
-     bottom = 内容区下部（是否实名水印）
-   上一版核验水印是「相对内容区居中」，用户反馈「手机端第一屏看不到」——
+/* ── 锚点：内容区上部（显式类，由模板绑定 'is-anchor-top'）──
+   2026-10-30 六轮：是否实名已改回 `.tdd-facts` 小徽标，本组件只服务核验水印，
+   所以锚点固定为 top（原来的 bottom 锚点与次水印尺寸已删除）。
+   上一版是「相对内容区居中」，用户反馈「手机端第一屏看不到」——
    因为第一屏只有 header + 免费额度 + 接入信息，够不到容器一半高度。
    改到顶部 8% 后：360×640（容器高 ≈ 0.88×640 − 126 ≈ 437）顶边 ≈ 35px，
-   圆直径 min(180, 320, 28vh=179) ≈ 179px → 底边 ≈ 214px，
+   圆直径 min(180, 320, 45cqh≈197) ≈ 180px → 底边 ≈ 215px，
    完整落在首屏内、位置正好在「免费额度」到「接入信息」之间。 */
 .deal-badge.is-anchor-top {
   top: 8%;
   left: 50%;
   transform: translate(-50%, 0);
 }
-.deal-badge.is-anchor-bottom {
-  bottom: 8%;
-  left: 50%;
-  transform: translate(-50%, 0);
-}
-
 /* ── 尺寸：跟着**容器高**（cqh），不是视口高 ──
    主水印（核验）：min(50vw, 320px, 45cqh)
    次水印（是否实名）：min(38vw, 240px, 34cqh) —— 比主水印小一号。
@@ -183,11 +167,6 @@ withDefaults(defineProps<{
    明显偏离用户「直径要占页面宽度的一半」的要求。0.45/0.34 在保证恒不相交的前提下
    让水印在常见容器高（≥712px）时仍能吃到 vw 封顶；比值 0.34/0.45 ≈ 0.756，
    与「次水印 240 / 主水印 320 = 0.75」一致。 */
-.deal-badge.is-seal-secondary {
-  --badge-size: min(38vw, 240px);
-  --badge-size: min(38vw, 240px, 34cqh);
-}
-
 .badge-label,
 .badge-sub {
   max-width: 100%;
