@@ -1036,8 +1036,11 @@ async function main() {
       !claimBody.includes('该平台需邀请码') && !claimBody.includes('抽取后自动生成领取地址'))
     check('SSR 未抽码：不出现 .row-pending / .claim-hint 任何提示元素',
       !claimBody.includes('row-pending') && !claimBody.includes('claim-hint'))
-    check('SSR 未抽码：「领取地址」标签仍在（位置还原），但没有值',
-      claimBody.includes('领取地址'))
+    // 2026-10-30 四轮：用户要求「没有码就什么都不显示」→ **整行**不渲染。
+    // 此前 `v-if` 只挂在 `<a>` 上，行容器照旧渲染，于是只剩一个孤零零的
+    // 「领取地址」标签（下面紧跟 API 地址行，读起来像地址丢了）。
+    check('SSR 未抽码：「领取地址」**整行**不渲染（标签也不该出现）',
+      !claimBody.includes('领取地址'), claimBody.slice(0, 300))
     check('SSR 未抽码：正文区块容器已渲染（.tdd-body-inner，水印与滚动锚点的载体）',
       claimBody.includes('tdd-body-inner'))
     check('SSR 未抽码：底部「前往领取」降级为不可点（is-disabled，无 href）', (() => {
@@ -1058,6 +1061,45 @@ async function main() {
     check('对照：无占位符通告正常展示原文链接（不被降级）',
       bodyHtmlOf(pageVerified).includes('https://cloud.example.com/apply'))
 
+    // ── (l) API 地址行不得被误隐藏（2026-10-30 四轮，线上 39/46 条受影响）──
+    //
+    // 回归背景：`claimUrlTemplateOf()` 在**没有占位符**时也会把 `claim_url_source`
+    // 指成 `'call_url'`（选序第三步「call_url 非空则用 call_url」与占位符无关）。
+    // 而 `showApiRow` 原先按 `claimSource !== 'call_url'` 判断，于是任何
+    // 「填了 call_url、但没写占位符」的通告都命中「已重复，不必再显示」分支 ——
+    // 可「领取地址」那行此时显示的是 `url`，`call_url` 从未出现在页面上，
+    // 结果**两个地址都不完整**（生产实测 39/46 条）。
+    //
+    // 修法：判据改为比对成品值 `claimReady !== callUrl`。下面这组断言就是防它复发。
+    console.log('\n▶ (l) API 地址行：有 call_url 且未与领取地址重复时必须显示')
+    {
+      // 场景 1：url 与 call_url 都无占位符、且不同 → 两行都要在
+      const idBoth = await createDeal({
+        ...base, title: '戊站 两行都要', provider: '戊站',
+        url: 'https://example.com/claim', call_url: 'https://api.example.com/v1',
+      })
+      const bothPage = (await api(`/tokens/${idBoth}.html`)).text
+      const bothBody = bodyHtmlOf(bothPage)
+      check('(l) 两行都在：渲染了「领取地址」', bothBody.includes('领取地址'), bothBody.slice(0, 400))
+      check('(l) 两行都在：渲染了「API 地址」（修复前会被误隐藏）',
+        bothBody.includes('API 地址'), bothBody.slice(0, 400))
+      check('(l) 两行都在：领取地址显示的是 url',
+        bothBody.includes('https://example.com/claim'))
+      check('(l) 两行都在：API 地址显示的是 call_url',
+        bothBody.includes('https://api.example.com/v1'))
+
+      // 场景 2：url 与 call_url 完全相同 → 不重复，只显示一行
+      const idSame = await createDeal({
+        ...base, title: '己站 同一地址不重复', provider: '己站',
+        url: 'https://same.example.com/x', call_url: 'https://same.example.com/x',
+      })
+      const samePage = (await api(`/tokens/${idSame}.html`)).text
+      const sameBody = bodyHtmlOf(samePage)
+      check('(l) 同址去重：领取地址在', sameBody.includes('领取地址'))
+      check('(l) 同址去重：不重复渲染 API 地址行',
+        !sameBody.includes('API 地址'), sameBody.slice(0, 400))
+    }
+
     // ── 对照：有占位符但**没有配任何码** → 不能给「去抽取」（点了没反应）──
     const idNoPool = await createDeal({
       ...base, title: '丑站 占位符但无码池', provider: '丑站',
@@ -1073,8 +1115,11 @@ async function main() {
       !noPoolBody.includes('当前暂无可用邀请码'))
     check('无码池：不出现「去抽取」、不出现 .row-pending / .claim-hint',
       !noPoolBody.includes('去抽取') && !noPoolBody.includes('row-pending') && !noPoolBody.includes('claim-hint'))
-    check('无码池：「领取地址」标签仍在但没有值（一行空标签）',
-      noPoolBody.includes('领取地址') && !noPoolBody.includes('example.com/join'))
+    // 2026-10-30 四轮：无码时**整行**隐藏（不是「留空标签」）——
+    // 空标签会让读者以为地址丢了，这正是用户报告的问题。
+    check('无码池：「领取地址」整行不渲染（既无标签也无值）',
+      !noPoolBody.includes('领取地址') && !noPoolBody.includes('example.com/join'),
+      noPoolBody.slice(0, 300))
     check('无码池：整页仍无占位符字面（渲染层口径）',
       PLACEHOLDER_LITERALS.every(lit => !visibleHtmlOf(noPoolPage).includes(lit)))
 
