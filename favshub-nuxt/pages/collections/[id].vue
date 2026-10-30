@@ -189,10 +189,28 @@ async function toggleSubscribe() {
   }
 }
 
-const { data: collectionData, pending } = await useFetch<{ collection: ICollection; categories: any[]; bookmarks: any[] }>(
+// 2026-10-31：把 `error` 也接住并**抛成 404**。
+//
+// 原先只解构 `{ data, pending }`，接口 404 时 `data` 为 null，页面走到模板里的
+// 「精选集不存在或已被删除」错误态 —— 看起来没问题，但**HTTP 状态码是 200**。
+// 后果：搜索引擎会把 `https://<站>/collections/任意瞎写的 id` 当成有效页面收录
+// （软 404），而 sitemap 里同时列着 84 个精选集，等于自己给爬虫喂重复内容。
+// 其它详情页（`/prompts/:id`、`/tokens/:id.html`）都是抛 createError 的，
+// 只有这里漏了 —— 实测 `/collections/nonexistent_xyz` 返回 200，两者返回 404。
+const { data: collectionData, pending, error: collectionError } = await useFetch<{ collection: ICollection; categories: any[]; bookmarks: any[] }>(
   () => '/api/collections/' + collectionId.value,
   { server: true, lazy: false }
 )
+// 只有在「确实取不到」时才抛：网络抖动等非 404 错误也交给 error.vue，
+// 由它渲染通用错误页（比停在半空白的详情页好）。
+if (collectionError.value) {
+  const st = Number((collectionError.value as any)?.statusCode || (collectionError.value as any)?.status || 0)
+  throw createError({
+    statusCode: st === 404 ? 404 : (st || 500),
+    statusMessage: st === 404 ? '精选集不存在' : '加载精选集失败',
+    data: { error: (collectionError.value as any)?.data?.error || '精选集不存在或已被删除' },
+  })
+}
 const loading = computed(() => pending.value)
 
 // 检查并设置订阅状态（必须在 useFetch 之后）
