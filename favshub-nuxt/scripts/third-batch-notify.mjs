@@ -159,12 +159,20 @@ async function waitSpool(min, desc, { timeout = 12_000 } = {}) {
 }
 
 // ── 事件流 ──────────────────────────────────────────────────
-async function fetchEvents() {
-  const { status, json } = await api('/api/token-deals/changes?since=0&limit=100')
-  if (status !== 200 || !Array.isArray(json?.events)) {
-    throw new Error(`GET /api/token-deals/changes 失败：HTTP ${status} ${JSON.stringify(json).slice(0, 200)}`)
+/**
+ * 取事件流。
+ * 默认走**公开**端点（`/api/token-deals/changes`）；传 `{ cookie, path }` 可改走管理员端点
+ * （`/api/admin/token-deals/events`，返回 `{items}` 而非 `{events}`）—— 用于断言
+ * 「清洗只作用于公开出口，管理员仍能看到原始差异」。
+ */
+async function fetchEvents(opts = {}) {
+  const path = opts.path || '/api/token-deals/changes?since=0&limit=100'
+  const { status, json } = await api(path, opts.cookie ? { cookie: opts.cookie } : {})
+  const list = json?.events || json?.items
+  if (status !== 200 || !Array.isArray(list)) {
+    throw new Error(`GET ${path} 失败：HTTP ${status} ${JSON.stringify(json).slice(0, 200)}`)
   }
-  return json.events
+  return list
 }
 /** 取某类事件的最后一条（同一类可能有多条） */
 function pick(events, kind) {
@@ -475,6 +483,115 @@ async function main() {
         warn(`(h) 观察到一个**既有缺陷**（不在本次写域）：real_name 的差异 from 恒为「空」——` +
           `dealToPatchShape() 没有摊平 real_name/real_name_other，于是任何一次带 real_name 的 PUT 都会` +
           `产生一条假的「是否实名 空 → x」差异，模板未改也会推一条 updated。修法在 server/utils/token-deals.ts 的 dealToPatchShape（3 行），需另派。`)
+      }
+    }
+  }
+
+  // ── (k) 公开事件流不得下发邀请码占位符 / 码池明文（2026-10-30 四轮）──
+  //
+  // 回归背景：这两类泄露曾真实存在于生产（实测 seq 16 / 51 / 63）。
+  //   1. 快照 `url` 存模板原文 → `{邀请码}` 直接出现在 changes / feed / 推送文案里；
+  //   2. `meta.changes` 记着 `url` 的 from/to 原始值 → 「写死真实码的链接」改成
+  //      「占位符」时，`changes[].from` 就是**带真实码的完整 URL**，而 changes 数组
+  //      是公开下发的，等于把码池白送给匿名访客。
+  //
+  // 修法在 `server/utils/deal-events.ts` 的 `scrubInviteCodeLeak()`（只作用于公开出口
+  // `publicEventViews`，管理员端点仍看原始差异）。这里从**外部视角**（拉公开接口）
+  // 断言清洗确实生效，且**没有误伤**通告自身的公开领取链接。
+  console.log('\n▶ (k) 公开事件流：占位符 / 码池明文一律不下发，公开领取链接保留')
+  {
+    const PH = ['{邀请码}', '{code}', '{invite_code}', '｛邀请码｝']
+    // 造一条「用码池机制」的通告：url 写占位符 + 码池里放一个可识别的码。
+    // 随后把 url 改成「写死该码」再改回占位符 —— 这会产出一条 changes.from 含真实码的
+    // updated 事件，正是上面第 2 类泄露的成因。
+    const POOL_CODE = `E2E${STAMP.toString(36).slice(-6).toUpperCase()}`
+    const phTitle = 'T4 通告 K：占位符与码池'
+    let idK = ''
+    {
+      const { status, json } = await api('/api/token-deals', {
+        method: 'POST', cookie: admin,
+        body: {
+          ...dealA, title: phTitle, provider: 'K服务商',
+          url: 'https://example.com/k?ref={邀请码}', call_url: 'https://example.com/k/v1',
+        },
+      })
+      check('(k) 发布含占位符通告 K', status === 200, JSON.stringify(json).slice(0, 200))
+      idK = String(json?.deal_id || json?.id || '')
+      check('(k) 拿到通告 K 的 id', !!idK)
+    }
+    if (idK) {
+      const put = await api(`/api/token-deals/${idK}/invite-codes`, {
+        method: 'PUT', cookie: admin,
+        body: { codes: [{ code: POOL_CODE, label: '', weight: 1, copyLimit: 0, enabled: true }] },
+      })
+      check('(k) 写入码池', put.status === 200, JSON.stringify(put.json).slice(0, 200))
+
+      // ① url 改成「写死真实码」→ 产出 changes.to 含真实码的 updated 事件
+      // ⚠️ PUT 是**整体替换**语义：必须带齐必填字段（provider / title / url），
+      // 只传 url 会 400「服务商名称不能为空」。这里以通告 K 的原始内容为基底再改 url。
+      const kBase = {
+        provider: 'K服务商', title: phTitle,
+        call_url: 'https://example.com/k/v1',
+        quota: '40 美元/月', models: ['GLM-5', 'MiMo'],
+        region: 'cn', quality: '中品', category: 'token',
+        expires_at: CROSS_MONTH_EXPIRES, real_name: 'no', note: '备注 K',
+      }
+      const put1 = await api(`/api/token-deals/${idK}`, {
+        method: 'PUT', cookie: admin,
+        body: { ...kBase, url: `https://example.com/k?ref=${POOL_CODE}` },
+      })
+      check('(k) PUT url=写死真实码 → 200', put1.status === 200, JSON.stringify(put1.json).slice(0, 200))
+      // ② 再改回占位符 → 产出 changes.from 含真实码的 updated 事件（第 2 类泄露的典型形态）
+      const put2 = await api(`/api/token-deals/${idK}`, {
+        method: 'PUT', cookie: admin,
+        body: { ...kBase, url: 'https://example.com/k?ref={邀请码}' },
+      })
+      check('(k) PUT url=占位符 → 200', put2.status === 200, JSON.stringify(put2.json).slice(0, 200))
+
+      const pubEvents = await fetchEvents()
+      const kEvents = pubEvents.filter(e => e.deal?.id === idK)
+      check('(k) 通告 K 产生了事件', kEvents.length > 0, String(kEvents.length))
+
+      // 断言 1：公开事件流任何字段都不含占位符
+      let phHit = 0
+      for (const ev of pubEvents) {
+        if (PH.some(p => JSON.stringify(ev).includes(p))) {
+          phHit++
+          bad('(k) 公开事件流出现占位符', `seq=${ev.seq} ${JSON.stringify(ev).slice(0, 200)}`)
+        }
+      }
+      if (!phHit) ok(`(k) ${pubEvents.length} 条公开事件均不含占位符`)
+
+      // 断言 2：公开事件流任何字段都不含码池里的码
+      let codeHit = 0
+      for (const ev of pubEvents) {
+        if (JSON.stringify(ev).includes(POOL_CODE)) {
+          codeHit++
+          bad('(k) 公开事件流泄露码池明文', `seq=${ev.seq} ${JSON.stringify(ev).slice(0, 240)}`)
+        }
+      }
+      if (!codeHit) ok('(k) 公开事件流不含码池明文（含 changes.from 的历史值）')
+
+      // 断言 3：**没有误伤** —— 通告自身的公开领取链接（不含码池码）应原样保留。
+      //
+      // ⚠️ 注意选谁做样本：通告 A 在本步之前已被软删除（`▶ 造 offline` 段），
+      // 而公开事件流对**不可见**通告会走 `offlineSnapshot()` 脱敏（`deal.url` 被清空）——
+      // 那是既有的可见性收敛，不是误伤。所以这里必须用**仍然可见**的通告：
+      // 通告 C（云服务器，`url: https://example.com/c`）全程未删除。
+      const cEv = pubEvents.find(e => e.deal?.id === idC && e.deal?.url)
+      check('(k) 公开领取链接未被误清空（可见通告 C 的 url 仍在）',
+        !!cEv && String(cEv.deal.url).includes('example.com/c'), JSON.stringify(cEv?.deal?.url))
+
+      // 断言 4：管理员端点仍能看到原始差异（清洗只在公开出口）。
+      // ⚠️ 必须显式带 `limit=200`：该端点默认只返回最近 **50** 条，而测试库里事件
+      // 早已超过 50（通告 K 的 url 变更排在较早位置），用默认值会取不到而误报「未记录」。
+      const adminEv = await fetchEvents({ cookie: admin, path: '/api/admin/token-deals/events?limit=200' })
+      const adminK = adminEv.filter(e => e.deal?.id === idK && (e.changes || []).some(c => c.field === 'url'))
+      check('(k) 管理员端点仍保留 url 原始差异（清洗只作用于公开出口）', adminK.length > 0, String(adminK.length))
+      if (adminK.length) {
+        // 原始差异里应当仍能看到「写死真实码」那一端 —— 证明清洗没有污染管理员视图
+        const blob = JSON.stringify(adminK.map(e => e.changes))
+        check('(k) 管理员视图仍含真实码原文（未被清洗）', blob.includes(POOL_CODE), blob.slice(0, 200))
       }
     }
   }
