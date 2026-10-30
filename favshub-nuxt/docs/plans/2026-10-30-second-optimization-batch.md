@@ -361,3 +361,56 @@ XSS（50 个载荷全部被挡，含 SVG/mathML/编码/注释/mXSS 绕过尝试�
   （可再评一次）。208 条游客评测的小站点，影响可接受，无需数据迁移。
 
 > 不能靠改 `users` 表或加白名单绕过 —— 只要签名密钥可猜，权限判定就形同虚设。
+
+---
+
+## 11. 生产 JWT 密钥轮换（2026-10-30 14:55）— §10 已处置
+
+用户决策：**立刻轮换，并一并处理那 2 条 QQ 密文**。
+
+### 执行与证据
+
+| 步骤 | 结果 |
+|----|----|
+| 轮换前备份 | `data/backups/favshub.db.pre-rotate-20261030_*`，`integrity_check=ok` |
+| 密文重加密（先自校验再落地） | 2 条 `token_deal_guest_reviews.qq_cipher`：旧密钥可解 → 新密文回解一致 → **旧密钥已无法解开**；不变量校验不通过则中止且不写库 |
+| 新密钥 | `crypto.randomBytes(48).toString('base64')`（64 字符），写入 `.env` 的 `NUXT_JWT_SECRET`，保留原有 `COMPOSE_PROJECT_NAME`；原 `.env` 另存备份 |
+| 部署副本 compose.yaml | 默认值由公开占位串改回 `:-}`，与仓库版本一致（另存备份） |
+| 容器重建 | `docker compose -f compose.yaml up -d favshub` |
+| **密钥一致性校验** | 容器实际取到的值 与 `.env` 中值的 sha256 前 16 位一致（`04509cf86e619d3b`）—— 证明 `.env` 解析没有把值改坏（改坏了那 2 条密文就解不开） |
+
+### 验证
+
+```
+用【旧的公开默认值】伪造令牌 → /api/admin/announcements  401   ← 漏洞已关闭（轮换前是 200）
+                              /api/admin/token-deals     401
+用【新密钥】签发令牌           → /api/admin/announcements  200   ← 应用确实在用新密钥，管理鉴权仍正常
+/avatar/<新密文1>.jpg          → 200  image/jpeg  3329B        ← 重加密正确，端点能用新密钥解开
+/avatar/<新密文2>.jpg          → 200  image/jpeg  3804B
+home / tokens                  → 200 / 200
+启动日志中的「公开默认值」告警   → 0 条
+```
+
+### 附带影响（如实记录）
+- 所有此前签发的登录会话已失效，用户（含管理员）需重新登录一次 —— 这是轮换签名密钥的必然结果。
+- 历史游客评测/投票的去重指纹（`digest()` 派生）已同批轮换，旧行与新提交不再匹配，
+  「同一访客同一通告只能评一次/投一票」对**旧行**短暂失效（可再评一次）。未做数据迁移。
+- 代码侧新增防线：`server/utils/jwt.ts` 在启动时若发现密钥等于已知公开占位值会大声告警
+  （只告警不阻断，避免站点因一个配置项起不来），相关说明记入 `favshub-nuxt/CLAUDE.md`。
+
+---
+
+## 12. 待办：伪静态（进行中）
+
+用户澄清的需求：「部分详情页还是有 ? 参数」—— 即通告详情 `/tokens?deal=<id>` 与
+提示词详情 `/prompts?prompt_id=<id>` 仍是查询参数形式。
+
+已核实的关键事实：`components/tokens/TokenDealDetail.vue` 的内容由 `ref` + `onMounted` + `$fetch`
+**在客户端**拉取，因此**仅把地址从 `?deal=x` 换成 `/tokens/x.html` 只是换了个地址，
+爬虫拿到的 HTML 里仍然没有详情正文** —— 真正的伪静态必须让详情页服务端渲染出内容
+（改造为可 SSR 取数，并处理 Cookie 转发以避免 hydration 不一致）。
+
+已确认无需改动 nginx：`location /` 会把所有非静态路径反代给 Nitro，`.html` 亦进 Nuxt 路由。
+
+该工作已派给 teammate `pseudo-static-coder`（共享任务 `task-2`），
+验收标准含「curl 到 SSR HTML 并 grep 出详情正文」与「旧地址 301」。
