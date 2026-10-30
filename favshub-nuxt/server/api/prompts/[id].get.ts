@@ -70,8 +70,14 @@ export default defineEventHandler(async (event) => {
   prompt.versions = versions
 
   // 内部列不下发（2026-10-30 四轮）：与列表端点同口径。
-  // `SELECT * FROM prompts` 会把 `deleted_at` 一起带出来。当前该列全库恒为 NULL
-  // （提示词用 `login_required` 做可见性，没有软删除 UI），属**偶然安全**。
+  // `SELECT * FROM prompts` 会把 `deleted_at` 一起带出来。
+  //
+  // 为什么必须删而不是「反正现在是 NULL」：`DELETE /api/prompts/:id` 就是**软删除**
+  // （写 `deleted_at = now`），前台回收站（`pages/prompts/index.vue` 的 `?recycle=1`）
+  // 是真实功能，`deleted_at` 随时会被写上值 —— 不是「恒为 NULL 的装饰列」。
+  // 实测当前生产库 46 条提示词确实还没有任何一条被删除，所以此前没暴露；
+  // 但那是**数据现状**，不是代码保证。一旦有人用了回收站，这列就有值。
+  //
   // 上一轮只修了列表漏了这里 —— 「同一份数据被多个端点展开时，改一个必须验全部」。
   delete prompt.deleted_at
 
