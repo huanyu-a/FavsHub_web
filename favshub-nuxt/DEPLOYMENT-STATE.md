@@ -97,8 +97,21 @@ ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_m
 
 ## 为什么用「补丁镜像」而不是完整重建
 
-服务器 `apk add gcc` 走国内镜像极慢（实测 >18 分钟未完成），所以不在服务器上
-跑完整 `docker build`。当前做法是**本机构建 → 只拷贝产物**：
+服务器 `apk add gcc` 走官方源极慢，所以不在服务器上跑完整 `docker build`。
+
+**2026-10-31 补了量化数据**（此前只记「>18 分钟未完成」，看不出是卡死还是慢）：
+
+```
+apk add curl  （13 MB）→ 1 分 55 秒   ≈ 113 KB/s
+apk add gcc 全套（188 MB）→ 按此速度约 28 分钟
+实际跑              → 17 分钟后仍停在 (12/30) Installing gcc
+```
+
+**结论：不是卡死，是带宽只有 ~110 KB/s。** 完整 build（apk + `pnpm install` +
+`pnpm build`）预计 40–60 分钟，**只可当兜底，不可当常规路径**。
+日常仍是「CI 建镜像 → 服务器 `pull`」（pull 走 mihomo 代理，快）。
+
+当前做法是**本机构建 → 只拷贝产物**：
 
 ```dockerfile
 FROM ghcr.io/huanyu-a/favshub:latest
