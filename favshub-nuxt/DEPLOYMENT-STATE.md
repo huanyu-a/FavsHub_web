@@ -33,10 +33,39 @@
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 会先跑 4 个自包含测试套件（`ts:check` / `private-ip-check` /
-`sanitize-test` / `ssrf-pin-check`，共 131 项断言），通过才构建镜像。
+推送后 CI 会先跑 7 个测试套件（`ts:check` / `private-ip-check` / `sanitize-test` /
+`ssrf-pin-check` / 三个 e2e，共 **677 项断言**），通过才构建镜像。
 其中 `sanitize-test` 需要 **Node ≥ 22.6**（`--experimental-strip-types`），
 CI 用的是 `node-version: 22`，不要降到 20。
+
+### 生产镜像落后 HEAD 的那部分，只是注释
+
+生产跑的是 `fix-col404-4c33a83`，而 HEAD 比它多若干提交。**其中触及运行时代码的
+4 个文件，改动 100% 是注释**（实测 `git diff 4c33a83..HEAD` 逐文件统计：+41/−10，
+非注释新增 0 行、非注释删除 0 行）：
+
+```
+server/api/prompts/[id].get.ts     +8/-2   全注释
+server/api/prompts/index.get.ts    +9/-2   全注释
+server/api/token-deals/[id].get.ts +13/-3  全注释
+server/utils/ai-service.ts         +11/-3  全注释
+```
+
+其余提交改的是 CI 配置、部署文档、测试脚本。
+
+**结论**：推送并重新部署后，**运行时行为与现在完全一致** —— 所以这次部署是
+「把注释与 CI 追平」，不是「上新功能」。反过来说，万一部署出问题，回滚到当前镜像
+也不会丢掉任何行为修复（9 项修复 `4c33a83` 全都有）。
+
+### CI 里新增的三个 e2e 套件
+
+`second-batch-e2e`（138）/ `third-batch-notify`（161）/ `third-batch-detail`（247）
+原先**从未进过 CI**。它们需要 `.output/`，所以排在 `pnpm build` 之后；实测合计 9–15 秒。
+
+⚠️ **这些套件内部 `spawn('node', ...)` 取 PATH 上的 node，而 `better-sqlite3` 是原生模块、
+ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_modules` 的那个 Node」去跑，
+否则会得到极具误导性的报错「应用 30s 内未就绪」（真实原因藏在应用 stderr 的
+`NODE_MODULE_VERSION xxx vs yyy`）。CI 里 install 与 run 都是 node 22，不会遇到。
 
 ## 回滚档
 
