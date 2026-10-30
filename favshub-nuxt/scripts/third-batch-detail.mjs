@@ -189,7 +189,7 @@ async function stopApp() {
 /**
  * 把 `.deal-badge` 的尺寸按 CSS 盒模型逐层推算出来。
  * 参与的规则（出处写在每个常量旁）：
- *   components/tokens/DealBadge.vue : .deal-badge { width: min(50vw,320px); max-width:100% }（水印层）
+ *   components/tokens/DealBadge.vue : .deal-badge { width: min(50vw,320px,45cqh); max-width:100% }（水印层）
  *   components/tokens/TokenDealDetail.vue : .tdd-body { padding:16px }
  *                                           .tdd-modal { border:0.5px } → 左右合计 1px（保守取整）
  *   弹窗形态：.tdd-backdrop { padding:24px }；@media(max-width:640px) 下 backdrop padding:0、
@@ -198,7 +198,7 @@ async function stopApp() {
  *               .tdd-backdrop.is-page { padding:0 } + .tdd-modal { max-width:780px }
  */
 const GEOM = {
-  BADGE_CAP: 320,      // min(50vw, 320px) 的上限（二轮收回：水印不宜铺满）
+  BADGE_CAP: 320,      // min(50vw, 320px, 45cqh) 的 vw 上限
   BODY_PADDING: 16,    // .tdd-body { padding: 16px }
   MODAL_BORDER: 1,     // .tdd-modal { border: 0.5px } 左右各 0.5px，按 1px 取整（偏保守）
   MODAL_MAX: 680,      // 弹窗形态 .tdd-modal { max-width: 680px }
@@ -379,8 +379,8 @@ async function main() {
     check('默认分类 token 也渲染徽标（「API 额度」）', headHtmlOf(pagePending).includes('API 额度'))
   }
 
-  // ═══ ④ 是否实名徽标（需求 2）═══
-  console.log('\n▶ ④ 是否实名：四种取值 + 空串不渲染；位置在 .tdd-facts 右端（小徽标）')
+  // ═══ ④ 是否实名水印（需求 2，2026-10-30 四轮：小徽标 → 水印）═══
+  console.log('\n▶ ④ 是否实名：第二个水印（与核验同一套透明度），四种取值 + 空串不渲染')
   const realNamePages = {
     no: (await api(`/tokens/${idNo}.html`)).text,
     face: (await api(`/tokens/${idFace}.html`)).text,
@@ -388,6 +388,9 @@ async function main() {
     otherLong: (await api(`/tokens/${idOtherLong}.html`)).text,
   }
   {
+    // 取页面上**所有** .deal-badge 的 class 列表（现在应有两个：核验 + 实名）
+    const badgesOf = (html) => allClassTokensWith(bodyHtmlOf(html), 'deal-badge')
+
     const expect = [
       ['no', '无需实名'],
       ['face', '需人脸'],
@@ -395,53 +398,76 @@ async function main() {
     ]
     for (const [key, label] of expect) {
       const body = bodyHtmlOf(realNamePages[key])
-      check(`real_name='${key}' → .tdd-facts 小徽标「${label}」`, (() => {
-        const t = classTokensWith(body, 'tdd-realname')
-        return !!t && body.includes(label)
-      })(), JSON.stringify(classTokensWith(body, 'tdd-realname')))
+      check(`real_name='${key}' → 实名水印文案「${label}」`, (() => {
+        const bottom = badgesOf(realNamePages[key]).find(t => t.includes('is-anchor-bottom'))
+        return !!bottom && body.includes(label)
+      })(), JSON.stringify(badgesOf(realNamePages[key])))
     }
-    // ── 位置：必须在 .tdd-facts 区块内（与「免费额度」同一块），不是水印层 ──
+
+    // ── 两个水印并存：一个 is-anchor-top（核验）、一个 is-anchor-bottom（实名）──
     const otherBody = bodyHtmlOf(realNamePages.other)
-    check('是否实名小徽标在 .tdd-facts 区块内（与「免费额度」同一区块）', (() => {
-      const factsStart = otherBody.indexOf('class="tdd-facts"')
-      if (factsStart < 0) return false
-      const factsSlice = otherBody.slice(factsStart, otherBody.indexOf('接入信息'))
-      return factsSlice.includes('tdd-realname') && factsSlice.includes('免费额度')
-    })(), `facts@${otherBody.indexOf('class="tdd-facts"')} badge@${otherBody.indexOf('tdd-realname')}`)
-    check('小徽标在「免费额度」之后（即该行右侧，符合用户红框位置）',
-      otherBody.indexOf('tdd-realname') > otherBody.indexOf('免费额度'))
-    check('不再是水印形态：.tdd-realname 不带 deal-badge 类', (() => {
-      const t = classTokensWith(otherBody, 'tdd-realname')
-      return !!t && !t.includes('deal-badge')
-    })(), JSON.stringify(classTokensWith(otherBody, 'tdd-realname')))
-    check('小徽标不是绝对定位水印（CSS 里 .tdd-realname 无 position:absolute）', (() => {
-      const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
-      const m = sfc.match(/\.tdd-realname\s*\{([^}]*)\}/)
-      return !!m && !/position:\s*absolute/.test(m[1])
-    })())
-    // 「其他」的 40 字手填文案改由 title + sr-only 承载，徽标本体只显示「需实名」
-    check('「其他」手填文案进 title 悬浮提示（40 字放不进小徽标）',
-      otherBody.includes(`title="需实名：${OTHER_TEXT}"`), `未找到 title="需实名：${OTHER_TEXT}"`)
+    const otherBadges = badgesOf(realNamePages.other)
+    check('SSR：有实名信息的通告存在**两个** .deal-badge', otherBadges.length === 2,
+      JSON.stringify(otherBadges))
+    check('SSR：其中一个带 is-anchor-top（核验水印）',
+      otherBadges.some(t => t.includes('is-anchor-top')), JSON.stringify(otherBadges))
+    check('SSR：另一个带 is-anchor-bottom（是否实名水印）',
+      otherBadges.some(t => t.includes('is-anchor-bottom')), JSON.stringify(otherBadges))
+    check('SSR：两个水印都带 is-circle（都是圆）',
+      otherBadges.every(t => t.includes('is-circle')), JSON.stringify(otherBadges))
+    check('SSR：实名水印带 is-seal-secondary（比核验小一号）',
+      otherBadges.some(t => t.includes('is-anchor-bottom') && t.includes('is-seal-secondary')),
+      JSON.stringify(otherBadges))
+    check('SSR：两个水印都是 aria-hidden="true"（装饰层，语义走 sr-only）',
+      (otherBody.match(/aria-hidden="true"/g) || []).length >= 2)
+    // 深色/未核验对照：pending 样本也该有两个水印吗？不 —— 它 real_name 为空，只有核验
+    check('SSR：real_name=\'\' → 只有 1 个 .deal-badge（仅核验，无 is-anchor-bottom）',
+      (() => {
+        const bs = badgesOf(pagePending)
+        return bs.length === 1 && !bs.some(t => t.includes('is-anchor-bottom'))
+      })(), JSON.stringify(badgesOf(pagePending)))
+
+    // ── 实名水印的圆内文案：只「需实名」三个字，不塞 40 字长文案 ──
+    check('实名水印 label 是「需实名」（不含 40 字长文案）', (() => {
+      const m = otherBody.match(/<span class="badge-label"[^>]*>([^<]*)<\/span>(?![\\s\\S]*badge-label)/)
+      // 取最后一个 badge-label（即实名水印的），断言就是「需实名」三个字
+      const all = [...otherBody.matchAll(/<span class="badge-label"[^>]*>([^<]*)<\/span>/g)].map(x => x[1].trim())
+      return all.length >= 2 && all[all.length - 1] === '需实名'
+    })(), JSON.stringify([...otherBody.matchAll(/<span class="badge-label"[^>]*>([^<]*)<\/span>/g)].map(x => x[1].trim())))
+    check('水印 DOM 上真的有 title 属性（prop 不能只声明不渲染）',
+      /<span class="badge-label" title="[^"]+"/.test(otherBody),
+      (otherBody.match(/<span class="badge-label"[^>]*>/) || ['未找到 badge-label'])[0])
+    check('「其他」手填文案进 title 悬浮提示（不塞进圆里）',
+      otherBody.includes(`title="需实名：${OTHER_TEXT}"`),
+      (otherBody.match(/title="需实名：[^"]*"/) || ['未找到 title'])[0])
     check('「其他」手填文案进 sr-only（读屏完整可读）',
       otherBody.includes(`是否实名：需实名（${OTHER_TEXT}）`))
-    check('小徽标本体只显示「需实名」四个字（不塞 40 字长文案）', (() => {
-      const m = otherBody.match(new RegExp('<span[^>]*tdd-realname[^>]*>([^<]*)</span>'))
-      return !!m && m[1].trim() === '需实名'
-    })())
     const otherLongBody = bodyHtmlOf(realNamePages.otherLong)
     check('「其他」40 字长文案完整出现在 title 里（不截断）',
       otherLongBody.includes(OTHER_LONG))
-    // 空串：一条都不能渲染（存量 80 条空串）
+
+    // ── 小徽标形态已彻底不存在 ──
+    check('CSS 里 .tdd-realname 已彻底删除（小徽标形态不存在）', (() => {
+      const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
+      return !/\.tdd-realname/.test(sfc)
+    })())
+    check('模板里已无 tdd-realname（小徽标 span 已移除）',
+      !otherBody.includes('tdd-realname'))
+    check('.tdd-facts 区域内无任何水印/徽标（已回归纯事实卡片）', (() => {
+      const i = otherBody.indexOf('class="tdd-facts"')
+      if (i < 0) return false
+      const factsSlice = otherBody.slice(i, otherBody.indexOf('接入信息'))
+      return !factsSlice.includes('deal-badge') && !factsSlice.includes('tdd-realname')
+    })())
+
+    // ── 空串：不渲染实名水印（存量 80 条空串）──
     const pendingBody = bodyHtmlOf(pagePending)
-    check('real_name === \'\' → 页面无 .tdd-realname（存量空串保持静默）',
-      !classTokensWith(pendingBody, 'tdd-realname'),
-      JSON.stringify(classTokensWith(pendingBody, 'tdd-realname')))
-    check('real_name === \'\' → 也不出现「是否实名」的 sr-only 文本',
+    check('real_name === \'\' → 不出现「是否实名」的 sr-only 文本',
       !pendingBody.includes('是否实名：'))
-    check('real_name === \'\' → 水印仍正常渲染（核验与实名互不影响）', (() => {
-      const t = classTokensWith(pendingBody, 'deal-badge')
-      return !!t && t.includes('is-circle')
-    })(), JSON.stringify(classTokensWith(pendingBody, 'deal-badge')))
+    check('real_name === \'\' → 核验水印仍正常渲染（两者互不影响）', (() => {
+      const bs = allClassTokensWith(pendingBody, 'deal-badge')
+      return bs.length === 1 && bs[0].includes('is-circle')
+    })(), JSON.stringify(allClassTokensWith(pendingBody, 'deal-badge')))
   }
 
   // ═══ ⑤ 备注富文本（需求 6）═══
@@ -578,26 +604,148 @@ async function main() {
     check('不再依赖已废弃的 --badge-seal-space（尾部留白整套已删）',
       !/badge-seal-space/.test(css) && !/badge-seal-space/.test(detailCss))
 
-    // ── 360×640 首屏可见（用户反馈「手机端第一屏看不到」）──
-    // 水印顶边 = 8% × 容器高；容器高取弹窗 92vh 减 header/footer 的保守估计。
+    // ── 锚点 bottom（实名水印）：bottom 8% ──
+    const bottomRule = (css.match(/\.deal-badge\.is-anchor-bottom\s*\{([^}]*)\}/) || [])[1] || ''
+    check('锚点类 .is-anchor-bottom 的 bottom 是 8%', /bottom:\s*8%/.test(bottomRule),
+      bottomRule.slice(0, 160))
+    check('.is-anchor-bottom 水平居中（left:50%）', /left:\s*50%/.test(bottomRule))
+    check('.is-anchor-bottom 用 translate(-50%, 0)', /translate\(-50%,\s*0\)/.test(bottomRule))
+
+    // ── 两套尺寸：主水印 vs 次水印（都用 cqh 跟容器高）──
+    check('实名水印尺寸 min(38vw, 240px, 34cqh)（比核验小一号）',
+      /--badge-size:\s*min\(38vw,\s*240px,\s*34cqh\)/.test(css),
+      (css.match(/\.deal-badge\.is-seal-secondary\s*\{[^}]*\}/) || [''])[0])
+    check('核验水印尺寸 min(50vw, 320px, 45cqh)',
+      /--badge-size:\s*min\(50vw,\s*320px,\s*45cqh\)/.test(css))
+    check('两个水印共用同一套透明度（次水印不另设 background/border/color）', (() => {
+      const sec = (css.match(/\.deal-badge\.is-seal-secondary\s*\{([^}]*)\}/) || [])[1] || ''
+      return !/background:|border:|color:|opacity:/.test(sec)
+    })(), (css.match(/\.deal-badge\.is-seal-secondary\s*\{[^}]*\}/) || [''])[0])
+
+    // ── 容器查询：cqh 的锚点必须是「高度确定」的层 ──
+    // 关键：不能把 container-type:size 直接给 `.tdd-body-inner` ——
+    // size containment 会按「无内容」算它的尺寸，而它的高度恰恰来自内容；
+    // 落地页形态下父高 auto → min-height:100% 解析为 0 → 整块塌成 0 高、水印消失。
+    check('存在独立的 .tdd-seal-layer 容器查询锚点（不把 containment 压在内容容器上）',
+      /\.tdd-seal-layer\s*\{/.test(detailCss))
+    check('.tdd-seal-layer 是 position:absolute + inset:0（高度由包含块解析，不依赖自身内容）', (() => {
+      const m = (detailCss.match(/\.tdd-seal-layer\s*\{([^}]*)\}/) || [])[1] || ''
+      return /position:\s*absolute/.test(m) && /inset:\s*0/.test(m)
+    })(), (detailCss.match(/\.tdd-seal-layer\s*\{[^}]*\}/) || [''])[0])
+    check('.tdd-seal-layer 带 container-type:size（cqh 才能解析）',
+      /\.tdd-seal-layer\s*\{[^}]*container-type:\s*size/.test(detailCss))
+    check('❌ 反例防护：.tdd-body-inner 上**没有** container-type（会塌成 0 高）', (() => {
+      const m = (detailCss.match(/\.tdd-body-inner\s*\{([^}]*)\}/) || [])[1] || ''
+      return !/container-type/.test(m)
+    })(), (detailCss.match(/\.tdd-body-inner\s*\{[^}]*\}/) || [''])[0].slice(0, 200))
+    check('.tdd-body-inner 仍保留 min-height:100% 与 isolation:isolate',
+      /\.tdd-body-inner\s*\{[^}]*min-height:\s*100%/.test(detailCss)
+      && /\.tdd-body-inner\s*\{[^}]*isolation:\s*isolate/.test(detailCss))
+    check('.tdd-seal-layer 带 z-index:-1 与 pointer-events:none（整层压在正文下、不挡点击）', (() => {
+      const m = (detailCss.match(/\.tdd-seal-layer\s*\{([^}]*)\}/) || [])[1] || ''
+      return /z-index:\s*-1/.test(m) && /pointer-events:\s*none/.test(m)
+    })())
+    check('水印层容器**没有** aria-hidden（否则内部 sr-only 会被一并隐藏）', (() => {
+      const m = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
+      const tag = (m.match(/<div class="tdd-seal-layer"[^>]*>/) || [''])[0]
+      return tag.length > 0 && !/aria-hidden/.test(tag)
+    })(), (readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8').match(/<div class="tdd-seal-layer"[^>]*>/) || [''])[0])
+    check('cqh 有降级链（不支持容器查询时回落到 min(50vw,320px)，水印不会消失）',
+      /--badge-size:\s*min\(50vw,\s*320px\);\s*\n\s*--badge-size:\s*min\(50vw,\s*320px,\s*45cqh\)/.test(css))
+    check('次水印同样有降级链', /--badge-size:\s*min\(38vw,\s*240px\);\s*\n\s*--badge-size:\s*min\(38vw,\s*240px,\s*34cqh\)/.test(css))
+
+    // ── 几何：两种形态分开验（这是 Lead 指出的关键修正）──
+    // 模型（与 CSS 一一对应）：
+    //   d1 = min(50vw, 320, 0.45H)   d2 = min(38vw, 240, 0.34H)
+    //   核验占 [0.08H, 0.08H + d1]   实名占 [H − 0.08H − d2, H − 0.08H]
+    //   gap = 0.84H − d1 − d2
     const SEAL_TOP_PCT = 0.08
-    console.log('    视口高 | 容器高(估) | 水印 top | 水印 bottom | 首屏640内 | 结论')
-    for (const [vw, vh, containerH] of [[360, 640, 576], [375, 667, 600], [414, 896, 806],
-      [360, 568, 500], [390, 844, 760]]) {
-      const d = Math.min(vw * 0.5, 320)
-      const top = containerH * SEAL_TOP_PCT
-      const bottom = top + d
-      const inFirstScreen = top < vh
-      console.log(`    ${String(vh).padStart(6)} | ${String(containerH).padStart(10)} | `
-        + `${top.toFixed(1).padStart(8)} | ${bottom.toFixed(1).padStart(11)} | `
-        + `${(inFirstScreen ? '是' : '否').padStart(8)} | ${inFirstScreen ? '可见' : '不可见!!'}`)
-      check(`视口 ${vw}×${vh}：水印 top=${top.toFixed(0)}px < 首屏高 ${vh}px（第一屏可见）`, inFirstScreen)
+    const SEAL_BOTTOM_PCT = 0.08
+    const geom = (vw, H) => {
+      const d1 = Math.min(vw * 0.5, 320, 0.45 * H)
+      const d2 = Math.min(vw * 0.38, 240, 0.34 * H)
+      const t1 = H * SEAL_TOP_PCT, b1 = t1 + d1
+      const b2 = H - H * SEAL_BOTTOM_PCT, t2 = b2 - d2
+      return { d1, d2, t1, b1, t2, b2, gap: t2 - b1 }
     }
-    // 360×640 的硬性断言（用户明确点名的机型）
-    check('360×640：水印 top < 640（首屏可见，用户点名场景）', 576 * SEAL_TOP_PCT < 640,
-      `top=${(576 * SEAL_TOP_PCT).toFixed(1)}`)
-    check('360×640：水印圆底边 < 640（整个圆都在首屏内，不是只露一条边）',
-      576 * SEAL_TOP_PCT + 180 < 640, `bottom=${(576 * SEAL_TOP_PCT + 180).toFixed(1)}`)
+
+    // ① 落地页形态：容器高 = 内容自然高，与视口完全无关 → H 是自由变量
+    console.log('  【落地页 is-page】容器高=内容自然高，遍历 H（vw=1440）')
+    console.log('    H    | 核验圆 | 核验区间     | 实名圆 | 实名区间     | 间距')
+    for (const H of [300, 400, 450, 500, 514, 600, 679, 700, 800, 900, 1200]) {
+      const g = geom(1440, H)
+      console.log(`    ${String(H).padStart(4)} | ${g.d1.toFixed(0).padStart(6)} | `
+        + `[${g.t1.toFixed(0).padStart(3)},${g.b1.toFixed(0).padStart(4)}]    | `
+        + `${g.d2.toFixed(0).padStart(6)} | [${g.t2.toFixed(0).padStart(3)},${g.b2.toFixed(0).padStart(4)}]    | `
+        + `${g.gap.toFixed(1).padStart(6)}`)
+      check(`落地页 容器高 ${H}：两水印不相交（间距 ${g.gap.toFixed(1)}px）`, g.gap > 0)
+    }
+    // 落地页窄屏也要验（手机落地页：vw 360、内容高随意）
+    for (const [vw, H] of [[360, 300], [360, 437], [360, 514], [375, 600], [320, 400]]) {
+      const g = geom(vw, H)
+      check(`落地页 ${vw}px 宽 / 容器高 ${H}：两水印不相交（间距 ${g.gap.toFixed(1)}px）`, g.gap > 0)
+    }
+
+    // ② 弹窗形态：容器高受 max-height:88vh 约束 → H = 0.88vh − chrome
+    const CHROME = 126
+    console.log('  【弹窗 modal】H = 0.88×视口高 − 126')
+    console.log('    视口      | 容器高 | 核验圆 | 核验区间     | 实名圆 | 实名区间     | 间距  | 首屏')
+    for (const [vw, vh] of [[360, 640], [375, 667], [414, 896], [360, 568], [390, 844],
+      [320, 568], [768, 704], [1024, 754], [1366, 768], [1440, 800], [1440, 900], [1920, 1080]]) {
+      const H = 0.88 * vh - CHROME
+      const g = geom(vw, H)
+      const inFirstScreen = g.t1 < vh
+      console.log(`    ${String(vw).padStart(4)}x${String(vh).padEnd(4)} | ${H.toFixed(0).padStart(6)} | `
+        + `${g.d1.toFixed(0).padStart(6)} | [${g.t1.toFixed(0).padStart(3)},${g.b1.toFixed(0).padStart(4)}]    | `
+        + `${g.d2.toFixed(0).padStart(6)} | [${g.t2.toFixed(0).padStart(3)},${g.b2.toFixed(0).padStart(4)}]    | `
+        + `${g.gap.toFixed(1).padStart(5)} | ${inFirstScreen ? '可见' : '不可见!!'}`)
+      check(`弹窗 ${vw}×${vh}：核验水印 top=${g.t1.toFixed(0)}px < 首屏高 ${vh}px（第一屏可见）`, inFirstScreen)
+      check(`弹窗 ${vw}×${vh}：两水印不相交（间距 ${g.gap.toFixed(1)}px）`, g.gap > 0)
+    }
+
+    // ③ 临界值断言：临界容器高 = (d1+d2)/0.84
+    // Lead 用 vh 方案时临界 H = 514（(252+180)/0.84）—— 内容更少的通告会掉到其下。
+    // 改用 cqh 后两个直径都按 H 的比例取，临界 H 与 H 本身无关、恒成立：
+    //   gap = 0.84H − 0.45H − 0.34H = 0.05H > 0（任意 H>0）
+    check('临界容器高推导：gap = (0.84 − k1 − k2)·H = 0.05H，对任意 H>0 恒为正（无临界值）', (() => {
+      const k1 = 0.45, k2 = 0.34
+      if (!(k1 + k2 < 0.84)) return false
+      for (let H = 1; H <= 3000; H += 1) {
+        const d1 = Math.min(0.5 * 4000, 320, k1 * H)   // 取最宽视口（两直径都触比例上限）
+        const d2 = Math.min(0.38 * 4000, 240, k2 * H)
+        if (0.84 * H - d1 - d2 <= 0) return false
+      }
+      return true
+    })())
+    check('系数和 0.79 < 0.84（这是「恒不相交」的充要条件）', 0.45 + 0.34 < 0.84)
+    check('次水印/主水印比值 0.34/0.45 ≈ 0.756（贴合 240/320 = 0.75 的设计意图）',
+      Math.abs((0.34 / 0.45) - (240 / 320)) < 0.01)
+
+    // ④ 穷举两个形态（不再假设「H 由 vh 决定」覆盖全部）
+    check('穷举落地页：vw 320~2600 × H 200~1500（步长 2/4），两水印间距恒 > 0', (() => {
+      let minGap = Infinity, at = null
+      for (let H = 200; H <= 1500; H += 2) {
+        for (let vw = 320; vw <= 2600; vw += 4) {
+          const g = geom(vw, H)
+          if (g.gap < minGap) { minGap = g.gap; at = [vw, H] }
+        }
+      }
+      console.log(`  · 落地页穷举最小间距 = ${minGap.toFixed(1)}px（vw=${at[0]} H=${at[1]}）`)
+      return minGap > 0
+    })())
+    check('穷举弹窗：vw 320~2600 × vh 400~1600（步长 4/16），两水印间距恒 > 0', (() => {
+      let minGap = Infinity, at = null
+      for (let vh = 400; vh <= 1600; vh += 4) {
+        const H = 0.88 * vh - CHROME
+        if (H <= 0) continue
+        for (let vw = 320; vw <= 2600; vw += 4) {
+          const g = geom(vw, H)
+          if (g.gap < minGap) { minGap = g.gap; at = [vw, vh, H] }
+        }
+      }
+      console.log(`  · 弹窗穷举最小间距 = ${minGap.toFixed(1)}px（vw=${at[0]} vh=${at[1]} H=${at[2].toFixed(0)}）`)
+      return minGap > 0
+    })())
 
     // ── 可交互元素不被水印覆盖 ──
     // 2026-10-30 三轮：方形印章已删除（是否实名改为 .tdd-facts 小徽标），
@@ -661,14 +809,16 @@ async function main() {
         check(`视口 ${vp}（${variant}）水印直径 ${d.toFixed(1)}px ≤ 容器内容宽 ${content.toFixed(0)}px`, noOverflow)
       }
     }
-    check('CSS：圆形直径上限 min(50vw, 320px)（二轮实测后收回）',
-      /--badge-size:\s*min\(50vw,\s*320px\)/.test(css))
+    check('CSS：核验水印直径 min(50vw, 320px, 45cqh)（cqh 跟容器高）',
+      /--badge-size:\s*min\(50vw,\s*320px,\s*45cqh\)/.test(css))
     check('CSS：max-width:100% 兜底（极窄容器不横向溢出）', /max-width:\s*100%/.test(css))
     check('CSS：圆形 aspect-ratio:1/1 + border-radius:50%',
       /aspect-ratio:\s*1\s*\/\s*1/.test(css) && /border-radius:\s*50%/.test(css))
-    check('构建产物 CSS 含水印规则（position:absolute + min(50vw,320px)）', (() => {
+    check('构建产物 CSS 含水印规则（position:absolute + cqh 尺寸 + container-type:size）', (() => {
       const b = squash(builtCss())
-      return b.includes('.deal-badge[') && b.includes('position:absolute') && b.includes('min(50vw,320px)')
+      return b.includes('.deal-badge[') && b.includes('position:absolute')
+        && b.includes('min(50vw,320px,45cqh)') && b.includes('min(38vw,240px,34cqh)')
+        && b.includes('container-type:size')
     })())
 
     // ── 可读性：文字色仍过 AA-large（水印下也要认得出）──

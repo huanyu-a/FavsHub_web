@@ -101,16 +101,7 @@
                 <span class="fact-label">免费额度</span>
                 <span class="fact-value">{{ deal.quota || '未说明' }}</span>
               </div>
-              <span
-                v-if="realNameBadge"
-                class="tdd-realname"
-                :class="`is-${realNameBadge.tone}`"
-                :title="realNameBadge.title"
-              >{{ realNameBadge.label }}</span>
             </div>
-            <!-- 无障碍：小徽标只有 2~3 个字，「其他」的手填说明在 title 里对读屏不友好，
-                 用 sr-only 承载完整语义（含水印轮已建立的「视觉简、语义全」原则） -->
-            <span v-if="realNameBadge" class="sr-only">{{ realNameBadge.srText }}</span>
 
             <!-- 接入信息 -->
             <section class="tdd-section">
@@ -153,15 +144,44 @@
               <p v-if="inviteCode.label" class="invite-label">{{ inviteCode.label }}</p>
             </section>
 
-            <!-- 核验状态水印（2026-10-30）：绝对定位的背景层，不占布局、不推正文 -->
-            <DealBadge
-              v-if="deal"
-              :tone="verifyState.tone"
-              :label="verifyState.label"
-              :sublabel="verifyState.sublabel"
-              :title="verifyState.title"
-              :sr-text="verifyState.srText"
-            />
+            <!-- ── 水印层（2026-10-30 五轮）──
+                 为什么需要这层额外的覆盖容器：
+                 水印尺寸要用「容器高」（cqh）来算，才能同时覆盖**弹窗**（容器高由
+                 `max-height:88vh` 决定）和**落地页**（`max-height:none`，容器高 = 内容
+                 自然高，与视口完全无关）两种形态。若把 `container-type:size` 直接放在
+                 `.tdd-body-inner` 上，size containment 会让它「按无内容计算自身尺寸」，
+                 而它的高度恰恰来自内容 —— 落地页下父级高度是 auto，`min-height:100%`
+                 解析为 0，整块会塌成 0 高、水印随之消失。
+                 所以单独加这一层绝对定位容器：它的高由 `inset:0` 从 `.tdd-body-inner`
+                 解析而来（不依赖自己的内容），`container-type:size` 在此完全安全，
+                 内层 `cqh` 也因此精确等于「内容区高度」。
+                 层本身 `z-index:-1` → 整层压在正文之下；`pointer-events:none` → 不挡交互。 -->
+            <!-- ⚠️ 这里**不能**加 aria-hidden：DealBadge 的 sr-only 文本是该组件的兄弟
+                 节点（视觉隐藏但读屏可读），若被本层的 aria-hidden 包住会连语义一起丢。
+                 装饰性由各水印自身的 aria-hidden 承担，本层只负责定位与容器查询。 -->
+            <div class="tdd-seal-layer">
+              <!-- 核验状态水印：贴内容区上部 -->
+              <DealBadge
+                v-if="deal"
+                anchor="top"
+                :tone="verifyState.tone"
+                :label="verifyState.label"
+                :sublabel="verifyState.sublabel"
+                :title="verifyState.title"
+                :sr-text="verifyState.srText"
+              />
+              <!-- 是否实名水印：贴内容区下部，比核验水印小一号；
+                   透明度与核验水印完全同一套；`real_name === ''` 不渲染（存量 80 条空串）。 -->
+              <DealBadge
+                v-if="realNameBadge"
+                anchor="bottom"
+                secondary
+                :tone="realNameBadge.tone"
+                :label="realNameBadge.label"
+                :title="realNameBadge.title"
+                :sr-text="realNameBadge.srText"
+              />
+            </div>
 
             <!-- 支持模型 -->
             <section v-if="deal.models && deal.models.length" class="tdd-section">
@@ -1936,6 +1956,26 @@ onUnmounted(() => {
   isolation: isolate;
   min-height: 100%;
 }
+/* ── 水印层（2026-10-30 五轮）：容器查询的锚点 ──
+   为什么不把 `container-type: size` 直接放在 `.tdd-body-inner` 上：
+   size containment 会让元素「按没有子内容来计算自身尺寸」，而 inner 的高度**恰恰
+   来自内容**。落地页形态下 `.tdd-modal { max-height: none }`、`.tdd-body` 的高度
+   是内容驱动的 auto，此时 `min-height: 100%` 无法解析（父高 auto）会退化成 0，
+   整块塌陷、水印消失。弹窗形态因为有确定高度才「碰巧」没事 —— 这种只在一种形态下
+   成立的写法不能留。
+   改成本层：`position:absolute; inset:0` → 高度由包含块解析，**不依赖自身内容**，
+   因此 `container-type:size` 在这里完全安全；层高恒等于内容区高度，
+   内部 `cqh` 也就精确等于「内容区高度的 1%」。弹窗与落地页两种形态同时成立。
+   层自身 `z-index:-1` 让整层压在正文之下（原来的层叠关系不变），
+   `pointer-events:none` 保证不挡任何交互。 */
+.tdd-seal-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  container-type: size;
+  /* 层内水印自身不再需要负 z-index（层已经整体在下面），保持 0 以免在层内再沉一层 */
+}
 /* 水印必须压在内容之下：给内容区块一个非负层叠位置。
    （正常流元素本来在负 z-index 之上，这层显式声明让意图可读，
    并防御后续有人给区块加 position 却没定义 z-index 时水印意外盖上去。） */
@@ -1986,11 +2026,8 @@ onUnmounted(() => {
 }
 
 .tdd-facts {
-  /* 事实区一行：左边「免费额度」卡片，右边是否实名小徽标（2026-10-30 三轮）。
-     原来是 grid(auto-fit)，徽标会被排成独立一列；改成 flex 让徽标贴右端。 */
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -2001,56 +2038,8 @@ onUnmounted(() => {
   padding: 12px;
   border-radius: 10px;
   background: var(--surface-sunken);
-  /* 撑满剩余宽度，让徽标被推到右端 */
-  flex: 1 1 140px;
-  min-width: 0;
 }
 .fact-label { font-size: 11px; color: var(--text-tertiary); }
-/* 读屏专用：视觉隐藏但仍可被辅助技术读取（与本仓 TokenFilterBar / keys.vue 的写法一致）。
-   为什么详情页需要自己一份：scoped 样式不跨组件生效，
-   而「是否实名」的 sr-only 文本现在渲染在**本组件**里（不再经 DealBadge）。
-   必须是 1px + clip，不能用 display:none —— 后者读屏也读不到。 */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-/* ── 是否实名小徽标（2026-10-30 三轮）──
-   用户要求：放在「免费额度」那一行的右侧，小号彩色标签，**不是水印**。
-   直接复用 header 分类徽标（.tdd-category）的视觉语言：12px / 圆角 6px / 600 字重。
-   文案只有 2~3 个字（无需实名 / 需身份证 / 需人脸 / 需实名）；
-   「其他」的手填 40 字放不下，走 title 悬浮提示 + sr-only 完整文本。 */
-.tdd-realname {
-  flex-shrink: 0;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: help;
-}
-.tdd-realname.is-ok {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
-}
-.tdd-realname.is-blue {
-  background: color-mix(in srgb, var(--accent-blue) 14%, transparent);
-  color: color-mix(in srgb, var(--accent-blue) 82%, var(--text-primary));
-}
-.tdd-realname.is-purple {
-  background: color-mix(in srgb, var(--accent-purple) 14%, transparent);
-  color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
-}
-.tdd-realname.is-pending {
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
-}
 .fact-value { font-size: 13px; color: var(--text-primary); }
 
 .tdd-section { margin-bottom: 16px; }
