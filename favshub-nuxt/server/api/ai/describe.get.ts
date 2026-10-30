@@ -106,7 +106,8 @@ export default defineAiHandler('read', async (_event, token) => {
           description: '字符串，可空，≤2000', folder_id: '字符串，可空（prompt_folders.id）',
           tags: '字符串数组，标签 ID 列表', is_favorite: '0/1', login_required: '0/1',
           version_count: '整数，内容变更时自增', current_version: '字符串，如 1.0.0',
-          deleted_at: '毫秒时间戳，非空表示在回收站',
+          // 2026-10-30：`deleted_at` 已不下发（`prompts/index.get.ts` 与 `[id].get.ts` 都显式剔除）。
+          // 判断「是否在回收站」用 `?recycle=1` 查询 —— 该查询已按身份收紧（只看自己的）。
         },
         note: '内容变更会自动创建新版本记录并自增版本号。',
       },
@@ -126,9 +127,12 @@ export default defineAiHandler('read', async (_event, token) => {
           expires_at: '毫秒时间戳或 null（null=永久）',
           note: '字符串，可空，≤2000，支持 Markdown / HTML / 图片等富文本',
           status: 'pending | approved | rejected', pinned: '0/1，仅管理员可置顶',
-          deleted_at: '毫秒时间戳或 null；非 null 表示已软删除（后台可恢复）',
+          // 2026-10-30：`deleted_at` / `invalid_reason` 已不再下发给 AI 通道
+          // （与 Web 端同口径，见 `ai-service.ts` 的 `DEAL_PRIVATE_FIELDS`）——
+          // 「谁在何时删的」「为什么判失效」属运营审计信息。
+          // 字段字典是**对外契约**（技能包按它写代码），说了有就必须真有，否则客户端会读到 undefined。
+          // 判断「这条是否已下架」请用 `invalid_at`（保留）+ `status`。
           invalid_at: '毫秒时间戳或 null；非 null 表示已失效（下架）',
-          invalid_reason: "'' | expired（到期）| votes（社区投票判定）| manual（管理员判定）",
           verified_at: '毫秒时间戳，0 = 从未人工核验（**只读**：核验只能由管理员在后台操作）',
           verify_note: '字符串，最近一次人工核验备注（只读）',
           verify_stale: '布尔（列表/详情派生字段）：超过 deal_verify_stale_days 天没核验',
