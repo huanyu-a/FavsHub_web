@@ -29,7 +29,7 @@ const ok = (msg) => { pass++; console.log(`  ✓ ${msg}`) }
 /** 找到响应里的「行数组」（不同端点字段名不同） */
 function rowsOf(json) {
   if (Array.isArray(json)) return json
-  for (const k of ['deals', 'deal', 'token_deals', 'collections', 'collection', 'prompts', 'tags', 'keys']) {
+  for (const k of ['deals', 'deal', 'token_deals', 'collections', 'collection', 'prompts', 'prompt', 'tags', 'keys']) {
     const v = json?.[k] ?? json?.data?.[k]
     if (v) return Array.isArray(v) ? v : [v]
   }
@@ -94,6 +94,10 @@ async function main() {
   const allowed = ['user_id']
   await probe('collections 列表', '/api/collections?limit=3', { allowKeys: allowed })
   await probe('prompts 列表', '/api/prompts?limit=3', { allowKeys: allowed })
+  // 详情端点同样 `SELECT *`：上一轮只修列表漏了详情，这里纳入矩阵
+  const pl = await (await fetch(BASE + '/api/prompts?limit=1')).json()
+  const pid = rowsOf(pl)[0]?.id
+  if (pid) await probe('prompts 详情', `/api/prompts/${encodeURIComponent(pid)}`, { allowKeys: allowed })
   await probe('tags', '/api/tags', { allowKeys: allowed })
   await probe('token-keys', '/api/token-keys?limit=3', { allowKeys: allowed })
 

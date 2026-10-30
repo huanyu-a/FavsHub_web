@@ -51,5 +51,11 @@ export default defineEventHandler(async (event) => {
   prompt.tags = tags
   prompt.versions = versions
 
+  // 内部列不下发（2026-10-30 四轮）：与列表端点同口径。
+  // `SELECT * FROM prompts` 会把 `deleted_at` 一起带出来。当前该列全库恒为 NULL
+  // （提示词用 `login_required` 做可见性，没有软删除 UI），属**偶然安全**。
+  // 上一轮只修了列表漏了这里 —— 「同一份数据被多个端点展开时，改一个必须验全部」。
+  delete prompt.deleted_at
+
   return { prompt }
 })
