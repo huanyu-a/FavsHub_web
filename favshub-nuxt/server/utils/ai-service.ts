@@ -697,8 +697,24 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
  * 指纹是「同一游客发过的所有通告」的关联键（与游客评测身份同源算法），泄露即剥掉匿名性。
  *
  * **以后往 `token_deals` 加任何内部字段，都先回到这里加一项**，再去端点里确认没有绕开本函数。
+ *
+ * ⚠️ 这份清单与 Web 侧的脱敏**必须同口径**，否则会漂移：
+ * `server/api/token-deals/[id].get.ts` 与 `index.get.ts` 显式剔除了 6 项
+ * （见那里的 `INTERNAL` 注释），而本函数原先只有 3 项 —— `deleted_at` / `invalid_reason`
+ * 在 AI 通道会被原样下发。虽然两边的可见性过滤都保证了这两个字段当前恒为空
+ * （`SELECT ... WHERE deleted_at IS NULL AND invalid_at IS NULL`），但那是**偶然安全**：
+ * 过滤条件一旦放宽，AI 通道就会比 Web 通道先泄露「谁在何时删的」「为什么判失效」。
+ *
+ * `reject_reason` **刻意保留**：作者要读到自己被驳回的原因才能改稿重提，
+ * 与 Web 端同口径（驳回通告对非作者一律 404，AI 通道同样受 `mine` 约束）。
  */
-const DEAL_PRIVATE_FIELDS = ['verified_by', 'guest_fingerprint', 'deleted_by'] as const
+const DEAL_PRIVATE_FIELDS = [
+  'verified_by',       // 核验人用户名（任何身份都不下发）
+  'guest_fingerprint', // sha256(ip|ua)，能串联同一游客的全部通告
+  'deleted_by',        // 下架操作人
+  'deleted_at',        // 谁在何时删的
+  'invalid_reason',    // 为什么判失效（expired / votes / manual）
+] as const
 
 /** 就地剥离内部字段（不动 `models` 反序列化，方便列表循环里单独调用） */
 function stripDealPrivateFieldList(row: any): void {
