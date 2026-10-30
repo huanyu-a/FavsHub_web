@@ -27,6 +27,7 @@ import {
   isPubliclyVisible, INVALID_REASON_LABELS, parseDealModels,
   DEAL_FIELD_LABELS, DEAL_CATEGORY_LABELS, REAL_NAME_LABELS,
 } from './token-deals'
+import { hasClaimCodePlaceholder } from './invite-codes'
 import { getConfig } from './config'
 
 /** 事件类型 */
@@ -444,6 +445,95 @@ function offlineSnapshot(snap: DealEventSnapshot): Partial<DealEventSnapshot> {
   }
 }
 
+/**
+ * 链接里是否含有**该通告码池里的某个码**。
+ *
+ * 为什么必须精确到码、而不能只看参数名：大量通告的 `url` 本身就是公开领取链接，
+ * 里面写着该平台固定的邀请码（`https://tierflow.cn/register?referral_code=RObqA0V6P0ig`），
+ * 这类链接在详情页**本来就是公开的**。按「含 ref= 就清洗」一刀切会误伤它们
+ * （实测 47/65 条事件的 url 被清空，其中 26 条是正常公开链接）。
+ *
+ * 只认 `token_deal_invite_codes` 里实际存在的码 —— 那才是「码池不进公开响应」
+ * 这条不变量真正要保护的东西。
+ */
+function containsPoolCode(v: unknown, pool: Set<string>): boolean {
+  if (!pool.size) return false
+  const s = String(v ?? '')
+  if (!s) return false
+  for (const code of pool) {
+    if (code && s.includes(code)) return true
+  }
+  return false
+}
+
+/**
+ * 公开出口的「邀请码占位符 / 码明文」清洗（2026-10-30 四轮）。
+ *
+ * ## 两个实测泄露
+ *
+ * 1. **占位符原文**：`snapshot.url` / `snapshot.call_url` 存的是**模板原文**。
+ *    通告写了 `?ref={邀请码}` 时，这个带花括号的模板会原样进事件快照，于是
+ *    `/api/token-deals/changes`、两个 feed、以及推给订阅者的 `text` / `markdown`
+ *    都会出现 `{邀请码}` —— 它是后端程序变量，不该让访客/订阅方看到。
+ *
+ * 2. **码池明文**：`meta.changes` 记着 `url` 字段的 from/to **原始值**。
+ *    运营把「写死真实码的链接」改成「`{邀请码}` 占位符」时，`changes[].from`
+ *    就是**带真实码的完整 URL**（实测 seq 16/51/63：`referral_code=6AGR86U5YXP2`
+ *    —— 与 `token_deal_invite_codes` 里的码**完全一致**）。这个 `changes` 数组是
+ *    **公开下发**的（`changes.get.ts` 直接吐 `events: views`），等于把码池白送给匿名访客。
+ *
+ * ## ⚠️ 关键区分：不是所有「带邀请码参数的链接」都是泄露
+ *
+ * 大量通告的 `url` 本身就是**公开领取链接**，里面写着该平台固定的邀请码
+ * （如 `https://tierflow.cn/register?referral_code=RObqA0V6P0ig`）。这类链接
+ * 在详情页是**直接公开展示**的，本来就不是秘密 —— 若按「含 ref= 就清空」一刀切，
+ * 会误伤 26 条正常数据（实测把 47/65 条事件的 url 清空，其中绝大多数是误伤）。
+ *
+ * 因此判据收紧为「**是否命中该通告自己的码池**」：
+ *   - 占位符（`{邀请码}` 等）→ 一定清洗（它是模板，不是可用地址）；
+ *   - 含 `ref=` / `referral_code=` 等参数 → **仅当参数值等于该通告码池里的某个码**时才清洗。
+ *
+ * 码池由 `publicEventViews` 按 deal_id 一次性查出后传入（避免 N+1 查询）。
+ * 拿不到码池时按「无码池」处理 —— 此时只清占位符，不会误伤公开链接。
+ *
+ * 刻意**不**改 `toEventView`：管理员端点（`/api/admin/token-deals/events`）要看原始差异
+ * 才能排查「这条事件为什么长这样」。清洗只发生在**公开**出口。
+ */
+function scrubInviteCodeLeak(
+  view: DealEventView,
+  opts: { baseUrl?: string; poolCodes?: Set<string> } = {},
+): DealEventView {
+  const deal = view.deal as DealEventSnapshot
+  const pool = opts.poolCodes || new Set<string>()
+  let touched = false
+
+  // 快照里的领取地址：清占位符，**也**清含有本通告码池里的码的链接。
+  // 后者是「运营把真实码直接写进 url」的历史数据（实测 seq 16/17/45 等 11 条）——
+  // 它不是模板，是货真价实的码池成员，同样不能从公开事件流下发。
+  // 但**不**按「含 ref= 就清」一刀切：通告自身公开领取链接里的固定邀请码不是秘密。
+  if (hasClaimCodePlaceholder(deal?.url) || containsPoolCode(deal?.url, pool)) { deal.url = ''; touched = true }
+  if (hasClaimCodePlaceholder(deal?.call_url) || containsPoolCode(deal?.call_url, pool)) { deal.call_url = ''; touched = true }
+
+  const keptChanges = (view.changes || []).filter((c) => {
+    if (c.field !== 'url' && c.field !== 'call_url') return true
+    // 剔除条件（任一命中即整条剔除）：
+    //   a. 任一端含 `{邀请码}` 占位符；
+    //   b. 任一端含有**该通告码池里的某个码**（精确到码，不按参数名一刀切）。
+    // 只删一半没有意义：一条 `领取地址 A → B` 里 A 本身就可能是码。
+    const hit = hasClaimCodePlaceholder(c.from) || hasClaimCodePlaceholder(c.to)
+      || containsPoolCode(c.from, pool) || containsPoolCode(c.to, pool)
+    if (hit) touched = true
+    return !hit
+  })
+  view.changes = keptChanges
+
+  if (touched) {
+    view.text = renderDealEventText(view.kind, view.reason, deal, { baseUrl: opts.baseUrl, changes: keptChanges })
+    view.markdown = renderDealEventMarkdown(view.kind, view.reason, deal, { baseUrl: opts.baseUrl, changes: keptChanges })
+  }
+  return view
+}
+
 /** 把库中一行渲染成对外视图 */
 export function toEventView(row: DealEventRow, opts: { baseUrl?: string } = {}): DealEventView {
   let snap: DealEventSnapshot
@@ -490,12 +580,31 @@ export function publicEventViews(
 ): DealEventView[] {
   const ids = Array.from(new Set(rows.map(r => r.deal_id).filter(Boolean)))
   const visible = new Map<string, boolean>()
+  // 每个通告的码池（只取「可用」的码：与 pickInviteCode 同一口径）。
+  // 用途见 scrubInviteCodeLeak：只有命中**本通告码池**的码才算泄露，
+  // 通告自身公开领取链接里的固定邀请码不算。
+  const pools = new Map<string, Set<string>>()
   if (ids.length) {
     try {
       const ph = ids.map(() => '?').join(',')
       const live = db.prepare(`SELECT * FROM token_deals WHERE id IN (${ph})`).all(...ids) as any[]
       for (const row of live) {
         visible.set(row.id, isPubliclyVisible(row) && row.status === 'approved')
+      }
+      // 码池查询独立 try/catch：查不到就当作「无码池」（只清占位符，不误伤公开链接）
+      try {
+        const codeRows = db.prepare(
+          `SELECT deal_id, code FROM token_deal_invite_codes WHERE deal_id IN (${ph})`,
+        ).all(...ids) as Array<{ deal_id: string; code: string }>
+        for (const c of codeRows) {
+          const code = String(c.code || '')
+          if (!code) continue
+          const set = pools.get(c.deal_id) || new Set<string>()
+          set.add(code)
+          pools.set(c.deal_id, set)
+        }
+      } catch (err: any) {
+        console.warn('[deal-events] 码池查询失败，按无码池处理:', err?.message || err)
       }
     } catch (err: any) {
       // 查不到可见性时按不可见处理（fail-closed：宁可不发内容，也不泄露）
@@ -505,7 +614,10 @@ export function publicEventViews(
 
   return rows.map((row) => {
     const view = toEventView(row, opts)
-    if (visible.get(row.deal_id) === true) return view
+    if (visible.get(row.deal_id) === true) {
+      // 可见事件也要过一道占位符 / 码池清洗 —— 它是**公开**出口
+      return scrubInviteCodeLeak(view, { ...opts, poolCodes: pools.get(row.deal_id) })
+    }
     const redacted = offlineSnapshot(view.deal)
     view.deal = redacted as DealEventSnapshot
     view.changes = []
