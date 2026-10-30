@@ -479,11 +479,17 @@ async function main() {
       check('(h) changes[].to 仍是原值 cloud（订阅方过滤不受影响）', catDiff?.to === 'cloud', JSON.stringify(catDiff))
       check('(h) changes[].from 仍是原值 token', catDiff?.from === 'token', JSON.stringify(catDiff))
       const rnDiff = (upd.changes || []).find(c => c.field === 'real_name')
-      if (rnDiff && (rnDiff.from === null || rnDiff.from === '')) {
-        warn(`(h) 观察到一个**既有缺陷**（不在本次写域）：real_name 的差异 from 恒为「空」——` +
-          `dealToPatchShape() 没有摊平 real_name/real_name_other，于是任何一次带 real_name 的 PUT 都会` +
-          `产生一条假的「是否实名 空 → x」差异，模板未改也会推一条 updated。修法在 server/utils/token-deals.ts 的 dealToPatchShape（3 行），需另派。`)
-      }
+      // 历史告警 → 改为正式断言（2026-10-30 四轮）。
+      //
+      // 原先是 `warn(...)`：`dealToPatchShape()` 当时没有摊平 `real_name` /
+      // `real_name_other`，于是任何带 real_name 的 PUT 都会产出假的「是否实名 空 → x」
+      // 差异，模板未改也会推一条 updated。
+      //
+      // 现在 `dealToPatchShape()` 已含 `real_name: deal?.real_name ?? ''`
+      // （`?? ''` 是为了兜住「旧库列尚未迁移」的 undefined），缺陷不复存在。
+      // 把死掉的 warn 换成断言，防它回归 —— 若谁把这两行删了，这里立刻失败。
+      check('(h) real_name 差异的 from 不为空（dealToPatchShape 已摊平）',
+        !rnDiff || (rnDiff.from !== null && rnDiff.from !== ''), JSON.stringify(rnDiff))
     }
   }
 
