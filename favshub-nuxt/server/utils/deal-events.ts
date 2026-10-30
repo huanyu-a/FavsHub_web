@@ -446,22 +446,44 @@ function offlineSnapshot(snap: DealEventSnapshot): Partial<DealEventSnapshot> {
 }
 
 /**
+ * 码的最小可判定长度。
+ *
+ * 为什么需要它（2026-10-31 实测复现）：判据是 `url.includes(code)` 的朴素子串匹配，
+ * 若码池里存在极短的码，会大面积误判：
+ *
+ *   code="a"   → `https://example.com/api` 命中（"api" 里有 "a"）→ 误清空；
+ *   code="v1"  → `https://api.openai.com/v1` 命中 → 误清空；
+ *   code="1"   → 取决于 URL 里碰巧有没有 "1"，纯属侥幸。
+ *
+ * 这类短码本身没有任何保密价值（猜 1~2 个字符就能试出来），却会让公开事件流里的
+ * 正常链接被清空 —— 也就是**为了保护一个不是秘密的东西，破坏了一批真实数据**。
+ *
+ * 取 4：真实邀请码通常 6~16 位（实测生产码池长度 6/10/12），4 已经低到不会漏掉
+ * 任何有意义的码，同时避免 1~3 字符造成的误伤。更短的码交由「占位符」那条判据兜底
+ * （模板原文一律清洗，不依赖长度）。
+ */
+const MIN_SCANNABLE_CODE_LEN = 4
+
+/**
  * 链接里是否含有**该通告码池里的某个码**。
  *
  * 为什么必须精确到码、而不能只看参数名：大量通告的 `url` 本身就是公开领取链接，
- * 里面写着该平台固定的邀请码（`https://tierflow.cn/register?referral_code=RObqA0V6P0ig`），
+ * 里面写着该平台固定的邀请码（`https://tierflow.cn/register?referral_code=CVS66D8V`），
  * 这类链接在详情页**本来就是公开的**。按「含 ref= 就清洗」一刀切会误伤它们
  * （实测 47/65 条事件的 url 被清空，其中 26 条是正常公开链接）。
  *
  * 只认 `token_deal_invite_codes` 里实际存在的码 —— 那才是「码池不进公开响应」
  * 这条不变量真正要保护的东西。
+ *
+ * 短于 `MIN_SCANNABLE_CODE_LEN` 的码不参与子串匹配，理由见该常量注释。
  */
 function containsPoolCode(v: unknown, pool: Set<string>): boolean {
   if (!pool.size) return false
   const s = String(v ?? '')
   if (!s) return false
   for (const code of pool) {
-    if (code && s.includes(code)) return true
+    if (!code || code.length < MIN_SCANNABLE_CODE_LEN) continue
+    if (s.includes(code)) return true
   }
   return false
 }
