@@ -15,6 +15,16 @@
  *   node scripts/assertion-count.mjs           # 只统计并打印
  *   node scripts/assertion-count.mjs --check   # 额外校验文档里的数字，不一致则非零退出
  *
+ * 如果本机同时装了多个 Node，build 前的三项（需要 ≥22）会自动找一个 ≥22 的；
+ * 找不到，或想指定特定二进制：
+ *
+ *   ASSERTION_COUNT_NODE=/path/to/node22 node scripts/assertion-count.mjs --check
+ *
+ * （CI 里 `node-version: 22` 且 install/build/run 同版本，无需这个变量。）
+ *
+ * ⚠️ 不要在本脚本里写死本机绝对路径 —— 第一版曾写死
+ *    `/Users/huanyu/projects/tmp/node-v22...`，在 CI 和别人的机器上必然失效。
+ *
  * ## 前提（重要）
  *
  * build 后的 5 个套件会 `spawn('node')` 起 `.output/server/index.mjs`，
@@ -101,11 +111,40 @@ function detectAbiMismatch() {
  *   - PRE  ：在候选里挑一个 ≥22 的；挑不到就退化为当前 process（并给出警告）。
  *   - POST ：用当前 process（调用者负责保证 ABI 匹配，不匹配已在前面拦下）。
  */
-const NODE_CANDIDATES = [
-  process.execPath,
-  '/Users/huanyu/projects/tmp/node-v22.20.0-darwin-arm64/bin/node',
-  '/Users/huanyu/projects/tmp/node-v20.19.5-darwin-arm64/bin/node',
-].filter((p, i, a) => existsSync(p) && a.indexOf(p) === i)
+/**
+ * 候选 node 二进制。**不要写死本机绝对路径** —— 那在 CI 和别人的机器上必然失效。
+ *
+ * 来源（按优先级）：
+ *   1. `$ASSERTION_COUNT_NODE` —— 显式指定（CI 或特殊环境用）
+ *   2. 当前 process.execPath（大多数情况下够用：CI 里 install/build/run 同版本）
+ *   3. PATH 里的 `node22` / `node-22` / `node20` / `node-20`（nvm 之类的命名习惯）
+ *   4. nvm 的 `~/.nvm/versions/node/v22.*` 里挑一个
+ *
+ * 注意：只有 build 前的三个套件需要「≥22」；若本机只有 Node 20/24，
+ * 而 .output 又正好是 Node 20 构建的，那 build 前的三项就会跑不了 ——
+ * 脚本会明确跳过后打印出来，而不是静默漏算。
+ */
+function nodeCandidates() {
+  const list = []
+  const push = (p) => { if (p && existsSync(p) && !list.includes(p)) list.push(p) }
+  push(process.env.ASSERTION_COUNT_NODE)
+  push(process.execPath)
+  for (const name of ['node22', 'node-22', 'node24', 'node-24', 'node20', 'node-20']) {
+    const r = spawnSync('sh', ['-c', `command -v ${name} 2>/dev/null`], { encoding: 'utf8' })
+    push((r.stdout || '').trim() || null)
+  }
+  // nvm 目录
+  const home = process.env.HOME || ''
+  if (home) {
+    for (const ver of ['v22', 'v24', 'v20']) {
+      const r = spawnSync('sh', ['-c', `ls -d ${home}/.nvm/versions/node/${ver}.*/bin/node 2>/dev/null | sort -V | tail -1`], { encoding: 'utf8' })
+      push((r.stdout || '').trim() || null)
+    }
+  }
+  return list
+}
+
+const NODE_CANDIDATES = nodeCandidates()
 
 function pickNodeForPre() {
   for (const bin of NODE_CANDIDATES) {
