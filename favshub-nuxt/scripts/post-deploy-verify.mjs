@@ -50,9 +50,42 @@ function check(name, ok, detail = '') {
   else { fails.push(`${name}${detail ? ' — ' + detail : ''}`); console.log(`  ✗ ${name}${detail ? ' — ' + detail : ''}`) }
 }
 
+/**
+ * 每个探测请求的**硬超时**。
+ *
+ * 为什么必须有：不加超时的话，目标不可达时只能靠操作系统的 TCP 超时
+ * （实测打黑洞 IP `10.255.255.1` 时，20 秒才跑完 2 项，仍在与连接超时较劲）。
+ * 而本脚本一共要发 ~7 个请求 + 2 个子套件 —— 部署刚起、服务没就绪时正好会撞上，
+ * 于是「验证脚本自己卡死」，比没有验证更糟：你不知道是部署坏了还是脚本在等。
+ *
+ * 10 秒：健康检查正常是几十毫秒级，10 秒还没响应就不是「慢」而是「有问题」。
+ */
+const REQUEST_TIMEOUT_MS = 10_000
+
 async function status(path, opts = {}) {
-  const r = await fetch(BASE + path, { headers: { 'User-Agent': UA }, redirect: opts.redirect || 'manual' })
-  return r.status
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const r = await fetch(BASE + path, {
+      headers: { 'User-Agent': UA },
+      redirect: opts.redirect || 'manual',
+      signal: ac.signal,
+    })
+    return r.status
+  } catch (e) {
+    // AbortError 的 message 是无意义的，替换成能读懂的原因
+    throw new Error(e?.name === 'AbortError' ? `超时（${REQUEST_TIMEOUT_MS / 1000}s）` : (e?.message || String(e)))
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** 给子套件也套一层总超时 —— 它们内部各自 spawn 服务，卡住时同样需要有人收尸 */
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve({ code: 124, out: `${label} 超时（${ms / 1000}s），已放弃等待` }), ms)),
+  ])
 }
 
 /**
@@ -121,7 +154,8 @@ async function main() {
   } else {
     // public-field-matrix：通过 > 0 且 失败 = 0
     {
-      const { code, out } = await runSuite('public-field-matrix.mjs')
+      // 60s：实测本地/生产都在 1–3 秒内完成，60 秒还没完说明卡住了
+      const { code, out } = await withTimeout(runSuite('public-field-matrix.mjs'), 60_000, 'public-field-matrix')
       const m = out.match(/(\d+)\s*通过\s*\/\s*(\d+)\s*失败/)
       const passed = m ? Number(m[1]) : 0
       const failed = m ? Number(m[2]) : NaN
@@ -139,7 +173,8 @@ async function main() {
 
     // full-deal-row-audit：两行都无 = 0 且 错误 = 0
     {
-      const { code, out } = await runSuite('full-deal-row-audit.mjs')
+      // 120s：要逐条抓 61 个详情页，实测约 20–40 秒
+      const { code, out } = await withTimeout(runSuite('full-deal-row-audit.mjs'), 120_000, 'full-deal-row-audit')
       const neither = (out.match(/两行都无:\s*(\d+)/) || [])[1]
       const errors = (out.match(/错误:\s*(\d+)/) || [])[1]
       check(
