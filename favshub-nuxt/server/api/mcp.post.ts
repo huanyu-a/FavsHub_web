@@ -162,8 +162,20 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_prompts',
     scope: 'read',
-    description: '查询自己的提示词列表（不含回收站），返回标题与正文。',
-    inputSchema: obj({ q: str('关键词（匹配标题或描述）'), folder_id: str('提示词文件夹 ID'), favorite: bool('仅收藏'), limit: num('每页条数，默认 100'), page: num('页码') }),
+    // 2026-10-31：补上 recycle。底层 `listPrompts` 已经支持该参数（REST
+    // `/api/ai/prompts?recycle=1` 与 Web `/api/prompts?recycle=1` 都在用），
+    // 但这里原先既没暴露参数、description 还写死「不含回收站」——
+    // 于是**同一个能力，REST 能用、MCP 用不了**。
+    // 描述也改成中性表述，避免把「默认行为」写成「能力边界」。
+    description: '查询自己的提示词列表，返回标题与正文。默认不含回收站；recycle=true 时只列回收站里的（仍仅限自己）。',
+    inputSchema: obj({
+      q: str('关键词（匹配标题或描述）'),
+      folder_id: str('提示词文件夹 ID'),
+      favorite: bool('仅收藏'),
+      recycle: bool('仅回收站（已软删除）；省略则不含回收站'),
+      limit: num('每页条数，默认 100'),
+      page: num('页码'),
+    }),
     run: (db, token, args) => listPrompts(db, token.user_id, args || {}),
   },
   {
