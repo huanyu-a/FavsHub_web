@@ -1,4 +1,19 @@
 # ─── 构建阶段 ────────────────────────────────────────────────
+#
+# Node 版本：这里用 20，而 CI（.github/workflows/docker-publish.yml 的 setup-node）
+# 用 22 —— 两条链路是**独立**的：镜像自己 install + build，且 .dockerignore 排除了
+# `node_modules` / `.output`，所以 CI 用 22 产生的产物不会进镜像。
+# 实测评测：镜像内 install/build/runtime 三者同为 20（当前 20.20.2），ABI 一致。
+# 跨版本的后果是真实的：Node 22 构建出的 better_sqlite3.node 是 ABI 127，
+# 在 Node 20（ABI 115）下无法加载 —— 正因为 dockerignore 挡住了，才没出事。
+#
+# ⚠️ package.json 的 `engines` 在这里**只是弱约束**：pnpm 不满足时只打 WARN、
+#    仍然 exit 0。已在 node:20-alpine 容器里实测（故意写 `"node": ">=999.0.0"`）：
+#      WARN  Unsupported engine: wanted: {"node":">=999.0.0"} (current: {"node":"v20.20.2"})
+#      exit=0
+#    所以**不要指望 engines 拦住版本错误**。真要强制，得加 pnpm 的
+#    `--engine-strict`（或 `engine-strict=true` in .npmrc）。当前刻意不加：
+#    node:20-alpine 的 20.20.2 本就落在声明范围内，没有拦的需求。
 FROM node:20-alpine AS builder
 
 # 安装原生模块编译工具 + pnpm

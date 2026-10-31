@@ -66,6 +66,15 @@ jobs:
       # 刻意不启用 setup-node 的 pnpm 缓存：lockfile 在子目录时，其 post 步骤会因
       # pnpm store 目录不存在而报 "Path(s) specified ... do(es) not exist"，使整个
       # run 显示失败（镜像其实已推送成功），掩盖真实故障。缓存收益约 1 分钟，不值。
+      # ⚠️ 这里的 22 与 Dockerfile 的 node:20-alpine **刻意不同**，不是笔误：
+      #   · CI 用 22 跑测试 —— 因为 `private-ip-check` / `sanitize-test` 需要
+      #     `--experimental-strip-types`（Node ≥22.6）。Node 20 会直接报
+      #     `bad option: --experimental-strip-types` 或 `ERR_UNKNOWN_FILE_EXTENSION`；
+      #   · 镜像我行我素用 20 —— 那是**生产实际运行**的版本，Dockerfile 内部
+      #     自己 install + build，且 .dockerignore 排除了 `node_modules` / `.output`，
+      #     所以这边 22 的产物不会污染镜像。
+      #   → 代价：**CI 验证的是 Node 22 的行为，线上跑的是 Node 20**。两者有差异时
+      #     这套 CI 看不出来。已知且接受（应用本身不依赖 22 特性，测试工具才需要）。
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
