@@ -126,6 +126,49 @@ async function main() {
   check('管理员登录拿到 Cookie', !!admin)
   check('普通用户登录拿到 Cookie', !!alice)
 
+  // ═══ ⓪ sync 端点（2026-10-31 补：此前无任何测试覆盖）═══
+  //
+  // `GET /api/sync/bookmarks/full` 与 `/since` 在扩展里**没有调用者**
+  // （下载走 `/api/bookmarks` + `/api/folders`），但它们是对外公开 API：
+  // 有鉴权、有正确查询，`since` 那条还专门加过索引
+  // （migrate.ts 的 `idx_bookmarks_updated_at`）。
+  //
+  // 状态是「能用、没人用、没测试」—— 这种最容易被后续重构悄悄改坏。
+  // 这里只断言**契约**（鉴权 + 形状 + 增量语义），不锁具体账号的数据。
+  {
+    console.log('\n▶ ⓪ sync 端点契约（full / since）')
+
+    const fullAnon = await api('/api/sync/bookmarks/full')
+    const sinceAnon = await api('/api/sync/bookmarks/since?timestamp=0')
+    check('sync/full 未登录 → 401', fullAnon.status === 401, `status=${fullAnon.status}`)
+    check('sync/since 未登录 → 401', sinceAnon.status === 401, `status=${sinceAnon.status}`)
+
+    const full = await api('/api/sync/bookmarks/full', { cookie: admin })
+    check('sync/full 已登录 → 200', full.status === 200, `status=${full.status}`)
+    check('sync/full 返回 { bookmarks, folders, timestamp }',
+      Array.isArray(full.json?.bookmarks) && Array.isArray(full.json?.folders) && !!full.json?.timestamp,
+      `keys=${Object.keys(full.json || {}).join(',')}`)
+
+    const sinceFuture = await api('/api/sync/bookmarks/since?timestamp=9999999999999', { cookie: admin })
+    check('sync/since 时间戳在未来 → 空结果',
+      sinceFuture.status === 200
+      && Array.isArray(sinceFuture.json?.bookmarks) && sinceFuture.json.bookmarks.length === 0
+      && Array.isArray(sinceFuture.json?.folders) && sinceFuture.json.folders.length === 0,
+      `status=${sinceFuture.status} n=${sinceFuture.json?.bookmarks?.length}`)
+
+    const sincePast = await api('/api/sync/bookmarks/since?timestamp=0', { cookie: admin })
+    check('sync/since 时间戳为 0 → 有结果且不多于 full',
+      sincePast.status === 200
+      && Array.isArray(sincePast.json?.bookmarks)
+      && sincePast.json.bookmarks.length <= (full.json?.bookmarks?.length ?? 0),
+      `since=${sincePast.json?.bookmarks?.length} full=${full.json?.bookmarks?.length}`)
+
+    const sinceLabels = (sincePast.json?.bookmarks || []).map((b) => b.label)
+    check('sync/since 不返回 label 为空的书签',
+      sinceLabels.every((l) => l !== '' && l != null),
+      `空 label 条数=${sinceLabels.filter((l) => l === '' || l == null).length}`)
+  }
+
   // ═══ ① 公告三态 + 软删除 ═══
   console.log('\n▶ ① 公告三态 + 软删除')
   const pub = await api('/api/admin/announcements', {
