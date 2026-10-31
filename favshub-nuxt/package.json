@@ -2,6 +2,10 @@
   "name": "favshub-nuxt",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0 <21 || >=22.12.0",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "build": "node scripts/build-skill-manifest.mjs && node node_modules/nuxt/bin/nuxt.mjs build",
     "dev": "nuxt dev",
