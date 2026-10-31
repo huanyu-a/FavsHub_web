@@ -114,12 +114,12 @@ jobs:
       # （install 与 run 同版本），所以一致；本地则要注意别用「装依赖的 node」
       # 之外的版本去跑，否则会得到「应用 30s 内未就绪」这种误导性报错。
       #
-      # 五个套件实测合计约 10–16 秒（138 / 161 / 247 / 106 / 20），成本可忽略。
+      # 五个套件实测合计约 10–16 秒（143 / 161 / 247 / 106 / 20），成本可忽略。
       #
       # 断言计数（2026-10-31 实测）：
-      #   second-batch-e2e 138 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 = 672
+      #   second-batch-e2e 143 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 = 677
       # 加上 build 前的 ts:check(895 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12，
-      # CI 断言总计 803。
+      # CI 断言总计 808。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
