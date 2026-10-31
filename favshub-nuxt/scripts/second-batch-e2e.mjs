@@ -598,6 +598,56 @@ async function main() {
     console.log(`  ⚠ 成功出站路径本机无法验证（fake-ip DNS），留待生产验收`)
   }
 
+  // ── 错误出口契约（error-handler 的对外承诺）────────────────────
+  //
+  // 这个出口是**所有 API 错误响应的唯一格式化点**（server/plugins/error-handler.ts），
+  // 它同时承担两条承诺：
+  //   1. 4xx 保留业务语义（前端要拿它提示用户），但抹掉文件系统绝对路径；
+  //   2. 5xx 一律替换成通用文案，细节只进服务端日志 —— 否则
+  //      better-sqlite3 的 `ENOENT ... open '/www/.../favshub.db'` 会把部署根路径泄出去。
+  //
+  // 此前**没有任何套件断言这两条**。2026-10-31 改动该插件（补页面 SSR 日志）后
+  // 才意识到：这么核心的安全边界，只有人肉 curl 看过。
+  {
+    // 1) 4xx：错误消息是中文业务文案，且不含绝对路径
+    const notFound = await api('/api/token-deals/deal_definitely_not_exist_xyz')
+    check('错误出口：4xx 保留业务语义', notFound.status === 404 && /不存在/.test(String(notFound.json?.error || '')),
+      `status=${notFound.status} body=${notFound.text.slice(0, 80)}`)
+    check('错误出口：4xx 不泄露绝对路径', !/\/(www|root|home|opt|Users)\//.test(String(notFound.json?.error || '')),
+      `body=${notFound.text.slice(0, 120)}`)
+
+    // 2) 响应必须是 JSON 且只有一个 error 字段（旧 Express 契约，前端依赖它）
+    check('错误出口：4xx 响应是 { error } 形状',
+      !!notFound.json && typeof notFound.json?.error === 'string',
+      `body=${notFound.text.slice(0, 80)}`)
+
+    // 3) 未认证 → 401，同样走这个出口（而不是裸 401 空体）
+    const noAuth = await api('/api/ai/describe')
+    check('错误出口：401 也带可读的 error 文案',
+      noAuth.status === 401 && /令牌/.test(String(noAuth.json?.error || '')),
+      `status=${noAuth.status} body=${noAuth.text.slice(0, 80)}`)
+
+    // 4) 页面路径的错误**不能**被这个插件接管（它只对 `/api/` 生效），
+    //    页面错误要继续交给 Nitro 渲染 `error.vue`。
+    //
+    // ⚠️ 这里必须显式带 `Accept: text/html`。Nitro 会按 Accept **做内容协商**：
+    //      · `Accept: text/html`        → 渲染 error.vue（HTML）
+    //      · `Accept: application/json` → 返回 { error, url, statusCode } JSON
+    //      · Node fetch 默认 `*/*`      → 走 JSON 分支
+    //    2026-10-31 实测：不带这个头会拿到 JSON，从而误判「插件接管了页面」。
+    //    真正要验的是「浏览器来访时仍是 HTML」，所以按浏览器的 Accept 发。
+    const pageR = await fetch(BASE + '/collections/definitely_not_exist_xyz', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    })
+    const pageBody = await pageR.text()
+    check('页面错误仍是 HTML（不被 API 出口接管）',
+      pageR.status === 404 && /^\s*<!DOCTYPE html/i.test(pageBody),
+      `status=${pageR.status} head=${pageBody.slice(0, 40).replace(/\s+/g, ' ')}`)
+  }
+
   await stopApp()
   // 清理临时库：**必须连 WAL/SHM 边车一起删** —— 只删 .db 会留下 -wal/-shm，
   // 在 data/ 里越攒越多（本仓 WAL 模式下每次运行都会生成这两个文件）。
