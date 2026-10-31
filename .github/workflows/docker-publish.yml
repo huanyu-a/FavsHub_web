@@ -123,12 +123,12 @@ jobs:
       # （install 与 run 同版本），所以一致；本地则要注意别用「装依赖的 node」
       # 之外的版本去跑，否则会得到「应用 30s 内未就绪」这种误导性报错。
       #
-      # 五个套件实测合计约 10–16 秒（143 / 161 / 247 / 106 / 20），成本可忽略。
+      # 六个套件实测合计约 15–20 秒（143 / 161 / 247 / 106 / 20 / 147），成本可忽略。
       #
       # 断言计数（2026-10-31 实测）：
-      #   second-batch-e2e 143 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 = 677
+      #   second-batch-e2e 143 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 824
       # 加上 build 前的 ts:check(895 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12，
-      # CI 断言总计 808。
+      # CI 断言总计 955。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -151,6 +151,20 @@ jobs:
       - name: Test — 缓存与隐私（Cache-Control/Vary/SSR payload）
         working-directory: favshub-nuxt
         run: node scripts/cache-privacy-check.mjs
+
+      # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
+      # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：
+      #   · 迁移：已有 80 条存量数据的旧库能否平滑升上来
+      #   · 生产一致性快照迁移（真实旧库：80 通告 / 208 游客评测 / 3 用户）
+      #   · 领取地址 {邀请码} 占位符的纯函数单测（三种写法 + 全角括号）
+      #   · 游客发布通道模块级（真实 INSERT + 真实校验）
+      # 前两项是**其它套件完全没有**的 —— 迁移出问题不会有人提前知道。
+      #
+      # 它需要 Node ≥22.6（内部 `await import('...invite-codes.ts')` 直接加载 .ts
+      # 源码做纯函数单测）。CI 是 22，天然满足；本机若混装会两头堵，详见该脚本头部。
+      - name: Test — 第三批服务端（迁移/占位符/游客通道，147 项）
+        working-directory: favshub-nuxt
+        run: node scripts/third-batch-server.mjs
 
       # ── 文档里的「断言总数」是否与实际一致 ────────────────────
       #

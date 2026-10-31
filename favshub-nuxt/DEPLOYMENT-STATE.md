@@ -62,7 +62,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
 推送后 CI 会先跑 8 个测试套件（`ts:check` / `private-ip-check` / `sanitize-test` /
-`ssrf-pin-check` / `cache-privacy-check` / 四个 e2e，共 **808 项断言**），通过才构建镜像。
+`ssrf-pin-check` / `cache-privacy-check` / 四个 e2e，共 **955 项断言**），通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
@@ -75,7 +75,8 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-detail` | 247 | |
 | `third-batch-notify` | 161 | |
 | `third-batch-ratelimit` | 106 | |
-| **合计（断言）** | **808** | |
+| `third-batch-server` | 147 | |
+| **合计（断言）** | **955** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——
@@ -112,7 +113,7 @@ manifest（`skill-manifest.ts` / `public/skills/*.json`）。
 
 ### CI 里新增的三个 e2e 套件
 
-`second-batch-e2e`（143）/ `third-batch-notify`（161）/ `third-batch-detail`（247）
+`second-batch-e2e`（143）/ `third-batch-notify`（161）/ `third-batch-detail`（247）/ `third-batch-server`（147）
 原先**从未进过 CI**。它们需要 `.output/`，所以排在 `pnpm build` 之后；实测合计 9–15 秒。
 
 ⚠️ **这些套件内部 `spawn('node', ...)` 取 PATH 上的 node，而 `better-sqlite3` 是原生模块、

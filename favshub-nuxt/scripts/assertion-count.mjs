@@ -60,6 +60,7 @@ const POST_BUILD = [
   { name: 'third-batch-detail', script: 'third-batch-detail.mjs' },
   { name: 'third-batch-ratelimit', script: 'third-batch-ratelimit.mjs' },
   { name: 'cache-privacy-check', script: 'cache-privacy-check.mjs' },
+  { name: 'third-batch-server', script: 'third-batch-server.mjs' },
 ]
 
 /**
