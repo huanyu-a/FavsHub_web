@@ -37,12 +37,15 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const CHECK = process.argv.includes('--check')
+// 只核对文档、**不跑任何套件**：从 $ASSERTION_COUNT_FILE（或 ./assertion-count.json）读数字。
+// 这是 CI 用的模式 —— CI 里的 7 个套件已经各自跑过一遍，再跑一次纯属浪费。
+const CHECK_ONLY = process.argv.includes('--check-only')
 
 // build 前就能跑的自包含套件（不依赖 .output）
 const PRE_BUILD = [
@@ -186,6 +189,39 @@ function parsePass(out) {
 }
 
 async function main() {
+  if (CHECK_ONLY) {
+    // ── 只核对，不跑套件 ────────────────────────────────────
+    const file = process.env.ASSERTION_COUNT_FILE || join(ROOT, 'assertion-count.json')
+    if (!existsSync(file)) {
+      console.error(
+        `✗ 找不到 ${file}\n\n` +
+        `  --check-only 需要一个由先前步骤写出的汇总文件。\n` +
+        `  在 CI 里，请让每个测试步骤把自己的通过数追加进去；\n` +
+        `  或先跑一次 node scripts/assertion-count.mjs 生成它。`,
+      )
+      process.exit(1)
+    }
+    let data
+    try { data = JSON.parse(readFileSync(file, 'utf8')) }
+    catch (e) { console.error(`✗ ${file} 不是合法 JSON：${e.message}`); process.exit(1) }
+
+    const rows = Array.isArray(data?.suites) ? data.suites : []
+    const missing = rows.filter((r) => r.pass === null || r.pass === undefined)
+    const total = rows.reduce((a, r) => a + (Number(r.pass) || 0), 0)
+
+    console.log(`断言数核对（来源 ${file}）\n`)
+    for (const r of rows) {
+      console.log(`  ${r.pass === null || r.pass === undefined ? '?' : String(r.pass).padStart(4)} ${r.name}`)
+    }
+    if (missing.length) {
+      console.error(`\n✗ ${missing.length} 个套件没给出通过数：${missing.map((r) => r.name).join('、')}`)
+      console.error('  这通常说明该套件在 CI 里挂了 —— 先看它的日志，不要在这里放过。')
+      process.exit(1)
+    }
+    console.log(`\n${'─'.repeat(44)}\n  断言总计：${total}`)
+    return checkDocs(total)
+  }
+
   console.log(`断言数统计 —— ${ROOT}\n`)
   console.log(`当前 Node ${process.version}（ABI ${process.versions.modules}）`)
 
@@ -239,12 +275,28 @@ async function main() {
   console.log(`  断言总计：${total}`)
   console.log(`  （ts:check 的具名导入数不计入）`)
 
+  // 把结果落盘，供 `--check-only`（以及 CI 的后续步骤）复用，避免重复跑套件。
+  const outFile = process.env.ASSERTION_COUNT_FILE || join(ROOT, 'assertion-count.json')
+  try {
+    writeFileSync(outFile, JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      node: process.version,
+      total,
+      suites: rows.map((r) => ({ name: r.name, pass: r.n, exit: r.code })),
+    }, null, 2) + '\n')
+    console.log(`  已写入 ${outFile}`)
+  } catch (e) {
+    console.log(`  ⚠ 无法写 ${outFile}：${e.message}`)
+  }
+
   if (!CHECK) {
     console.log('\n提示：加 --check 可校验文档里写的数字是否与本次实测一致。')
     return
   }
+  return checkDocs(total)
+}
 
-  // ── 校验文档 ──────────────────────────────────────────────
+function checkDocs(total) {
   console.log('\n── 校验文档里的数字 ───────────────────────')
   const docs = [
     { path: join(ROOT, 'DEPLOYMENT-STATE.md'), label: 'DEPLOYMENT-STATE.md' },

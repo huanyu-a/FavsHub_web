@@ -50,3 +50,6 @@ DEPLOY.md
 
 # 本地 agent 工具配置（含第三方 MCP token，勿入库）
 .agents/
+
+# assertion-count.mjs 的中间产物（生成物，不入库）
+assertion-count.json

@@ -143,6 +143,25 @@ jobs:
         working-directory: favshub-nuxt
         run: node scripts/cache-privacy-check.mjs
 
+      # ── 文档里的「断言总数」是否与实际一致 ────────────────────
+      #
+      # 这个数字散落在 DEPLOYMENT-STATE.md（表格+正文）与本文档注释里，至少 7 处。
+      # 它**不影响任何测试**，所以 CI 从来不会因此报警 —— 结果是同类修正
+      # 在本仓库已做过 6 次（638→672→677→803→808，每次都靠人肉搜替换）。
+      #
+      # 这一步会**重跑一遍上面 8 个套件**（约 17 秒）。明知重复，为什么仍这么做：
+      #   · 备选方案是让上面每个步骤把「通过数」解析出来写进 json ——
+      #     那要在 7 个步骤里各塞一段 shell 正则，而各套件输出格式并不统一
+      #     （`═══ 结果：N 通过` / `通过 N / N` / `通过 N 项`…），
+      #     维护成本与出错概率都高于「多跑 17 秒」；
+      #   · CI 全程约 4–6 分钟，+17s 约 5%，可以接受。
+      #
+      # 顺带的好处：`assertion-count.mjs` 自身也被 CI 覆盖了 ——
+      # 它探测 ABI、挑 Node ≥22、解析输出格式，任何一环坏掉都会在这里暴露。
+      - name: Check — 文档里的断言总数与实测一致
+        working-directory: favshub-nuxt
+        run: node scripts/assertion-count.mjs --check
+
       # 注意：这里**不需要**再把 .output 拷成 `favshub/` 之类的中间目录。
       # 后面 `docker/build-push-action` 的 context 是整个 `favshub-nuxt`，
       # Dockerfile 内部会自己 `pnpm install` + `pnpm build`（多阶段构建）。
