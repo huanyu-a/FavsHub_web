@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.10.2
+version: 1.10.3
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -275,7 +275,14 @@ GET /api/ai/stats     # 各资源计数（书签 / 文件夹 / 提示词 / 回�
 POST /api/mcp         # JSON-RPC 2.0，同一令牌
 ```
 
-支持 `initialize` / `tools/list` / `tools/call` / `ping`。工具与 REST 端点一一对应（`list_bookmarks`、`create_bookmarks`、`delete_bookmark` 等），参数结构相同。
+支持 `initialize` / `tools/list` / `tools/call` / `ping`。工具与 REST 端点基本一一对应（`list_bookmarks`、`create_bookmarks`、`delete_bookmark` 等），参数结构相同。
+
+**两处已知例外**（不是遗漏，是通道特性决定的）：
+
+- `GET /api/ai/token-deals/:id/card.png` —— **无** MCP 工具。它返回 PNG 二进制，JSON-RPC 传二进制不合适，请直接用 REST + `curl -o` 落盘。
+- `/api/ai/token-keys*`（上报 / 对账清理）—— **无** MCP 工具，REST 专用（详见「福利 Key」一节）。
+
+另：`GET /api/ai/prompts?recycle=1` 的回收站能力在 MCP 侧对应 `list_prompts` 的 `recycle: true` 参数。
 
 ## 通告订阅（把新通告推到机器人）
 
