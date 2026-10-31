@@ -168,6 +168,10 @@ alpine（musl x86_64）。把本机的原生模块带进去会报 `Error loading
 
 ## 验证清单（每次部署后）
 
+> **一键版（推荐）**：`node scripts/post-deploy-verify.mjs`
+> 它按顺序跑下面 5 项、逐项判定、**任一项失败即非零退出**。
+> 加 `--skip-suites` 只跑 curl 那几项（几秒出结果）。
+
 ```bash
 # 1) 健康检查（期望 200）
 curl -s -o /dev/null -w "%{http_code}\n" https://hao.bx9y.com.cn/api/health
