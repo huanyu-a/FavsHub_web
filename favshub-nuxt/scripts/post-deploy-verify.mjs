@@ -154,8 +154,9 @@ async function main() {
   } else {
     // public-field-matrix：通过 > 0 且 失败 = 0
     {
-      // 60s：实测本地/生产都在 1–3 秒内完成，60 秒还没完说明卡住了
-      const { code, out } = await withTimeout(runSuite('public-field-matrix.mjs'), 60_000, 'public-field-matrix')
+      // 15s：实测 427–448ms（3 轮，站点在生产）。留 30 倍余量，
+      // 既能容忍临时抖动，又不会在真卡住时干等一分钟。
+      const { code, out } = await withTimeout(runSuite('public-field-matrix.mjs'), 15_000, 'public-field-matrix')
       const m = out.match(/(\d+)\s*通过\s*\/\s*(\d+)\s*失败/)
       const passed = m ? Number(m[1]) : 0
       const failed = m ? Number(m[2]) : NaN
@@ -173,8 +174,9 @@ async function main() {
 
     // full-deal-row-audit：两行都无 = 0 且 错误 = 0
     {
-      // 120s：要逐条抓 61 个详情页，实测约 20–40 秒
-      const { code, out } = await withTimeout(runSuite('full-deal-row-audit.mjs'), 120_000, 'full-deal-row-audit')
+      // 30s：要逐条抓 61 个详情页，实测 1007–1081ms（3 轮）。
+      // 通告数增长会线性抬高耗时，留 30 倍余量足够；真卡住时 30 秒能出结论。
+      const { code, out } = await withTimeout(runSuite('full-deal-row-audit.mjs'), 30_000, 'full-deal-row-audit')
       const neither = (out.match(/两行都无:\s*(\d+)/) || [])[1]
       const errors = (out.match(/错误:\s*(\d+)/) || [])[1]
       check(

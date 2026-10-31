@@ -19,11 +19,28 @@ import { redactPaths } from '../utils/sanitize'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('error', (error, { event }) => {
-    // 仅处理 API 路由的错误
-    if (!event?.path?.startsWith('/api/')) return
-
-    // 设置响应状态码
+    const path = event?.path || ''
     const statusCode = (error as any).statusCode || 500
+
+    // ── 非 API 路径（页面 SSR）：只记日志，不改响应 ──────────────────
+    //
+    // 为什么加这段（2026-10-31）：此前这里直接 `return`，于是**页面 500 完全没有日志**。
+    // 当天生产出现过一次瞬时异常：`/collections/<不存在>` 返回 500、
+    // 61 个详情页同时「找不到接入信息区块」。事后查 `docker logs` 只有启动期的
+    // statusMessage 警告，**没有任何错误痕迹** —— 因为记录代码就在这里被 return 跳过了。
+    // 「无法解释的瞬时 500」比确定的 bug 更该警惕，而前提是它得留下了证据。
+    //
+    // 注意：这里**只记录**，不 `setResponseStatus` / 不 `res.end()`。
+    // 页面错误要继续交给 Nitro 渲染 `error.vue`，若在此接管响应会破坏 SSR 错误页。
+    if (!path.startsWith('/api/')) {
+      if (statusCode >= 500) {
+        console.error(`[SSR Error] ${path || '(unknown)'} ${statusCode}:`, error?.message || error)
+      }
+      return
+    }
+
+    // ── API 路径：格式化响应（原有逻辑）─────────────────────────────
+    // `statusCode` 已在上面统一提取，这里不再重复声明（避免遮蔽）。
 
     // 提取错误消息
     const data = (error as any).data
