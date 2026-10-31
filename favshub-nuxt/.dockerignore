@@ -15,3 +15,7 @@ Dockerfile
 .dockerignore
 build.sh
 .output
+
+# assertion-count.mjs 的产物（每天 generatedAt 变化）—— 若进 build context，
+# 会让 `COPY . .` 之后的每一层缓存全部失效（不改一行代码也要重装依赖）。
+assertion-count.json
