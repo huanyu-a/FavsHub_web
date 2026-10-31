@@ -16,7 +16,7 @@
 
 因为 `compose.yaml` 写的是 `image: ...:latest` + `pull_policy: if_not_present`，
 **现在执行 `docker compose pull favshub` 会把生产拉回 `1.0.54`**，
-丢掉下面这 9 项修复：
+丢掉下面这 11 项修复：
 
 | # | 修复 | 提交 |
 |---|---|---|
@@ -33,29 +33,54 @@
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 会先跑 7 个测试套件（`ts:check` / `private-ip-check` / `sanitize-test` /
-`ssrf-pin-check` / 三个 e2e，共 **677 项断言**），通过才构建镜像。
-其中 `sanitize-test` 需要 **Node ≥ 22.6**（`--experimental-strip-types`），
-CI 用的是 `node-version: 22`，不要降到 20。
+推送后 CI 会先跑 8 个测试套件（`ts:check` / `private-ip-check` / `sanitize-test` /
+`ssrf-pin-check` / `cache-privacy-check` / 四个 e2e，共 **803 项断言**），通过才构建镜像。
 
-### 生产镜像落后 HEAD 的那部分，只是注释
+| 套件 | 断言数 | 需要 Node 22 |
+|---|---|---|
+| `ts:check`（具名导入） | 895 | |
+| `private-ip-check` | 102 | **是** |
+| `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
+| `ssrf-pin-check` | 12 | |
+| `cache-privacy-check` | 20 | |
+| `second-batch-e2e` | 138 | |
+| `third-batch-detail` | 247 | |
+| `third-batch-notify` | 161 | |
+| `third-batch-ratelimit` | 106 | |
+| **合计（断言）** | **803** | |
 
-生产跑的是 `fix-col404-4c33a83`，而 HEAD 比它多若干提交。**其中触及运行时代码的
-4 个文件，改动 100% 是注释**（实测 `git diff 4c33a83..HEAD` 逐文件统计：+41/−10，
-非注释新增 0 行、非注释删除 0 行）：
+`sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
+直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——
+在 Node 20 下 `private-ip-check` 会报 `ERR_UNKNOWN_FILE_EXTENSION ".ts"` 而**假失败**。
 
-```
-server/api/prompts/[id].get.ts     +8/-2   全注释
-server/api/prompts/index.get.ts    +9/-2   全注释
-server/api/token-deals/[id].get.ts +13/-3  全注释
-server/utils/ai-service.ts         +11/-3  全注释
-```
+**不在 CI 里**（需真实环境或直接打生产，故列为部署后手动核对项）：
+`ai-api-smoke-read`（122 项）、`public-field-matrix`（17 项）、`full-deal-row-audit`。
 
-其余提交改的是 CI 配置、部署文档、测试脚本。
+### 生产镜像落后 HEAD 的那部分：既有注释，也有**功能修复**
 
-**结论**：推送并重新部署后，**运行时行为与现在完全一致** —— 所以这次部署是
-「把注释与 CI 追平」，不是「上新功能」。反过来说，万一部署出问题，回滚到当前镜像
-也不会丢掉任何行为修复（9 项修复 `4c33a83` 全都有）。
+生产跑的是 `fix-col404-4c33a83`，HEAD 比它多 **36 个提交**（14 个文件，+504/−62）。
+
+⚠️ **2026-10-31 更新：此前这里写「改动 100% 是注释」，该结论已失效。**
+后续几轮审查又发现并修了 3 处**真实运行时缺陷**，所以这次部署**不再是纯追平**：
+
+| 文件 | 改动性质 | 影响 |
+|---|---|---|
+| `server/utils/deal-events.ts` | **功能**：`containsPoolCode` 加最小码长 4 位 | 防止短码（如 `"a"`）让公开链接被误清空 |
+| `server/utils/ai-service.ts` | **功能**：`listPrompts` 补 `?recycle=1` 分支 | 此前文档承诺了该能力但代码没实现（静默失效） |
+| `server/api/mcp.post.ts` | **功能**：`list_prompts` 暴露 `recycle` 参数 | 此前 REST 能用、MCP 用不了 |
+| `server/api/prompts/[id].get.ts` | 纯注释 | 无 |
+| `server/api/prompts/index.get.ts` | 纯注释 | 无 |
+| `server/api/token-deals/[id].get.ts` | 纯注释 | 无 |
+
+其余提交改的是 CI 配置、部署文档、测试脚本、AI 技能包（`favshub-data-ops/` 1.10.2 → 1.10.3）、
+manifest（`skill-manifest.ts` / `public/skills/*.json`）。
+
+**结论（已修正）**：
+- 部署后**有**行为变化，共 3 处，都是「堵漏 / 补承诺」，不是新功能界面；
+- 这 3 处对现有数据的影响面**当前为 0**（生产码池 3 个码均 ≥6 位；提示词 46 条、
+  0 条软删除），所以**上线不会立刻改变可见结果**，属于预防性修复；
+- 回滚到 `4c33a83` 会丢掉这 3 处修复与前 11 项修复 —— 但**不会**造成数据不兼容
+  （零 schema / 零迁移改动，见下）。
 
 ### CI 里新增的三个 e2e 套件
 
@@ -93,7 +118,7 @@ ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_m
 **回滚链已验证可用**（2026-10-31 实测）：9 档逐个冷启动均为 `running`；
 最旧档 `fix-claimrow-18cdcfc` 配**当前生产库副本**能正常启动，
 `/api/health` 返回 `{"status":"ok","database":"connected"}`、`/api/token-deals` 正常出数据。
-本轮 24 个提交**零 schema / 零迁移改动**，所以回滚不存在结构不兼容。
+本轮 36 个提交**零 schema / 零迁移改动**，所以回滚不存在结构不兼容。
 
 ## 为什么用「补丁镜像」而不是完整重建
 
