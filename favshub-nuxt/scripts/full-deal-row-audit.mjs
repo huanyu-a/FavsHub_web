@@ -82,11 +82,22 @@ async function fetchDealIds() {
 
 /** 从 SSR HTML 里判断「接入信息」区块渲染了哪几行 */
 function inspectHtml(html) {
+  // 「接入信息」标题本身出现多次时，indexOf 取到的是**第一个**，可能不是那一块。
+  // 实测 61 条通告当前都是唯一（2026-10-31），但这是个「数据一变就失准」的假设，
+  // 所以显式报出来，而不是静默按第一个算。
+  const occurrences = (html.match(/接入信息/g) || []).length
   const idx = html.indexOf('接入信息')
-  if (idx < 0) return { section: false, hasClaim: false, hasApi: false, placeholder: null }
+  if (idx < 0) return { section: false, hasClaim: false, hasApi: false, placeholder: null, ambiguous: false }
 
-  // 只看「接入信息」之后的一小段 —— 整页里别处也可能出现 row-label
-  const seg = html.slice(idx, idx + 1600).replace(/<!--[\s\S]*?-->/g, '')
+  // 只看「接入信息」之后的一小段 —— 整页里别处也可能出现 row-label。
+  //
+  // 窗口为什么从 1600 放宽到 4000：实测当前最后一个 row-label 距标题最远 781 字符
+  // （deal_1793107948617_dpqmn3），余量只有 2 倍。而这两行的值可能是很长的 URL
+  // （含 `{邀请码}` 模板、几百字符的查询串），窗口一旦不够就会**漏判成「两行都无」**——
+  // 那是本脚本最重要的失败信号，绝不能因为窗口太小而误报。
+  // 放宽的代价只是多扫几 KB 字符串，可以忽略。
+  const SEG_LEN = 4000
+  const seg = html.slice(idx, idx + SEG_LEN).replace(/<!--[\s\S]*?-->/g, '')
   const labels = [...seg.matchAll(/row-label[^>]*>([^<]+)</g)].map((m) => m[1].trim())
   const hit = PLACEHOLDERS.find((p) => seg.includes(p))
   return {
@@ -94,6 +105,8 @@ function inspectHtml(html) {
     hasClaim: labels.includes('领取地址'),
     hasApi: labels.includes('API 地址'),
     placeholder: hit || null,
+    // 标题重复 = 取的可能不是目标区块；调用方据此把该条报成错误而不是当正常数据
+    ambiguous: occurrences > 1,
   }
 }
 
@@ -146,6 +159,13 @@ async function main() {
       }
       if (!info.section) {
         neither.push([id, '找不到「接入信息」区块'])
+        return
+      }
+      // 「接入信息」标题出现多次 → 无法确信取到的是目标区块。
+      // 报成 error（不是 neither）：这是**脚本自身的判定不确定**，
+      // 混进「两行都无」会让真正的回归信号被假报警淹没。
+      if (info.ambiguous) {
+        errors.push([id, '页面里「接入信息」出现多次，无法定位目标区块'])
         return
       }
       if (info.hasClaim && info.hasApi) both.push(id)
