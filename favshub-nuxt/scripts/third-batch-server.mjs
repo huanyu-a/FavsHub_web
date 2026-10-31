@@ -5,6 +5,25 @@
  * 先决条件：`pnpm build` 已产出 `.output/`（本脚本只起产物，不编译）。
  * 端口固定 3262；临时库全部落在 /tmp（跑完自动清），不碰 data/。
  *
+ * ## ⚠️ Node 版本必须与 `.output` 的构建版本一致，且该版本需 ≥22.6
+ *
+ * 本脚本有两处对 Node 版本敏感，且方向**相反**：
+ *
+ *   1. `spawn('node', ['.output/server/index.mjs'])` —— 拿 PATH 上的 node 起产物。
+ *      better-sqlite3 是原生模块，ABI 与 Node 大版本绑定；版本错了只会看到
+ *      `应用启动即退出（code=1）`，真实原因藏在子进程 stderr 的
+ *      `NODE_MODULE_VERSION 115 / 127` 里。
+ *   2. `await import(... 'invite-codes.ts')` —— 直接加载 `.ts` 源码做纯函数单测，
+ *      需要 **Node ≥22.6**（`--experimental-strip-types`）。Node 20 会报
+ *      `ERR_UNKNOWN_FILE_EXTENSION`，而且 20 根本不认这个 flag。
+ *
+ * 所以：**`.output` 用哪个 Node 构建，就得用那个 Node 跑；而那个 Node 必须 ≥22.6。**
+ * 本机常见混装（node_modules/.output 由 Node 20 装出，PATH 上是 Node 22）会两头堵：
+ * 用 20 跑 → `.ts` 加载失败；用 22 跑 → ABI 不匹配（2026-10-31 两种都实测过）。
+ *
+ * 解法：CI 里天然满足（setup-node 22 → install → build → run 全用 22）；
+ * 本机想跑，先用 ≥22.6 的版本做一次 `pnpm install` + `pnpm build`。
+ *
  * 覆盖 2026-10-30 第三批的服务端部分：
  *   ① 领取地址 `{邀请码}` 占位符
  *      · 三种兼容写法（`{邀请码}` / `{code}` / `{invite_code}`）+ 全角花括号
