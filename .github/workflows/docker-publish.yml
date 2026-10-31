@@ -25,8 +25,23 @@ jobs:
       - name: Read version
         id: version
         run: |
-          VER=$(cat favshub-nuxt/VERSION | tr -d '[:space:]')
-          echo "version=$VER" >> $GITHUB_OUTPUT
+          # 不用 `cat ... | tr ...`：管道会把 `cat` 的失败退出码吃掉，
+          # 于是「VERSION 文件不存在」会**静默通过**，payload 变成 `version=`（空）。
+          # 下游 `docker/metadata-action` 拿空值会生成一个 `type=raw,value=` 的非法 tag
+          # —— 恰恰在最该报错的时候不报错，然后推一个坏镜像。
+          # 改为：先确保文件可读（set -e + 单独 cat），再校验内容非空。
+          set -euo pipefail
+          VER=$(tr -d '[:space:]' < favshub-nuxt/VERSION)
+          if [ -z "$VER" ]; then
+            echo "::error::favshub-nuxt/VERSION 为空或不可读，拒绝构建（否则会打出空 tag 的镜像）"
+            exit 1
+          fi
+          # 基本形状校验：至少 x.y 或 x.y.z，避免把误编辑的内容当成版本号
+          if ! printf '%s' "$VER" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::favshub-nuxt/VERSION 内容不像版本号：'$VER'"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "Version: $VER"
 
       - name: Setup pnpm
