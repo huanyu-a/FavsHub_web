@@ -4,18 +4,55 @@
 > 本文件记录**当前生产环境的状态**与易踩的坑。日常部署步骤见 `README.md`；
 > 含密码的本机步骤见 `DEPLOY.md`（gitignore，不入库）。
 
-**最后更新：2026-10-31（第 3 次修订：补上 `describe` 与 `collections` 两项修复 + 回滚档更新）**
+**最后更新：2026-10-31（第 4 次修订：正式部署 1.0.55，手工补丁镜像时代结束）**
 
-## ⚠️ 最重要的一条：推送前不要执行 `pull`
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像（2026-10-31）
 
-| 位置 | 当前内容 |
+**手工组装补丁镜像的历史到此结束。** 生产现在运行的镜像由 GitHub Actions 构建并推送：
+
+| 项 | 值 |
+|---|---|
+| **版本** | `1.0.55` |
+| **来源提交** | `417696cb13f5d1067734ea1c25f49b4727e825fd` |
+| **镜像 ID** | `sha256:421e28c86819…` |
+| **GHCR 索引 digest** | `sha256:389c6605d719edf25161ef002209974e62e05b16234a5ea2d34ad8f712e7ef71` |
+| **`latest` / `1.0.55` / `sha-417696c`** | 三者指向**同一个** digest（上面那个）|
+| **CI run** | #50，6 分 18 秒，21 步全过，962 项断言 |
+| **部署后验证** | `scripts/post-deploy-verify.mjs` → **5 通过 / 0 失败** |
+| **回滚锚点** | `ghcr.io/huanyu-a/favshub:fix-col404-4c33a83`（`sha256:01e3ed69…`，本地仍在）|
+
+镜像里的 OCI 标签可自证来源（`docker inspect <img>`）：
+
+```
+org.opencontainers.image.version  = 1.0.55
+org.opencontainers.image.revision = 417696cb13f5d1067734ea1c25f49b4727e825fd
+```
+
+### ⚠️ 但「推送前不要 pull」这个坑**没有消失**，只是这次躲过了
+
+下面那一大段保留原文 —— 它是**每一次发版都会重新遇到**的操作顺序问题，
+不是一次性事故。规则：
+
+> **push → CI 跑完 → 先确认 GHCR `latest` 的 digest 变了 → 才 `pull`。**
+
+判断方法（这次就是这么做的）：
+
+```bash
+docker buildx imagetools inspect ghcr.io/huanyu-a/favshub:latest | grep -m1 Digest
+```
+
+它必须等于 CI 里那个 `sha-<短提交>` 的 digest。**跳过这一步就可能把生产拉回旧版却以为在升级。**
+
+## 历史：2026-10-31 之前的状态（保留原记录）
+
+| 位置 | 当时的内容 |
 |---|---|
 | **GHCR 上的 `latest`** | `1.0.54`（`sha-07017b8`）= 仓库 `origin/main` 的快照 |
 | **生产服务器本地 `latest`** | 手工组装的镜像 **`fix-col404-4c33a83`**（`sha256:01e3ed69…`），**比 GHCR 新** |
 | **生产容器实际运行** | 就是上面那个手工镜像 |
 
 因为 `compose.yaml` 写的是 `image: ...:latest` + `pull_policy: if_not_present`，
-**现在执行 `docker compose pull favshub` 会把生产拉回 `1.0.54`**，
+**在当时执行 `docker compose pull favshub` 会把生产拉回 `1.0.54`**，
 丢掉下面这 11 项修复：
 
 ### 佐证：本地镜像根本没有 RepoDigests（2026-10-31 实测）
@@ -32,6 +69,11 @@
 经 `docker pull` 得到的镜像，Docker 一定会记录 `RepoDigests`（形如
 `ghcr.io/…@sha256:…`）。**全为空 ⇒ 这台机器上的 favshub 镜像从未从 registry 拉过**，
 都是本地构建 / `docker load` 来的 —— 与「手工组装补丁镜像」的部署方式吻合。
+
+> **2026-10-31 部署后这条已改变**：执行过 `docker compose pull` 之后，
+> `latest` 现在带 digest 了 —— `ghcr.io/huanyu-a/favshub@sha256:389c6605…`。
+> 也就是说 **RepoDigests 是否为空，本身就是「这台机器上的镜像来自哪」的判据**：
+> 为空 = 手工镜像，有值 = registry 拉取。下次怀疑「生产跑的到底是什么」时可以直接看它。
 
 两边实际的 digest：
 
@@ -61,8 +103,10 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 会先跑 8 个测试套件（`ts:check` / `private-ip-check` / `sanitize-test` /
-`ssrf-pin-check` / `cache-privacy-check` / 四个 e2e，共 **962 项断言**），通过才构建镜像。
+推送后 CI 先跑 **9 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
+`ssrf-pin-check`；6 个跑产物：`second-batch-e2e` / `third-batch-detail` /
+`third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
+`third-batch-server`，共 **962 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
@@ -131,7 +175,8 @@ ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_m
 
 | tag（= 同一镜像的别名） | 内容 |
 |---|---|
-| **`fix-col404-4c33a83` = `latest`** | **全部 11 项修复（当前生产）** |
+| **`1.0.55` = `latest` = `sha-417696c`** | **CI 正规镜像（当前生产，`sha256:421e28c8…`）** |
+| **`fix-col404-4c33a83`** | 手工镜像：全部 11 项修复（**2026-10-31 部署前的生产，现为回滚锚点**）|
 | `rollback-before-col404` | 去掉「精选集不存在返回 404」 |
 | `fix-describe-cdaaf47` | 去掉 describe 字段字典修正 |
 | `rollback-before-describe` | 去掉上述两项 |
@@ -147,7 +192,8 @@ ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_m
 **回滚链已验证可用**（2026-10-31 实测）：9 档逐个冷启动均为 `running`；
 最旧档 `fix-claimrow-18cdcfc` 配**当前生产库副本**能正常启动，
 `/api/health` 返回 `{"status":"ok","database":"connected"}`、`/api/token-deals` 正常出数据。
-本轮 36 个提交**零 schema / 零迁移改动**，所以回滚不存在结构不兼容。
+本轮 58 个提交**零 schema / 零迁移改动**，所以回滚不存在结构不兼容
+（两个方向都验过：旧镜像启动后 `token_deals` 仍是 34 列、42 张表，与回滚前一致）。
 
 ## 为什么用「补丁镜像」而不是完整重建
 
