@@ -1,0 +1,246 @@
+#!/usr/bin/env node
+/**
+ * 统计各测试套件的断言数，并检查文档里写的数字是否与实测一致。
+ *
+ * ## 为什么需要它
+ *
+ * 「CI 断言总计 808」这个数字散落在至少 7 处（`DEPLOYMENT-STATE.md` 的表格与正文、
+ * `docker-publish.yml` 的注释）。每次给套件加几条断言，这些数字就同时过期，
+ * 而**它们不影响任何测试** —— CI 永远不会因为「文档说 803 实际 808」而报警。
+ *
+ * 结果就是同类修正已经做过 6 次。人肉维护必然还会错第 7 次，所以改成跑一遍就对。
+ *
+ * ## 用法
+ *
+ *   node scripts/assertion-count.mjs           # 只统计并打印
+ *   node scripts/assertion-count.mjs --check   # 额外校验文档里的数字，不一致则非零退出
+ *
+ * ## 前提（重要）
+ *
+ * build 后的 5 个套件会 `spawn('node')` 起 `.output/server/index.mjs`，
+ * 而 `better-sqlite3` 是原生模块、**ABI 与 Node 大版本绑定**。
+ * 因此必须用「构建 `.output` 时所用的那个 Node」来跑，否则会得到误导性的
+ * 「应用 30s 内未就绪」（真实原因是 `NODE_MODULE_VERSION` 不匹配）。
+ *
+ * 本脚本会先探测 `.output` 里原生模块的 ABI，再与当前 Node 的 ABI 比对，
+ * **不匹配就直接报错退出**，而不是让你对着一堆「未就绪」猜。
+ */
+
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+const CHECK = process.argv.includes('--check')
+
+// build 前就能跑的自包含套件（不依赖 .output）
+const PRE_BUILD = [
+  { name: 'private-ip-check', script: 'private-ip-check.mjs', args: [] },
+  { name: 'sanitize-test', script: 'sanitize-test.mjs', args: ['--experimental-strip-types'] },
+  { name: 'ssrf-pin-check', script: 'ssrf-pin-check.mjs', args: [] },
+]
+// build 后需要 .output 的套件
+const POST_BUILD = [
+  { name: 'second-batch-e2e', script: 'second-batch-e2e.mjs' },
+  { name: 'third-batch-notify', script: 'third-batch-notify.mjs' },
+  { name: 'third-batch-detail', script: 'third-batch-detail.mjs' },
+  { name: 'third-batch-ratelimit', script: 'third-batch-ratelimit.mjs' },
+  { name: 'cache-privacy-check', script: 'cache-privacy-check.mjs' },
+]
+
+/**
+ * 探测 `.output` 里的原生模块能否被**当前 Node** 加载。
+ *
+ * 走过两条弯路，记下来免得再踩：
+ *
+ *   1. `createRequire(...)('better-sqlite3')` —— **探测不出来**。
+ *      它加载的是 JS 包装层，`.node` 二进制要到真正 new Database() 时才 dlopen。
+ *      实测 Node 24 下 require 照样“成功”，而实际起服务立刻崩。
+ *
+ *   2. 从二进制里 `strings | grep NODE_MODULE_VERSION` —— 也没有。
+ *      该 .node 被 strip 过，标记字符串不在了。
+ *
+ *   可行的办法：**在子进程里直接 `process.dlopen()` 那个 .node 文件**。
+ *   成功即 ABI 匹配；失败时 V8 会把「需要 ABI N / 当前 ABI M」原样写进报错，
+ *   正好是我们想把话说清楚的东西 —— 而不是让人对着「应用 30s 内未就绪」猜。
+ */
+function detectAbiMismatch() {
+  const candidates = [
+    join(ROOT, '.output', 'server', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+  ]
+  const nodeFile = candidates.find((p) => existsSync(p))
+  if (!nodeFile) return null
+
+  const r = spawnSync(process.execPath, [
+    '-e',
+    'try { process.dlopen({ exports: {} }, process.argv[1]); console.log("OK") }' +
+    'catch (e) { console.log("ERR " + String(e.message).replace(/\\n/g, " ")) }',
+    nodeFile,
+  ], { encoding: 'utf8' })
+
+  const out = `${r.stdout || ''}${r.stderr || ''}`
+  if (out.includes('OK')) return null
+
+  const want = (out.match(/NODE_MODULE_VERSION (\d+)/) || [])[1]
+  const have = (out.match(/This version of Node\.js requires\s+NODE_MODULE_VERSION (\d+)/) || [])[1]
+  return { want: want || '?', have: have || process.versions.modules, current: process.versions.modules, raw: out.trim().slice(0, 200) }
+}
+
+/**
+ * 本机可能装了多个 Node。两类套件对版本的要求**相反**：
+ *
+ *   · build 前（private-ip / sanitize / ssrf-pin）：
+ *       需要 **Node ≥ 22**（`--experimental-strip-types`）。
+ *       Node 20 会报 `bad option: --experimental-strip-types`
+ *       或 `ERR_UNKNOWN_FILE_EXTENSION`（.ts 无法直接加载）。
+ *   · build 后（5 个 e2e）：必须与 `.output` 里原生模块的 ABI 一致，
+ *       否则「应用 30s 内未就绪」。
+ *
+ * 所以不能全程用同一个 node 二进制。这里按 category 各选一个：
+ *   - PRE  ：在候选里挑一个 ≥22 的；挑不到就退化为当前 process（并给出警告）。
+ *   - POST ：用当前 process（调用者负责保证 ABI 匹配，不匹配已在前面拦下）。
+ */
+const NODE_CANDIDATES = [
+  process.execPath,
+  '/Users/huanyu/projects/tmp/node-v22.20.0-darwin-arm64/bin/node',
+  '/Users/huanyu/projects/tmp/node-v20.19.5-darwin-arm64/bin/node',
+].filter((p, i, a) => existsSync(p) && a.indexOf(p) === i)
+
+function pickNodeForPre() {
+  for (const bin of NODE_CANDIDATES) {
+    const r = spawnSync(bin, ['-e', 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)'])
+    if (r.status === 0) return bin
+  }
+  return null
+}
+
+function runSuite(s) {
+  return new Promise((resolve) => {
+    const bin = s.nodeBin || process.execPath
+    const p = spawn(bin, [...(s.args || []), join(ROOT, 'scripts', s.script)], {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env },
+    })
+    let out = ''
+    p.stdout.on('data', (c) => { out += c })
+    p.stderr.on('data', (c) => { out += c })
+    p.on('close', (code) => resolve({ code, out }))
+  })
+}
+
+/** 从各种套件的输出里抠出「通过数」 —— 三种格式都认 */
+function parsePass(out) {
+  let m = out.match(/═══\s*结果：(\d+)\s*通过/)
+  if (m) return Number(m[1])
+  m = out.match(/通过\s*[:：]\s*(\d+)/)
+  if (m) return Number(m[1])
+  m = out.match(/通过\s+(\d+)\s+项/)
+  if (m) return Number(m[1])
+  // sanitize-test 的格式：「通过 17 / 17」
+  m = out.match(/通过\s*(\d+)\s*\/\s*\d+/)
+  if (m) return Number(m[1])
+  m = out.match(/^(\d+)\s*\/\s*(\d+)$/m)
+  if (m) return Number(m[1])
+  return null
+}
+
+async function main() {
+  console.log(`断言数统计 —— ${ROOT}\n`)
+  console.log(`当前 Node ${process.version}（ABI ${process.versions.modules}）`)
+
+  const mismatch = detectAbiMismatch()
+  if (mismatch) {
+    console.error(
+      `\n✗ .output 的原生模块与当前 Node 不匹配：\n` +
+      `    better_sqlite3.node 需要 NODE_MODULE_VERSION ${mismatch.want}\n` +
+      `    当前 Node 提供        NODE_MODULE_VERSION ${mismatch.have || mismatch.current}\n\n` +
+      `  请用「构建 .output 时所用的那个 Node」重跑本脚本，否则 5 个 build 后套件\n` +
+      `  都会报「应用 30s 内未就绪」—— 那是 ABI 不匹配的误导性表征，不是代码坏了。\n` +
+      `  常见做法：用 node-version 20 构建就用 node 20 跑，24 构建就用 24 跑。`,
+    )
+    process.exit(1)
+  }
+
+  const rows = []
+  let total = 0
+
+  console.log('\n── build 前（自包含）──────────────────────')
+  const preNode = pickNodeForPre()
+  if (!preNode) {
+    console.log('  ⚠ 本机找不到 Node ≥22 —— build 前三个套件跑不了（需要 --experimental-strip-types）')
+  } else if (preNode !== process.execPath) {
+    console.log(`  （这三项用 ${preNode} 跑：需要 Node ≥22）`)
+  }
+  for (const sRaw of PRE_BUILD) {
+    const s = { ...sRaw, nodeBin: preNode || process.execPath }
+    if (!preNode) { rows.push({ ...s, n: null, code: -1 }); console.log(`  ? ${s.name} — 跳过（无 Node ≥22）`); continue }
+    const { code, out } = await runSuite(s)
+    const n = parsePass(out)
+    rows.push({ ...s, n, code })
+    if (n === null) console.log(`  ? ${s.name} — 无法解析（exit ${code}）`)
+    else { total += n; console.log(`  ${String(n).padStart(4)} ${s.name}${code ? `  ⚠ exit ${code}` : ''}`) }
+  }
+
+  if (existsSync(join(ROOT, '.output', 'server', 'index.mjs'))) {
+    console.log('\n── build 后（需 .output）──────────────────')
+    for (const s of POST_BUILD) {
+      const { code, out } = await runSuite(s)
+      const n = parsePass(out)
+      rows.push({ ...s, n, code })
+      if (n === null) console.log(`  ? ${s.name} — 无法解析（exit ${code}）：${out.trim().split('\n').slice(-2).join(' ').slice(0, 100)}`)
+      else { total += n; console.log(`  ${String(n).padStart(4)} ${s.name}${code ? `  ⚠ exit ${code}` : ''}`) }
+    }
+  } else {
+    console.log('\n  （未找到 .output —— 跳过 5 个 build 后套件；请先 pnpm build）')
+  }
+
+  console.log(`\n${'─'.repeat(44)}`)
+  console.log(`  断言总计：${total}`)
+  console.log(`  （ts:check 的具名导入数不计入）`)
+
+  if (!CHECK) {
+    console.log('\n提示：加 --check 可校验文档里写的数字是否与本次实测一致。')
+    return
+  }
+
+  // ── 校验文档 ──────────────────────────────────────────────
+  console.log('\n── 校验文档里的数字 ───────────────────────')
+  const docs = [
+    { path: join(ROOT, 'DEPLOYMENT-STATE.md'), label: 'DEPLOYMENT-STATE.md' },
+    { path: join(dirname(ROOT), '.github', 'workflows', 'docker-publish.yml'), label: 'docker-publish.yml' },
+  ]
+  let bad = 0
+  for (const d of docs) {
+    if (!existsSync(d.path)) continue
+    const text = readFileSync(d.path, 'utf8')
+    // 抓「所有声称是总计的数字」。踩过一次坑：原来的正则只认某一种写法，
+    // 于是文件里前一处写对了(808)、后一处被改错成 999 时，只校验到前者，
+    // **测试照样绿** —— 这比没有校验更危险。
+    // 现在把三种常见写法都抓，且**每一处都必须等于实测值**。
+    const patterns = [
+      /断言总计[^\d]{0,12}(\d{2,4})/g,
+      /合计（断言）\*{0,2}\s*\|\s*\*{0,2}(\d{2,4})/g,
+      /共\s*\*{0,2}(\d{2,4})\s*项断言/g,
+    ]
+    const found = []
+    for (const re of patterns) {
+      for (const m of text.matchAll(re)) found.push({ v: Number(m[1]), at: m.index })
+    }
+    if (!found.length) { console.log(`  · ${d.label}：未找到总数断言`); continue }
+    const uniq = [...new Set(found.map((f) => f.v))]
+    for (const t of uniq) {
+      const cnt = found.filter((f) => f.v === t).length
+      if (t === total) console.log(`  ✓ ${d.label} 写的 ${t} = 实测 ${total}（${cnt} 处）`)
+      else { bad += cnt; console.log(`  ✗ ${d.label} 有一处写 ${t}，实测 ${total}（${cnt} 处不符）`) }
+    }
+  }
+  if (bad) {
+    console.log(`\n✗ ${bad} 处文档数字与实测不符 —— 请更新后再提交。`)
+    process.exit(1)
+  }
+  console.log('\n✓ 文档数字与实测一致。')
+}
+
+main().catch((e) => { console.error('执行异常：' + e.message); process.exit(1) })
