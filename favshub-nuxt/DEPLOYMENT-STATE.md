@@ -18,6 +18,34 @@
 **现在执行 `docker compose pull favshub` 会把生产拉回 `1.0.54`**，
 丢掉下面这 11 项修复：
 
+### 佐证：本地镜像根本没有 RepoDigests（2026-10-31 实测）
+
+这一条不是推测，有直接证据。逐个查 `docker inspect <img> --format '{{.RepoDigests}}'`：
+
+| tag | RepoDigests |
+|---|---|
+| `latest` | **（空）** |
+| `fix-col404-4c33a83` | **（空）** |
+| `fix-describe-cdaaf47` | **（空）** |
+| `rollback-20261010` | **（空）** |
+
+经 `docker pull` 得到的镜像，Docker 一定会记录 `RepoDigests`（形如
+`ghcr.io/…@sha256:…`）。**全为空 ⇒ 这台机器上的 favshub 镜像从未从 registry 拉过**，
+都是本地构建 / `docker load` 来的 —— 与「手工组装补丁镜像」的部署方式吻合。
+
+两边实际的 digest：
+
+```
+GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c3846fe6
+本地 latest : sha256:01e3ed69821bcce630df68974927ac54905cb2b3b7169c081ea1aa3ecda38806
+```
+
+**顺序必须是：push → CI 推完 → 先确认 GHCR latest 的 digest 变了 → 才 pull。**
+跳过「确认 digest」这一步，就可能把生产拉回旧版却以为在升级。
+
+另外记一个容易误会的点：`pull_policy: if_not_present` 只影响 **`compose up` 时
+要不要自动拉**，对显式 `docker compose pull favshub` 无效 —— 那条命令一定会去拉。
+
 | # | 修复 | 提交 |
 |---|---|---|
 | 1 | 无码时隐藏整条「领取地址」行 | `18cdcfc` |
