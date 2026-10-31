@@ -102,7 +102,13 @@ async function runSuite(script) {
   const { fileURLToPath } = await import('node:url')
   const { dirname, join } = await import('node:path')
   const here = dirname(fileURLToPath(import.meta.url))
-  const positional = script === 'public-field-matrix.mjs'
+  // 哪个探针用「位置参数」而非 `--base`。**必须显式登记**，不要靠默认分支猜：
+  //   · public-field-matrix.mjs → `process.argv[2]`
+  //   · 其余（目前只有 full-deal-row-audit.mjs） → `argOf('--base', ...)`
+  // 新增探针时先看它怎么读参数，再加到这里；写错会得到
+  // `Failed to parse URL from --base/api/...` 这类硬错误（实测踩过）。
+  const POSITIONAL_ARGS = new Set(['public-field-matrix.mjs'])
+  const positional = POSITIONAL_ARGS.has(script)
   const argv = positional ? [join(here, script), BASE] : [join(here, script), '--base', BASE]
   return await new Promise((resolve) => {
     const p = spawn(process.execPath, argv, {
