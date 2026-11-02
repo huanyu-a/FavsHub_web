@@ -176,27 +176,33 @@
         </div>
       </div>
 
-      <!-- 卡片 5：游客模式与外部生态订阅指南 -->
+      <!-- 卡片 5：游客模式与外部生态订阅指南（优先推荐 Hermes 方案） -->
       <div class="card">
         <div class="card-header">
-          <h3>游客与外部群主接入（零代码直连）</h3>
+          <h3>游客与外部群主接入（优先推荐 Hermes 方案）</h3>
           <span class="badge-pill">公开生态</span>
         </div>
         <div class="card-body">
-          <p class="hint">其他站长、交流群主或外部访客若想把本站的白嫖通告同步推送到他们自己的 QQ 群，<strong>无需安装配置复杂的 Hermes CLI</strong>，只需使用官方 <code>favshub-poll.py</code> 轮询脚本即可原生直推：</p>
+          <p class="hint">其他站长、交流群主或外部访客若想把本站的白嫖通告同步推送到他们自己的 QQ 群，<strong>优先推荐使用 Hermes 统一消息中枢方案</strong>，由本机 Hermes 接管机器人凭证与多通道投递，安全合规、零封号风险：</p>
 
-          <div class="code-block-box">
-            <pre><code>python3 favshub-poll.py --init \
-  --site {{ siteUrl }} \
-  --qq-appid 外部群主的AppID \
-  --qq-secret 外部群主的AppSecret \
-  --qq-group 外部群主的群OpenID \
-  --label "我的QQ群"</code></pre>
+          <div style="margin: 12px 0;">
+            <strong>方式一：Hermes 原生 Feed 订阅（最简单 · 零代码）</strong>
+            <p class="hint" style="margin: 4px 0 8px;">直接在 Hermes 订阅管理中添加本站公开 Atom 订阅源，自动定时抓取并广播：</p>
+            <div class="code-block-box">
+              <pre><code>Feed 地址: {{ siteUrl }}/api/token-deals/feed.atom
+投递目标:  qqbot:外部群主的群OpenID</code></pre>
+            </div>
           </div>
 
-          <p class="hint" style="margin-top: 10px;">
-            该脚本已发布在公开技能包中（<code>{{ siteUrl }}/skills/favshub-data-ops.json</code>，版本 <code>v1.11.0</code>），纯 Python 原生 <code>urllib</code> 实现，内置 7200s Token 换取/缓存与未报备域名自动剥离降级。
-          </p>
+          <div style="margin: 16px 0 8px;">
+            <strong>方式二：Hermes 技能驱动与 CLI 投递（全事件支持）</strong>
+            <p class="hint" style="margin: 4px 0 8px;">
+              通过本站公开技能包 <code>favshub-data-ops</code>（<code>{{ siteUrl }}/skills/favshub-data-ops.json</code>），由 Hermes 定时拉取 <code>/api/token-deals/changes</code> 增量事件流，直接通过 <code>hermes send</code> 广播（支持上新、变更、续期与下架全生命周期）：
+            </p>
+            <div class="code-block-box">
+              <pre><code>hermes send -t qqbot:外部群主的群OpenID "【上新】服务商名称｜通告标题..."</code></pre>
+            </div>
+          </div>
         </div>
       </div>
     </div>

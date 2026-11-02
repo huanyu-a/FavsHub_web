@@ -8,14 +8,14 @@
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
   version: "1.11.0",
-  site_version: "1.0.57",
+  site_version: "1.0.58",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**通告订阅支持 QQ 官方机器人 OpenAPI 直连（面向游客与外部群主）**： 此前 `subscribe.md` 的轮询脚本 `favshub-poll.py` 强依赖本地安装的 `hermes` CLI， 对于没有部署 Hermes 的普通用户/游客门槛极高。 现根据腾讯官方开放平台最新规范，在脚本中内置基于纯 Python 原生 `urllib` 的官方 OpenAPI 直连：",
-  "自动换取与缓存 `access_token`（7200 秒 TTL，提前 60 秒刷新）；",
-  "目标群直接通过 `POST /v2/groups/{group_openid}/messages` 发送；",
-  "报 `304003`（网址未在平台报备）时自动剥离 URL 降级重发纯文本，保障通知必达；",
-  "报 `40034105` 时诊断并输出友好指引（群主需在群设置中开启【机器人主动在群聊内发言】）；"
+  "**通告订阅全面优化 Hermes 方案**：",
+  "规范并优先推荐 Hermes 订阅方案（路径 A：Hermes 原生 Feed 订阅，零代码直接配置；路径 B：Hermes 技能 + `hermes send` 投递，全事件覆盖）；",
+  "去除脆弱的外部 Python 脚本依赖，统一由 Hermes 本机接管机器人通道与凭证管理，保障最高安全性与零封号合规；",
+  "针对 QQ 官方机器人群主动消息，增加 `40034105` 权限诊断指引（群主需在群设置中开启【机器人主动在群聊内发言】）与频控说明（单群 1000条/天）。",
+  "**服务端出入站全面增强**："
 ],
 } as const

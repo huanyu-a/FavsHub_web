@@ -1,591 +1,138 @@
-# 通告订阅：把 FavsHub 的新通告推到我的机器人
+# 通告订阅：把 FavsHub 的新通告推到我的机器人（Hermes 方案）
 
-> 读完这一页，你的 AI 助手就能做到：**站点一有新的白嫖通告（或额度变更、下架、续期），自动发到我的 QQ 群 / 单聊。**
+> 本文为 **Hermes 专属订阅指南**。读完这一页，你的 AI 助手即可实现：**站点一有新的白嫖通告（或额度变更、下架、续期），自动通过 Hermes 广播到你的 QQ 群 / 单聊。**
 
-## 这份文档解决什么
+---
+
+## 核心架构与设计原则
 
 FavsHub 的白嫖通告随时在变：有人发新的、有人续期、有人下架、社区投票判定失效。
-用户不想天天刷网站，想让**自己的机器人**在变化发生时收到一条消息。
+用户不想天天刷网站，想让**自己的 QQ 机器人**在变化发生时第一时间收到通知。
 
-**关键事实（先记住，能省掉一半踩坑）**：
+**关键事实与安全边界**：
+> 站点**不主动向外推送**。站点只提供「有变化了」的数据出口，投递由**用户在本机通过 Hermes 统一完成**。
 
-> 站点**不主动推送**。站点只提供「有变化了」的数据，投递由**你（用户的 AI 助手 / Hermes）在本机完成**。
+```
+站点公开出口 (/api/token-deals/changes 或 feed.atom)
+                    │  Hermes 本机定时轮询增量
+                    ▼
+          你的机器（运行 Hermes）
+                    │  统一多通道投递
+                    ▼
+       hermes send -t qqbot:<群OpenID> "【上新】..."
+```
 
-## 为什么是「你自己拉」，而不是「站点推给我」
+### 为什么优先推荐 Hermes 方案？
+1. **零代码与框架级统一**：无需自行编写或维护脆弱的轮询脚本与依赖库，由 Hermes 集中管理机器人通道、网络超时、格式解析与凭证保密；
+2. **多通道支持**：支持 QQ 官方机器人（`qqbot:`）、钉钉（`dingtalk:`）、飞书、Telegram 等，同一份通告可通过 `hermes send` 一键广播到多个不同平台；
+3. **零封号风险**：Hermes 对接的是腾讯 QQ 官方开放平台（OpenAPI API v2）或企业通道，合法合规，无第三方协议冻结封号风险；
+4. **凭证隔离与安全性**：机器人 AppSecret 仅保存在本机 Hermes 配置中，不向 FavsHub 站点泄漏；FavsHub 仅作为只读数据源，安全性最高。
 
-| 方案 | 站点要不要出站 | 能不能用 | 说明 |
+---
+
+## 接入方式对比与选型
+
+| 接入方式 | 适合场景 | 优势 | 局限 |
 |---|---|---|---|
-| 站点直推游客的 QQ | 要 | ✗ | QQ 机器人不在公网、站点也没有用户的机器人凭证；站点出站还需面对 SSRF、被当刷屏放大器 |
-| 游客机器上跑 Hermes，定时拉 | 不要 | ✓ | 机器人在你自己机器上，站点只给数据。目标、频率、文案全你自己定 |
+| **路径 A：Hermes Feed 订阅（推荐新手）** | 已运行 Hermes，需要快速订阅 | **零代码**，直接在 Hermes 订阅管理中添加 Atom/RSS 链接即可 | 仅同步「上新 / 变更 / 续期」，收不到下架事件 |
+| **路径 B：Hermes 技能 + CLI 驱动（推荐群主）** | 需要全量事件（含下架/脱敏）、自定义过滤与多群广播 | **全功能支持**，支持按服务商/分类/关键词深度过滤，支持精确游标跟踪 | 需配置一次订阅与 Hermes 定时任务 |
 
-所以整条链路是：
+---
 
-```
-站点事件流 (/api/token-deals/changes)
-        │  你按游标拉增量（带 token 可套用过滤条件）
-        ▼
-   你的机器 (cron 定时跑 favshub-poll.py)
-        │  逐条渲染好的文案
-        ▼
-   hermes send -t qqbot:<群号> --json "【上新】..."
-```
+## 路径 A：Hermes 原生 Feed 订阅（零代码）
 
-站点**零出站**，游客**只有接收能力**：他不会、也不能通过订阅改动站点的任何数据。
+FavsHub 提供符合标准规范的 Feed 出口：
 
-## 选哪条路
-
-| 路径 | 适合 | 代价 |
-|---|---|---|
-| **A. Feed 订阅** | Hermes（或任意阅读器）已支持订阅 feed / RSS | 零代码，但只能收「上新 / 变更 / 续期」，收不到「下架」，也无法自定义文案 |
-| **B. QQ 官方机器人直连**（最推荐游客/群主） | 零框架依赖、无需安装 Hermes，通过 QQ 开放平台官方 OpenAPI 直推自己的群 | 申请机器人拿到 AppID + Secret + 群 openid，普通 Python 脚本 + cron |
-| **C. Hermes CLI 投递** | 已安装配置 Hermes 的机器，需要支持钉钉 / 频道等复合多通道 | 依赖本地 `hermes` CLI 工具 |
-| D. 一次性查询 | 只是想看看最近有什么 | 不要建订阅，直接读列表即可 |
-
-> **先问用户要接收目标，再动手。** 不要猜群号、不要猜 QQ 号、不要「先建个订阅再说」——
-> 建了订阅却不知道往哪发，等于给用户留了一个静默失败的任务。
-
-## 路径 A：用 Feed 订阅（零代码）
-
-```
-GET {BASE}/api/token-deals/feed.atom          # Atom，可直接填进 Hermes 的订阅
-GET {BASE}/api/token-deals/feed.json          # JSON Feed 1.1（同一份数据）
+```http
+GET https://hao.bx9y.com.cn/api/token-deals/feed.atom          # Atom 1.0 标准格式
+GET https://hao.bx9y.com.cn/api/token-deals/feed.json          # JSON Feed 1.1 标准格式
 ```
 
-把这个 URL 交给 Hermes 的订阅功能即可。若用户只想收某些服务商，先建订阅（见路径 B 第 1 步），
-再把 `?token=<sub_token>` 加在 feed URL 后面 —— feed 会自动套用该订阅的过滤条件。
+### 使用方式：
+1. 在你的 Hermes 管理后台或配置文件中，添加 Feed 订阅源：
+   - URL：`https://hao.bx9y.com.cn/api/token-deals/feed.atom`
+   - 投递目标：`qqbot:<你的群OpenID>`（或私聊目标）
+   - 轮询间隔：建议设置为 `5m` 或 `10m`
+2. **按需过滤（可选）**：
+   若只想订阅特定服务商（如仅免费云服务器或特定大模型），可先按「路径 B 第 1 步」创建订阅获得 `sub_token`，随后在 Feed 链接后附加 `?token=<sub_token>`，Feed 会自动继承该订阅的所有过滤规则！
 
-限制：feed 只包含 `online / updated / renewed`（**下架不进 feed**，已消失的内容不该继续被分发）。
+---
 
-## 路径 B：轮询脚本（推荐）
+## 路径 B：Hermes 技能 + CLI 投递（全事件推荐）
 
-### 第 1 步：建订阅，拿到凭证
+通过调用站点增量事件流接口，由 Hermes 驱动投递，能捕获包括 **下架、续期、变更、置顶** 在内的完整生命周期事件。
+
+### 第 1 步：创建订阅，获取专属凭证与起步游标
+
+在终端向 FavsHub 站点发起一次请求（无需登录注册，游客直接可用）：
 
 ```bash
-curl -sS -X POST {BASE}/api/deal-subscriptions \
+curl -sS -X POST https://hao.bx9y.com.cn/api/deal-subscriptions \
   -H 'content-type: application/json' \
-  -d '{"label":"我的 QQ 群","filters":{"providers":["某服务商"],"kinds":["online","offline","updated","renewed"]}}'
+  -d '{
+    "label": "我的QQ通告群",
+    "filters": {
+      "kinds": ["online", "offline", "updated", "renewed", "pinned"]
+    }
+  }'
 ```
 
-响应里有三个关键值：
-
-| 字段 | 用途 |
-|---|---|
-| `sub_token` | **唯一凭证，只出现这一次**。相当于密码，妥善保存，不要贴到公开地方 |
-| `baseline_seq` | 起步游标。**从它开始**，否则一装就把历史通告全灌进群里 |
-| `subscription.changes_url` | 拉取地址模板 |
-
-> ⚠️ 三件事：
-> 1. 凭证走 **URL query**（`?token=...`），所以你机器上的 web 服务器 / 反代 / 抓包日志
->    **可能记下它**。别把 `changes_url` 直接暴露给外部、也别配成公共可访问的 RSS 代理。
-> 2. 状态文件默认写到 `~/.favshub-sub.json`，脚本用 `0600` 创建；别把它提交进 git
->    （`echo '.favshub-sub.json' >> .gitignore`）。
-> 3. 万一泄露：`DELETE /api/deal-subscriptions/<token>` 退订，再建一个新的。
->    该凭证只能读公开通告、只能改它自己，不能读你的账号数据。
-
-`filters` 全部可选：`kinds`（事件类型）、`providers`（服务商）、`regions`（cn/global）、`keywords`（关键词）。
-不填 = 收全部。
-
-### 第 2 步：装脚本并初始化
-
-把下面的脚本存成 `favshub-poll.py`（放哪儿都行，下文用 `~/favshub-poll.py` 代指），支持两种投递方式：
-
-**方式一：QQ 官方机器人直连（免装 Hermes，推荐游客/群主）**
-```bash
-python3 ~/favshub-poll.py --init \
-  --site https://hao.bx9y.com.cn \
-  --qq-appid 1900000000 \
-  --qq-secret your-app-secret \
-  --qq-group ABCDEF0123abcdef... \
-  --label "我的 QQ 群"
+返回示例：
+```json
+{
+  "success": true,
+  "sub_token": "sub_tok_abc123456789...",
+  "baseline_seq": 105,
+  "subscription": {
+    "label": "我的QQ通告群",
+    "changes_url": "https://hao.bx9y.com.cn/api/token-deals/changes?token=sub_tok_abc123456789...&since_seq={since_seq}"
+  }
+}
 ```
 
-**方式二：Hermes CLI 投递（支持钉钉/频道等多通道）**
-```bash
-python3 ~/favshub-poll.py --init --site https://hao.bx9y.com.cn --target qqbot:123456789 --label "我的 QQ 群"
-```
-`--init` 会建订阅、取基线、落状态文件，**不会**发历史消息。
+> **关键要点**：
+> - `sub_token`：你的订阅私钥，仅在此处返回一次，请妥善保管。
+> - `baseline_seq`：**初始基线游标**。初次拉取时必须以该游标为起点，避免把站点的历史通告全量轰炸进群内。
 
-### 第 3 步：交给 cron
+### 第 2 步：增量拉取通告事件
 
-```cron
-*/2 * * * * python3 /你的绝对路径/favshub-poll.py >> /你的绝对路径/favshub-poll.log 2>&1
-```
-
-> cron 不做 `~` 展开，两个路径都要写全；`python3` 也建议写成 `command -v python3` 得到的绝对路径
-> （cron 的 `PATH` 很窄，找不到命令时任务会静默失败）。
-
-节奏怎么选：这条通道（`/api/token-deals/changes`、`feed.*`、`deal-subscriptions`）站点侧限
-**60 次/小时/IP**，`*/2` = 30 次/小时，是「够快又不会撞限流」的档位；
-`*/10` 会把延迟拉到十几分钟（发布后要等一阵群里才看到）。**不要**写成 `* * * * *`（60 次/小时恰好顶格，
-多机部署或手动补跑就会 429）。通告不是秒级数据，`*/2`～`*/5` 都合理。
-
-> 全站还有一层 IP 分层限频（读接口 600 次/分钟、写接口 120 次/分钟、并发 24 —— 见 `SKILL.md`
-> 「限频与并发」）。按 `*/2`～`*/5` 跑的话**先撞到的是上面这条 60 次/小时**，全站那层是给
-> 「有人在拿你的令牌扫站」这种情形兜底的，不需要你为它调整节奏。
-
-### 第 4 步：自检
+Hermes 或定时任务每次根据上次保存的 `last_seq` 发起增量拉取：
 
 ```bash
-python3 ~/favshub-poll.py --status      # 看游标、最近投递、累计条数
-python3 ~/favshub-poll.py --dry-run     # 只打印将要发什么，不真的发
+curl -sS "https://hao.bx9y.com.cn/api/token-deals/changes?token=YOUR_SUB_TOKEN&since_seq=105&limit=20"
 ```
 
-## 脚本
+响应字段中：
+- `events[].text`：已为您排版渲染完毕的**单行纯文本通告**（开头带 `【上新】`、`【变更】`、`【下架】` 等标签，已做 200 字长度护栏与安全脱敏，最适合 QQ 群聊）；
+- `events[].markdown`：带标题、粗体、字段列表与跳转链接的 Markdown 富文本（适合支持 Markdown 卡片的群聊或频道）；
+- `cursor.next_seq`：下一次轮询的新游标。若 `has_more: true`，可继续拉取直到取完。
 
-```python
-"""favshub-poll.py —— 把 FavsHub 新通告拉到本机，用 hermes send 投递。
+### 第 3 步：使用 `hermes send` 投递到 QQ 群
 
-  python3 favshub-poll.py --init --site https://hao.bx9y.com.cn --target qqbot:123456789
-  python3 favshub-poll.py                 # 给 cron 用
-  python3 favshub-poll.py --status
-  python3 favshub-poll.py --dry-run
-"""
-import argparse
-import json
-import os
-import subprocess
-import sys
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
-
-HERMES = os.environ.get("HERMES_BIN", "hermes")   # 不在 PATH 里就用 HERMES_BIN 指绝对路径
-DEFAULT_STATE = os.path.expanduser("~/.favshub-sub.json")
-DAILY_CAP = int(os.environ.get("FAVSHUB_POLL_DAILY_CAP", "20"))   # 每天最多推几条（防刷屏）
-PAGE = 20
-TIMEOUT = 20
-
-
-def log(msg):
-    print(time.strftime("%Y-%m-%d %H:%M:%S"), msg, flush=True)
-
-
-def load_state(path):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except Exception as e:
-        log(f"[state] 读取失败（当作空状态）：{e}")
-        return {}
-
-
-def save_state(path, st):
-    tmp = path + ".tmp"
-    # 状态文件里存着 sub_token（等同密码）：用 0600 创建，别让同机其他用户读到
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(st, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
-
-
-def http_json(url, payload=None, timeout=TIMEOUT):
-    """返回 (status, body_json_or_text)。网络异常抛 RuntimeError。"""
-    data = None
-    headers = {"accept": "application/json"}
-    if payload is not None:
-        data = json.dumps(payload).encode("utf-8")
-        headers["content-type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            raw = r.read().decode("utf-8", "replace")
-            return r.status, (json.loads(raw) if raw.strip() else None)
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode("utf-8", "replace")
-        try:
-            body = json.loads(raw)
-        except Exception:
-            body = raw
-        return e.code, body
-    except Exception as e:
-        raise RuntimeError(f"请求失败：{e}")
-
-
-def render_for(target, ev):
-    """按通道挑格式：钉钉群机器人与 QQ 官方机器人都支持 Markdown，其余通道用纯文本。
-
-    事件同时带两个字段：
-      - ``text``     单行纯文本（≤200 字，``【上新】服务商｜标题｜额度｜链接``）
-      - ``markdown`` 多行富文本（标题 / 加粗 / 列表 / 可点链接，字段更全）
-
-    判定规则与站内消费端 ``favshub-nuxt/scripts/qq-outbox-deliver.py`` **逐字一致**：
-    取 ``:`` 之前的前缀做**精确比对**（``channel in ("qqbot", "dingtalk")``），
-    不用 ``startswith`` —— 后者会把 ``dingtalk-group:`` 这种非官方目标也当成富文本通道。
-
-    钉钉群机器人用 ``###`` 触发 markdown 卡片；QQ 官方机器人由 hermes 侧嗅探 ``###``
-    后改发 ``msg_type=2``，同样支持 markdown。OneBot 等纯文本通道（CQ 码）不支持，
-    仍只用 ``text``，否则 ``**`` 会原样显示、观感很差。
-    """
-    md = ev.get("markdown") or ""
-    channel = str(target).split(":", 1)[0].lower()
-    if md and channel in ("qqbot", "dingtalk"):
-        return md
-    return ev.get("text") or md
-
-
-def qq_official_send(app_id, app_secret, group_openid, text, state_obj=None):
-    """通过 QQ 官方 OpenAPI 发送群消息（零依赖，纯 Python 原生 urllib，适合游客/开发者直连）。"""
-    now = int(time.time())
-    token = state_obj.get("qq_token") if state_obj else None
-    expires_at = state_obj.get("qq_token_expires_at", 0) if state_obj else 0
-
-    # 1. 换取 access_token（缓存 7200s，提前 60s 刷新）
-    if not token or now >= expires_at:
-        t_url = "https://api.bot.qq.com/app/getAppAccessToken"
-        status, body = http_json(t_url, {"appId": str(app_id), "clientSecret": str(app_secret)})
-        if status != 200 or not isinstance(body, dict) or not body.get("access_token"):
-            return False, f"获取 QQ 官方 access_token 失败 HTTP {status}: {body}"
-        token = body["access_token"]
-        if state_obj is not None:
-            state_obj["qq_token"] = token
-            state_obj["qq_token_expires_at"] = now + int(body.get("expires_in", 7200)) - 60
-
-    # 2. 发送群消息
-    clean_group = str(group_openid).replace("qqbot:", "").strip()
-    msg_url = f"https://api.bot.qq.com/v2/groups/{clean_group}/messages"
-    payload = {"content": text, "msg_type": 0, "msg_seq": 1}
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(msg_url, data=data, headers={
-        "Content-Type": "application/json; charset=utf-8",
-        "Authorization": f"QQBot {token}",
-    })
-
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            raw = r.read().decode("utf-8", "replace")
-            res_json = json.loads(raw) if raw.strip() else {}
-            return True, f"message_id={res_json.get('id', '')}"
-    except urllib.error.HTTPError as e:
-        err_raw = e.read().decode("utf-8", "replace")
-        try:
-            err_json = json.loads(err_raw)
-            code = err_json.get("code")
-            # 40034105：群主未开通主动发言权限
-            if code == 40034105:
-                return False, "40034105: 群主未开启【机器人主动在群聊内发言】权限（需群主在手机 QQ 群设置开启）"
-            # 304003 / 40054010：网址未报备或禁止发 URL -> 自动去掉 URL 降级重试
-            if code in (304003, 40054010):
-                import re
-                stripped = re.sub(r'https?://[^\s]+', '', text).strip()
-                if stripped and stripped != text:
-                    data2 = json.dumps({"content": stripped, "msg_type": 0, "msg_seq": 2}).encode("utf-8")
-                    req2 = urllib.request.Request(msg_url, data=data2, headers={
-                        "Content-Type": "application/json; charset=utf-8",
-                        "Authorization": f"QQBot {token}",
-                    })
-                    with urllib.request.urlopen(req2, timeout=10) as r2:
-                        return True, "stripped_url_sent"
-            # 40034100：频控限制
-            if code == 40034100:
-                return False, "40034100: 主动消息超过频控限制（单群上限 1000条/天、20条/分钟）"
-            # 40054002：被禁言
-            if code == 40054002:
-                return False, "40054002: 机器人已被群管理员禁言"
-            # 40034101 / 40054003：非群成员
-            if code in (40034101, 40054003):
-                return False, f"[{code}]: 机器人不是该群成员"
-            return False, f"HTTP {e.code} [{code}]: {err_json.get('message', '')}"
-        except Exception:
-            return False, f"HTTP {e.code}: {err_raw[:200]}"
-    except Exception as e:
-        return False, f"请求异常: {e}"
-
-
-def deliver_event(st, text, state_obj=None):
-    """统一投递派发器：优先官方 OpenAPI 直连，其次 Hermes CLI。"""
-    # 路径 1：若配置了官方机器人 AppID + Secret + GroupOpenID，走官方 OpenAPI 直连
-    if st.get("qq_appid") and st.get("qq_secret") and st.get("qq_group"):
-        return qq_official_send(st["qq_appid"], st["qq_secret"], st["qq_group"], text, state_obj=state_obj)
-    # 路径 2：走本地 Hermes CLI 投递
-    return hermes_send(st.get("target", ""), text)
-
-
-def hermes_send(target, text):
-    """投递一条。返回 (ok, detail) —— **退出码不可信**，只认 JSON 的 success 字段。"""
-    try:
-        proc = subprocess.run(
-            [HERMES, "send", "-t", target, "--json", text],
-            capture_output=True, timeout=60, text=True,
-        )
-    except FileNotFoundError:
-        return False, f"找不到 {HERMES}（用 HERMES_BIN 指定路径）"
-    except subprocess.TimeoutExpired:
-        return False, "hermes send 超时（>60s）"
-    out = (proc.stdout or "").strip()
-    try:
-        data = json.loads(out)
-    except Exception:
-        return False, f"输出非 JSON（rc={proc.returncode}）：{(out or proc.stderr)[:200]}"
-    if data.get("success"):
-        return True, f"message_id={str(data.get('message_id', ''))[:40]}"
-    err = data.get("error")
-    detail = err.get("message") if isinstance(err, dict) else str(err or "")
-    return False, (detail or json.dumps(data, ensure_ascii=False)[:200])
-
-
-def cmd_init(args):
-    st = load_state(args.state)
-    body = {"label": args.label or "favshub 订阅"}
-    if args.kinds:
-        body["filters"] = {"kinds": [k.strip() for k in args.kinds.split(",") if k.strip()]}
-    status, resp = http_json(urllib.parse.urljoin(args.site, "/api/deal-subscriptions"), body)
-    if status != 200 or not isinstance(resp, dict) or not resp.get("sub_token"):
-        log(f"[init] 建订阅失败（HTTP {status}）：{resp}")
-        return 1
-    st.update({
-        "site": args.site.rstrip("/"),
-        "token": resp["sub_token"],
-        "target": args.target,
-        "qq_appid": args.qq_appid or "",
-        "qq_secret": args.qq_secret or "",
-        "qq_group": args.qq_group or "",
-        "cursor": resp.get("baseline_seq", 0),
-        "created_at": int(time.time()),
-        "sent_total": 0,
-        "sent_day": time.strftime("%Y-%m-%d"),
-        "sent_today": 0,
-    })
-    save_state(args.state, st)
-    dest_desc = f"QQ官方机器人(群 {st['qq_group']})" if st["qq_appid"] else st["target"]
-    log(f"[init] 订阅已建好：游标从 {st['cursor']} 开始，投递目标 {dest_desc}")
-    log(f"[init] 凭证已写入 {args.state}，请勿外传")
-    return 0
-
-
-def cmd_run(args):
-    st = load_state(args.state)
-    if not st.get("token"):
-        log("[run] 还没有订阅：先跑 --init")
-        return 2
-    today = time.strftime("%Y-%m-%d")
-    if st.get("sent_day") != today:
-        st["sent_day"], st["sent_today"] = today, 0
-
-    since = int(st.get("cursor") or 0)
-    url = (f"{st['site']}/api/token-deals/changes"
-           f"?token={st['token']}&since={since}&limit={PAGE}")
-    try:
-        status, resp = http_json(url)
-    except RuntimeError as e:
-        log(f"[run] {e}")
-        return 1
-
-    if status == 404:
-        log("[run] 订阅不存在或已退订（凭证失效）：重新 --init")
-        return 2
-    if status != 200 or not isinstance(resp, dict):
-        log(f"[run] 拉取失败（HTTP {status}）：{resp}")
-        return 1
-
-    events = resp.get("events") or []
-    next_since = int(resp.get("next_since") or since)
-    if resp.get("paused"):
-        log("[run] 订阅已暂停，本轮跳过")
-        return 0
-    if not events:
-        st["cursor"] = next_since
-        save_state(args.state, st)
-        return 0
-
-    sent = 0
-    for ev in events:
-        text = render_for(st["target"], ev)
-        if not text:
-            continue
-        if st["sent_today"] + sent >= DAILY_CAP:
-            log(f"[run] 今日已推 {DAILY_CAP} 条，剩余 {len(events) - sent} 条合并成一条摘要")
-            rest = len(events) - sent
-            text = f"【FavsHub】还有 {rest} 条通告变化未推送，可访问 {st['site']}/tokens 查看"
-            if not args.dry_run:
-                ok, detail = deliver_event(st, text, state_obj=st)
-                log(f"[run] 摘要投递 {'成功' if ok else '失败'}：{detail}")
-            break
-        if args.dry_run:
-            log(f"[run] (dry-run) 将发送 #{ev.get('seq')}：{text}")
-            sent += 1
-            continue
-        ok, detail = deliver_event(st, text, state_obj=st)
-        if not ok:
-            # 关键：失败**不**推进游标，下一轮重试同一条（否则这条就永久丢了）
-            log(f"[run] 第 {ev.get('seq')} 条投递失败：{detail}")
-            st["cursor"] = max(since, int(ev.get("seq", since)) - 1)
-            save_state(args.state, st)
-            return 1
-        log(f"[run] 已投递 #{ev.get('seq')}：{detail}")
-        sent += 1
-
-    st["cursor"] = next_since
-    st["sent_today"] = st.get("sent_today", 0) + sent
-    st["sent_total"] = st.get("sent_total", 0) + sent
-    st["last_run"] = int(time.time())
-    save_state(args.state, st)
-    log(f"[run] 完成：本轮 {sent} 条，游标 {since} → {next_since}")
-    return 0
-
-
-def cmd_status(args):
-    st = load_state(args.state)
-    if not st:
-        log("[status] 还没有订阅")
-        return 2
-    print(json.dumps(st, ensure_ascii=False, indent=2))
-    return 0
-
-
-def main():
-    ap = argparse.ArgumentParser(description="FavsHub 通告订阅拉取器（支持 QQ 官方 OpenAPI 直连与 Hermes）")
-    ap.add_argument("--init", action="store_true", help="创建订阅并初始化状态文件")
-    ap.add_argument("--status", action="store_true", help="打印当前状态")
-    ap.add_argument("--dry-run", action="store_true", help="只打印将要发送的内容")
-    ap.add_argument("--site", default="", help="站点地址，如 https://hao.bx9y.com.cn")
-    ap.add_argument("--target", default="", help="投递目标（hermes 目标如 qqbot:... / dingtalk:...）")
-    ap.add_argument("--qq-appid", default="", help="QQ 官方机器人 AppID（配置后直连官方 OpenAPI，无需 Hermes）")
-    ap.add_argument("--qq-secret", default="", help="QQ 官方机器人 AppSecret")
-    ap.add_argument("--qq-group", default="", help="QQ 官方机器人目标群 group_openid")
-    ap.add_argument("--label", default="", help="订阅备注（后台可见）")
-    ap.add_argument("--kinds", default="", help="只收某些事件：online,offline,updated,renewed")
-    ap.add_argument("--state", default=DEFAULT_STATE, help="状态文件路径")
-    args = ap.parse_args()
-
-    if args.init:
-        if not args.site:
-            log("--init 需要 --site")
-            return 2
-        if not args.target and not (args.qq_appid and args.qq_secret and args.qq_group):
-            log("--init 需要 --target (Hermes) 或 [--qq-appid, --qq-secret, --qq-group] (官方 OpenAPI 直连)")
-            return 2
-        return cmd_init(args)
-    if args.status:
-        return cmd_status(args)
-    return cmd_run(args)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-```
-
-要点（脚本里已经处理，读代码时别改坏）：
-
-- **游标只在投递成功后推进**。投递失败就停在原地，下一轮重试 —— 否则那条消息永久丢失。
-- **`hermes send --json` 的退出码不可信**：失败也返回 0，成功与否只看 JSON 的 `success`。
-- **每日上限**（默认 20 条）：站点一下子变了 40 条时，不再逐条刷屏，改成一条摘要。
-
-## 格式与平台差异（为什么钉钉比 QQ 快）
-
-事件里有**两套渲染结果**，按目标通道自己挑：
-
-| 字段 | 形态 | 适合 |
-|---|---|---|
-| `text` | 单行、≤200 字 | QQ 官方机器人、短信类窄通道 |
-| `markdown` | 多行、含标题 / 加粗 / 列表 / 可点链接 | 钉钉群机器人、**QQ 官方机器人私聊**（`msg_type=2`，实测 200）等富文本通道 |
-
-`markdown` 的样子（上新事件）：
-
-```markdown
-🆕 **【上新】某服务商**
-> 注册送 40 美元额度，每日签到再得 10 美元
-
-- 额度 40 美元/月（签到 +10）
-- 模型 Claude / GPT-4o
-- 到期 11-20
-- 中品
-- 海外
-
-领取：https://example.com/redeem
-
-[查看通告](https://example.com/tokens/xxx.html)
-```
-
-`updated` / `renewed` 事件改成差异列表（`- 额度 40 美元 → 80 美元`），`offline` 只给「已下架 + 原因」。
-
-### 两个平台根本不是同一种投递方式
-
-| | 钉钉群机器人 | QQ 官方机器人 |
-|---|---|---|
-| 接口 | 自定义机器人 **webhook**，一条 HTTPS POST | OpenAPI：先取 `app_access_token`，再调 `/v2/groups/{openid}/messages` |
-| 主动推送 | 无限制（受频率策略约束，20 条/分钟） | **群聊主动消息需要单独开通权限**；未开通时返回 `40034105 主动消息失败, 无权限` |
-| 典型延迟 | 1～3 秒 | 群：收不到；私聊（c2c）有主动额度，通常也是几秒 |
-| Markdown | 支持（`msgtype=markdown`，本机插件靠 `### ` / `---` / `<font ` 判定是否走卡片） | **私聊支持**（`msg_type=2` + `markdown.content`）；群同样无权限 |
-
-> 私聊（c2c）实测：`POST /v2/users/{openid}/messages` 带 `{"msg_type":2,"markdown":{"content":"### …"}}`
-> 返回 200 并给出 `ROBOT1.0_…` 消息 id —— QQ 私聊也能发富文本卡片。
-> 所以**文案首行统一用 `### ` 标题**：钉钉靠它走卡片、QQ 靠它走 markdown，纯文本通道仍用 `text`。
-
-所以「钉钉收到、QQ 很久没动静」通常**不是脚本慢**，而是 QQ 群主动消息被平台拒了。三条出路：
-
-1. 给机器人开通「群主动消息」权限（企业主体、需审核）；
-2. 换 **OneBot 协议端**（NapCat / Lagrange 等）走 QQ 协议收发，没有官方主动消息限制；
-3. 退回**被动回复**：机器人在群里被 @ 后 5 分钟内用 `msg_id` 回复 —— 适合「有人问才答」，不适合订阅推送。
-
-排错先手跑一条，看 JSON 里的 `error`：
+Hermes 提供了极其简洁的标准发送 CLI：
 
 ```bash
-hermes send -t qqbot:<私聊 openid> --json "通道自检"
-# 成功：{"success": true, "extra": {"endpoint": "c2c", "format": "text"}}
+# 发送群聊消息（纯文本）
+hermes send -t qqbot:<群OpenID> "【上新】服务商名称｜某免费额度通告标题..."
 
-hermes send -t qqbot:<私聊 openid> --json '### 标题
-**加粗**'
-
-# 群（无权限时的样子）：
-hermes send -t qqbot:<群 openid> --json "通道自检"
-# {"success": false, "error": {"message": "QQBot send failed: channel=400 c2c=400 group=400"}}
+# 多通道广播（同时推 QQ 官方群与钉钉群）
+hermes send -t qqbot:<群OpenID_1>,dingtalk:<钉钉Token> "【上新】..."
 ```
 
-`hermes send` 侧会自动嗅探：内容含 `### ` / `\n---` / `<font ` / `](` 时先按 markdown（`msg_type=2`）发，
-失败再退回纯文本（`msg_type=0`）；返回的 `extra.format` 会告诉你实际用了哪种。
-
-拿到 400 就基本可以按上面第 1/2 条处理；`success: true` 才是通道通了。
-
-## 事件类型与文案
-
-`/api/token-deals/changes` 返回的事件已经是**渲染好的中文句子**（`text` 单行、`markdown` 多行），可以直接发：
-
-| kind | 中文 | 触发 |
-|---|---|---|
-| `online` | 上新 / 恢复上架 | 管理员审核通过；撤销失效或恢复删除后重新可见 |
-| `offline` | 下架 | 被删除 / 判定失效 / 到期（`reason` = `deleted` / `votes` / `manual` / `expired`） |
-| `updated` | 变更 | 标题、额度、模型、链接等字段被实际改动（文案里带 `额度 100 → 200` 这样的差异） |
-| `renewed` | 续期 | 有效期延长或改为永久 |
-| `pinned` | 置顶 / 取消置顶 | 默认**不**订阅，需要时在 `filters.kinds` 里显式加上 |
-
-**下架事件只带标题和原因**（不带额度、模型、领取链接）—— 内容已消失，不该继续被分发。
-事件里的 `markdown` 同理：脱敏事件（`deal_redacted: true`）连富文本也只渲染标题。
-
-## 排错
-
-| 现象 | 原因与处理 |
-|---|---|
-| `--status` 显示游标不动 | 拿 `changes?token=...&since=<游标>` 手跑一次：返回 `paused: true` 说明被暂停；404 说明凭证失效 |
-| 拉到了但群里没消息 | 直接手跑 `hermes send -t <target> --json "测试"`，看 JSON；`success:false` 就是投递侧的问题 |
-| 一次涌出几十条 | 正常（比如批量审核）。脚本有每日上限，超出会合并；嫌多就把 cron 调稀或加 `filters` |
-| 收到「恢复上架」却没收到「上新」 | 该条目此前是失效状态被恢复，不是新发布 —— 语义正确 |
-| 响应里出现 `cursor_reset: true` 与 `notice` | 你的游标超前于当前事件序号（旧事件已被保留期清理）。服务端已把它归位到当前序号，**不需要**手动处理 |
-| 脚本放了很久没跑，回来只收到最近几条 | 事件默认保留 90 天，且游标只前推不会回补历史 —— 这是设计意图（不刷屏） |
-| 想改成只收某几家的 | `PATCH {BASE}/api/deal-subscriptions/<sub_token>`，body `{"filters":{"providers":["A","B"]}}` |
-
-## 暂停与退订
-
-```bash
-# 暂停（保留凭证与游标，拉取返回 paused）
-curl -sS -X PATCH {BASE}/api/deal-subscriptions/<sub_token> -H 'content-type: application/json' -d '{"status":"paused"}'
-
-# 恢复
-curl -sS -X PATCH {BASE}/api/deal-subscriptions/<sub_token> -H 'content-type: application/json' -d '{"status":"active"}'
-
-# 退订（立即生效，之后该 token 一律 404）
-curl -sS -X DELETE {BASE}/api/deal-subscriptions/<sub_token>
+#### Hermes 返回结果判定：
+使用 `--json` 参数调用 `hermes send` 时，请务必以返回 JSON 中的 `"success": true` 作为投递成功的唯一依据：
+```json
+{
+  "success": true,
+  "message_id": "ROBOT1.0_xxxxxx"
+}
 ```
 
-退订后**记得同时删掉 cron 任务**，否则它每 10 分钟空跑并打一行 404 日志。
+---
 
-## 红线（不可逾越）
+## QQ 官方机器人群聊权限注意（重要）
 
-1. **不给用户没要的推送**：没有明确的接收目标，就不要建订阅。
-2. **不把 `sub_token` 写进聊天记录、公开仓库、群公告**：它等同于密码，泄露等于别人也能读这个订阅。
-3. **不改用户机器上别人的 cron**：只加自己这一条，并在注释里写清用途。
-4. **不提高频率对冲**：站点限 60 次/小时/IP。拉取失败先看原因，不要改成每分钟重试。
-5. **站点不投递**：任何「让站点主动发消息到某地址」的实现都超出本方案，不要自行加。
-6. **过滤条件在服务端生效**，但**不要**用订阅去做数据爬取（拉全量 + 过滤是客户端行为，不是分发通道）。
+无论使用哪种 Hermes 投递模式，将 QQ 官方机器人加入群聊后：
+1. **群主必须在手机 QQ 进群设置 →「群机器人」→ 点击该机器人 → 开启【机器人主动在群聊内发言】**；
+2. 若未开启该开关，平台将直接拒绝主动发言并返回错误码 `40034105`；
+3. 官方频控规则：每个群单日最多接收 **1000 条** 主动消息，单群频控 **20 次/分钟**，完全满足日常通告推送。

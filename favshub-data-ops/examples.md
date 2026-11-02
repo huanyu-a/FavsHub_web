@@ -509,23 +509,10 @@ hermes send -t qqbot:123456789 --json "【上新】某服务商｜XX 额度｜�
 
 `text` 已经是渲染好的中文句子，直接发即可；需要自己拼时用 `kind` + `deal`。
 
-### 15.4 固化下来（推荐给用户装 cron）
+### 15.4 推荐方式：Hermes 原生 Feed 或定时任务广播
 
-```cron
-*/10 * * * * python3 /你的绝对路径/favshub-poll.py >> /你的绝对路径/favshub-poll.log 2>&1
-```
-
-脚本全文与 `--init` / `--status` / `--dry-run` 用法见 **`subscribe.md`**。
-
-### 15.5 零代码替代：Feed
-
-用户的助手支持订阅 feed 时，直接给它：
-
-```
-{BASE}/api/token-deals/feed.atom      # 或 feed.json
-```
-
-只含上新 / 变更 / 续期（**下架不进 feed**）；建过订阅的话可加 `?token=<sub_token>` 套过滤。
+- **零代码方式**：直接把 `{BASE}/api/token-deals/feed.atom` 加入 Hermes 订阅列表，指定投递到 `qqbot:<群OpenID>`。
+- **全生命周期方式**：通过 Hermes 定时触发，拉取增量 `changes?since=<seq>`，并通过 `hermes send -t qqbot:<群OpenID>` 发送。详见 **`subscribe.md`**。
 
 ### 15.6 暂停 / 退订
 

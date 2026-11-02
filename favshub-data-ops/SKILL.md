@@ -289,11 +289,11 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 用户说「有新的白嫖通告自动发到我的 QQ 群」时用这条通道。**站点不推送，投递在你这边完成**：
 
 ```
-站点事件流 GET /api/token-deals/changes
+站点事件流 GET /api/token-deals/changes（或 feed.atom）
         ↓ 按游标拉增量（可带订阅 token 套用过滤条件）
-   你的机器（cron 跑轮询脚本 favshub-poll.py）
-        ├── 方式一（推荐）：QQ 官方机器人 OpenAPI 直连（纯 Python 原生，免装 Hermes）
-        └── 方式二：hermes send -t qqbot:<群号> --json "<text>"（适合已有 Hermes 多通道）
+   你的机器（运行 Hermes）
+        ├── 方式一（零代码）：Hermes 原生 Feed 订阅 feed.atom
+        └── 方式二（全事件）：Hermes 定时拉取并调用 hermes send 投递
         ↓
   用户的 QQ 群 / 单聊
 ```
@@ -308,13 +308,12 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 
 **动手前必须做的三件事**：
 
-1. **问清投递方式与接收目标**：
-   - 若用官方机器人 OpenAPI（免装 Hermes，推荐）：需要用户的 `AppID` + `AppSecret` + `群 openid`；
-   - 若用 Hermes：问清目标（`qqbot:<群号>` 还是 `dingtalk:...`）。不猜、不先建订阅。
+1. **问清接收目标与通道**：
+   - 目标串格式形如 `qqbot:<群OpenID>` 或 `dingtalk:...`。不猜、不先盲目建订阅。
 2. **首次用 `?tail=1` 取基线**，不要把历史通告一次性灌进群里。
-3. **投递成败判定**：成功后推进游标；若遇 `40034105` 提示群主开启主动发言；投递失败就**不要**推进游标。
+3. **投递成败判定**：成功后推进游标；若遇 `40034105` 提示群主在群设置内开启【机器人主动在群聊内发言】；投递失败就**不要**推进游标。
 
-完整流程、可直接落地的轮询脚本、排错表与红线见 **`subscribe.md`**。
+完整流程、Hermes CLI 与 Feed 订阅指引、排错表与红线见 **`subscribe.md`**。
 
 ## 错误码
 
