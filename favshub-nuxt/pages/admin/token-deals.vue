@@ -426,6 +426,8 @@ import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '白嫖通告管理' })
 
+const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 
 function getAuthHeaders(): Record<string, string> {
@@ -609,6 +611,10 @@ async function confirmVerify(action: 'alive' | 'dead' | 'note') {
 
 function switchTab(next: 'deals' | 'edits' | 'invalid') {
   tab.value = next
+  const q: Record<string, any> = { ...route.query }
+  if (next === 'deals') delete q.tab
+  else q.tab = next
+  router.replace({ query: q })
   // 「待核验」只是审核队列的子视图，切到别的面板必须清掉，避免残留隐式筛选
   if (next !== 'deals') verifyFilter.value = 'all'
   if (next === 'edits') loadEdits()
@@ -962,7 +968,22 @@ async function removeDeal(d: any) {
 }
 
 onMounted(() => {
-  loadDeals()
+  const qTab = route.query.tab as string
+  if (qTab === 'subs') {
+    return navigateTo('/admin/bot?tab=subs', { replace: true })
+  }
+  if (qTab === 'guests') {
+    return navigateTo('/admin/guest-reviews', { replace: true })
+  }
+  if (qTab === 'edits') {
+    tab.value = 'edits'
+    loadEdits()
+  } else if (qTab === 'invalid') {
+    tab.value = 'invalid'
+    loadInvalid()
+  } else {
+    loadDeals()
+  }
   loadEditCount()
 })
 
