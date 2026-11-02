@@ -293,7 +293,98 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260929b' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20260929' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20261102' },
   ],
 })
 </script>
+
+<style>
+/* 侧边栏紧凑与折叠子菜单增强（避免外置 admin.css 被浏览器缓存导致失效） */
+.admin-sidebar-nav .nav-item {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13.5px;
+  border-radius: 6px;
+  margin: 2px 10px;
+  cursor: pointer;
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
+.admin-sidebar-nav .arrow-icon {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-tertiary);
+  transition: transform var(--admin-duration-fast, 0.2s) var(--admin-ease, ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-sidebar-nav .arrow-icon.open {
+  transform: rotate(180deg);
+}
+
+.admin-sidebar-nav .nav-submenu {
+  display: flex !important;
+  flex-direction: column !important;
+  padding-left: 8px;
+  margin: 1px 0 3px 0;
+  position: relative;
+}
+.admin-sidebar-nav .nav-submenu[style*="display: none"] {
+  display: none !important;
+}
+.admin-sidebar-nav .nav-submenu::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--divider, rgba(140, 140, 140, 0.2));
+}
+
+.admin-sidebar-nav .nav-subitem {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 22px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color var(--admin-duration-fast, 0.2s) var(--admin-ease, ease),
+              background-color var(--admin-duration-fast, 0.2s) var(--admin-ease, ease);
+  border-radius: 6px;
+  margin: 1px 8px;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+.admin-sidebar-nav .nav-subitem:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+.admin-sidebar-nav .nav-subitem.active {
+  color: var(--primary, #18a058);
+  background: var(--primary-light, rgba(24, 160, 88, 0.1));
+  font-weight: 500;
+}
+.admin-sidebar-nav .nav-subitem i {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+.admin-sidebar-nav .nav-subitem .nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--n-warning-color, #f59e0b);
+  color: #fff;
+  line-height: 1.4;
+}
+</style>
