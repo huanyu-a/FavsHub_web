@@ -102,9 +102,9 @@
             <i class="ri-settings-3-line nav-icon"></i>
             <span class="nav-label">系统配置</span>
           </NuxtLink>
-          <NuxtLink v-if="isAdmin" to="/admin/bot" class="nav-card">
-            <i class="ri-robot-2-line nav-icon"></i>
-            <span class="nav-label">机器人与 API</span>
+          <NuxtLink :to="isAdmin ? '/admin/bot' : '/admin/bot?tab=tokens'" class="nav-card">
+            <i :class="isAdmin ? 'ri-robot-2-line' : 'ri-key-2-line'" class="nav-icon"></i>
+            <span class="nav-label">{{ isAdmin ? '机器人与 API' : 'API 令牌' }}</span>
           </NuxtLink>
         </div>
       </div>
@@ -131,13 +131,13 @@ const stats = computed(() => {
   const d = data.value as any
   return d || { bookmarks: 0, folders: 0, prompts: 0 }
 })
-// 白嫖通告板块待审总量 = 通告 + 修改建议 + 游客评测（与 /admin/token-deals 页面 Tab 口径一致）
+// 白嫖通告待审总量 = 通告待审 + 修改建议待审（游客评测已独立至专用入口，不再混算）
 const dealPendingTotal = computed(() =>
-  (stats.value.tokenDeals?.pending || 0) + (stats.value.dealEdits?.pending || 0) + (stats.value.guestReviews?.pending || 0),
+  (stats.value.tokenDeals?.pending || 0) + (stats.value.dealEdits?.pending || 0),
 )
 // 提示词修改审核待审数
 const promptPendingTotal = computed(() => stats.value.promptReviews?.pending || 0)
-// 游客评测待审数：单独一个数（dealPendingTotal 里已把它算进「白嫖通告」汇总，这里只显示本项，避免重复计数）
+// 游客评测待审数
 const guestReviewPendingTotal = computed(() => stats.value.guestReviews?.pending || 0)
 // ── 数据导出 ──
 function downloadBlob(blob: Blob, filename: string) {

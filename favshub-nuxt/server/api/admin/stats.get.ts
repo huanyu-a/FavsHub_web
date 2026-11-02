@@ -59,8 +59,8 @@ export default defineEventHandler(async (event) => {
       }
     } catch { /* ignore */ }
 
-    // 管理员系统统计 + 白嫖通告板块统计（合并为单次查询）
-    // 修改建议 / 游客评测待审口径与 /admin/token-deals 页面 Tab 一致：
+    // 管理员系统统计 + 白嫖通告 / 游客评测板块统计（合并为单次查询）
+    // 修改建议 / 游客评测待审口径分别与 /admin/token-deals 和 /admin/guest-reviews 一致：
     // 排除「自己给自己的通告提的提案/评测」（见 deal-edits.ts listReviewableEdits、guest-reviews.ts guestReviewPendingCount）
     const sysStats = db.prepare(`
       SELECT
