@@ -117,23 +117,6 @@
           <p class="hint">安全策略：<strong>失败即拒绝</strong>，不做任何降级。挂件脚本加载失败、令牌缺失或过期、siteverify 不可用、校验不通过 —— 一律拒绝提交。因此境内无代理访客（加载不出 challenges.cloudflare.com）将无法提交游客通告/评测；这是刻意的取舍，需要放行时只能改用其他可达的人机校验方案。另：Cloudflare 官方<strong>测试密钥</strong>（<code>1x</code>/<code>2x</code>/<code>3x</code> 开头）在任意域名都恒返回校验通过，等于没有校验，服务端已直接判定为未启用。</p>
         </div>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h3>🤖 机器人与 API</h3>
-          <NuxtLink to="/admin/bot" style="color: var(--primary, #18a058); font-size: 13px; text-decoration: none;">前往专属配置页面 →</NuxtLink>
-        </div>
-        <div class="card-body">
-          <p class="hint">
-            QQ 机器人出站通知、外部订阅管理、个人访问令牌（PAT）及接入指引现已统一整合至独立的「机器人与 API」工作台。
-          </p>
-          <div style="margin-top: 12px;">
-            <NuxtLink to="/admin/bot" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--primary, #18a058); color: #fff; border-radius: 6px; text-decoration: none; font-size: 13px;">
-              <i class="ri-robot-2-line"></i> 前往机器人与 API 管理
-            </NuxtLink>
-          </div>
-        </div>
-      </div>
     </div>
     <BackToTop />
   </div>
