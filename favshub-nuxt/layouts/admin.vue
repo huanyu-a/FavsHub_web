@@ -31,20 +31,42 @@
           <i class="ri-chat-quote-line"></i><span>提示词管理</span>
           <span v-if="promptPendingCount" class="nav-badge">{{ promptPendingCount }}</span>
         </NuxtLink>
-        <NuxtLink to="/admin/token-deals" class="nav-item" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
-          <i class="ri-gift-2-line"></i><span>白嫖通告</span>
-          <span v-if="dealPendingCount" class="nav-badge">{{ dealPendingCount }}</span>
-        </NuxtLink>
-        <NuxtLink v-if="isAdmin" to="/admin/guest-reviews" class="nav-item" :class="{ active: route.path === '/admin/guest-reviews' }" @click="closeSidebar">
-          <i class="ri-message-3-line"></i><span>游客评测</span>
-          <span v-if="guestPendingCount" class="nav-badge">{{ guestPendingCount }}</span>
-        </NuxtLink>
+
+        <!-- 白嫖通告：管理员带折叠子菜单，普通用户直达 -->
         <template v-if="isAdmin">
-          <NuxtLink to="/admin/announcements" class="nav-item" :class="{ active: route.path === '/admin/announcements' }" @click="closeSidebar">
-            <i class="ri-notification-3-line"></i><span>公告管理</span>
-          </NuxtLink>
-          <NuxtLink to="/admin/friend-links" class="nav-item" :class="{ active: route.path === '/admin/friend-links' }" @click="closeSidebar">
-            <i class="ri-links-line"></i><span>友情链接</span>
+          <div class="nav-item" :class="{ active: isDealsRoute }" @click="toggleDeals">
+            <i class="ri-gift-2-line"></i><span>白嫖通告</span>
+            <span v-if="!dealsOpen && (dealPendingCount + guestPendingCount)" class="nav-badge">{{ dealPendingCount + guestPendingCount }}</span>
+            <i class="ri-arrow-down-s-line arrow-icon" :class="{ open: dealsOpen }"></i>
+          </div>
+          <div v-show="dealsOpen" class="nav-submenu">
+            <NuxtLink to="/admin/token-deals" class="nav-subitem" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
+              <i class="ri-list-check-2"></i><span>通告管理</span>
+              <span v-if="dealPendingCount" class="nav-badge">{{ dealPendingCount }}</span>
+            </NuxtLink>
+            <NuxtLink to="/admin/guest-reviews" class="nav-subitem" :class="{ active: route.path === '/admin/guest-reviews' }" @click="closeSidebar">
+              <i class="ri-message-3-line"></i><span>游客评测</span>
+              <span v-if="guestPendingCount" class="nav-badge">{{ guestPendingCount }}</span>
+            </NuxtLink>
+          </div>
+
+          <!-- 运营配置：公告与友链合并收纳 -->
+          <div class="nav-item" :class="{ active: isOpsRoute }" @click="toggleOps">
+            <i class="ri-megaphone-line"></i><span>运营配置</span>
+            <i class="ri-arrow-down-s-line arrow-icon" :class="{ open: opsOpen }"></i>
+          </div>
+          <div v-show="opsOpen" class="nav-submenu">
+            <NuxtLink to="/admin/announcements" class="nav-subitem" :class="{ active: route.path === '/admin/announcements' }" @click="closeSidebar">
+              <i class="ri-notification-3-line"></i><span>公告管理</span>
+            </NuxtLink>
+            <NuxtLink to="/admin/friend-links" class="nav-subitem" :class="{ active: route.path === '/admin/friend-links' }" @click="closeSidebar">
+              <i class="ri-links-line"></i><span>友情链接</span>
+            </NuxtLink>
+          </div>
+        </template>
+        <template v-else>
+          <NuxtLink to="/admin/token-deals" class="nav-item" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
+            <i class="ri-gift-2-line"></i><span>白嫖通告</span>
           </NuxtLink>
         </template>
 
@@ -55,15 +77,23 @@
           <NuxtLink to="/admin/bot" class="nav-item" :class="{ active: route.path === '/admin/bot' || route.path === '/admin/api-tokens' }" @click="closeSidebar">
             <i class="ri-robot-2-line"></i><span>机器人与 API</span>
           </NuxtLink>
-          <NuxtLink to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
-            <i class="ri-settings-3-line"></i><span>系统配置</span>
-          </NuxtLink>
-          <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
-            <i class="ri-user-line"></i><span>用户管理</span>
-          </NuxtLink>
-          <NuxtLink to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
-            <i class="ri-database-2-line"></i><span>备份管理</span>
-          </NuxtLink>
+
+          <!-- 系统运维：系统配置、用户管理、备份管理合并收纳 -->
+          <div class="nav-item" :class="{ active: isSysRoute }" @click="toggleSys">
+            <i class="ri-tools-line"></i><span>系统运维</span>
+            <i class="ri-arrow-down-s-line arrow-icon" :class="{ open: sysOpen }"></i>
+          </div>
+          <div v-show="sysOpen" class="nav-submenu">
+            <NuxtLink to="/admin/config" class="nav-subitem" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
+              <i class="ri-settings-3-line"></i><span>系统配置</span>
+            </NuxtLink>
+            <NuxtLink to="/admin/users" class="nav-subitem" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
+              <i class="ri-user-line"></i><span>用户管理</span>
+            </NuxtLink>
+            <NuxtLink to="/admin/backup" class="nav-subitem" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
+              <i class="ri-database-2-line"></i><span>备份管理</span>
+            </NuxtLink>
+          </div>
         </template>
         <template v-else>
           <NuxtLink to="/admin/bot?tab=tokens" class="nav-item" :class="{ active: route.path === '/admin/bot' || route.path === '/admin/api-tokens' }" @click="closeSidebar">
@@ -176,6 +206,25 @@ const promptPendingCount = computed(() => {
   if (!isAdmin.value || !adminStats.value) return 0
   return adminStats.value.promptReviews?.pending || 0
 })
+
+// ── 二级子菜单折叠状态（默认根据当前路由自动展开）──
+const isDealsRoute = computed(() => route.path === '/admin/token-deals' || route.path === '/admin/guest-reviews')
+const isOpsRoute = computed(() => route.path === '/admin/announcements' || route.path === '/admin/friend-links')
+const isSysRoute = computed(() => route.path === '/admin/config' || route.path === '/admin/users' || route.path === '/admin/backup')
+
+const dealsOpen = ref(isDealsRoute.value)
+const opsOpen = ref(isOpsRoute.value)
+const sysOpen = ref(isSysRoute.value)
+
+watch(() => route.path, (p) => {
+  if (p === '/admin/token-deals' || p === '/admin/guest-reviews') dealsOpen.value = true
+  if (p === '/admin/announcements' || p === '/admin/friend-links') opsOpen.value = true
+  if (p === '/admin/config' || p === '/admin/users' || p === '/admin/backup') sysOpen.value = true
+})
+
+function toggleDeals() { dealsOpen.value = !dealsOpen.value }
+function toggleOps() { opsOpen.value = !opsOpen.value }
+function toggleSys() { sysOpen.value = !sysOpen.value }
 // ── 个人信息编辑 ──────────────────────────────────────────────
 const showProfile = ref(false)
 const profileSaving = ref(false)
