@@ -67,6 +67,9 @@
           <NuxtLink to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
             <i class="ri-settings-3-line"></i><span>系统配置</span>
           </NuxtLink>
+          <NuxtLink to="/admin/bot" class="nav-item" :class="{ active: route.path === '/admin/bot' }" @click="closeSidebar">
+            <i class="ri-robot-2-line"></i><span>机器人配置</span>
+          </NuxtLink>
         </template>
 
         <div class="nav-divider"></div>

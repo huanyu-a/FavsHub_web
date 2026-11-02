@@ -102,6 +102,10 @@
             <i class="ri-settings-3-line nav-icon"></i>
             <span class="nav-label">系统配置</span>
           </NuxtLink>
+          <NuxtLink v-if="isAdmin" to="/admin/bot" class="nav-card">
+            <i class="ri-robot-2-line nav-icon"></i>
+            <span class="nav-label">机器人配置</span>
+          </NuxtLink>
         </div>
       </div>
     </template>
