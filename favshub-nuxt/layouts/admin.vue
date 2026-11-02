@@ -29,12 +29,15 @@
         </NuxtLink>
         <NuxtLink to="/admin/prompts" class="nav-item" :class="{ active: route.path === '/admin/prompts' }" @click="closeSidebar">
           <i class="ri-chat-quote-line"></i><span>提示词管理</span>
+          <span v-if="promptPendingCount" class="nav-badge">{{ promptPendingCount }}</span>
         </NuxtLink>
         <NuxtLink to="/admin/token-deals" class="nav-item" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
           <i class="ri-gift-2-line"></i><span>白嫖通告</span>
+          <span v-if="dealPendingCount" class="nav-badge">{{ dealPendingCount }}</span>
         </NuxtLink>
         <NuxtLink v-if="isAdmin" to="/admin/guest-reviews" class="nav-item" :class="{ active: route.path === '/admin/guest-reviews' }" @click="closeSidebar">
           <i class="ri-message-3-line"></i><span>游客评测</span>
+          <span v-if="guestPendingCount" class="nav-badge">{{ guestPendingCount }}</span>
         </NuxtLink>
         <template v-if="isAdmin">
           <NuxtLink to="/admin/announcements" class="nav-item" :class="{ active: route.path === '/admin/announcements' }" @click="closeSidebar">
@@ -144,6 +147,35 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarOpen = ref(false)
 function closeSidebar() { sidebarOpen.value = false }
+
+function getAuthHeaders() {
+  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+}
+
+const adminStats = ref<any>(null)
+if (isAdmin.value) {
+  const { data: statsData } = await useFetch<any>('/api/admin/stats', {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  })
+  adminStats.value = statsData.value
+  watch(statsData, (d) => { if (d) adminStats.value = d })
+}
+
+const dealPendingCount = computed(() => {
+  if (!isAdmin.value || !adminStats.value) return 0
+  return (adminStats.value.tokenDeals?.pending || 0) + (adminStats.value.dealEdits?.pending || 0)
+})
+
+const guestPendingCount = computed(() => {
+  if (!isAdmin.value || !adminStats.value) return 0
+  return adminStats.value.guestReviews?.pending || 0
+})
+
+const promptPendingCount = computed(() => {
+  if (!isAdmin.value || !adminStats.value) return 0
+  return adminStats.value.promptReviews?.pending || 0
+})
 // ── 个人信息编辑 ──────────────────────────────────────────────
 const showProfile = ref(false)
 const profileSaving = ref(false)

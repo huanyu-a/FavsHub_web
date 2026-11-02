@@ -287,6 +287,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const route = useRoute()
+const router = useRouter()
 const reviews = ref<AdminGuestReview[]>([])
 const counts = reactive<Record<string, number>>({ all: 0, pending: 0, approved: 0, rejected: 0, deleted: 0 })
 const total = ref(0)
@@ -352,14 +353,25 @@ async function loadReviews() {
   }
 }
 
+function syncQueryParams() {
+  const q: Record<string, any> = {}
+  if (status.value && status.value !== 'all') q.status = status.value
+  if (page.value > 1) q.page = page.value
+  if (dealId.value.trim()) q.deal_id = dealId.value.trim()
+  if (keyword.value.trim()) q.keyword = keyword.value.trim()
+  router.replace({ query: q })
+}
+
 function switchStatus(next: string) {
   if (status.value === next) return
   status.value = next
   page.value = 1
+  syncQueryParams()
   loadReviews()
 }
 function applyFilters() {
   page.value = 1
+  syncQueryParams()
   loadReviews()
 }
 function resetFilters() {
@@ -367,11 +379,13 @@ function resetFilters() {
   dealId.value = ''
   status.value = 'all'
   page.value = 1
+  syncQueryParams()
   loadReviews()
 }
 function goPage(next: number) {
   if (next < 1 || next > totalPages.value || next === page.value) return
   page.value = next
+  syncQueryParams()
   loadReviews()
 }
 

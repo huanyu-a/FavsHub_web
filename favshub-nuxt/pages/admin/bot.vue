@@ -579,6 +579,23 @@ function switchTab(t: BotTab) {
   if (t === 'tokens' && tokens.value.length === 0) loadTokens()
 }
 
+// 监听路由 query 变化（支持浏览器前进/后退与同页跳转）
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab && ['config', 'subs', 'tokens', 'guide'].includes(String(newTab))) {
+      let t = newTab as BotTab
+      if (!isAdmin.value && (t === 'config' || t === 'subs')) {
+        t = 'tokens'
+        router.replace({ query: { ...route.query, tab: 'tokens' } })
+      }
+      currentTab.value = t
+      if (t === 'subs' && subs.value.length === 0 && isAdmin.value) loadSubs()
+      if (t === 'tokens' && tokens.value.length === 0) loadTokens()
+    }
+  }
+)
+
 // ── 全局与测试消息提示 ──────────────────────────────────────
 const pageMessage = ref('')
 const pageMessageType = ref<'success' | 'error'>('success')
