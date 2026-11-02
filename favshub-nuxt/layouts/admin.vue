@@ -19,58 +19,55 @@
         </NuxtLink>
 
         <div class="nav-divider"></div>
+        <div class="nav-group-label">内容运营</div>
 
         <NuxtLink to="/admin/bookmarks" class="nav-item" :class="{ active: route.path === '/admin/bookmarks' }" @click="closeSidebar">
           <i class="ri-bookmark-line"></i><span>书签管理</span>
         </NuxtLink>
-        <NuxtLink to="/admin/prompts" class="nav-item" :class="{ active: route.path === '/admin/prompts' }" @click="closeSidebar">
-          <i class="ri-chat-quote-line"></i><span>提示词管理</span>
-        </NuxtLink>
         <NuxtLink to="/admin/collections" class="nav-item" :class="{ active: route.path === '/admin/collections' }" @click="closeSidebar">
           <i class="ri-stack-line"></i><span>精选集管理</span>
+        </NuxtLink>
+        <NuxtLink to="/admin/prompts" class="nav-item" :class="{ active: route.path === '/admin/prompts' }" @click="closeSidebar">
+          <i class="ri-chat-quote-line"></i><span>提示词管理</span>
         </NuxtLink>
         <NuxtLink to="/admin/token-deals" class="nav-item" :class="{ active: route.path === '/admin/token-deals' }" @click="closeSidebar">
           <i class="ri-gift-2-line"></i><span>白嫖通告</span>
         </NuxtLink>
-        <NuxtLink to="/tokens/keys" class="nav-item" @click="closeSidebar">
-          <i class="ri-key-2-line"></i><span>福利 Key</span>
+        <NuxtLink v-if="isAdmin" to="/admin/guest-reviews" class="nav-item" :class="{ active: route.path === '/admin/guest-reviews' }" @click="closeSidebar">
+          <i class="ri-message-3-line"></i><span>游客评测</span>
         </NuxtLink>
-        <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
-          <i class="ri-search-line"></i><span>搜索引擎</span>
-        </NuxtLink>
-        <NuxtLink to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
-          <i class="ri-database-2-line"></i><span>备份管理</span>
-        </NuxtLink>
-
-        <div class="nav-divider"></div>
-
-        <NuxtLink to="/admin/settings" class="nav-item" :class="{ active: route.path === '/admin/settings' }" @click="closeSidebar">
-          <i class="ri-user-settings-line"></i><span>用户设置</span>
-        </NuxtLink>
-        <!-- API 令牌：所有登录用户均可管理自己的令牌（非管理员仅能授予 read/write） -->
-        <NuxtLink to="/admin/api-tokens" class="nav-item" :class="{ active: route.path === '/admin/api-tokens' }" @click="closeSidebar">
-          <i class="ri-key-2-line"></i><span>API 令牌</span>
-        </NuxtLink>
-
         <template v-if="isAdmin">
-          <div class="nav-divider"></div>
-          <div class="nav-group-label">管理</div>
           <NuxtLink to="/admin/announcements" class="nav-item" :class="{ active: route.path === '/admin/announcements' }" @click="closeSidebar">
             <i class="ri-notification-3-line"></i><span>公告管理</span>
           </NuxtLink>
           <NuxtLink to="/admin/friend-links" class="nav-item" :class="{ active: route.path === '/admin/friend-links' }" @click="closeSidebar">
             <i class="ri-links-line"></i><span>友情链接</span>
           </NuxtLink>
-          <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
-            <i class="ri-user-line"></i><span>用户管理</span>
+        </template>
+
+        <div class="nav-divider"></div>
+        <div class="nav-group-label">系统与工具</div>
+
+        <template v-if="isAdmin">
+          <NuxtLink to="/admin/bot" class="nav-item" :class="{ active: route.path === '/admin/bot' || route.path === '/admin/api-tokens' }" @click="closeSidebar">
+            <i class="ri-robot-2-line"></i><span>机器人与 API</span>
           </NuxtLink>
           <NuxtLink to="/admin/config" class="nav-item" :class="{ active: route.path === '/admin/config' }" @click="closeSidebar">
             <i class="ri-settings-3-line"></i><span>系统配置</span>
           </NuxtLink>
-          <NuxtLink to="/admin/bot" class="nav-item" :class="{ active: route.path === '/admin/bot' }" @click="closeSidebar">
-            <i class="ri-robot-2-line"></i><span>机器人配置</span>
+          <NuxtLink to="/admin/users" class="nav-item" :class="{ active: route.path === '/admin/users' }" @click="closeSidebar">
+            <i class="ri-user-line"></i><span>用户管理</span>
+          </NuxtLink>
+          <NuxtLink to="/admin/backup" class="nav-item" :class="{ active: route.path === '/admin/backup' }" @click="closeSidebar">
+            <i class="ri-database-2-line"></i><span>备份管理</span>
           </NuxtLink>
         </template>
+        <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
+          <i class="ri-search-line"></i><span>搜索引擎</span>
+        </NuxtLink>
+        <NuxtLink to="/admin/settings" class="nav-item" :class="{ active: route.path === '/admin/settings' }" @click="closeSidebar">
+          <i class="ri-user-settings-line"></i><span>账号设置</span>
+        </NuxtLink>
 
         <div class="nav-divider"></div>
         <!-- 移动端侧边栏底部区（含「返回前台」）被隐藏，此处补一个同功能入口，新标签打开前端首页 -->

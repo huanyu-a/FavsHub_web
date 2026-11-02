@@ -49,82 +49,9 @@
       <button :class="{ active: tab === 'invalid' }" @click="switchTab('invalid')">
         已失效<span v-if="counts.invalid_total" class="tab-badge">{{ counts.invalid_total }}</span>
       </button>
-      <button :class="{ active: tab === 'subs' }" @click="switchTab('subs')">
-        机器人订阅<span v-if="subCounts.active" class="tab-badge">{{ subCounts.active }}</span>
-      </button>
       <button :class="{ active: tab === 'edits' }" @click="switchTab('edits')">
         修改建议<span v-if="editTotal" class="tab-badge">{{ editTotal }}</span>
       </button>
-      <button :class="{ active: tab === 'guests' }" @click="switchTab('guests')">
-        游客评测<span v-if="guestTotal" class="tab-badge">{{ guestTotal }}</span>
-      </button>
-    </div>
-
-    <!-- ── 游客评测 Tab：管理员可审所有通告上的游客评测 ── -->
-    <div v-if="tab === 'guests'" class="card">
-      <div class="card-header">
-        <h3>待审核的游客评测</h3>
-        <button class="btn btn-ghost btn-sm" :disabled="guestsLoading" @click="loadGuests">刷新</button>
-      </div>
-
-      <div v-if="guestsLoading" class="empty-state">加载中...</div>
-      <div v-else-if="guests.length === 0" class="empty-state">暂无待审核的游客评测</div>
-
-      <div v-else class="edit-list">
-        <div v-for="g in guests" :key="g.id" class="edit-row">
-          <div class="edit-row-head">
-            <div class="edit-deal">
-              <span class="edit-provider">{{ g.deal.provider }}</span>
-              <span class="edit-deal-title">{{ g.deal.title }}</span>
-            </div>
-            <span class="edit-time">{{ formatTime(g.created_at) }}</span>
-          </div>
-
-          <div class="edit-meta">
-            <span class="guest-avatar" :class="{ 'has-img': g.avatar && !brokenGuestAvatars.has(g.id) }">
-              <img
-                v-if="g.avatar && !brokenGuestAvatars.has(g.id)"
-                :src="g.avatar"
-                :alt="g.nickname"
-                @error="brokenGuestAvatars.add(g.id)"
-              >
-              <template v-else>{{ (g.nickname || '?')[0].toUpperCase() }}</template>
-            </span>
-            <span class="edit-author">{{ g.nickname }}</span>
-            <span class="guest-rating">
-              <i
-                v-for="n in 5"
-                :key="n"
-                :class="n <= g.rating ? 'ri-star-fill' : 'ri-star-line'"
-              ></i>
-            </span>
-          </div>
-
-          <p class="guest-content">{{ g.content }}</p>
-
-          <div class="edit-actions">
-            <button class="btn btn-primary btn-sm" :disabled="guestsBusy" @click="reviewGuest(g, 'approve')">
-              通过
-            </button>
-            <button class="btn btn-danger btn-sm" :disabled="guestsBusy" @click="openGuestReject(g)">驳回</button>
-          </div>
-
-          <div v-if="guestRejectTarget?.id === g.id" class="edit-reject-box">
-            <textarea
-              v-model="guestRejectReason"
-              rows="2"
-              maxlength="200"
-              placeholder="说明驳回理由（选填）"
-            ></textarea>
-            <div class="edit-reject-actions">
-              <button class="btn btn-ghost btn-sm" @click="guestRejectTarget = null">取消</button>
-              <button class="btn btn-danger btn-sm" :disabled="guestsBusy" @click="confirmGuestReject">
-                确认驳回
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ── 修改建议 Tab：管理员可审所有用户的提案 ── -->
@@ -291,109 +218,7 @@
       </div>
     </div>
 
-    <!-- ── 机器人订阅 Tab：站点只记账，投递发生在游客自己的 Hermes 里 ── -->
-    <div v-else-if="tab === 'subs'" class="card">
-      <div class="card-header">
-        <h3>机器人订阅</h3>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <select v-model="subStatus" class="search-input" style="width: 120px;" @change="subPage = 1; loadSubs()">
-            <option value="all">全部状态</option>
-            <option value="active">生效中</option>
-            <option value="paused">已暂停</option>
-            <option value="revoked">已退订</option>
-          </select>
-          <button class="btn btn-ghost btn-sm" :disabled="subsLoading" @click="loadSubs">刷新</button>
-          <button class="btn btn-ghost btn-sm" :disabled="eventsLoading" @click="toggleEvents">
-            {{ showEvents ? '收起事件' : '最近事件' }}
-          </button>
-        </div>
-      </div>
-
-      <p class="card-hint">
-        站点<b>不主动投递</b>：游客的 Hermes 定时拉 <code>/api/token-deals/changes</code>（或订阅
-        <code>/api/token-deals/feed.atom</code>），再由它自己 <code>hermes send</code> 到 QQ 群 / 单聊。
-        所以这里没有「送达率」，只有「最近来拉时间」—— 超过 3 天没来拉会标「静默」（多半是他的定时任务停了）。
-      </p>
-
-      <div class="sub-stats">
-        <span class="sub-stat"><b>{{ subCounts.active }}</b> 生效中</span>
-        <span class="sub-stat"><b>{{ subCounts.paused }}</b> 已暂停</span>
-        <span class="sub-stat"><b>{{ subCounts.revoked }}</b> 已退订</span>
-      </div>
-
-      <div v-if="subsLoading" class="empty-state">加载中...</div>
-      <div v-else-if="subs.length === 0" class="empty-state">还没有机器人订阅</div>
-      <table v-else>
-        <thead>
-          <tr>
-            <th style="width: 130px;">备注</th>
-            <th style="width: 130px;">凭证</th>
-            <th>关心什么</th>
-            <th style="width: 110px;">状态</th>
-            <th style="width: 130px;">拉取</th>
-            <th style="width: 150px;">最近来拉</th>
-            <th style="width: 190px;">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in subs" :key="s.id">
-            <td>{{ s.label || '（未命名）' }}</td>
-            <td><code class="sub-token">{{ s.token_masked }}</code></td>
-            <td>{{ s.filters_summary }}</td>
-            <td>
-              {{ SUB_STATUS_LABELS[s.status] || s.status }}
-              <span v-if="s.stale" class="sub-stale">静默</span>
-            </td>
-            <td>{{ s.pull_count }} 次 · 游标 {{ s.cursor }}</td>
-            <td>{{ formatTime(s.last_pull_at) }}</td>
-            <td>
-              <button v-if="s.status === 'active'" class="btn btn-ghost btn-sm" :disabled="subBusy" @click="subAction(s, 'pause')">暂停</button>
-              <button v-else-if="s.status === 'paused'" class="btn btn-ghost btn-sm" :disabled="subBusy" @click="subAction(s, 'resume')">恢复</button>
-              <button v-if="s.status !== 'revoked'" class="btn btn-danger btn-sm" :disabled="subBusy" @click="subAction(s, 'revoke')">撤销</button>
-              <button class="btn btn-danger btn-sm" :disabled="subBusy" @click="subAction(s, 'delete')">删除</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div v-if="subTotalPages > 1" class="pagination">
-        <button :disabled="subPage <= 1" @click="subPage--; loadSubs()">上一页</button>
-        <span>第 {{ subPage }} / {{ subTotalPages }} 页（共 {{ subTotal }} 条）</span>
-        <button :disabled="subPage >= subTotalPages" @click="subPage++; loadSubs()">下一页</button>
-      </div>
-
-      <div v-if="showEvents" class="sub-events">
-        <h4>最近事件</h4>
-        <p class="card-hint">
-          排查「某条变化为什么没推」先看这里：没有事件 = 那次变化不满足公开边界（未审核 / 已下架 / 无实质差异），
-          不是推送坏了。
-        </p>
-        <div v-if="eventsLoading" class="empty-state">加载中...</div>
-        <div v-else-if="events.length === 0" class="empty-state">暂无事件</div>
-        <table v-else>
-          <thead>
-            <tr>
-              <th style="width: 70px;">序号</th>
-              <th style="width: 90px;">类型</th>
-              <th>文案（就是推给机器人的那句话）</th>
-              <th style="width: 150px;">时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in events" :key="e.seq">
-              <td>{{ e.seq }}</td>
-              <td>{{ e.kind_label }}</td>
-              <td>{{ e.text }}</td>
-              <td>{{ formatTime(e.created_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ── 通告队列（默认 Tab） ──
-         必须写成 v-else-if="tab === 'deals'"：这条链的根是上面的 edits 的 v-if，
-         若用 v-else 则切到「游客评测」时这里也会一起渲染，与 guests 面板叠在一起。 -->
+    <!-- ── 通告队列（默认 Tab） ── -->
     <div v-else-if="tab === 'deals'" class="card">
       <div class="card-header">
         <h3>{{ tabTitle }}</h3>
@@ -629,23 +454,13 @@ const total = ref(0)
 const searchQuery = ref('')
 
 // ── 修改建议 Tab ──
-const tab = ref<'deals' | 'edits' | 'guests' | 'invalid' | 'subs'>('deals')
+const tab = ref<'deals' | 'edits' | 'invalid'>('deals')
 const edits = ref<any[]>([])
 const editTotal = ref(0)
 const editsLoading = ref(false)
 const editsBusy = ref(false)
 const editRejectTarget = ref<any>(null)
 const editRejectReason = ref('')
-
-// ── 游客评测审核 ──
-const guests = ref<any[]>([])
-const guestTotal = ref(0)
-const guestsLoading = ref(false)
-const guestsBusy = ref(false)
-const guestRejectTarget = ref<any>(null)
-const guestRejectReason = ref('')
-/** 头像加载失败的评测 id → 回退首字母色块 */
-const brokenGuestAvatars = ref<Set<string>>(new Set())
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pageList = computed(() => {
@@ -776,98 +591,13 @@ async function confirmVerify(action: 'alive' | 'dead' | 'note') {
   }
 }
 
-function switchTab(next: 'deals' | 'edits' | 'guests' | 'invalid' | 'subs') {
+function switchTab(next: 'deals' | 'edits' | 'invalid') {
   tab.value = next
   // 「待核验」只是审核队列的子视图，切到别的面板必须清掉，避免残留隐式筛选
   if (next !== 'deals') verifyFilter.value = 'all'
   if (next === 'edits') loadEdits()
-  else if (next === 'guests') loadGuests()
   else if (next === 'invalid') loadInvalid()
-  else if (next === 'subs') loadSubs()
   else loadDeals()
-}
-
-// ── 机器人订阅（站点只记账，投递在游客的 Hermes 里）────────────────
-const SUB_STATUS_LABELS: Record<string, string> = { active: '生效中', paused: '已暂停', revoked: '已退订' }
-const subs = ref<any[]>([])
-const subCounts = reactive({ active: 0, paused: 0, revoked: 0 })
-const subsLoading = ref(false)
-const subBusy = ref(false)
-const subStatus = ref<'all' | 'active' | 'paused' | 'revoked'>('all')
-const subPage = ref(1)
-const subTotal = ref(0)
-const subPageSize = 20
-const subTotalPages = computed(() => Math.max(1, Math.ceil(subTotal.value / subPageSize)))
-const showEvents = ref(false)
-const events = ref<any[]>([])
-const eventsLoading = ref(false)
-
-async function loadSubs() {
-  subsLoading.value = true
-  try {
-    const params = new URLSearchParams({
-      status: subStatus.value,
-      page: String(subPage.value),
-      limit: String(subPageSize),
-    })
-    const r = await $fetch<any>(`/api/admin/token-deals/subscriptions?${params}`, getAuthOpts())
-    subs.value = r.items || []
-    subTotal.value = r.total || 0
-    Object.assign(subCounts, r.counts || {})
-  } catch (e: any) {
-    showMessage('加载订阅失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
-    subs.value = []
-    subTotal.value = 0
-  } finally {
-    subsLoading.value = false
-  }
-}
-
-async function loadEvents() {
-  eventsLoading.value = true
-  try {
-    const r = await $fetch<any>('/api/admin/token-deals/events?limit=50', getAuthOpts())
-    events.value = r.items || []
-  } catch (e: any) {
-    showMessage('加载事件失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
-  } finally {
-    eventsLoading.value = false
-  }
-}
-
-function toggleEvents() {
-  showEvents.value = !showEvents.value
-  if (showEvents.value && events.value.length === 0) loadEvents()
-}
-
-async function subAction(s: any, action: 'pause' | 'resume' | 'revoke' | 'delete') {
-  if (!import.meta.client || subBusy.value) return
-  const name = s.label || s.id
-  const tips: Record<string, string> = {
-    pause: `暂停订阅「${name}」？
-对方的轮询会开始返回空结果（paused: true），不会删数据。`,
-    resume: `恢复订阅「${name}」？`,
-    revoke: `撤销订阅「${name}」？
-该凭证立即失效，对方再拉会拿到 404，需要重新建订阅。`,
-    delete: `彻底删除订阅「${name}」的记录？
-不可恢复（一般只在清理测试数据时用）。`,
-  }
-  if (!confirm(tips[action])) return
-  subBusy.value = true
-  try {
-    const r = await $fetch<any>(`/api/admin/token-deals/subscriptions/${s.id}`, {
-      method: 'POST',
-      body: { action },
-      ...getAuthOpts(),
-    })
-    showMessage(r?.message || '已处理')
-    await loadSubs()
-    if (showEvents.value) await loadEvents()
-  } catch (e: any) {
-    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
-  } finally {
-    subBusy.value = false
-  }
 }
 
 // ── 已失效面板（被删除 / 判定失效 / 已过期）────────────────
@@ -1079,66 +809,6 @@ async function confirmEditReject() {
   await reviewEdit(target, 'reject', reason)
 }
 
-// ── 游客评测审核 ──────────────────────────────────────────
-/** 管理员视角：列出全部通告上的待审游客评测 */
-async function loadGuests() {
-  guestsLoading.value = true
-  try {
-    const r = await $fetch<any>('/api/guest-reviews?limit=100', getAuthOpts())
-    guests.value = r.reviews || []
-    guestTotal.value = r.pending_total ?? r.total ?? 0
-  } catch (e: any) {
-    showMessage('加载游客评测失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
-    guests.value = []
-    guestTotal.value = 0
-  } finally {
-    guestsLoading.value = false
-  }
-}
-
-/** 角标：进页面时静默拉一次 */
-async function loadGuestCount() {
-  try {
-    const r = await $fetch<any>('/api/guest-reviews?limit=1', getAuthOpts())
-    guestTotal.value = r.pending_total ?? r.total ?? 0
-  } catch { /* 静默失败，不影响主流程 */ }
-}
-
-function openGuestReject(target: any) {
-  guestRejectTarget.value = target
-  guestRejectReason.value = ''
-}
-
-async function reviewGuest(target: any, action: 'approve' | 'reject', reason = '') {
-  if (guestsBusy.value) return
-  guestsBusy.value = true
-  try {
-    const res = await $fetch<any>(`/api/guest-reviews/${target.id}/review`, {
-      method: 'POST',
-      body: { action, reason },
-      ...getAuthOpts(),
-    })
-    showMessage(res?.message || (action === 'approve' ? '已通过' : '已驳回'))
-    guests.value = guests.value.filter((g: any) => g.id !== target.id)
-    guestTotal.value = Math.max(0, guestTotal.value - 1)
-    // 评分计数已变，通告列表需要刷新
-    loadDeals()
-  } catch (e: any) {
-    showMessage('操作失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
-  } finally {
-    guestsBusy.value = false
-  }
-}
-
-async function confirmGuestReject() {
-  if (!guestRejectTarget.value) return
-  const target = guestRejectTarget.value
-  const reason = guestRejectReason.value.trim()
-  guestRejectTarget.value = null
-  guestRejectReason.value = ''
-  await reviewGuest(target, 'reject', reason)
-}
-
 // ── 展示辅助 ──────────────────────────────────────────────
 function statusBadgeClass(s: string) {
   if (s === 'pending') return 'badge-pending'
@@ -1278,7 +948,6 @@ async function removeDeal(d: any) {
 onMounted(() => {
   loadDeals()
   loadEditCount()
-  loadGuestCount()
 })
 
 onBeforeUnmount(() => {
@@ -1289,13 +958,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* ── 已失效面板 ───────────────────────────────────── */
-.sub-stats { display: flex; gap: 20px; margin: 0 0 14px; color: var(--text-secondary); font-size: 13px; }
-.sub-stat b { color: var(--text-primary); font-size: 16px; margin-right: 4px; }
-.sub-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-.sub-stale { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: rgba(250, 173, 20, .15); color: #d48806; }
-.sub-events { margin-top: 22px; border-top: 1px solid var(--border-color); padding-top: 16px; }
-.sub-events h4 { margin: 0 0 6px; font-size: 14px; }
-
 .lifecycle-filter {
   display: inline-flex;
   gap: 4px;

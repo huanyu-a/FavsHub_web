@@ -104,7 +104,7 @@
           </NuxtLink>
           <NuxtLink v-if="isAdmin" to="/admin/bot" class="nav-card">
             <i class="ri-robot-2-line nav-icon"></i>
-            <span class="nav-label">机器人配置</span>
+            <span class="nav-label">机器人与 API</span>
           </NuxtLink>
         </div>
       </div>

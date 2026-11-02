@@ -120,16 +120,16 @@
 
       <div class="card">
         <div class="card-header">
-          <h3>🤖 QQ 机器人通知</h3>
+          <h3>🤖 机器人与 API</h3>
           <NuxtLink to="/admin/bot" style="color: var(--primary, #18a058); font-size: 13px; text-decoration: none;">前往专属配置页面 →</NuxtLink>
         </div>
         <div class="card-body">
           <p class="hint">
-            QQ 机器人出站通知（官方 OpenAPI 直连、多群广播、多机器人实例、Webhook 回调与在线连通性自检）现已迁移至独立的专属管理页面。
+            QQ 机器人出站通知、外部订阅管理、个人访问令牌（PAT）及接入指引现已统一整合至独立的「机器人与 API」工作台。
           </p>
           <div style="margin-top: 12px;">
             <NuxtLink to="/admin/bot" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--primary, #18a058); color: #fff; border-radius: 6px; text-decoration: none; font-size: 13px;">
-              <i class="ri-robot-2-line"></i> 管理机器人配置与在线测试
+              <i class="ri-robot-2-line"></i> 前往机器人与 API 管理
             </NuxtLink>
           </div>
         </div>
