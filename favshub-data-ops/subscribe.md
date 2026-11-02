@@ -246,7 +246,7 @@ def qq_official_send(app_id, app_secret, group_openid, text, state_obj=None):
     # 2. 发送群消息
     clean_group = str(group_openid).replace("qqbot:", "").strip()
     msg_url = f"https://api.bot.qq.com/v2/groups/{clean_group}/messages"
-    payload = {"content": text, "msg_type": 0}
+    payload = {"content": text, "msg_type": 0, "msg_seq": 1}
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(msg_url, data=data, headers={
         "Content-Type": "application/json; charset=utf-8",
@@ -265,19 +265,28 @@ def qq_official_send(app_id, app_secret, group_openid, text, state_obj=None):
             code = err_json.get("code")
             # 40034105：群主未开通主动发言权限
             if code == 40034105:
-                return False, "40034105: 群主未开启【机器人主动在群聊内发言】权限"
-            # 304003：网址未报备 -> 自动去掉 URL 重试
-            if code == 304003:
+                return False, "40034105: 群主未开启【机器人主动在群聊内发言】权限（需群主在手机 QQ 群设置开启）"
+            # 304003 / 40054010：网址未报备或禁止发 URL -> 自动去掉 URL 降级重试
+            if code in (304003, 40054010):
                 import re
                 stripped = re.sub(r'https?://[^\s]+', '', text).strip()
                 if stripped and stripped != text:
-                    data2 = json.dumps({"content": stripped, "msg_type": 0}).encode("utf-8")
+                    data2 = json.dumps({"content": stripped, "msg_type": 0, "msg_seq": 2}).encode("utf-8")
                     req2 = urllib.request.Request(msg_url, data=data2, headers={
                         "Content-Type": "application/json; charset=utf-8",
                         "Authorization": f"QQBot {token}",
                     })
                     with urllib.request.urlopen(req2, timeout=10) as r2:
-                        return True, "304003_stripped_sent"
+                        return True, "stripped_url_sent"
+            # 40034100：频控限制
+            if code == 40034100:
+                return False, "40034100: 主动消息超过频控限制（单群上限 1000条/天、20条/分钟）"
+            # 40054002：被禁言
+            if code == 40054002:
+                return False, "40054002: 机器人已被群管理员禁言"
+            # 40034101 / 40054003：非群成员
+            if code in (40034101, 40054003):
+                return False, f"[{code}]: 机器人不是该群成员"
             return False, f"HTTP {e.code} [{code}]: {err_json.get('message', '')}"
         except Exception:
             return False, f"HTTP {e.code}: {err_raw[:200]}"

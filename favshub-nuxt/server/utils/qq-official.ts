@@ -240,10 +240,12 @@ async function sendSingleTarget(
     ? `${BASE_URL}/v2/groups/${encodeURIComponent(target)}/messages`
     : `${BASE_URL}/v2/users/${encodeURIComponent(target)}/messages`
 
+  let sendSeq = 1
   const attemptSend = async (content: string, msgType: number): Promise<Response> => {
     const payload: Record<string, unknown> = {
       content,
       msg_type: msgType,
+      msg_seq: sendSeq++,
     }
     if (opts.msgId) payload.msg_id = opts.msgId
     if (opts.eventId) payload.event_id = opts.eventId
@@ -277,9 +279,9 @@ async function sendSingleTarget(
       return { ok: false, error: tip }
     }
 
-    // 304003：网址未报备 -> 剥离 URL 降级重试
-    if (code === 304003) {
-      console.warn(`[QQBot] 触发 304003 网址未报备，剥离 URL 后重试: target=${target}`)
+    // 304003 / 40054010：网址未报备或不允许发送 URL -> 剥离 URL 降级重试
+    if (code === 304003 || code === 40054010) {
+      console.warn(`[QQBot] 触发 ${code} (网址未报备/禁止URL)，剥离 URL 后重试: target=${target}`)
       const stripped = stripUrls(opts.text)
       if (stripped && stripped !== opts.text) {
         res = await attemptSend(stripped, 0)
@@ -288,6 +290,27 @@ async function sendSingleTarget(
           return { ok: true, messageId: body?.id }
         }
       }
+    }
+
+    // 40034100：频控限制
+    if (code === 40034100) {
+      const tip = `[QQBot] 官方主动消息频控超限(40034100)：单群上限 1000条/天、20条/分钟；Bot 维度 30~60条/分钟`
+      console.warn(tip)
+      return { ok: false, error: tip }
+    }
+
+    // 40054002：机器人被禁言
+    if (code === 40054002) {
+      const tip = `[QQBot] 机器人已被群管理员禁言(40054002)`
+      console.warn(tip)
+      return { ok: false, error: tip }
+    }
+
+    // 40034101 / 40054003：非群成员
+    if (code === 40034101 || code === 40054003) {
+      const tip = `[QQBot] 机器人不是目标群成员(40034101/40054003)，请先邀请入群`
+      console.warn(tip)
+      return { ok: false, error: tip }
     }
 
     const failureReason = `HTTP ${res.status} [${code}]: ${errMsg}`
