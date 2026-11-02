@@ -41,8 +41,8 @@ const PASSWORD = 'E2ePassw0rd!2026'
 
 const KINDS = ['online', 'updated', 'renewed', 'pinned', 'offline']
 
-/** 跨月边界样例：站点时区 2026-11-01 00:30（+08:00）= UTC 2026-10-31 16:30 */
-const CROSS_MONTH_EXPIRES = Date.UTC(2026, 9, 31, 16, 30)
+/** 跨月边界样例：站点时区 11-01 00:30（+08:00）= UTC 10-31 16:30（用 2030 年避免随真实时间自然过期） */
+const CROSS_MONTH_EXPIRES = Date.UTC(2030, 9, 31, 16, 30)
 const CROSS_MONTH_SITE_TZ = '11-01'
 const CROSS_MONTH_UTC = '10-31'
 

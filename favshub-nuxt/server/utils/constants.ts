@@ -23,9 +23,11 @@ export const SYSTEM_ONLY_KEYS = [
   'max_bookmarks_per_sync', 'bookmarks_query_limit',
   // Analytics
   'baidu_tongji_id', 'baidu_tongji_domains',
-  // QQ Bot（OneBot 11 / NapCat）
+  // QQ Bot（官方 OpenAPI / OneBot 11 / NapCat）
   'qq_bot_enabled', 'qq_bot_group_id', 'qq_admin_qq',
-  // QQ Bot 出站传输：'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
+  // QQ Bot 官方直连（OpenAPI）：AppID 与 AppSecret
+  'qq_bot_appid', 'qq_bot_app_secret',
+  // QQ Bot 出站传输：'official' = 官方 OpenAPI 直连（推荐）；'onebot' = 直连 OneBot HTTP API；'outbox' = 写 outbox 文件由宿主机拉取转 Hermes（hermes send）
   'qq_bot_transport', 'qq_outbox_path', 'qq_notify_max_per_hour', 'deal_verify_stale_days',
   // 通告事件流（对外订阅）：见 server/utils/deal-events.ts
   'deal_events_enabled', 'deal_changes_public', 'deal_feed_enabled',
@@ -90,7 +92,9 @@ export const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   qq_bot_enabled: 'false',
   qq_bot_group_id: '',
   qq_admin_qq: '',
-  qq_bot_transport: 'onebot',
+  qq_bot_appid: '',
+  qq_bot_app_secret: '',
+  qq_bot_transport: 'official',
   qq_outbox_path: '',
   // 通告事件流：默认开（只读增量接口，无出站；关掉即回到「只有列表」的旧行为）
   deal_events_enabled: 'true',

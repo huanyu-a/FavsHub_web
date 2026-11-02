@@ -37,8 +37,9 @@ FavsHub 的白嫖通告随时在变：有人发新的、有人续期、有人下
 | 路径 | 适合 | 代价 |
 |---|---|---|
 | **A. Feed 订阅** | Hermes（或任意阅读器）已支持订阅 feed / RSS | 零代码，但只能收「上新 / 变更 / 续期」，收不到「下架」，也无法自定义文案 |
-| **B. 轮询脚本**（推荐） | 想推到指定 QQ 群 / 单聊，想按服务商过滤，想改文案 | 装一个 ~90 行脚本 + 一条 cron |
-| C. 一次性查询 | 只是想看看最近有什么 | 不要建订阅，直接读列表即可 |
+| **B. QQ 官方机器人直连**（最推荐游客/群主） | 零框架依赖、无需安装 Hermes，通过 QQ 开放平台官方 OpenAPI 直推自己的群 | 申请机器人拿到 AppID + Secret + 群 openid，普通 Python 脚本 + cron |
+| **C. Hermes CLI 投递** | 已安装配置 Hermes 的机器，需要支持钉钉 / 频道等复合多通道 | 依赖本地 `hermes` CLI 工具 |
+| D. 一次性查询 | 只是想看看最近有什么 | 不要建订阅，直接读列表即可 |
 
 > **先问用户要接收目标，再动手。** 不要猜群号、不要猜 QQ 号、不要「先建个订阅再说」——
 > 建了订阅却不知道往哪发，等于给用户留了一个静默失败的任务。
@@ -86,13 +87,22 @@ curl -sS -X POST {BASE}/api/deal-subscriptions \
 
 ### 第 2 步：装脚本并初始化
 
-把下面的脚本存成 `favshub-poll.py`（放哪儿都行，下文用 `~/favshub-poll.py` 代指），然后：
+把下面的脚本存成 `favshub-poll.py`（放哪儿都行，下文用 `~/favshub-poll.py` 代指），支持两种投递方式：
 
+**方式一：QQ 官方机器人直连（免装 Hermes，推荐游客/群主）**
 ```bash
-python3 ~/favshub-poll.py --init --site {BASE} --target qqbot:123456789 --label "我的 QQ 群"
+python3 ~/favshub-poll.py --init \
+  --site https://hao.bx9y.com.cn \
+  --qq-appid 1900000000 \
+  --qq-secret your-app-secret \
+  --qq-group ABCDEF0123abcdef... \
+  --label "我的 QQ 群"
 ```
 
-`--target` 就是 `hermes send -t` 的目标（如 `qqbot:<群号>`、`dingtalk:cid...`）。
+**方式二：Hermes CLI 投递（支持钉钉/频道等多通道）**
+```bash
+python3 ~/favshub-poll.py --init --site https://hao.bx9y.com.cn --target qqbot:123456789 --label "我的 QQ 群"
+```
 `--init` 会建订阅、取基线、落状态文件，**不会**发历史消息。
 
 ### 第 3 步：交给 cron
@@ -216,6 +226,74 @@ def render_for(target, ev):
     return ev.get("text") or md
 
 
+def qq_official_send(app_id, app_secret, group_openid, text, state_obj=None):
+    """通过 QQ 官方 OpenAPI 发送群消息（零依赖，纯 Python 原生 urllib，适合游客/开发者直连）。"""
+    now = int(time.time())
+    token = state_obj.get("qq_token") if state_obj else None
+    expires_at = state_obj.get("qq_token_expires_at", 0) if state_obj else 0
+
+    # 1. 换取 access_token（缓存 7200s，提前 60s 刷新）
+    if not token or now >= expires_at:
+        t_url = "https://api.bot.qq.com/app/getAppAccessToken"
+        status, body = http_json(t_url, {"appId": str(app_id), "clientSecret": str(app_secret)})
+        if status != 200 or not isinstance(body, dict) or not body.get("access_token"):
+            return False, f"获取 QQ 官方 access_token 失败 HTTP {status}: {body}"
+        token = body["access_token"]
+        if state_obj is not None:
+            state_obj["qq_token"] = token
+            state_obj["qq_token_expires_at"] = now + int(body.get("expires_in", 7200)) - 60
+
+    # 2. 发送群消息
+    clean_group = str(group_openid).replace("qqbot:", "").strip()
+    msg_url = f"https://api.bot.qq.com/v2/groups/{clean_group}/messages"
+    payload = {"content": text, "msg_type": 0}
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(msg_url, data=data, headers={
+        "Content-Type": "application/json; charset=utf-8",
+        "Authorization": f"QQBot {token}",
+    })
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read().decode("utf-8", "replace")
+            res_json = json.loads(raw) if raw.strip() else {}
+            return True, f"message_id={res_json.get('id', '')}"
+    except urllib.error.HTTPError as e:
+        err_raw = e.read().decode("utf-8", "replace")
+        try:
+            err_json = json.loads(err_raw)
+            code = err_json.get("code")
+            # 40034105：群主未开通主动发言权限
+            if code == 40034105:
+                return False, "40034105: 群主未开启【机器人主动在群聊内发言】权限"
+            # 304003：网址未报备 -> 自动去掉 URL 重试
+            if code == 304003:
+                import re
+                stripped = re.sub(r'https?://[^\s]+', '', text).strip()
+                if stripped and stripped != text:
+                    data2 = json.dumps({"content": stripped, "msg_type": 0}).encode("utf-8")
+                    req2 = urllib.request.Request(msg_url, data=data2, headers={
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Authorization": f"QQBot {token}",
+                    })
+                    with urllib.request.urlopen(req2, timeout=10) as r2:
+                        return True, "304003_stripped_sent"
+            return False, f"HTTP {e.code} [{code}]: {err_json.get('message', '')}"
+        except Exception:
+            return False, f"HTTP {e.code}: {err_raw[:200]}"
+    except Exception as e:
+        return False, f"请求异常: {e}"
+
+
+def deliver_event(st, text, state_obj=None):
+    """统一投递派发器：优先官方 OpenAPI 直连，其次 Hermes CLI。"""
+    # 路径 1：若配置了官方机器人 AppID + Secret + GroupOpenID，走官方 OpenAPI 直连
+    if st.get("qq_appid") and st.get("qq_secret") and st.get("qq_group"):
+        return qq_official_send(st["qq_appid"], st["qq_secret"], st["qq_group"], text, state_obj=state_obj)
+    # 路径 2：走本地 Hermes CLI 投递
+    return hermes_send(st.get("target", ""), text)
+
+
 def hermes_send(target, text):
     """投递一条。返回 (ok, detail) —— **退出码不可信**，只认 JSON 的 success 字段。"""
     try:
@@ -252,6 +330,9 @@ def cmd_init(args):
         "site": args.site.rstrip("/"),
         "token": resp["sub_token"],
         "target": args.target,
+        "qq_appid": args.qq_appid or "",
+        "qq_secret": args.qq_secret or "",
+        "qq_group": args.qq_group or "",
         "cursor": resp.get("baseline_seq", 0),
         "created_at": int(time.time()),
         "sent_total": 0,
@@ -259,7 +340,8 @@ def cmd_init(args):
         "sent_today": 0,
     })
     save_state(args.state, st)
-    log(f"[init] 订阅已建好：游标从 {st['cursor']} 开始，投递目标 {st['target']}")
+    dest_desc = f"QQ官方机器人(群 {st['qq_group']})" if st["qq_appid"] else st["target"]
+    log(f"[init] 订阅已建好：游标从 {st['cursor']} 开始，投递目标 {dest_desc}")
     log(f"[init] 凭证已写入 {args.state}，请勿外传")
     return 0
 
@@ -309,14 +391,14 @@ def cmd_run(args):
             rest = len(events) - sent
             text = f"【FavsHub】还有 {rest} 条通告变化未推送，可访问 {st['site']}/tokens 查看"
             if not args.dry_run:
-                ok, detail = hermes_send(st["target"], text)
+                ok, detail = deliver_event(st, text, state_obj=st)
                 log(f"[run] 摘要投递 {'成功' if ok else '失败'}：{detail}")
             break
         if args.dry_run:
             log(f"[run] (dry-run) 将发送 #{ev.get('seq')}：{text}")
             sent += 1
             continue
-        ok, detail = hermes_send(st["target"], text)
+        ok, detail = deliver_event(st, text, state_obj=st)
         if not ok:
             # 关键：失败**不**推进游标，下一轮重试同一条（否则这条就永久丢了）
             log(f"[run] 第 {ev.get('seq')} 条投递失败：{detail}")
@@ -345,20 +427,26 @@ def cmd_status(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="FavsHub 通告订阅拉取器")
+    ap = argparse.ArgumentParser(description="FavsHub 通告订阅拉取器（支持 QQ 官方 OpenAPI 直连与 Hermes）")
     ap.add_argument("--init", action="store_true", help="创建订阅并初始化状态文件")
     ap.add_argument("--status", action="store_true", help="打印当前状态")
     ap.add_argument("--dry-run", action="store_true", help="只打印将要发送的内容")
     ap.add_argument("--site", default="", help="站点地址，如 https://hao.bx9y.com.cn")
-    ap.add_argument("--target", default="", help="hermes send 的目标，如 qqbot:123456789")
+    ap.add_argument("--target", default="", help="投递目标（hermes 目标如 qqbot:... / dingtalk:...）")
+    ap.add_argument("--qq-appid", default="", help="QQ 官方机器人 AppID（配置后直连官方 OpenAPI，无需 Hermes）")
+    ap.add_argument("--qq-secret", default="", help="QQ 官方机器人 AppSecret")
+    ap.add_argument("--qq-group", default="", help="QQ 官方机器人目标群 group_openid")
     ap.add_argument("--label", default="", help="订阅备注（后台可见）")
     ap.add_argument("--kinds", default="", help="只收某些事件：online,offline,updated,renewed")
     ap.add_argument("--state", default=DEFAULT_STATE, help="状态文件路径")
     args = ap.parse_args()
 
     if args.init:
-        if not args.site or not args.target:
-            log("--init 需要 --site 与 --target")
+        if not args.site:
+            log("--init 需要 --site")
+            return 2
+        if not args.target and not (args.qq_appid and args.qq_secret and args.qq_group):
+            log("--init 需要 --target (Hermes) 或 [--qq-appid, --qq-secret, --qq-group] (官方 OpenAPI 直连)")
             return 2
         return cmd_init(args)
     if args.status:

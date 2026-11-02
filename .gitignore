@@ -21,3 +21,5 @@ favshub-latest.tar.gz
 .zcode/
 favshub-nuxt/.opencode/
 .workbuddy/
+.pm/
+PROJECT.md

@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.10.3
+version: 1.11.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -291,8 +291,10 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 ```
 站点事件流 GET /api/token-deals/changes
         ↓ 按游标拉增量（可带订阅 token 套用过滤条件）
-   你的机器（cron 跑轮询脚本）
-        ↓ hermes send -t qqbot:<群号> --json "<text>"
+   你的机器（cron 跑轮询脚本 favshub-poll.py）
+        ├── 方式一（推荐）：QQ 官方机器人 OpenAPI 直连（纯 Python 原生，免装 Hermes）
+        └── 方式二：hermes send -t qqbot:<群号> --json "<text>"（适合已有 Hermes 多通道）
+        ↓
   用户的 QQ 群 / 单聊
 ```
 
@@ -306,9 +308,11 @@ POST /api/mcp         # JSON-RPC 2.0，同一令牌
 
 **动手前必须做的三件事**：
 
-1. **问清接收目标**（`qqbot:<群号>` 还是 `dingtalk:...`）。不猜、不先建订阅。
+1. **问清投递方式与接收目标**：
+   - 若用官方机器人 OpenAPI（免装 Hermes，推荐）：需要用户的 `AppID` + `AppSecret` + `群 openid`；
+   - 若用 Hermes：问清目标（`qqbot:<群号>` 还是 `dingtalk:...`）。不猜、不先建订阅。
 2. **首次用 `?tail=1` 取基线**，不要把历史通告一次性灌进群里。
-3. **投递成败只看 `hermes send --json` 输出的 `success` 字段**（退出码不可信），失败就**不要**推进游标。
+3. **投递成败判定**：成功后推进游标；若遇 `40034105` 提示群主开启主动发言；投递失败就**不要**推进游标。
 
 完整流程、可直接落地的轮询脚本、排错表与红线见 **`subscribe.md`**。
 

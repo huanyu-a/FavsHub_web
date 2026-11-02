@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   }
   // 机密项不回显（沿用 jwtSecret 的约定）：显示「已设置」，写回时按此值跳过
   if (systemData.turnstile_secret_key) systemData.turnstile_secret_key = '已设置'
+  if (systemData.qq_bot_app_secret || config.qqBotAppSecret) systemData.qq_bot_app_secret = '已设置'
 
   return {
     adminUsers,

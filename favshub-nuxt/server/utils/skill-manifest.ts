@@ -7,14 +7,15 @@
  */
 export const SKILL_MANIFEST_META = {
   name: "favshub-data-ops",
-  version: "1.10.3",
-  site_version: "1.0.55",
+  version: "1.11.0",
+  site_version: "1.0.56",
   manifest_path: '/skills/favshub-data-ops.json',
   source: "https://github.com/huanyu-a/FavsHub_web/tree/main/favshub-data-ops",
   latest_changes: [
-  "**MCP 侧回收站能力补齐**：`list_prompts` 工具新增 `recycle: true` 参数。 此前 REST `GET /api/ai/prompts?recycle=1` 能查回收站，但 MCP 工具的 `inputSchema` 根本没暴露这个参数、描述还写死「不含回收站」—— **同一能力，REST 能用、MCP 用不了**。现已对齐。",
-  "**纠正一处过度承诺**：原文写「工具与 REST 端点**一一对应**」，实际有两处例外， 且同一份文档前面又说过 token-keys 是 REST 专用，两句话读起来会打架。现改为 「基本一一对应」并明确列出例外：",
-  "`GET /api/ai/token-deals/:id/card.png` —— 无 MCP 工具（PNG 二进制，JSON-RPC 不适合）；",
-  "`/api/ai/token-keys*` —— 无 MCP 工具，REST 专用。"
+  "**通告订阅支持 QQ 官方机器人 OpenAPI 直连（面向游客与外部群主）**： 此前 `subscribe.md` 的轮询脚本 `favshub-poll.py` 强依赖本地安装的 `hermes` CLI， 对于没有部署 Hermes 的普通用户/游客门槛极高。 现根据腾讯官方开放平台最新规范，在脚本中内置基于纯 Python 原生 `urllib` 的官方 OpenAPI 直连：",
+  "自动换取与缓存 `access_token`（7200 秒 TTL，提前 60 秒刷新）；",
+  "目标群直接通过 `POST /v2/groups/{group_openid}/messages` 发送；",
+  "报 `304003`（网址未在平台报备）时自动剥离 URL 降级重发纯文本，保障通知必达；",
+  "报 `40034105` 时诊断并输出友好指引（群主需在群设置中开启【机器人主动在群聊内发言】）；"
 ],
 } as const

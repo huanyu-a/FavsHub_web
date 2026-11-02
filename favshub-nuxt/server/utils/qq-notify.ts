@@ -29,6 +29,7 @@ import { parseAdminUsers } from './auth'
 // 即便镜像没装 tzdata 也生效），但本地起服务、去掉 TZ 或换部署方式时，
 // 「11-01 00:30 +08:00」就会被算成 10-31。这里收口成不依赖环境变量的算法。
 import { formatEventDay } from './deal-events'
+import { sendOfficialMessage, isOfficialConfigured } from './qq-official'
 
 /** 出站队列条目 */
 interface QueueItem {
@@ -62,9 +63,19 @@ function botEnabled(): boolean {
   return getConfig('qq_bot_enabled') === 'true'
 }
 
-/** 当前出站传输：'outbox'（Hermes 文件队列）或 'onebot'（直连 HTTP API） */
+/** 当前出站传输：'official'（官方 OpenAPI 直连，推荐）/ 'outbox'（Hermes 文件队列）/ 'onebot'（NapCat HTTP API） */
+function getTransport(): 'official' | 'outbox' | 'onebot' {
+  const t = String(getConfig('qq_bot_transport') || 'official').trim()
+  if (t === 'outbox' || t === 'onebot') return t
+  return 'official'
+}
+
+function isOfficial(): boolean {
+  return getTransport() === 'official'
+}
+
 function isOutbox(): boolean {
-  return String(getConfig('qq_bot_transport') || 'onebot').trim() === 'outbox'
+  return getTransport() === 'outbox'
 }
 
 function botHttpUrl(): string {
@@ -91,7 +102,9 @@ function outboxDir(): string {
 
 /** 所选传输的投递通道是否可用 */
 function transportAvailable(): boolean {
-  return isOutbox() ? !!outboxDir() : !!botHttpUrl()
+  if (isOfficial()) return isOfficialConfigured()
+  if (isOutbox()) return !!outboxDir()
+  return !!botHttpUrl()
 }
 
 function botAccessToken(): string {
@@ -170,7 +183,15 @@ function flushQueue() {
 /** 投递单条消息；失败按 1s/5s/25s 退避回队重试，3 次后丢弃 */
 async function deliver(item: QueueItem): Promise<void> {
   try {
-    if (isOutbox()) {
+    if (isOfficial()) {
+      const res = await sendOfficialMessage({
+        kind: item.kind,
+        target: item.target,
+        text: item.text,
+        markdown: item.markdown,
+      })
+      if (!res.ok) throw new Error(res.error || '官方机器人投递失败')
+    } else if (isOutbox()) {
       sendToOutbox(item)
     } else if (item.kind === 'group') {
       // OneBot 的 group_id 期望数字，纯数字串转 Number 兼容严格实现
@@ -348,12 +369,12 @@ function resolveAdminQQ(): string {
 
 /**
  * 待审类提醒（需要主人行动的消息）：
+ *   - official / outbox：群广播 + 私聊主人（qq_admin_qq 语义 = 主人 user_openid / Hermes 目标）。
+ *     官方 QQ 群中普通文本不支持 CQ 码 @，DM 主人是可靠的私密提醒通道。
  *   - onebot：群消息尾附 CQ @码（已绑定管理员优先，回落 qq_admin_qq）
- *   - outbox：群广播 + 私聊主人（qq_admin_qq 语义 = Hermes 私聊目标）。
- *     官方 QQ 群不支持机器人主动 @ 成员（「主动消息」权限另受限），DM 主人是已实测可达的提醒通道。
  */
 function queuePendingNotice(text: string, markdown?: string): void {
-  if (isOutbox()) {
+  if (isOfficial() || isOutbox()) {
     queueGroupMessage(text, markdown)
     const adminTarget = String(getConfig('qq_admin_qq') || '').trim()
     if (adminTarget) queuePrivateMessage(adminTarget, text, markdown)

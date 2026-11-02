@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     if (!SYSTEM_ONLY_KEYS.includes(key)) continue
     // 机密项：GET 回显的是「已设置」占位符，空值/占位符都代表「保持现状」，不覆盖
     if (key === 'turnstile_secret_key' && (String(value ?? '') === '' || String(value) === '已设置')) continue
+    if (key === 'qq_bot_app_secret' && (String(value ?? '') === '' || String(value) === '已设置')) continue
     upsert.run(key, String(value ?? ''), now)
   }
 

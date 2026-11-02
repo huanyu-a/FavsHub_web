@@ -121,10 +121,12 @@
       <div class="card">
         <div class="card-header"><h3>QQ 机器人</h3></div>
         <div class="card-body">
-          <p class="hint" v-if="qqBot.qq_bot_transport === 'outbox'">经服务器 Hermes（官方 QQ 机器人 / 钉钉）推送通知：应用把消息写入 outbox 队列文件，宿主机定时任务逐条调 <code>hermes send</code> 投递。群通知需 QQ 开放平台「主动消息」权限；待审提醒会直接私聊主人（@ 提醒的等价通道，实测可用）。</p>
+          <p class="hint" v-if="qqBot.qq_bot_transport === 'official'">QQ 官方机器人直连（推荐）：经腾讯开放平台 OpenAPI 官方通道直接无状态推送，纯 HTTPS、零外部依赖、零封号风险。<strong>注意：机器人拉入群后，群主必须开启【机器人主动在群聊内发言】开关</strong>（否则报 40034105 错误）；若消息含网址建议在平台「消息URL配置」报备域名（否则报 304003）。</p>
+          <p class="hint" v-else-if="qqBot.qq_bot_transport === 'outbox'">经服务器 Hermes（官方 QQ 机器人 / 钉钉）推送通知：应用把消息写入 outbox 队列文件，宿主机定时任务逐条调 <code>hermes send</code> 投递。群通知需 QQ 开放平台「主动消息」权限；待审提醒会直接私聊主人（@ 提醒的等价通道，实测可用）。</p>
           <p class="hint" v-else>OneBot 11（NapCat）群通知：通告与提示词的待审 / 审核结果推送到目标群。需在服务端配置 <code>NUXT_QQ_BOT_HTTP_URL</code> 指向机器人 HTTP API。</p>
           <div class="fg"><label>出站方式</label>
             <select v-model="qqBot.qq_bot_transport" @change="saveQqBot">
+              <option value="official">QQ 官方 OpenAPI（无状态直连，推荐）</option>
               <option value="onebot">OneBot 11 HTTP API（NapCat 直连）</option>
               <option value="outbox">Hermes outbox（服务器 hermes send 投递）</option>
             </select>
@@ -136,18 +138,35 @@
               <span class="slider"></span>
             </label>
           </div>
+          <template v-if="qqBot.qq_bot_transport === 'official'">
+            <div class="fg">
+              <label>机器人 AppID</label>
+              <input v-model="qqBot.qq_bot_appid" placeholder="如 1900000000 或多机器人 JSON" @input="saveQqBot">
+              <small>QQ 开放平台「开发设置」中的 AppID。支持单个 AppID，或多机器人 JSON 格式 <code>[{"appId":"...","appSecret":"...","groups":["G1"]}]</code></small>
+            </div>
+            <div class="fg">
+              <label>机器人 AppSecret</label>
+              <input v-model="qqBot.qq_bot_app_secret" type="password" placeholder="留空表示不修改已保存的 Secret" @focus="onQqSecretFocus" @input="saveQqBot">
+              <small>仅服务端使用，接口不回显；配置 Webhook 回调验签与 Token 换取必需（多机器人请在 AppID 处传 JSON）</small>
+            </div>
+            <div class="fg">
+              <small style="color: var(--n-text-color-3, #888);">
+                💡 <strong>Webhook 回调地址</strong>：<code>{{ info.corsOrigin || 'https://你的域名' }}/api/bot/qq</code>。在开放平台配置后，群成员在群内 <code>@机器人</code> 一次，系统即可自动捕获并填入下方的群 OpenID。
+              </small>
+            </div>
+          </template>
           <div class="fg" v-if="qqBot.qq_bot_transport === 'outbox'">
             <label>队列目录（spool）</label>
             <input v-model="qqBot.qq_outbox_path" placeholder="如 /opt/favshub/data/qq-outbox" @input="saveQqBot">
             <small>容器内的挂载卷目录，每条通知写成一个 JSON 文件、由宿主机定时任务逐文件消费；留空则回落到环境变量 NUXT_QQ_OUTBOX_DIR 下的 qq-outbox 子目录，两者皆空时不发送</small>
           </div>
-          <div class="fg"><label>通知目标{{ qqBot.qq_bot_transport === 'outbox' ? '（群 / 频道）' : '群号' }}</label>
-            <input v-model="qqBot.qq_bot_group_id" :placeholder="qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:37BC…,dingtalk:cid…（逗号分隔多通道）' : '如 123456789'" @input="saveQqBot">
-            <small>{{ qqBot.qq_bot_transport === 'outbox' ? 'Hermes 目标串；裸 id 自动按 qqbot 处理。需开放平台「主动消息」权限，未开通时投递失败自动重试后进失败文件' : '留空则不推送群消息' }}</small>
+          <div class="fg"><label>通知目标{{ qqBot.qq_bot_transport === 'official' ? '（群 OpenID，支持逗号分隔多群）' : qqBot.qq_bot_transport === 'outbox' ? '（群 / 频道）' : '群号' }}</label>
+            <input v-model="qqBot.qq_bot_group_id" :placeholder="qqBot.qq_bot_transport === 'official' ? '如 37BC1D07...,44BC2E07...（支持逗号分隔多个群 OpenID，自动剥离 qqbot: 前缀）' : qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:37BC…,dingtalk:cid…（逗号分隔多通道）' : '如 123456789'" @input="saveQqBot">
+            <small>{{ qqBot.qq_bot_transport === 'official' ? '与 AppID 绑定的群 openid；支持逗号分隔多个群同时广播；兼容 qqbot: 前缀；可在开放平台 API 调试中心复制或群内 @机器人 一次自动录入' : qqBot.qq_bot_transport === 'outbox' ? 'Hermes 目标串；裸 id 自动按 qqbot 处理。需开放平台「主动消息」权限，未开通时投递失败自动重试后进失败文件' : '留空则不推送群消息' }}</small>
           </div>
-          <div class="fg"><label>{{ qqBot.qq_bot_transport === 'outbox' ? '主人提醒目标（私聊）' : '管理员 QQ 号' }}</label>
-            <input v-model="qqBot.qq_admin_qq" :placeholder="qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:C3DB…' : '如 10001'" @input="saveQqBot">
-            <small>{{ qqBot.qq_bot_transport === 'outbox' ? '待审消息同时私聊此目标（等价于群里 @ 主人）；留空则仅群播报' : '待审消息中 @ 提醒的 QQ 号；管理员已绑定 QQ 时优先用绑定号' }}</small>
+          <div class="fg"><label>{{ qqBot.qq_bot_transport === 'official' ? '主人提醒目标（用户 OpenID，支持逗号分隔）' : qqBot.qq_bot_transport === 'outbox' ? '主人提醒目标（私聊）' : '管理员 QQ 号' }}</label>
+            <input v-model="qqBot.qq_admin_qq" :placeholder="qqBot.qq_bot_transport === 'official' ? '如 C3DB769D...,USER_OPENID_2（支持逗号分隔多用户）' : qqBot.qq_bot_transport === 'outbox' ? '如 qqbot:C3DB…' : '如 10001'" @input="saveQqBot">
+            <small>{{ qqBot.qq_bot_transport === 'official' ? '待审消息同时私聊此用户 openid；支持逗号分隔多个管理员；兼容 qqbot: 前缀；留空则仅群播报' : qqBot.qq_bot_transport === 'outbox' ? '待审消息同时私聊此目标（等价于群里 @ 主人）；留空则仅群播报' : '待审消息中 @ 提醒的 QQ 号；管理员已绑定 QQ 时优先用绑定号' }}</small>
           </div>
         </div>
       </div>
@@ -284,8 +303,19 @@ function saveLimits() {
   }, 500)
 }
 // ── QQ 机器人 ──────────────────────────────
-const qqBot = reactive({ qq_bot_enabled: false, qq_bot_group_id: '', qq_admin_qq: '', qq_bot_transport: 'onebot', qq_outbox_path: '' })
+const qqBot = reactive({
+  qq_bot_enabled: false,
+  qq_bot_group_id: '',
+  qq_admin_qq: '',
+  qq_bot_appid: '',
+  qq_bot_app_secret: '',
+  qq_bot_transport: 'official',
+  qq_outbox_path: '',
+})
 let qqBotTimer: any = null
+function onQqSecretFocus() {
+  if (qqBot.qq_bot_app_secret === '已设置') qqBot.qq_bot_app_secret = ''
+}
 function saveQqBot() {
   clearTimeout(qqBotTimer)
   qqBotTimer = setTimeout(async () => {
@@ -295,6 +325,7 @@ function saveQqBot() {
         headers: getAuthHeaders(),
         body: { data: { ...qqBot } }
       })
+      if (qqBot.qq_bot_app_secret) qqBot.qq_bot_app_secret = '已设置'
     } catch (e) { console.error('保存 QQ 机器人设置失败', e) }
   }, 300)
 }
@@ -363,7 +394,9 @@ security.jwt_token_expiry = s.jwt_token_expiry || '7d'
       qqBot.qq_bot_enabled = s.qq_bot_enabled === 'true'
       qqBot.qq_bot_group_id = s.qq_bot_group_id || ''
       qqBot.qq_admin_qq = s.qq_admin_qq || ''
-      qqBot.qq_bot_transport = s.qq_bot_transport || 'onebot'
+      qqBot.qq_bot_appid = s.qq_bot_appid || ''
+      qqBot.qq_bot_app_secret = s.qq_bot_app_secret || ''
+      qqBot.qq_bot_transport = s.qq_bot_transport || 'official'
       qqBot.qq_outbox_path = s.qq_outbox_path || ''
       turnstile.turnstile_enabled = s.turnstile_enabled === 'true'
       turnstile.register_turnstile_enabled = s.register_turnstile_enabled !== 'false'
