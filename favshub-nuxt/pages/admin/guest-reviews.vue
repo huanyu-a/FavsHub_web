@@ -68,6 +68,14 @@
       <span class="info">共 {{ total }} 条 · 第 {{ page }} / {{ totalPages }} 页</span>
     </div>
 
+    <!-- 当按通告 ID 精准定位时，显示高亮提示与一键清除 -->
+    <div v-if="dealId" class="deal-filter-banner">
+      <span><i class="ri-filter-3-line"></i> 当前正在查看通告 <code>#{{ dealId }}</code> 的游客评测</span>
+      <button class="banner-clear-btn" @click="dealId = ''; applyFilters()">
+        <i class="ri-close-circle-line"></i> 清除通告筛选
+      </button>
+    </div>
+
     <div v-if="forbidden" class="card">
       <div class="empty-state">
         <i class="ri-lock-line"></i>
@@ -278,6 +286,7 @@ const STATUS_LABELS: Record<string, string> = {
   deleted: '已删除',
 }
 
+const route = useRoute()
 const reviews = ref<AdminGuestReview[]>([])
 const counts = reactive<Record<string, number>>({ all: 0, pending: 0, approved: 0, rejected: 0, deleted: 0 })
 const total = ref(0)
@@ -466,10 +475,55 @@ function formatTime(ts?: number | null) {
   return new Date(Number(ts)).toLocaleString('zh-CN', { hour12: false })
 }
 
-onMounted(loadReviews)
+onMounted(() => {
+  if (route.query.deal_id) {
+    dealId.value = String(route.query.deal_id).trim()
+  }
+  if (route.query.status && ['all', 'pending', 'approved', 'rejected', 'deleted'].includes(String(route.query.status))) {
+    status.value = String(route.query.status)
+  }
+  loadReviews()
+})
 </script>
 
 <style scoped>
+.deal-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary, #1890ff);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.deal-filter-banner code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--primary, #1890ff);
+}
+.banner-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.banner-clear-btn:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.08);
+}
 .review-list {
   display: flex;
   flex-direction: column;

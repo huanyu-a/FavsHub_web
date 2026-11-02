@@ -2,12 +2,14 @@
   <div class="admin-page">
     <div class="page-header">
       <div>
-        <h2>🤖 机器人与 API</h2>
-        <p class="subtitle">管理 QQ 官方机器人出站、多群广播、外部订阅生命周期与 AI 助手 API 访问令牌。</p>
+        <h2>{{ isAdmin ? '🤖 机器人与 API' : '🔑 API 令牌与集成' }}</h2>
+        <p class="subtitle">
+          {{ isAdmin ? '管理 QQ 官方机器人出站、多群广播、外部订阅生命周期与 AI 助手 API 访问令牌。' : '创建与管理您的个人访问令牌（PAT），供 AI 助手或脚本安全读写数据。' }}
+        </p>
       </div>
       <div class="header-actions">
         <button
-          v-if="currentTab === 'config'"
+          v-if="isAdmin && currentTab === 'config'"
           class="btn btn-outline"
           :disabled="testing || !qqBot.qq_bot_enabled"
           @click="sendTestMessage"
@@ -45,10 +47,10 @@
 
     <!-- 顶部 Tab 导航 -->
     <div class="tab-nav">
-      <button :class="{ active: currentTab === 'config' }" @click="switchTab('config')">
+      <button v-if="isAdmin" :class="{ active: currentTab === 'config' }" @click="switchTab('config')">
         <i class="ri-settings-4-line"></i> 机器人通道配置
       </button>
-      <button :class="{ active: currentTab === 'subs' }" @click="switchTab('subs')">
+      <button v-if="isAdmin" :class="{ active: currentTab === 'subs' }" @click="switchTab('subs')">
         <i class="ri-rss-line"></i> 外部订阅管理<span v-if="subCounts.active" class="tab-badge">{{ subCounts.active }}</span>
       </button>
       <button :class="{ active: currentTab === 'tokens' }" @click="switchTab('tokens')">
@@ -565,12 +567,15 @@ const webhookUrl = computed(() => `${siteUrl.value}/api/bot/qq`)
 
 // ── Tab 切换与路由联动 ──────────────────────────────────────
 type BotTab = 'config' | 'subs' | 'tokens' | 'guide'
-const currentTab = ref<BotTab>('config')
+const currentTab = ref<BotTab>(isAdmin.value ? 'config' : 'tokens')
 
 function switchTab(t: BotTab) {
+  if (!isAdmin.value && (t === 'config' || t === 'subs')) {
+    t = 'tokens'
+  }
   currentTab.value = t
   router.replace({ query: { ...route.query, tab: t } })
-  if (t === 'subs' && subs.value.length === 0) loadSubs()
+  if (t === 'subs' && subs.value.length === 0 && isAdmin.value) loadSubs()
   if (t === 'tokens' && tokens.value.length === 0) loadTokens()
 }
 
@@ -848,29 +853,37 @@ onMounted(async () => {
     siteUrl.value = window.location.origin
     const queryTab = route.query.tab as BotTab
     if (queryTab && ['config', 'subs', 'tokens', 'guide'].includes(queryTab)) {
-      currentTab.value = queryTab
+      if (!isAdmin.value && (queryTab === 'config' || queryTab === 'subs')) {
+        currentTab.value = 'tokens'
+      } else {
+        currentTab.value = queryTab
+      }
+    } else if (!isAdmin.value) {
+      currentTab.value = 'tokens'
     }
   }
 
-  // 加载系统配置
-  try {
-    const d = await $fetch<any>('/api/admin/config', { headers: getAuthHeaders() })
-    if (d?.systemData) {
-      const s = d.systemData
-      qqBot.qq_bot_enabled = s.qq_bot_enabled === 'true'
-      qqBot.qq_bot_group_id = s.qq_bot_group_id || ''
-      qqBot.qq_admin_qq = s.qq_admin_qq || ''
-      qqBot.qq_bot_appid = s.qq_bot_appid || ''
-      qqBot.qq_bot_app_secret = s.qq_bot_app_secret || ''
-      qqBot.qq_bot_transport = s.qq_bot_transport || 'official'
-      qqBot.qq_outbox_path = s.qq_outbox_path || ''
+  // 仅管理员请求系统机器人设置，避免普通用户触发 403
+  if (isAdmin.value) {
+    try {
+      const d = await $fetch<any>('/api/admin/config', { headers: getAuthHeaders() })
+      if (d?.systemData) {
+        const s = d.systemData
+        qqBot.qq_bot_enabled = s.qq_bot_enabled === 'true'
+        qqBot.qq_bot_group_id = s.qq_bot_group_id || ''
+        qqBot.qq_admin_qq = s.qq_admin_qq || ''
+        qqBot.qq_bot_appid = s.qq_bot_appid || ''
+        qqBot.qq_bot_app_secret = s.qq_bot_app_secret || ''
+        qqBot.qq_bot_transport = s.qq_bot_transport || 'official'
+        qqBot.qq_outbox_path = s.qq_outbox_path || ''
+      }
+    } catch (e) {
+      console.error('加载机器人配置失败', e)
     }
-  } catch (e) {
-    console.error('加载机器人配置失败', e)
   }
 
   // 根据当前激活的 tab 懒加载对应数据
-  if (currentTab.value === 'subs') loadSubs()
+  if (currentTab.value === 'subs' && isAdmin.value) loadSubs()
   else if (currentTab.value === 'tokens') loadTokens()
 })
 </script>

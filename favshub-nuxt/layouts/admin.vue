@@ -62,6 +62,11 @@
             <i class="ri-database-2-line"></i><span>备份管理</span>
           </NuxtLink>
         </template>
+        <template v-else>
+          <NuxtLink to="/admin/bot?tab=tokens" class="nav-item" :class="{ active: route.path === '/admin/bot' || route.path === '/admin/api-tokens' }" @click="closeSidebar">
+            <i class="ri-key-2-line"></i><span>API 令牌</span>
+          </NuxtLink>
+        </template>
         <NuxtLink to="/admin/search-engines" class="nav-item" :class="{ active: route.path === '/admin/search-engines' }" @click="closeSidebar">
           <i class="ri-search-line"></i><span>搜索引擎</span>
         </NuxtLink>

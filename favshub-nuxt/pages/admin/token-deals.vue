@@ -185,7 +185,15 @@
                 <span class="vote-up"><i class="ri-thumb-up-line"></i>{{ d.vote_up }}</span>
                 <span class="vote-down"><i class="ri-thumb-down-line"></i>{{ d.vote_down }}</span>
               </div>
-              <div class="cell-sub">{{ ratingText(d) }}</div>
+              <NuxtLink
+                v-if="d.rating_count"
+                :to="`/admin/guest-reviews?deal_id=${d.id}`"
+                class="cell-sub rating-link"
+                title="查看该通告的游客评测"
+              >
+                {{ ratingText(d) }}
+              </NuxtLink>
+              <div v-else class="cell-sub">{{ ratingText(d) }}</div>
             </td>
             <td>
               <span v-if="d.user_id === 0" class="guest-tag">游客</span>
@@ -286,7 +294,15 @@
                 <span class="vote-up"><i class="ri-thumb-up-line"></i>{{ d.vote_up }}</span>
                 <span class="vote-down"><i class="ri-thumb-down-line"></i>{{ d.vote_down }}</span>
               </div>
-              <div class="cell-sub">{{ ratingText(d) }}</div>
+              <NuxtLink
+                v-if="d.rating_count"
+                :to="`/admin/guest-reviews?deal_id=${d.id}`"
+                class="cell-sub rating-link"
+                title="点击前往查看该通告的游客评测"
+              >
+                {{ ratingText(d) }} <i class="ri-arrow-right-s-line"></i>
+              </NuxtLink>
+              <div v-else class="cell-sub">{{ ratingText(d) }}</div>
             </td>
             <td>
               <span v-if="d.user_id === 0" class="guest-tag" title="游客发布（无需登录），同样经管理员审核">游客</span>
@@ -1053,6 +1069,19 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   background: var(--surface-sunken);
   border: 0.5px solid var(--border);
+}
+.rating-link {
+  color: var(--primary, #1890ff);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.rating-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
 
 .cell-title {
