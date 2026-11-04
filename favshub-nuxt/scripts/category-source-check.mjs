@@ -282,20 +282,39 @@ const SINGLE_SOURCE_ENUMS = [
   { name: 'INVALID_REASONS', file: 'server/utils/token-deals.ts', vals: ['expired', 'votes', 'manual'] },
 ]
 
-for (const en of SINGLE_SOURCE_ENUMS) {
+/**
+ * 额外做「用了但没导入」检查的常量。
+ *
+ * 这几个不是「字面数组」而是**正则片段/字符串**，所以不走上面的同值比对，
+ * 但同样需要「用到就必须 import」的把关 —— 它们横跨服务端与前端（密钥脱敏规则），
+ * 是漏 import 的高发区。
+ *
+ * 现实教训：v1.0.85 的 `INVALID_REASONS`、v1.0.86 的 `KEY_PREFIX_ALTERNATION`
+ * **都**是「用了没导入」，而 `pnpm ts:check` 与 `pnpm build` **都不报错** ——
+ * 只会在运行时 500。所以这条检查必须常驻。
+ */
+const MUST_IMPORT_CONSTANTS = [
+  { name: 'KEY_PREFIX_ALTERNATION', file: 'utils/key-redact.ts' },
+  { name: 'KEY_PREFIXES', file: 'utils/key-redact.ts' },
+  { name: 'redactKeyLike', file: 'utils/key-redact.ts' },
+  { name: 'containsKeyLike', file: 'utils/key-redact.ts' },
+]
+
+for (const en of [...SINGLE_SOURCE_ENUMS, ...MUST_IMPORT_CONSTANTS]) {
   const src = readFileSync(join(ROOT, en.file), 'utf8')
+  // 真源可能以 `export const` 或 `export function` 形式导出，两种都认
   ok(`${en.file} 确实导出了 ${en.name}`,
-    new RegExp(`export const ${en.name}\\b`).test(src))
+    new RegExp(`export\\s+(?:const|function|type)\\s+${en.name}\\b`).test(src))
 
   const offenders = []
-  const keySet = [...en.vals].sort().join(',')
+  const keySet = en.vals ? [...en.vals].sort().join(',') : null
   for (const rel of walkAll()) {
     if (rel === en.file) continue
     let raw
     try { raw = readFileSync(join(ROOT, rel), 'utf8') } catch { continue }
     const text = maskComments(raw)   // 注释不算「引用」
-    // 逐个字面数组比对「值集是否完全相同」
-    for (const m of text.matchAll(/\[([^[\]]{0,200}?)\]/g)) {
+    // 逐个字面数组比对「值集是否完全相同」（只对枚举常量做）
+    if (keySet) for (const m of text.matchAll(/\[([^[\]]{0,200}?)\]/g)) {
       const got = [...m[1].matchAll(/'([^'\\\n]{1,20})'/g)].map(x => x[1])
       if (got.length < 3) continue
       if ([...new Set(got)].sort().join(',') !== keySet) continue
@@ -304,9 +323,11 @@ for (const en of SINGLE_SOURCE_ENUMS) {
       offenders.push(`${rel}:${text.slice(0, m.index).split('\n').length}`)
     }
   }
-  ok(`${en.name} 未在别处被手抄`,
-    offenders.length === 0,
-    offenders.length ? `以下位置只手抄了值清单，请改为引用真源 ${en.file}：\n      ${offenders.join('\n      ')}` : '')
+  if (keySet) {
+    ok(`${en.name} 未在别处被手抄`,
+      offenders.length === 0,
+      offenders.length ? `以下位置只手抄了值清单，请改为引用真源 ${en.file}：\n      ${offenders.join('\n      ')}` : '')
+  }
 
   // 「用了但没导入」检测。
   //
@@ -337,7 +358,54 @@ for (const en of SINGLE_SOURCE_ENUMS) {
       : '')
 }
 
-// ── 11. 已知消费方必须引用真源 ────────────────────────────────────────
+// ── 12. 密钥脱敏覆盖全部前缀（读侧与写侧共用同一清单）────────────────────
+//
+// 背景（2026-11-05 实测）：读侧脱敏的清单曾比写侧闸门**窄两个前缀** ——
+// 少了 `AIza`（Google）与 `ghp_`（GitHub）。后果是 Google API Key / GitHub Token
+// 能过写侧闸门（认得出），却不被读侧脱敏（认不出），于是随列表响应明文下发。
+// 「免费额度」语境里 Google Key 极常见，所以这不是纸上风险。
+// 生产全量核对时**尚无**该形态（0 条），属潜在缺口 —— 但新数据持续进来，故补齐并锁住。
+console.log('\n▶ 密钥脱敏前缀覆盖')
+{
+  const { redactKeyLike, containsKeyLike, KEY_PREFIXES, KEY_PREFIX_ALTERNATION }
+    = await import('../utils/key-redact.ts')
+
+  check('前缀清单含 AIza（Google）', KEY_PREFIXES.includes('AIza'), true)
+  check('前缀清单含 ghp_（GitHub）', KEY_PREFIXES.includes('ghp_'), true)
+  ok('交替串由前缀清单派生（不是另写一份）',
+    KEY_PREFIXES.every(p => KEY_PREFIX_ALTERNATION.includes(p)))
+
+  // 每类前缀都要能脱敏 —— 逐个构造真实长度，避免「只测了 sk-」
+  const SAMPLES = {
+    'sk-': 'sk-' + 'a'.repeat(48),
+    'gsk_': 'gsk_' + 'a'.repeat(48),
+    'xai-': 'xai-' + 'a'.repeat(40),
+    'fw_': 'fw_' + 'a'.repeat(40),
+    'hf_': 'hf_' + 'a'.repeat(32),
+    'pplx-': 'pplx-' + 'a'.repeat(40),
+    'nvapi-': 'nvapi-' + 'a'.repeat(60),
+    'csk-': 'csk-' + 'a'.repeat(40),
+    'r8_': 'r8_' + 'a'.repeat(40),
+    'AIza': 'AIza' + 'SyD-abcdefghijklmnopqrstuvwx1234',
+    'ghp_': 'ghp_' + 'a'.repeat(36),
+  }
+  for (const [prefix, key] of Object.entries(SAMPLES)) {
+    const out = redactKeyLike(`https://x.site/?k=${key}`)
+    ok(`脱敏覆盖 ${prefix}`, !out.includes(key), `仍出现完整密钥：${out.slice(0, 60)}`)
+    ok(`containsKeyLike 认得 ${prefix}`, containsKeyLike(key) === true)
+  }
+
+  // 短密钥也要脱敏（旧前端副本有 `length<=18 ? 原样显示` 的宽松分支）
+  const shortKey = 'sk-' + 'b'.repeat(8)   // 11 字符
+  ok('短密钥（11 字符）也脱敏', !redactKeyLike(`x=${shortKey}`).includes(shortKey))
+
+  // 正常 URL 不应被误伤
+  for (const u of ['https://api.example.com/v1/chat', 'https://x.site/path?a=1&b=2']) {
+    check(`普通 URL 不被误伤: ${u.slice(0, 30)}`, redactKeyLike(u), u)
+  }
+}
+
+// ── 13. 已知消费方必须引用真源 ────────────────────────────────────────
 console.log('\n▶ 已知消费方引用真源')
 const CONSUMERS = [
   'components/tokens/TokenDealCard.vue',

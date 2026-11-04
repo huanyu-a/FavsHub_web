@@ -155,6 +155,7 @@
 </template>
 
 <script setup lang="ts">
+import { redactKeyLike } from '~/utils/key-redact'
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { copyText } from '~/utils/clipboard'
 
@@ -203,11 +204,10 @@ const displayKey = computed(() => {
 
 /** API 地址展示：遮蔽嵌在路径 / query 里的 key 段（如 https://x.site/sk-xxx），
     只留前 6 + … + 后 4，规则与卡面 masked 一致；不含 key 形态的 URL 原样显示 */
-const KEY_LIKE_RE = /\b[A-Za-z0-9_\-]*(?:sk-|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|r8_)[A-Za-z0-9_\-]{8,}/g
-const displayBaseUrl = computed(() => {
-  const u = props.keyRow.base_url || ''
-  return u.replace(KEY_LIKE_RE, (m) => (m.length <= 18 ? m : `${m.slice(0, 6)}…${m.slice(-4)}`))
-})
+// 脱敏规则来自真源 `~/utils/key-redact`（与服务端出口侧同一实现）。
+// 原先这里自带一份正则，且抄的是**带宽松分支的旧版** —— `m.length <= 18 ? 原样显示 : 掩码`，
+// 于是 11–18 字符的短密钥会被明文显示在这张卡上（服务端虽已先遮，但这是最后一层防御）。
+const displayBaseUrl = computed(() => redactKeyLike(props.keyRow.base_url || ''))
 /** 可复制：凡有脱敏形态的 B 类行都可复制（明文由 copy 端点按需下发） */
 const copyable = computed(() => !!props.keyRow.key_masked)
 

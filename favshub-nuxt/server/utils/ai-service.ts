@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { createError } from 'h3'
 import { normalizeUrl } from './bookmark-labels'
-import { redactKeyLike } from './key-redact'
+import { redactKeyLike, KEY_PREFIX_ALTERNATION } from './key-redact'
 import { deleteKeyVotesForKeys } from './key-votes'
 import {
   validateDealPayload,
@@ -1162,10 +1162,13 @@ const KEY_VERDICTS = [
  * 分层厂商前缀 + 通用 sk- 兜底）。脱敏值中的 `*` 会截断 `{10,220}` 尾段、
  * 天然不命中，故「含 * 的脱敏形态」可原样通过本闸门（同 local_server 实测行为）。
  */
+// 前缀池来自真源 `utils/key-redact.ts`，与读侧脱敏**共用同一份清单**。
+// 原先这里手写 11 个前缀，而读侧只有 9 个（少了 AIza / ghp_）——
+// 后果是 Google API Key 与 GitHub Token 能过这道闸门，却不会被读侧脱敏，明文下发。
+// 尾段长度 {10,220} 与后顾断言保持原样（闸门语义：整段必须都像密钥）。
 const PLAIN_KEY_SOURCE =
   '(?<![A-Za-z0-9_\\-])(?:' +
-  'sk-(?:or-v1|ant(?:-api\\d{2})?|proj|svcacct|admin|live|test)-?' +
-  '|sk-|gsk_|xai-|fw_|hf_|pplx-|r8_|csk-|AIza|nvapi-|ghp_' +
+  KEY_PREFIX_ALTERNATION +
   ')[A-Za-z0-9_\\-]{10,220}'
 
 /**
