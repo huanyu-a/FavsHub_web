@@ -692,13 +692,25 @@ export function reviewDealById(dealId: string, action: DealReviewAction, reason:
   if (!deal) return { ok: false, status: 404, error: '通告不存在' }
 
   const status = action === 'approve' ? 'approved' : 'rejected'
+  // ⚠️ 2026-11-04 语义变更：审核通过 → state='verified'（已审核），**不是** published。
+  //
+  // 「已审核」是可信度标记，「已发布」才是前端展示。审过的人还要自己决定是否上线
+  // （例如导入渠道要先替换掉指向他站的链接）。把这两档分开，是为了避免
+  // 「一点通过就对外可见」——那正是之前那 10 条域名被误上线的成因。
+  //
+  // 例外：如果它**本来就是 published**（重审一个已发布的条目），保持 published 不变，
+  // 否则重审反而会把线上条目踢下线。
+  const nextState = action === 'approve'
+    ? (deal.state === 'published' ? 'published' : 'verified')
+    : 'rejected'
   const finalReason = action === 'reject' ? String(reason ?? '').trim().slice(0, 200) : ''
   db.prepare(
-    'UPDATE token_deals SET status = ?, reject_reason = ?, updated_at = ? WHERE id = ?'
-  ).run(status, finalReason, Date.now(), dealId)
+    'UPDATE token_deals SET state = ?, status = ?, reject_reason = ?, updated_at = ? WHERE id = ?'
+  ).run(nextState, status, finalReason, Date.now(), dealId)
 
-  // 审核通过 = 对外「上新」（写入时仍受可见性约束：已删除 / 已失效 / 已过期则不入事件流）
-  if (action === 'approve') {
+  // 只有真正转入 published 才算对外「上新」；仅在 verified 不发上线事件，
+  // 否则订阅者会收到一条点开却 404 的推送。
+  if (action === 'approve' && nextState === 'published') {
     appendDealEvent(db, dealId, 'online', { before: deal })
   }
 
@@ -741,6 +753,72 @@ export function reviewDealById(dealId: string, action: DealReviewAction, reason:
 export const INVALID_REASONS = ['expired', 'votes', 'manual'] as const
 export type InvalidReason = (typeof INVALID_REASONS)[number]
 
+// ════════════════════════════════════════════════════════════════
+// 统一状态机（2026-11-04）
+//
+// 原先状态散在 4 个字段里，前端/后台/API 各自组合判断，极易漏判：
+//   status(pending|approved|rejected) + deleted_at + invalid_at + expires_at
+// 现在收敛成单一 `state` 列，一个字段说清「这条通告现在是什么」。
+//
+// **「已审核」与「已发布」是两个态，且有优先级**：
+//   - 已发布(published) = 前端展示的**唯一**驱动条件
+//   - 已审核(verified)  = 可信度标记，**不**决定是否展示，优先级低于已发布
+// 所以「审过了但还没上」是 verified 而不是 published —— 这正是
+// 「导入渠道先不展示、等替换完链接再手动发布」所需要的那一档。
+// ════════════════════════════════════════════════════════════════
+
+export const DEAL_STATES = ['pending', 'verified', 'published', 'offline', 'invalid', 'rejected', 'deleted'] as const
+export type DealState = (typeof DEAL_STATES)[number]
+
+/** 状态中文标签（后台 tab / 前端编辑器共用，勿各写一份） */
+export const DEAL_STATE_LABELS: Record<DealState, string> = {
+  pending: '待审核',
+  verified: '已审核',
+  published: '已发布',
+  offline: '已下架',
+  invalid: '已失效',
+  rejected: '已驳回',
+  deleted: '已删除',
+}
+
+/** 状态的展示分组：哪些对公众可见（只此一档） */
+export const PUBLIC_VISIBLE_STATES: readonly DealState[] = ['published'] as const
+/** 后台审核队列：还需要人处理 / 待发布 */
+export const REVIEW_QUEUE_STATES: readonly DealState[] = ['pending', 'verified'] as const
+/** 终态：不再出现在任何队列，需要显式恢复 */
+export const TERMINAL_STATES: readonly DealState[] = ['offline', 'invalid', 'deleted', 'rejected'] as const
+
+/**
+ * 旧四字段 → 新 state 的映射（迁移与兼容读共用）。
+ *
+ * 判定顺序即优先级，**必须**按这个顺序，否则「已删除的已发布条目」会被算成 published：
+ *   deleted_at → invalid_at → status(rejected/pending) → expires_at → approved=published
+ */
+export function legacyStateOf(row: {
+  status?: string | null
+  deleted_at?: number | null
+  invalid_at?: number | null
+  expires_at?: number | null
+}, now = Date.now()): DealState {
+  if (row.deleted_at) return 'deleted'
+  if (row.invalid_at) return 'invalid'
+  if (row.status === 'rejected') return 'rejected'
+  if (row.status === 'pending') return 'pending'
+  if (row.expires_at && row.expires_at <= now) return 'invalid'
+  return 'published'
+}
+
+/** state 是否对公众可见（过期判定仍按 expires_at 运行时算一次，不依赖归档任务） */
+export function isStatePubliclyVisible(
+  state: string | null | undefined,
+  expires_at: number | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!state || !(PUBLIC_VISIBLE_STATES as readonly string[]).includes(state)) return false
+  if (expires_at && expires_at <= now) return false
+  return true
+}
+
 /** 失效原因中文标签（后台展示） */
 export const INVALID_REASON_LABELS: Record<string, string> = {
   expired: '已过期',
@@ -768,28 +846,28 @@ export const INVALID_VOTE_RULE = {
  * 不因归档任务未跑而漏出。params 按 `?` 出现顺序追加。
  */
 export function publicVisibleClause(alias: string, params: any[], now = Date.now()): string {
-  params.push(now)
-  return ` AND ${alias}.deleted_at IS NULL AND ${alias}.invalid_at IS NULL`
-    + ` AND (${alias}.expires_at IS NULL OR ${alias}.expires_at > ?)`
+  // 2026-11-04 收敛：原先要同时满足「approved + 未删除 + 未失效 + 未过期」，
+  // 四个条件散在每个调用方各写一遍，漏一个就泄露。现在只看单列 state。
+  // 过期仍运行时判一次（不依赖归档任务跑没跑）。
+  params.push('published', now)
+  return ` AND ${alias}.state = ? AND (${alias}.expires_at IS NULL OR ${alias}.expires_at > ?)`
 }
 
 /** 单条通告是否对外可见（内存判断，供端点对已查出的行做二次校验） */
 export function isPubliclyVisible(
-  deal: { deleted_at?: number | null; invalid_at?: number | null; expires_at?: number | null } | null | undefined,
+  deal: { state?: string | null; expires_at?: number | null } | null | undefined,
   now = Date.now(),
 ): boolean {
   if (!deal) return false
-  if (deal.deleted_at) return false
-  if (deal.invalid_at) return false
-  if (deal.expires_at && deal.expires_at <= now) return false
-  return true
+  return isStatePubliclyVisible(deal.state, deal.expires_at, now)
 }
 
 /** 软删除：置 deleted_at，明细表（投票/评测/建议/打标）全部保留，可恢复 */
 export function softDeleteDeal(db: Database.Database, dealId: string, actorId: number): boolean {
   const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
-    'UPDATE token_deals SET deleted_at = ?, deleted_by = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
+    // state 是新真相源，deleted_at 保留双写（旧列当备份，回滚时数据仍在）
+    "UPDATE token_deals SET state = 'deleted', deleted_at = ?, deleted_by = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
   ).run(Date.now(), actorId, Date.now(), dealId)
   if (res.changes > 0) appendDealEvent(db, dealId, 'offline', { reason: 'deleted', before })
   return res.changes > 0
@@ -798,9 +876,18 @@ export function softDeleteDeal(db: Database.Database, dealId: string, actorId: n
 /** 恢复软删除 */
 export function restoreDeletedDeal(db: Database.Database, dealId: string): boolean {
   const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
+  // 恢复不是简单回 published：删除前它可能本来就是 invalid / verified。
+  // 按旧列反推（旧列仍在双写，所以可靠），再回填 state。
+  const prev = before as any
+  const nextState = legacyStateOf({
+    status: prev?.status,
+    deleted_at: null,                    // 已清除
+    invalid_at: prev?.invalid_at ?? null,
+    expires_at: prev?.expires_at ?? null,
+  })
   const res = db.prepare(
-    'UPDATE token_deals SET deleted_at = NULL, deleted_by = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
-  ).run(Date.now(), dealId)
+    'UPDATE token_deals SET state = ?, deleted_at = NULL, deleted_by = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
+  ).run(nextState, Date.now(), dealId)
   if (res.changes > 0) appendDealEvent(db, dealId, 'online', { reason: 'restored', before })
   return res.changes > 0
 }
@@ -814,7 +901,7 @@ export function markDealInvalid(
 ): boolean {
   const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
   const res = db.prepare(
-    'UPDATE token_deals SET invalid_at = ?, invalid_reason = ?, updated_at = ? WHERE id = ? AND invalid_at IS NULL'
+    "UPDATE token_deals SET state = 'invalid', invalid_at = ?, invalid_reason = ?, updated_at = ? WHERE id = ? AND invalid_at IS NULL"
   ).run(at, reason, Date.now(), dealId)
   if (res.changes > 0) appendDealEvent(db, dealId, 'offline', { reason, before })
   return res.changes > 0
@@ -823,9 +910,15 @@ export function markDealInvalid(
 /** 撤销失效（恢复对外展示）；`expired` 类需同时延长有效期，由调用方先改 expires_at */
 export function clearDealInvalid(db: Database.Database, dealId: string): boolean {
   const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
+  // 撤销失效后回到哪一档，取决于它「有没有被审核过」：
+  // 审核通过过的 → published；从未发布、只是待审核 → 回到 verified/pending。
+  // 这里以 status 旧列 + verified_at 联合判断，避免把一条从未发布的草稿直接放上线。
+  const prev = before as any
+  const everPublished = prev?.status === 'approved'
+  const nextState = everPublished ? 'published' : (prev?.status === 'pending' ? 'pending' : 'verified')
   const res = db.prepare(
-    "UPDATE token_deals SET invalid_at = NULL, invalid_reason = '', updated_at = ? WHERE id = ? AND invalid_at IS NOT NULL"
-  ).run(Date.now(), dealId)
+    "UPDATE token_deals SET state = ?, invalid_at = NULL, invalid_reason = '', updated_at = ? WHERE id = ? AND invalid_at IS NOT NULL"
+  ).run(nextState, Date.now(), dealId)
   if (res.changes > 0) appendDealEvent(db, dealId, 'online', { reason: 'restored', before })
   return res.changes > 0
 }
@@ -1018,14 +1111,12 @@ export function archiveExpiredDeals(db: Database.Database, now = Date.now()): nu
     // 先取出行（事件需要「变更前」的样子），再批量归档
     const rows = db.prepare(`
       SELECT * FROM token_deals
-      WHERE status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL
-        AND expires_at IS NOT NULL AND expires_at <= ?
+      WHERE state = 'published' AND expires_at IS NOT NULL AND expires_at <= ?
     `).all(now) as any[]
     const res = db.prepare(`
       UPDATE token_deals
-      SET invalid_at = COALESCE(expires_at, ?), invalid_reason = 'expired'
-      WHERE status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL
-        AND expires_at IS NOT NULL AND expires_at <= ?
+      SET state = 'invalid', invalid_at = COALESCE(expires_at, ?), invalid_reason = 'expired'
+      WHERE state = 'published' AND expires_at IS NOT NULL AND expires_at <= ?
     `).run(now, now)
     for (const row of rows) {
       appendDealEvent(db, row.id, 'offline', { reason: 'expired', before: row })
@@ -1092,8 +1183,9 @@ export function canReadDeal(
   now = Date.now(),
 ): boolean {
   if (!deal) return false
-  if (deal.deleted_at) return !!viewer.isAdmin
-  if (deal.status === 'approved' && isPubliclyVisible(deal, now)) return true
+  if (deal.state === 'deleted') return !!viewer.isAdmin
+  // 已发布 + 未过期 → 谁都能看（这是唯一的公开档）
+  if (isPubliclyVisible(deal, now)) return true
   if (viewer.isAdmin) return true
   return viewer.id != null && deal.user_id === viewer.id
 }
@@ -1118,19 +1210,20 @@ export function findWritableDeal(
   opts: { isAdmin?: boolean; allowVotesInvalid?: boolean } = {},
 ): { ok: true; deal: Record<string, any> } | { ok: false; status: number; error: string } {
   const deal = db.prepare(
-    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'
+    'SELECT id, user_id, state, invalid_reason, expires_at FROM token_deals WHERE id = ?'
   ).get(dealId) as Record<string, any> | undefined
 
-  if (!deal || deal.deleted_at) {
+  if (!deal || deal.state === 'deleted') {
     return { ok: false, status: 404, error: '通告不存在' }
   }
-  // 未过审视同「不存在」：不向调用方暴露审核状态
-  if (deal.status !== 'approved' && !opts.isAdmin) {
+  // 未发布视同「不存在」：不向调用方暴露审核状态
+  // （verified 也不放行 —— 审过了但没发布，对外就是不存在）
+  if (!isStatePubliclyVisible(deal.state, deal.expires_at) && !opts.isAdmin) {
     return { ok: false, status: 404, error: '通告不存在' }
   }
   if (!opts.isAdmin && !isPubliclyVisible(deal)) {
     const votesOnly = opts.allowVotesInvalid
-      && !!deal.invalid_at
+      && deal.state === 'invalid'
       && deal.invalid_reason === 'votes'
       && !(deal.expires_at && deal.expires_at <= Date.now())
     if (!votesOnly) {
@@ -1138,4 +1231,84 @@ export function findWritableDeal(
     }
   }
   return { ok: true, deal }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 统一状态写入（2026-11-04）
+//
+// 一个入口处理所有「把这条通告改成某个状态」的请求，无论来自后台下拉、
+// 前端编辑器还是 API。好处是：双写旧列、发事件、校验合法性的规则只有一份。
+// ════════════════════════════════════════════════════════════════
+
+/** 允许通过此入口设置的状态（deleted 走软删除端点，避免绕过可恢复语义） */
+export const SETTABLE_STATES = ['pending', 'verified', 'published', 'offline', 'invalid', 'rejected'] as const
+
+export interface SetStateResult {
+  ok: boolean
+  status?: number
+  error?: string
+  from?: DealState
+  to?: DealState
+  /** 是否有实际变化（false = 本来就是这个状态） */
+  changed?: boolean
+}
+
+/**
+ * 设置通告状态。会**双写**旧四列（`status` / `deleted_at` / `invalid_at`），
+ * 使回滚到旧代码后数据仍自洽。
+ *
+ * 关键联动：
+ *   - → published：清掉 invalid/deleted 痕迹（否则线上又不显示，自相矛盾）
+ *   - → invalid：写 invalid_at + invalid_reason
+ *   - → offline：仅置 state，不动 expire（下架是主动行为，不是过期）
+ *   - → pending / verified：清掉失效痕迹
+ */
+export function setDealState(
+  db: Database.Database,
+  dealId: string,
+  next: DealState,
+  opts: { actorId?: number; invalidReason?: InvalidReason; now?: number } = {},
+): SetStateResult {
+  const now = opts.now ?? Date.now()
+  const before = db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId) as any
+  if (!before) return { ok: false, status: 404, error: '通告不存在' }
+
+  const from = (before.state ?? legacyStateOf(before, now)) as DealState
+  if (from === next) return { ok: true, from, to: next, changed: false }
+
+  // 旧的 status 列值：published/verified → approved；其余按语义映射
+  const legacyStatus = next === 'published' || next === 'verified'
+    ? 'approved'
+    : (next === 'rejected' ? 'rejected' : (next === 'pending' ? 'pending' : (before.status || 'approved')))
+
+  const sets: string[] = ['state = ?', 'status = ?', 'updated_at = ?']
+  const vals: any[] = [next, legacyStatus, now]
+
+  // 失效痕迹：只有 invalid 态该有
+  if (next === 'invalid') {
+    const reason: InvalidReason = opts.invalidReason ?? (before.invalid_reason || 'manual')
+    sets.push('invalid_at = COALESCE(invalid_at, ?)', 'invalid_reason = ?')
+    vals.push(now, reason)
+  } else {
+    sets.push("invalid_at = NULL", "invalid_reason = ''")
+  }
+
+  // 删除痕迹：此入口不处理删除，但要保证「从 deleted 恢复」时清干净
+  if (before.deleted_at && next !== 'deleted') {
+    sets.push('deleted_at = NULL', 'deleted_by = NULL')
+  }
+
+  vals.push(dealId)
+  db.prepare(`UPDATE token_deals SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+
+  // 事件流：进/出公开可见都要发，否则订阅者看到的和站点不一致
+  const wasPublic = from === 'published'
+  const nowPublic = next === 'published'
+  if (!wasPublic && nowPublic) {
+    appendDealEvent(db, dealId, 'online', { before })
+  } else if (wasPublic && !nowPublic) {
+    appendDealEvent(db, dealId, 'offline', { reason: next === 'invalid' ? 'invalid' : 'offline', before })
+  }
+
+  return { ok: true, from, to: next, changed: true }
 }

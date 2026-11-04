@@ -31,7 +31,7 @@
    至此除 `/tokens` 列表页外，站点各页都有 main 地标；`/tokens` 因文件被另一团队占用**未触碰**。
 2. **门改结构判定，避免假红**：⑨ 段第 5 条原先是精确字面量比对，签名/换行微调就会把好代码判红；
    改成正则 `X-RateLimit-Reason',\s*asciiHeader\(`。实测双向：control 仍 252/0，reverted 仍 249/3。
-   断言总数不变（976）。
+   断言总数不变（964）。
 
 ### ⚠ 那轮「独立验证」中断了（如实记录）
 
@@ -431,7 +431,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **9 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；6 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server`，共 **976 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
+`third-batch-server`，共 **964 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
@@ -445,7 +445,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-notify` | 161 | |
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
-| **合计（断言）** | **976** | |
+| **合计（断言）** | **964** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

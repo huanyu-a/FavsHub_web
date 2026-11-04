@@ -36,7 +36,16 @@
       <button :class="{ active: tab === 'deals' && status === 'pending' }" @click="switchStatus('pending')">
         待审核<span v-if="counts.pending" class="tab-badge">{{ counts.pending }}</span>
       </button>
-      <button :class="{ active: tab === 'deals' && status === 'approved' && verifyFilter !== 'stale' }" @click="switchStatus('approved')">已通过</button>
+      <!-- 2026-11-04：新增「已审核」独立 tab。
+           「已审核」= 审过了但还没发布（可信标记，前端不展示）；
+           「已发布」才是前端展示的那一档。拆成两个 tab 才能一眼看出
+           「还有多少审过了等我发布」——这正是导入渠道等替换链接时的状态。 -->
+      <button :class="{ active: tab === 'deals' && status === 'verified' }" @click="switchStatus('verified')">
+        已审核<span v-if="counts.verified" class="tab-badge">{{ counts.verified }}</span>
+      </button>
+      <button :class="{ active: tab === 'deals' && status === 'published' && verifyFilter !== 'stale' }" @click="switchStatus('published')">
+        已发布<span v-if="counts.published" class="tab-badge">{{ counts.published }}</span>
+      </button>
       <button :class="{ active: tab === 'deals' && status === 'rejected' }" @click="switchStatus('rejected')">已驳回</button>
       <button :class="{ active: tab === 'deals' && status === 'all' }" @click="switchStatus('all')">全部</button>
       <button
@@ -166,7 +175,7 @@
           <tr v-for="d in invalidDeals" :key="d.id">
             <td>
               <span class="provider-name">{{ d.provider }}</span>
-              <span class="badge" :class="statusBadgeClass(d.status)">{{ STATUS_LABELS[d.status] || d.status }}</span>
+              <span class="badge" :class="statusBadgeClass(d.state)">{{ STATUS_LABELS[d.state] || d.state }}</span>
             </td>
             <td>
               <div class="cell-title">{{ d.title }}</div>
@@ -266,8 +275,8 @@
                 <i v-if="d.pinned" class="ri-pushpin-2-fill pin-icon" title="已置顶"></i>
                 <span class="provider-name">{{ d.provider }}</span>
               </div>
-              <span v-if="d.status !== 'approved'" class="badge" :class="statusBadgeClass(d.status)">
-                {{ STATUS_LABELS[d.status] || d.status }}
+              <span v-if="d.state !== 'published'" class="badge" :class="statusBadgeClass(d.state)">
+                {{ STATUS_LABELS[d.state] || d.state }}
               </span>
             </td>
             <td>
@@ -310,7 +319,7 @@
             </td>
             <td>{{ formatTime(d.created_at) }}</td>
             <td class="actions">
-              <template v-if="d.status === 'pending'">
+              <template v-if="d.state === 'pending'">
                 <!-- 2026-11-04：待审行原先只有「通过 / 驳回」，管理员看不到内容就得盲批。
                      详情打开站内详情页（新窗口，能看到用户最终看到的样子）；
                      编辑复用 openEdit（同一套 TokenDealEditor），改完仍留在 pending。 -->
@@ -325,7 +334,19 @@
                 <button class="btn btn-primary btn-sm" @click="review(d, 'approve')">通过</button>
                 <button class="btn btn-danger btn-sm" @click="openReject(d)">驳回</button>
               </template>
-              <template v-else-if="d.status === 'rejected'">
+              <!-- 已审核（审过未发布）：主操作是「发布上线」 -->
+              <template v-else-if="d.state === 'verified'">
+                <a
+                  class="btn btn-ghost btn-sm"
+                  :href="`/tokens/${encodeURIComponent(d.id)}.html`"
+                  target="_blank"
+                  rel="noopener"
+                >详情</a>
+                <button class="btn btn-primary btn-sm" title="发布：立即在前端展示" @click="setState(d, 'published')">发布</button>
+                <button class="btn btn-ghost btn-sm" @click="openEdit(d)">编辑</button>
+                <button class="btn btn-danger btn-sm" @click="openReject(d)">驳回</button>
+              </template>
+              <template v-else-if="d.state === 'rejected'">
                 <a
                   class="btn btn-ghost btn-sm"
                   :href="`/tokens/${encodeURIComponent(d.id)}.html`"
@@ -348,6 +369,11 @@
                 </button>
                 <button class="btn btn-ghost btn-sm" title="记录一次人工核验" @click="openVerify(d)">核验</button>
                 <button class="btn btn-ghost btn-sm" @click="openEdit(d)">编辑</button>
+                <button
+                  class="btn btn-ghost btn-sm"
+                  title="下架：从前端撤下但保留数据，可随时重新发布"
+                  @click="setState(d, 'offline')"
+                >下架</button>
                 <button class="btn btn-danger btn-sm" @click="removeDeal(d)">删除</button>
               </template>
             </td>
@@ -463,10 +489,17 @@ function getAuthOpts(): Record<string, any> {
   return { headers: getAuthHeaders(), credentials: 'include' as const }
 }
 
+// 2026-11-04：改用 state 的 7 档标签（旧 status 的 approved 已拆成 verified/published）
 const STATUS_LABELS: Record<string, string> = {
   pending: '待审核',
-  approved: '已通过',
+  verified: '已审核',
+  published: '已发布',
+  offline: '已下架',
+  invalid: '已失效',
   rejected: '已驳回',
+  deleted: '已删除',
+  // 兼容：如果后端仍返回旧值
+  approved: '已发布',
 }
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
 const SOURCE_LABELS: Record<string, string> = {
@@ -475,14 +508,18 @@ const SOURCE_LABELS: Record<string, string> = {
   community: '社区转发',
 }
 
-const status = ref<'pending' | 'approved' | 'rejected' | 'all'>('pending')
-/** 待核验筛选：只影响「已通过」队列，与 status 正交 */
+// 2026-11-04：status 现在直接映射数据库的 state 列。
+// 'approved' 已拆成 verified（已审核）/ published（已发布）两档。
+const status = ref<'pending' | 'verified' | 'published' | 'rejected' | 'all'>('pending')
+/** 待核验筛选：只影响「已发布」队列，与 status 正交 */
 const verifyFilter = ref<'all' | 'stale'>('all')
 const verifyTarget = ref<any>(null)
 const verifyNote = ref('')
 const deals = ref<any[]>([])
 const counts = reactive({
-  pending: 0, approved: 0, rejected: 0, all: 0,
+  pending: 0, verified: 0, published: 0, rejected: 0, all: 0,
+  /** @deprecated 旧字段名，后端仍返回（= published），保留避免其他引用报错 */
+  approved: 0,
   // 已失效三维（互斥）+ 合计，见 admin/token-deals/index.get.ts
   expired: 0, invalid: 0, deleted: 0, invalid_total: 0,
   // 待核验：在架且超过阈值没人工核验（阈值由 deal_verify_stale_days 控制，默认 30 天）
@@ -858,7 +895,9 @@ async function confirmEditReject() {
 // ── 展示辅助 ──────────────────────────────────────────────
 function statusBadgeClass(s: string) {
   if (s === 'pending') return 'badge-pending'
-  if (s === 'rejected') return 'badge-locked'
+  // 已审核：审过但未上线 —— 用待定色，视觉上与「已发布」区分开
+  if (s === 'verified') return 'badge-pending'
+  if (s === 'rejected' || s === 'offline' || s === 'invalid' || s === 'deleted') return 'badge-locked'
   return 'badge-public'
 }
 
@@ -970,6 +1009,31 @@ async function togglePin(d: any) {
 
 const editVisible = ref(false)
 const editingDeal = ref<any>(null)
+
+/**
+ * 行内改状态（2026-11-04）。
+ *
+ * 为什么不用 review()：review 只有 approve/reject，粒度太粗，
+ * 表达不了「已审核 → 已发布」这一档，也无法下架。
+ */
+async function setState(d: any, next: string) {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    await $fetch(`/api/admin/token-deals/${d.id}/state`, {
+      method: 'PUT',
+      body: { state: next },
+      ...getAuthOpts(),
+    })
+    showMessage(`「${d.provider}」已设为${({ published: '已发布', offline: '已下架', verified: '已审核', pending: '待审核', invalid: '已失效', rejected: '已驳回' } as any)[next] || next}`, 'success')
+    if (tab.value === 'invalid') loadInvalid()
+    else loadDeals()
+  } catch (err: any) {
+    showMessage(err?.data?.error || err?.message || '状态修改失败', 'error')
+  } finally {
+    submitting.value = false
+  }
+}
 
 function openEdit(d: any) {
   editingDeal.value = d

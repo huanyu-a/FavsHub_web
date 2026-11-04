@@ -489,6 +489,69 @@ function ensureColumn(db: Database.Database, table: string, column: string, alte
   }
 }
 
+
+/**
+ * 用旧四列回填 `token_deals.state`（幂等）。
+ *
+ * 只在「该行 state 为空或仍是默认 pending，而旧列指向别的状态」时更新，
+ * 所以重复执行安全、也不会覆盖管理员后来手动改过的 state。
+ *
+ * 判定顺序必须与 legacyStateOf() 一致（删除 > 失效 > 驳回/待审 > 过期 > 已发布），
+ * 否则「已删除的已发布条目」会被错误地算成 published。
+ */
+export function backfillDealState(db: Database.Database): number {
+  try {
+    const now = Date.now()
+    // ⚠️ 关键陷阱（踩过一次）：`ALTER TABLE ADD COLUMN state TEXT DEFAULT 'pending'`
+    // 会给**所有既有行**填上 'pending'。此时若用 `state NOT IN (...)` 排除，
+    // 「本来是 approved」的行会被当成「本来就是 pending」而永不回填，
+    // 表现为「迁移跑完，线上条目全部消失」。
+    //
+    // 正确做法：旧库的 state 只有两种可能 —— 全是那个默认 'pending'（未回填过），
+    // 或者已被回填/人工改过。所以以 `status` 为准重算，**不管当前 state 是什么**，
+    // 只要旧列指向别的状态就覆盖。旧列是双写的真相备份，比 state 的默认值可靠。
+    //
+    // 幂等性：本函数只按旧列重算，同一份旧列跑两次结果相同；
+    // 而人工改过 state（例如「已审核 → 已发布」）时旧列 status 仍是 'approved'，
+    // 重算会得到 'published' —— 为了不把 verified 打回 published，
+    // 单独放行 `status='approved' AND state='verified'` 不覆盖。
+    const steps: Array<[string, any[]]> = [
+      // 已删除
+      [`UPDATE token_deals SET state = 'deleted' WHERE deleted_at IS NOT NULL`, []],
+      // 已失效
+      [`UPDATE token_deals SET state = 'invalid'
+        WHERE deleted_at IS NULL AND invalid_at IS NOT NULL`, []],
+      // 到期未归档 → 失效
+      [`UPDATE token_deals SET state = 'invalid'
+        WHERE deleted_at IS NULL AND invalid_at IS NULL
+          AND expires_at IS NOT NULL AND expires_at <= ?`, [now]],
+      // 已驳回
+      [`UPDATE token_deals SET state = 'rejected'
+        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'rejected'`, []],
+      // 待审核
+      [`UPDATE token_deals SET state = 'pending'
+        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'pending'`, []],
+      // 已发布（旧 approved）。**跳过 state='verified'** —— 那是管理员
+      // 「审过了但还没发布」的显式选择，不该被回填逻辑打回 published。
+      [`UPDATE token_deals SET state = 'published'
+        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'approved'
+          AND (expires_at IS NULL OR expires_at > ?)
+          AND COALESCE(state, '') <> 'verified'`, [now]],
+    ]
+
+    let total = 0
+    for (const [sql, params] of steps) {
+      total += db.prepare(sql).run(...params).changes
+    }
+    if (total > 0) console.log(`[DB] 迁移: token_deals.state 回填 ${total} 行`)
+    return total
+  } catch (err: any) {
+    console.error('[DB] state 回填失败:', err.message)
+    return 0
+  }
+}
+
+
 /**
  * 执行所有增量迁移
  */
@@ -593,6 +656,13 @@ export function runMigrations(db: Database.Database) {
   ensureColumn(db, 'token_deals', 'faq', "ALTER TABLE token_deals ADD COLUMN faq TEXT DEFAULT '[]'")
   ensureColumn(db, 'token_deals', 'source_url', "ALTER TABLE token_deals ADD COLUMN source_url TEXT DEFAULT ''")
   ensureColumn(db, 'token_deals', 'featured', 'ALTER TABLE token_deals ADD COLUMN featured INTEGER DEFAULT 0')
+  // ── 统一状态列（2026-11-04）─────────────────────────────────
+  // 状态原先散在 status / deleted_at / invalid_at / expires_at 四列，
+  // 每个读路径各自组合判断。收敛成单列 state 后，一处判定即全局一致。
+  // 旧列保留并继续双写（当备份，回滚时数据仍在），但代码只读 state。
+  ensureColumn(db, 'token_deals', 'state', "ALTER TABLE token_deals ADD COLUMN state TEXT DEFAULT 'pending'")
+  backfillDealState(db)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_td_state ON token_deals(state, pinned, created_at)')
 
   // 精选对比表按 `featured=1` 过滤，配一条部分索引。
   // 独立 try/catch：索引失败（例如旧 SQLite 版本）不该影响启动。

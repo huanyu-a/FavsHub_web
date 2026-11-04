@@ -100,8 +100,7 @@ function latestDeals(args: string): string {
   const db = getRawDb()
   // 公开口径：已删除 / 已失效 / 已过期的通告不进播报（与前台列表一致）
   const rows = db.prepare(
-    "SELECT title, provider, vote_up FROM token_deals WHERE status = 'approved'"
-      + ' AND deleted_at IS NULL AND invalid_at IS NULL'
+    "SELECT title, provider, vote_up FROM token_deals WHERE state = 'published'"
       + ' AND (expires_at IS NULL OR expires_at > ?)'
       + ' ORDER BY created_at DESC LIMIT ?'
   ).all(Date.now(), n) as { title: string; provider: string; vote_up: number }[]
@@ -114,7 +113,7 @@ function latestDeals(args: string): string {
 function dealStats(): string {
   const db = getRawDb()
   // 位置参数：可见条件里的 now 与「已下架」条件里的 now 各自独立绑定，勿混用具名参数
-  const visibleWhere = "status = 'approved' AND deleted_at IS NULL AND invalid_at IS NULL"
+  const visibleWhere = "state = 'published'"
     + ' AND (expires_at IS NULL OR expires_at > ?)'
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)

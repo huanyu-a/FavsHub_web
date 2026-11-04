@@ -5,6 +5,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import { appendDealEvent } from '../../../utils/deal-events'
+import { isStatePubliclyVisible } from '../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   requireAdmin(event)
@@ -14,13 +15,13 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
   const deal = db.prepare(
-    'SELECT id, pinned, deleted_at, invalid_at, expires_at FROM token_deals WHERE id = ?'
+    'SELECT id, pinned, state, expires_at FROM token_deals WHERE id = ?'
   ).get(id) as { id: string; pinned: number; deleted_at: number | null; invalid_at: number | null; expires_at: number | null } | undefined
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
   // 置顶一条不可见的通告只会污染首页顶部排序，直接拒绝
-  if (deal.deleted_at || deal.invalid_at || (deal.expires_at && deal.expires_at <= Date.now())) {
+  if (!isStatePubliclyVisible(deal.state, deal.expires_at)) {
     throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
   }
 

@@ -123,6 +123,33 @@
             </label>
           </fieldset>
 
+          <!-- ── 状态（2026-11-04，仅管理员 + 编辑已有条目）──
+               放在最前：改状态是这个面板最常做的操作，不该藏在表单底部。
+               「已审核」与「已发布」是两档：审过不等于上线，发布才上线。 -->
+          <fieldset v-if="isAdmin && isEdit" class="tde-group">
+            <legend class="tde-legend">通告状态</legend>
+            <div class="tde-field">
+              <span class="field-label">当前状态</span>
+              <div class="chip-row">
+                <button
+                  v-for="st in SETTABLE_STATES"
+                  :key="st"
+                  type="button"
+                  class="chip"
+                  :class="{ active: stateDraft === st }"
+                  @click="stateDraft = st"
+                >{{ DEAL_STATE_LABELS[st] }}</button>
+              </div>
+              <p class="tde-hint">
+                「已发布」才会在前端展示；「已审核」只是通过审核的可信标记，不会出现在列表页。
+                下架 / 失效 / 驳回 / 删除均不在前端展示。
+              </p>
+              <p v-if="stateChanged" class="tde-hint tde-hint-warn">
+                状态将变为「{{ DEAL_STATE_LABELS[stateDraft] }}」，保存后立即生效。
+              </p>
+            </div>
+          </fieldset>
+
           <!-- 分类与分级 -->
           <fieldset class="tde-group">
             <legend class="tde-legend">分类与分级</legend>
@@ -564,12 +591,18 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { SETTABLE_STATES, DEAL_STATE_LABELS } from '~/utils/deal-state'
+import type { DealState } from '~/utils/deal-state'
 
 interface ITokenDeal {
   id: string
   provider: string
   title: string
   url: string
+  /** 统一状态（2026-11-04）：pending|verified|published|offline|invalid|rejected|deleted */
+  state?: string
+  /** @deprecated 旧列，仅兼容旧数据；可见性请读 state */
+  status?: string
   call_url?: string
   quota?: string
   models?: string[]
@@ -765,6 +798,14 @@ interface InviteCodeDraft {
   copy_count?: number
   exhausted?: boolean
 }
+
+/**
+ * 状态草稿（2026-11-04）：与 form 分开管理，因为状态不走同一套 PUT
+ * （那条是全量替换字段，状态有独立的 /state 端点，语义不同）。
+ */
+const stateDraft = ref<DealState>('pending')
+const stateOriginal = ref<DealState>('pending')
+const stateChanged = computed(() => stateDraft.value !== stateOriginal.value)
 
 const form = ref({
   provider: '',
@@ -1144,6 +1185,23 @@ async function submit() {
       }
     }
 
+    // ── 状态变更（2026-11-04）──
+    // 走独立端点：主表 PUT 是全量替换字段，状态有自己的流转规则与权限
+    // （作者只能提交审核/下架，管理员才能发布）。两者语义不同，不能并进一次请求。
+    if (isAdmin.value && isEdit.value && stateChanged.value && props.deal?.id) {
+      try {
+        await $fetch(`/api/admin/token-deals/${props.deal.id}/state`, {
+          method: 'PUT',
+          body: { state: stateDraft.value },
+          credentials: 'include',
+        })
+      } catch (err: any) {
+        // 内容已存但状态没改 —— 必须说清楚，否则用户以为状态也变了
+        errorText.value = `内容已保存，但状态修改失败：${err?.data?.error || err?.message || '未知错误'}`
+        return
+      }
+    }
+
     emit('saved', res?.message || '')
   } catch (err: any) {
     const errMsg = String(err?.data?.error || '')
@@ -1273,6 +1331,18 @@ onMounted(() => {
 
   const d = props.deal
   if (d) {
+    // 状态回填（2026-11-04）：从 deal 读当前 state 作为草稿起点。
+    // 兼容老数据：若后端还没给 state（旧快照/缓存），按 status + 标记推断，
+    // 免得下拉默认停在「待审核」而在保存时把一条线上条目误降级。
+    const raw = (d as any).state
+      || ((d as any).deleted_at ? 'deleted'
+        : (d as any).invalid_at ? 'invalid'
+        : (d as any).status === 'rejected' ? 'rejected'
+        : (d as any).status === 'pending' ? 'pending'
+        : 'published')
+    stateOriginal.value = raw as DealState
+    stateDraft.value = raw as DealState
+
     form.value = {
       provider: d.provider || '',
       title: d.title || '',

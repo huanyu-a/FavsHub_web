@@ -429,9 +429,9 @@ async function main() {
     const guestId = 'e2e_guest_probe'
     raw.prepare(`
       INSERT INTO token_deals (id, user_id, guest_name, guest_fingerprint, provider, title, url, models,
-        region, quality, source_tag, category, status, note, created_at, updated_at)
+        region, quality, source_tag, category, status, state, note, created_at, updated_at)
       VALUES (?, 0, '游客甲', 'fp:deadbeefcafe1234', 'E2E', '游客探针', 'https://example.com/g', '[]',
-        'cn', '中品', 'official', 'token', 'approved', 'x', ?, ?)
+        'cn', '中品', 'official', 'token', 'approved', 'published', 'x', ?, ?)
     `).run(guestId, now, now)
     raw.close()
 

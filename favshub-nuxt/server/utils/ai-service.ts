@@ -31,6 +31,7 @@ import {
   DEAL_FIELD_LABELS,
   isVerifyStale,
   verifyAgeDays,
+  isStatePubliclyVisible,
 } from './token-deals'
 import { appendDealEvent } from './deal-events'
 import {
@@ -673,8 +674,10 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
   // （否则「前台不显示」的目标会被 AI 通道绕过）。
   // mine=true 时自己发布的条目仍可见（与 Web 端 mine=1 一致），但已删除的不给。
   const where: string[] = [
-    `((td.status = 'approved' AND td.deleted_at IS NULL AND td.invalid_at IS NULL`
-      + ` AND (td.expires_at IS NULL OR td.expires_at > ?)) OR (td.user_id = ? AND td.deleted_at IS NULL))`,
+    // 2026-11-04：改用 state。公开档只认 published（verified 不对外），
+    // mine 分支保留「作者能看自己还没上线的」，但已删除的不给。
+    `((td.state = 'published' AND (td.expires_at IS NULL OR td.expires_at > ?))`
+      + ` OR (td.user_id = ? AND td.state <> 'deleted'))`,
   ]
   const params: any[] = [Date.now(), userId]
 
@@ -790,15 +793,15 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
       id, user_id, provider, title, url, call_url, quota, models, region, quality,
       source_tag, category, expires_at, pinned, note, real_name, real_name_other,
       summary, limits, requirements, verify_scope, faq, featured,
-      status, reject_reason,
+      status, state, reject_reason,
       vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, '', 0, 0, 0, 0, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, '', 0, 0, 0, 0, ?, ?)
   `).run(
     id, userId, d.provider, d.title, d.url, d.callUrl, d.quota,
     JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
     d.expiresAt, d.note, d.realName, d.realNameOther,
     d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
-    status, now, now,
+    status, isAdmin ? 'published' : 'pending', now, now,
   )
 
   // 管理员直接上线 → 对外「上新」事件
@@ -848,7 +851,7 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
 
   const isAdmin = isUserAdmin(db, userId)
   if (deal.user_id !== userId && !isAdmin) {
-    if (deal.status === 'approved') {
+    if (isStatePubliclyVisible(deal.state, deal.expires_at)) {
       fail(403, '通告由他人创建，不能直接编辑。修改请提交建议：POST /api/ai/token-deals/' + id + '/edits'
         + '（只传要改的字段，可带 comment 说明理由；需经通告作者或管理员审核后才生效）')
     }
@@ -942,14 +945,16 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
       region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
       real_name = ?, real_name_other = ?,
       summary = ?, limits = ?, requirements = ?, verify_scope = ?, faq = ?,
-      status = ?, reject_reason = '', updated_at = ?
+      status = ?, state = ?, reject_reason = '', updated_at = ?
     WHERE id = ?
   `).run(
     d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
     d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
     d.realName, d.realNameOther,
     d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
-    status, Date.now(), id,
+    // state 跟随 status（与 Web PUT 同一规则：被驳回后重编辑 → 回到待审）
+    status, status === 'approved' ? deal.state : (deal.status === 'rejected' ? 'pending' : deal.state),
+    Date.now(), id,
   )
 
   // 「变更 / 续期」事件：只发公开可见通告的实质变化（status 流转由审核链路自己发 online）
@@ -1020,7 +1025,7 @@ export function submitTokenDealEdit(db: DB, userId: number, rawDealId: unknown, 
     if (!deal || deal.deleted_at) fail(404, '通告不存在')
 
     const isReviewer = viewer.isAdmin || deal.user_id === userId
-    if (deal.status !== 'approved' && !isReviewer) fail(404, '通告不存在')
+    if (!isStatePubliclyVisible(deal.state, deal.expires_at) && !isReviewer) fail(404, '通告不存在')
 
     const patch = extractDealPatch(body)
     if (Object.keys(patch).length === 0) fail(400, '没有提供任何可修改字段')

@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   // 与详情端点同一口径：已删除仅管理员、已失效/已过期仅作者与管理员可读，
   // 否则「详情 404 但评测照读」等于绕过隔离把失效内容放出去。
   const deal = db.prepare(
-    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at'
+    'SELECT id, user_id, state, invalid_reason, expires_at'
     + ' FROM token_deals WHERE id = ?'
   ).get(id) as Record<string, any> | undefined
   const viewer = optionalAuthLoose(event)

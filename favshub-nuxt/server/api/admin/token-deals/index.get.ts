@@ -38,21 +38,22 @@ function parseModels(raw: unknown): string[] {
 function lifecyclePreds(alias: string, now: number) {
   const p = alias ? `${alias}.` : ''
   return {
-    deleted: `${p}deleted_at IS NOT NULL`,
-    invalid: `${p}deleted_at IS NULL AND ${p}invalid_at IS NOT NULL`
-      + ` AND COALESCE(${p}invalid_reason, '') <> 'expired'`,
-    expired: `${p}deleted_at IS NULL AND (${p}invalid_reason = 'expired'`
-      + ` OR (${p}invalid_at IS NULL AND ${p}expires_at IS NOT NULL AND ${p}expires_at <= ${now}))`,
-    live: `${p}deleted_at IS NULL AND ${p}invalid_at IS NULL`
+    deleted: `${p}state = 'deleted'`,
+    // 「已失效」面板的 three-way 细分仍要区分 expired / 人工判定，故读 invalid_reason
+    invalid: `${p}state = 'invalid' AND COALESCE(${p}invalid_reason, '') <> 'expired'`,
+    expired: `${p}state = 'invalid' AND COALESCE(${p}invalid_reason, '') = 'expired'`,
+    // 在架 = 待处理 / 待审 / 已审核 / 已发布，但**排除**下架、失效、驳回、删除
+    live: `${p}state IN ('pending','verified','published')`
       + ` AND (${p}expires_at IS NULL OR ${p}expires_at > ${now})`,
   }
 }
 
 /** 行分类：与上面三个 SQL 片段同语义 */
 function classify(row: any, now: number): 'deleted' | 'invalid' | 'expired' | 'live' {
-  if (row.deleted_at) return 'deleted'
-  if (row.invalid_reason === 'expired') return 'expired'
-  if (row.invalid_at) return 'invalid'
+  if (row.state === 'deleted') return 'deleted'
+  if (row.state === 'invalid') {
+    return row.invalid_reason === 'expired' ? 'expired' : 'invalid'
+  }
   if (row.expires_at && row.expires_at <= now) return 'expired'
   return 'live'
 }
@@ -94,8 +95,9 @@ export default defineEventHandler(async (event) => {
     // 审核队列只看在架条目：失效/过期/已删除都属于「已失效」面板，两个视图互不重叠，
     // 否则 Tab 徽章数字与列表内容会对不上，管理员也无从判断某条到底在哪个视图。
     where += ` AND ${L.live}`
+    // status 参数现在直接映射 state（pending / verified / published / ...）
     if (status !== 'all') {
-      where += ' AND d.status = ?'
+      where += ' AND d.state = ?'
       params.push(status)
     }
   }
@@ -136,8 +138,8 @@ export default defineEventHandler(async (event) => {
   // 「已失效」三类各自单列，三类之和 = invalid_total = 已失效面板总数。
   const C = lifecyclePreds('', now)
   const countRows = db.prepare(`
-    SELECT status, COUNT(*) AS count FROM token_deals
-    WHERE ${C.live} GROUP BY status
+    SELECT state AS status, COUNT(*) AS count FROM token_deals
+    WHERE ${C.live} GROUP BY state
   `).all() as { status: string; count: number }[]
 
   const counts: Record<string, number> = {
@@ -161,7 +163,7 @@ export default defineEventHandler(async (event) => {
   // 否则角标数字会和点进去的条数对不上
   const staleCount = (db.prepare(`
     SELECT COUNT(*) AS c FROM token_deals d
-    WHERE ${L.live} AND d.status = 'approved'
+    WHERE ${L.live} AND d.state = 'published'
       AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)
   `).get(now - verifyStaleDays() * 86400000) as { c: number } | undefined)?.c || 0
   counts.stale = staleCount

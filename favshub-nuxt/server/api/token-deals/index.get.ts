@@ -110,8 +110,9 @@ export default defineEventHandler(async (event) => {
     whereClause = 'd.user_id = ? AND d.deleted_at IS NULL'
     params.push(user.id)
   } else {
-    // 公开列表：审核通过、未删除、未失效、未过期（2026-10-20 展示优化）
-    whereClause = "d.status = 'approved'"
+    // 公开列表：只认 state='published'（2026-11-04 收敛）+ 未过期。
+    // 注意「已审核(verified)」不在其中 —— 审过不等于上线，这是本次状态机的核心口径。
+    whereClause = '1=1'
     whereClause += publicVisibleClause('d', params)
   }
 

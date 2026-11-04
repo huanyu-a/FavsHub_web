@@ -24,7 +24,7 @@
  */
 import type Database from 'better-sqlite3'
 import {
-  isPubliclyVisible, INVALID_REASON_LABELS, parseDealModels,
+  isPubliclyVisible, isStatePubliclyVisible, INVALID_REASON_LABELS, parseDealModels,
   DEAL_FIELD_LABELS, DEAL_CATEGORY_LABELS, REAL_NAME_LABELS,
 } from './token-deals'
 import { hasClaimCodePlaceholder } from './invite-codes'
@@ -63,7 +63,7 @@ export const DEFAULT_SUBSCRIBE_KINDS: DealEventKind[] = ['online', 'offline', 'u
  */
 export function wasPublished(deal: any): boolean {
   if (!deal) return false
-  if (deal.status !== 'approved') return false
+  if (!isStatePubliclyVisible(deal.state, deal.expires_at)) return false
   if (deal.deleted_at) return false
   if (deal.invalid_at) return false
   return true
@@ -412,7 +412,7 @@ export function appendDealEvent(
     const after = opts.after ?? db.prepare('SELECT * FROM token_deals WHERE id = ?').get(dealId)
     if (!after) return null
 
-    const nowPublic = isPubliclyVisible(after) && after.status === 'approved'
+    const nowPublic = isPubliclyVisible(after)
     // `offline` 判定「此前是否已发布」——**不**看时间维度：
     // 到期归档这一刻，通告按时间是「已不可见」的，但它确实曾经公开过，
     // 下架通知正是订阅方最需要的那类变化（见 wasPublished 注释）。
@@ -631,7 +631,7 @@ export function publicEventViews(
       const ph = ids.map(() => '?').join(',')
       const live = db.prepare(`SELECT * FROM token_deals WHERE id IN (${ph})`).all(...ids) as any[]
       for (const row of live) {
-        visible.set(row.id, isPubliclyVisible(row) && row.status === 'approved')
+        visible.set(row.id, isPubliclyVisible(row))
       }
       // 码池查询独立 try/catch：查不到就当作「无码池」（只清占位符，不误伤公开链接）
       try {

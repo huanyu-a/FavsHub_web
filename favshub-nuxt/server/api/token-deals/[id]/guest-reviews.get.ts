@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   // 与详情端点同一口径（见 canReadDeal）：失效 / 过期 / 已删除的通告不给读评测，
   // 否则「详情 404 但评测列表照读」等于绕过隔离。
   const deal = db.prepare(
-    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at'
+    'SELECT id, user_id, state, invalid_reason, expires_at'
     + ' FROM token_deals WHERE id = ?'
   ).get(id) as Record<string, any> | undefined
   const viewer = optionalAuthLoose(event)

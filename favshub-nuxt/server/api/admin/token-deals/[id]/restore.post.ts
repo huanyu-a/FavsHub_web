@@ -152,7 +152,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const after = db.prepare(
-    'SELECT deleted_at, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'
+    'SELECT state, invalid_at, invalid_reason, expires_at FROM token_deals WHERE id = ?'
   ).get(id) as any
 
   return {

@@ -69,28 +69,33 @@ export default defineEventHandler(async (event) => {
         (SELECT COUNT(*) FROM users WHERE is_admin = 1) as adminUsers,
         -- 生命周期三类互斥（与 admin/token-deals 的 P_DELETED / P_INVALID / P_EXPIRED 同口径）：
         --   已删除 > 判定失效 > 已过期（归档后 invalid_reason='expired' 仍归“过期”）
-        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL
-           AND invalid_at IS NULL
+        -- 2026-11-04 起统一按 state 统计（唯一真相源），旧四列不再参与
+        (SELECT COUNT(*) FROM token_deals WHERE state IN ('pending','verified','published')
            AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
         ) as tokenDealsTotal,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'pending' AND deleted_at IS NULL
-           AND invalid_at IS NULL
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'pending'
            AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
         ) as tokenDealsPending,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'approved' AND deleted_at IS NULL
-           AND invalid_at IS NULL
+        -- 「已审核」= 审过但未发布的中间态（新增）
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'verified'
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsVerified,
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'published'
+           AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
+        ) as tokenDealsPublished,
+        -- 兼容旧字段名（前端/技能包仍在读 tokenDealsApproved）
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'published'
            AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
         ) as tokenDealsApproved,
-        (SELECT COUNT(*) FROM token_deals WHERE status = 'rejected' AND deleted_at IS NULL
-           AND invalid_at IS NULL
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'rejected'
            AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)
         ) as tokenDealsRejected,
-        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NOT NULL) as tokenDealsDeleted,
-        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL AND invalid_at IS NOT NULL
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'deleted') as tokenDealsDeleted,
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'offline') as tokenDealsOffline,
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'invalid'
            AND COALESCE(invalid_reason, '') <> 'expired') as tokenDealsInvalid,
-        (SELECT COUNT(*) FROM token_deals WHERE deleted_at IS NULL
-           AND (invalid_reason = 'expired' OR (invalid_at IS NULL AND expires_at IS NOT NULL
-             AND expires_at <= CAST(strftime('%s','now') AS INTEGER) * 1000))) as tokenDealsExpired,
+        (SELECT COUNT(*) FROM token_deals WHERE state = 'invalid'
+           AND COALESCE(invalid_reason, '') = 'expired') as tokenDealsExpired,
         (SELECT COUNT(*) FROM prompt_review_requests WHERE status = 'pending') as promptReviewsPending,
         (SELECT COUNT(*) FROM token_deal_edits e JOIN token_deals d ON d.id = e.deal_id
           WHERE e.status = 'pending' AND e.user_id != d.user_id AND d.deleted_at IS NULL) as dealEditsPending,

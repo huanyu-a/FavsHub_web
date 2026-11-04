@@ -191,9 +191,9 @@ export function seedDefaultTokenDeals(db: Database.Database): void {
   const insert = db.prepare(`
     INSERT OR IGNORE INTO token_deals (
       id, user_id, provider, title, url, call_url, quota, models, region, quality,
-      source_tag, expires_at, pinned, note, status, reject_reason,
+      source_tag, expires_at, pinned, note, status, state, reject_reason,
       vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', '', 0, 0, 0, 0, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'published', '', 0, 0, 0, 0, ?, ?)
   `)
 
   const insertAll = db.transaction(() => {

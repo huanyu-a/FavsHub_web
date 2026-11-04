@@ -16,7 +16,7 @@
 import { defineAiHandler } from '../../../../utils/ai-auth'
 import { getRawDb } from '../../../../database'
 import { isUserAdmin } from '../../../../utils/ai-service'
-import { canReadDeal } from '../../../../utils/token-deals'
+import { canReadDeal, isStatePubliclyVisible } from '../../../../utils/token-deals'
 import { getFaviconDir } from '../../../../utils/favicon-dir'
 import { join } from 'node:path'
 import { getRouterParams, getQuery, setResponseHeaders, createError } from 'h3'
@@ -89,7 +89,7 @@ export default defineAiHandler('read', async (event, token) => {
   if (row.deleted_at && !isAdmin) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
-  if (row.status !== 'approved' && !isOwner && !isAdmin) {
+  if (!isStatePubliclyVisible(row.state, row.expires_at) && !isOwner && !isAdmin) {
     // 与详情/导入/评分/邀请码等端点统一口径：一律 404「通告不存在」。
     // 403 + 「尚未通过审核」等于向持令牌者确认「该 id 存在、且正处于待审状态」。
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })

@@ -60,7 +60,7 @@ function toIso(ts: number | null | undefined, fallback: string): string {
 /** 公开可见的通告（与公开列表同一口径，复用 publicVisibleClause 防止两处漂移） */
 function loadPublicDeals(db: any): DetailRow[] {
   const params: any[] = []
-  const where = "d.status = 'approved'" + publicVisibleClause('d', params)
+  const where = '1=1' + publicVisibleClause('d', params)
   params.push(MAX_DEALS)
   return db.prepare(`
     SELECT d.id AS id, COALESCE(d.updated_at, d.created_at) AS updated_at

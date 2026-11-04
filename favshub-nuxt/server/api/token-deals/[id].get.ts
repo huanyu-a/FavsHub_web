@@ -92,15 +92,11 @@ export default defineEventHandler(async (event) => {
   //     作者想恢复需找管理员，防止被下架内容被作者自行「复活」）；
   //   - 已失效 / 已过期：作者与管理员仍可打开（作者需据此续期），对外 404。
   // 统一 404 而不区分「不存在」与「已下架」，避免向外部泄露条目存在性。
-  if ((row.deleted_at && !isAdmin) || (!isPubliclyVisible(row) && !isOwner && !isAdmin)) {
-    throw createError({ statusCode: 404, data: { error: '通告不存在或已失效' } })
-  }
-
-  // 未过审 / 已驳回：对作者与管理员之外一律 404。
-  // 2026-10-30 审查后从 403 +「该通告尚未通过审核」改为 404：那个提示只有
-  // **非作者非管理员**才看得到（作者在上面就放行了），等于向外部确认「这条存在但没批」，
-  // 与本文件第 93 行「统一 404 不区分，避免泄露条目存在性」自相矛盾。
-  if (row.status !== 'approved' && !isOwner && !isAdmin) {
+  // 2026-11-04：两道判定合并成一道 —— state 是唯一真相源。
+  // 原先一条 404 管「删除/失效/过期」，另一条管「未过审」，两处都可能漏判。
+  // 「已失效」不再返回「通告不存在或已失效」这种**会泄露存在性**的差异文案，
+  // 统一 404「通告不存在」：外部无法区分「没有这条」和「有但不可见」。
+  if (!isPubliclyVisible(row) && !isOwner && !isAdmin) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 

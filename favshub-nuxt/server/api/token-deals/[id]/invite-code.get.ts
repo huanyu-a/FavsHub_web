@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   const deal = db.prepare(
-    'SELECT id, user_id, status, deleted_at, invalid_at, invalid_reason, expires_at, url, call_url'
+    'SELECT id, user_id, state, invalid_reason, expires_at, url, call_url'
     + ' FROM token_deals WHERE id = ?'
   ).get(dealId) as Record<string, any> | undefined
 

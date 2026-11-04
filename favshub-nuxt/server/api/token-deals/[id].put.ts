@@ -76,6 +76,14 @@ export default defineEventHandler(async (event) => {
     ? deal.status
     : (deal.status === 'rejected' ? 'pending' : deal.status)
 
+  // 2026-11-04：state 必须跟着 status 一起走，否则两列会打架。
+  // 关键场景 —— 作者编辑一条「被驳回」的条目：status 回到 pending 等待重审，
+  // state 也必须回到 pending；否则它仍是 rejected，作者改完了却永远不进审核队列。
+  // 管理员编辑不改审核态（status 原样保留），故 state 也原样保留。
+  const state = isAdmin
+    ? deal.state
+    : (deal.status === 'rejected' ? 'pending' : deal.state)
+
   // 精选对比：管理员显式传了才改，否则保持库中原值（普通用户恒保持原值）。
   // ⚠️ 走请求体而非独立端点，因为 W3 的编辑器是**全量替换**语义的 PUT 表单。
   const featuredIntent = readFeaturedIntent(body, isAdmin)
@@ -93,7 +101,7 @@ export default defineEventHandler(async (event) => {
         real_name = ?, real_name_other = ?,
         summary = ?, limits = ?, requirements = ?, verify_scope = ?, faq = ?,
         featured = ?,
-        status = ?, reject_reason = '', updated_at = ?
+        status = ?, state = ?, reject_reason = '', updated_at = ?
       WHERE id = ?
     `).run(
       d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
@@ -101,7 +109,7 @@ export default defineEventHandler(async (event) => {
       d.realName, d.realNameOther,
       d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
       featuredNext,
-      status, Date.now(), id,
+      status, state, Date.now(), id,
     )
   } catch (err: any) {
     console.error('编辑 Token 白嫖通告失败:', err)

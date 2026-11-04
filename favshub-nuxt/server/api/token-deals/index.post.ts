@@ -74,6 +74,10 @@ export default defineEventHandler(async (event) => {
   const id = newDealId()
   const now = Date.now()
   const status = isAdmin ? 'approved' : 'pending'
+  // 2026-11-04：新建时同时写 state。
+  // 管理员建 = 已发布（这是他自己的发布行为）；普通用户建 = 待审核。
+  // 不写的话 state 会停在列默认值 'pending'，导致「管理员建的条目在公开列表里看不到」。
+  const state = isAdmin ? 'published' : 'pending'
   // 精选对比：仅管理员可置 1（普通用户传了忽略，见 readFeaturedIntent）
   const featured = readFeaturedIntent(body, isAdmin) ? 1 : 0
 
@@ -86,15 +90,15 @@ export default defineEventHandler(async (event) => {
         id, user_id, provider, title, url, call_url, quota, models, region, quality,
         source_tag, category, expires_at, pinned, note, real_name, real_name_other,
         summary, limits, requirements, verify_scope, faq, featured,
-        status, reject_reason,
+        status, state, reject_reason,
         vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
     `).run(
       id, user.id, d.provider, d.title, d.url, d.callUrl, d.quota,
       JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
       d.expiresAt, d.note, d.realName, d.realNameOther,
       d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq), featured,
-      status, now, now,
+      status, state, now, now,
     )
   } catch (err: any) {
     console.error('发布 Token 白嫖通告失败:', err)

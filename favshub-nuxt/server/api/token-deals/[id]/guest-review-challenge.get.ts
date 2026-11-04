@@ -13,6 +13,7 @@
 import { getRouterParams } from 'h3'
 import { getRawDb } from '../../../database'
 import { issueHumanChallenge } from '../../../utils/human-check'
+import { isStatePubliclyVisible } from '../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
@@ -22,10 +23,9 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
   const deal = db.prepare(
-    'SELECT id, status, deleted_at, invalid_at, expires_at FROM token_deals WHERE id = ?'
+    'SELECT id, state, expires_at FROM token_deals WHERE id = ?'
   ).get(id) as any
-  if (!deal || deal.status !== 'approved' || deal.deleted_at
-      || deal.invalid_at || (deal.expires_at && deal.expires_at <= Date.now())) {
+  if (!deal || !isStatePubliclyVisible(deal.state, deal.expires_at)) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
 

@@ -256,7 +256,16 @@ export const tokenDeals = sqliteTable('token_deals', {
   note: text('note').default(''),                // 备注 / 使用提示
   guestName: text('guest_name').default(''),     // 游客署名昵称（user_id=0 的游客通告）
   guestFingerprint: text('guest_fingerprint').default(''), // 游客身份指纹（待审上限去重）
-  status: text('status').default('pending'),     // pending|approved|rejected
+  status: text('status').default('pending'),     // ⚠️ 旧列（仅双写备份，代码不再据此判断可见性）—— 见 state
+  /**
+   * 统一状态（2026-11-04）——**唯一**的可见性真相源。
+   * pending 待审核 / verified 已审核（可信标记，不展示）/ published 已发布（唯一展示档）
+   * offline 已下架 / invalid 已失效 / rejected 已驳回 / deleted 已删除
+   *
+   * 与旧四列的关系：旧列继续双写（当备份，便于回滚），但所有读路径只看 state。
+   * 「已审核」优先级低于「已发布」：审过不等于上线，发布才上线。
+   */
+  state: text('state').default('pending'),
   rejectReason: text('reject_reason').default(''),
   // 生命周期（与审核状态正交）：软删除 + 显式失效状态机
   deletedAt: integer('deleted_at'),              // 非空 = 已软删除（可恢复）

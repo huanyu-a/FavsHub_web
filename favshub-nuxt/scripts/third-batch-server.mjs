@@ -691,9 +691,9 @@ async function httpSuite(dbPath) {
     withDb(dbPath, (db) => {
       const ins = db.prepare(`
         INSERT INTO token_deals (id, user_id, provider, title, url, models, region, quality,
-          source_tag, category, status, note, pinned, created_at, updated_at)
+          source_tag, category, status, state, note, pinned, created_at, updated_at)
         VALUES (?, 0, 'E2E排序', ?, 'https://example.com/sort', '[]', 'cn', '中品',
-          'official', 'token', 'approved', 'x', 0, ?, ?)
+          'official', 'token', 'approved', 'published', 'x', 0, ?, ?)
       `)
       for (const [id, ts] of probes) ins.run(id, '排序探针 ' + id, ts, ts)
     })

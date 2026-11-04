@@ -7,7 +7,7 @@
 import { getRawDb } from '../../../database'
 import { getAuthRole } from '../../../utils/auth'
 import { normalizeUrl } from '../../../utils/bookmark-labels'
-import { isPubliclyVisible } from '../../../utils/token-deals'
+import { isPubliclyVisible, isStatePubliclyVisible } from '../../../utils/token-deals'
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }
-  if (deal.status !== 'approved' && deal.user_id !== user.id && !isAdmin) {
+  if (!isStatePubliclyVisible(deal.state, deal.expires_at) && deal.user_id !== user.id && !isAdmin) {
     // 与详情/评分/邀请码等端点口径统一：一律 404「通告不存在」。
     // 403 + 「尚未通过审核」等于向陌生人确认「这个 id 存在、且正处于待审状态」，
     // 泄露的是存在性与审核进度，对无权查看的人没有告知义务。
