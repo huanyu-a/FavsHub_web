@@ -21,6 +21,11 @@
 | **部署后验证** | `scripts/post-deploy-verify.mjs` → **5 通过 / 0 失败**（首次全绿；此前恒红的 `full-deal-row-audit` 已修好，见下）|
 | **回滚锚点** | 镜像 tag `rollback-20261104111154`（= 1.0.67 的 `b7fb62c1…`）+ `data/backups/favshub.db.pre-1.0.68-20261104111154`（`integrity_check`=ok）|
 
+> ⚠️ **「健康」的口径**：镜像**没有定义 `HEALTHCHECK`**（`docker inspect` 会报
+> `Health=(no healthcheck defined)`）。所以只能背书**应用层**健康：容器内
+> `/api/health` = `{"status":"ok","database":"connected"}`。
+> 别拿 `docker ps` 的 `(healthy)` 当证据 —— 它不会出现。
+
 本次两件事，性质不同：
 
 1. **产品改动（进了镜像）**：评测头像 `<img>` 由 `:alt="r.author"` 改成 `alt=""`。
@@ -49,6 +54,15 @@
 - 这种情况改**退避重试**（默认 3 次，`--retries` 可调）后才上报 —— 真回归不会因重试变绿
   （已反向验证：把豁免关掉、或把 `call_url` 换成实值 → 仍 exit 1）；
 - 大面积拿不到区块时额外点名提示「更像限流/降级，**不要据此回滚**」。
+
+独立验证随后还查出**一处不对称**（我自测没覆盖）：脚本原先把占位符写成**字面量表**，
+而真源 `server/utils/invite-codes.ts` 的 `CLAIM_PLACEHOLDER_PATTERN` 与组件
+`TokenDealDetail.vue:1110` 都是正则 `/[｛{](?:邀请码|code|invite_code)[｝}]/` ——
+认**全角括号 + 拉丁 key**，于是 `｛code｝` 这类写法会让**合法**页被误报成「两行都无」
+（方向是误报，偏保守，不会掩盖真回归；当时生产那条用的是半角 `{邀请码}`，未受影响）。
+已改为与真源同形的正则（提交 `ed2b8ec`，仅脚本、不进镜像），并用独立验证留下的
+mock 用例回归：全角词组从 `exit 1` 变 `exit 0`，而「`call_url` 有实值却不渲染 API 行」的
+真回归仍 `exit 1`。**教训：验证脚本的判据也是代码，必须与产品真源同形，否则它自己会漂移。**
 
 ### ⚠ 待查：详情页偶发渲染成「加载失败」（2026-11-04 复现）
 

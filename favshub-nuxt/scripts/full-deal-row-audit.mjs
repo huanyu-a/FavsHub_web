@@ -85,8 +85,28 @@ const RETRIES = Math.max(1, parseInt(argOf('--retries', '3'), 10) || 3)
 const RETRY_DELAY_MS = 500
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 占位符原文：这些是后端模板变量，任何情况下都不该出现在渲染后的 HTML 里 */
-const PLACEHOLDERS = ['{邀请码}', '{code}', '{invite_code}', '｛邀请码｝', '{{invite_code}}']
+/**
+ * 占位符原文：这些是后端模板变量，任何情况下都不该出现在渲染后的 HTML 里。
+ *
+ * ⚠️ 判据必须与**真源同形**：`server/utils/invite-codes.ts` 的
+ *   `CLAIM_PLACEHOLDER_PATTERN = '[｛{](?:邀请码|code|invite_code)[｝}]'`
+ * （`components/tokens/TokenDealDetail.vue:1110` 的 `CLAIM_PLACEHOLDER_RE` 与它同形，
+ *  两处刻意共用同一份 pattern「避免漂移」）。这里保持同形 —— 别再退回字面量表：
+ * 2026-11-04 独立验证实测，原先的列表漏了「**全角括号 + 拉丁 key**」的 `｛code｝`，
+ * 于是**合法**页面会被误报成「两行都无」（方向是误报，偏保守，但它会淹掉真信号）。
+ * 半角/全角都认，是因为中文输入法很容易敲出全角 —— 服务端就是这么定的，别比它更窄。
+ */
+const PLACEHOLDER_RE = /[｛{](?:邀请码|code|invite_code)[｝}]/
+/** 历史数据里出现过的双花括号写法，上面的正则覆盖不到，额外兜一层 */
+const PLACEHOLDER_LEGACY = ['{{invite_code}}', '{{code}}']
+
+/** 命中则返回占位符原文（用于报错信息），否则 null */
+function findPlaceholder(text) {
+  const str = String(text || '')
+  const m = str.match(PLACEHOLDER_RE)
+  if (m) return m[0]
+  return PLACEHOLDER_LEGACY.find((p) => str.includes(p)) || null
+}
 
 /** 浏览器 UA —— 站点会按 UA 做内容协商，用默认 curl UA 会拿到 JSON 而非页面 */
 const UA =
@@ -121,11 +141,11 @@ async function explainEmptyRows(id) {
   //    领取行本该有值，两行皆空就是真问题。
   const claimStillTemplated =
     d.claim_url_has_placeholder === true ||
-    PLACEHOLDERS.some((ph) => String(d.url || '').includes(ph))
+    findPlaceholder(d.url) !== null
   if (!claimStillTemplated) return null
   // ② API 地址在为空的两种情形下才拿不出来：call_url 为空，或它自己就是含占位符的模板。
   //    若 call_url 有实值（且无占位符），apiReady 应当有值 —— 两行皆空就是要抓的回归。
-  const apiUnavailable = !callUrl || PLACEHOLDERS.some((ph) => callUrl.includes(ph))
+  const apiUnavailable = !callUrl || findPlaceholder(callUrl) !== null
   if (!apiUnavailable) return null
 
   return `需抽码（SSR 未抽中）+ ${callUrl ? 'call_url 亦为模板' : 'call_url 为空'} → 两行皆空（正常）`
@@ -168,7 +188,7 @@ function inspectHtml(html) {
   const SEG_LEN = 4000
   const seg = html.slice(idx, idx + SEG_LEN).replace(/<!--[\s\S]*?-->/g, '')
   const labels = [...seg.matchAll(/row-label[^>]*>([^<]+)</g)].map((m) => m[1].trim())
-  const hit = PLACEHOLDERS.find((p) => seg.includes(p))
+  const hit = findPlaceholder(seg)
   return {
     section: true,
     hasClaim: labels.includes('领取地址'),
