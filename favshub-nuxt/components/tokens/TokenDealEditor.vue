@@ -593,6 +593,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { SETTABLE_STATES, DEAL_STATE_LABELS } from '~/utils/deal-state'
 import type { DealState } from '~/utils/deal-state'
+// 分类下拉直接引用真源（原先此处与 TokenFilterBar 各抄一份逐字相同的数组）
+import { DEAL_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from '~/utils/deal-categories'
 
 interface ITokenDeal {
   id: string
@@ -680,13 +682,7 @@ const SOURCE_OPTIONS = [
   { value: 'relay', label: '中转站' },
   { value: 'community', label: '社区转发' },
 ]
-// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致
-const CATEGORY_OPTIONS = [
-  { value: 'token', label: 'API 额度' },
-  { value: 'cloud', label: '免费云服务器' },
-  { value: 'domain', label: '免费域名' },
-  { value: 'client', label: '客户端额度' },
-]
+// 分类下拉见顶部 import（真源 `~/utils/deal-categories`，与 TokenFilterBar 同源）
 
 /**
  * 是否实名（2026-10-30）—— 与 server/utils/token-deals.ts 的 REAL_NAME_VALUES 一致。

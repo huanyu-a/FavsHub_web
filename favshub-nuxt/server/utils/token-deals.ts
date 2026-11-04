@@ -36,18 +36,23 @@ export const SOURCE_LABELS: Record<string, string> = {
  * （各类大模型客户端/桌面端专属免费额度）与「API 额度」共用一块通告板，
  * 用分类让读者一键筛掉不关心的那一半。
  *
+ * **真源已收敛到 `utils/deal-categories.ts`**（2026-11-05）。
+ * 这里只做重导出，保持既有引用面（`server/utils/*`、`deal-events.ts`、
+ * sitemap 等）不变；新增分类**只改 `utils/deal-categories.ts` 一处**，
+ * 不必再同步卡片 / 详情 / 编辑器 / 筛选栏 / 后台 / 导航卡 / sitemap ——
+ * 那种「手抄 8 处」的做法造成过三次实伤（client 漏在导航卡与 sitemap、
+ * domain 在后台显示成「API 额度」、卡片徽标缺 domain），详见真源文件顶部。
+ *
  * **顺序即前端展示顺序**（`domain` 加在 `client` 之前）。
- * 新增分类要同时改这里的 `DEAL_CATEGORIES`、`TokenFilterBar` / `TokenDealEditor` /
- * `TokenDealCard` / `TokenDealDetail` 四处的常量副本（见 CLAUDE.md「通告事件流与订阅」）。
  * 迁移里 `category` 列的默认值恒为 `'token'`，新增分类**不需要**改默认值。
  */
-export const DEAL_CATEGORIES = ['token', 'cloud', 'domain', 'client'] as const
-export const DEAL_CATEGORY_LABELS: Record<string, string> = {
-  token: 'API 额度',
-  cloud: '免费云服务器',
-  domain: '免费域名',
-  client: '客户端额度',
-}
+import { DEAL_CATEGORIES, DEAL_CATEGORY_LABELS } from '../../utils/deal-categories'
+
+// ⚠️ 必须「先 import 再 export」，不能只写 `export { ... } from '...'`：
+// 后者是**纯重导出**，不会在本模块内建立本地绑定，而同文件下方的校验逻辑
+// （`DEAL_CATEGORIES.includes(...)`）要用到它 —— 只写重导出会运行时报
+// 「DEAL_CATEGORIES is not defined」（2026-11-05 就是这么被 e2e 套件抓住的）。
+export { DEAL_CATEGORIES, DEAL_CATEGORY_LABELS }
 
 /** 通告状态 — 发布后进入 pending，管理员审核通过才公开 */
 export const DEAL_STATUS = ['pending', 'approved', 'rejected'] as const

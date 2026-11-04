@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { dealCategoryMeta } from '~/utils/deal-categories'
 import { fallbackProxyIcon } from '~/utils/favicon'
 
 interface TokenDeal {
@@ -182,20 +183,17 @@ const icon = computed(() => fallbackProxyIcon('', props.deal.url) || '')
 const initial = computed(() => (props.deal.provider || '?').trim().charAt(0).toUpperCase())
 const regionLabel = computed(() => REGION_LABELS[props.deal.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[props.deal.source_tag || 'official'] || '官方直营')
-// 分类徽标：API 额度是默认分类，不挂标；其余三类各有一句人话 + 一个配色 class
-const CATEGORY_LABELS: Record<string, string> = {
-  cloud: '免费云服务器',
-  domain: '免费域名',
-  client: '客户端额度',
-}
-const categoryLabel = computed(() => CATEGORY_LABELS[props.deal.category || ''] || '')
+// 分类徽标：默认分类（token）不挂标。**哪些挂标由真源的 `showBadge` 决定**，
+// 不再用「表里恰好没有 token 键」这种隐式写法 —— 那样读代码的人分不清是**故意**
+// 还是**漏了**（domain 就是这样漏过一次：新增分类后卡片不显示徽标）。
+const categoryLabel = computed(() => {
+  const meta = dealCategoryMeta(props.deal.category)
+  return meta.showBadge ? meta.label : ''
+})
 /** 配色只用 tokens.css 既有变量派生（--primary / --accent-purple / --accent-blue），不新增变量 */
 const categoryClass = computed(() => {
-  const c = props.deal.category
-  if (c === 'cloud') return 'category-cloud'
-  if (c === 'domain') return 'category-domain'
-  if (c === 'client') return 'category-client'
-  return ''
+  const meta = dealCategoryMeta(props.deal.category)
+  return meta.showBadge ? `category-${meta.value}` : ''
 })
 
 const qualityClass = computed(() => {

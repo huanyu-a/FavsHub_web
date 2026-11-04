@@ -196,6 +196,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import type { DealCategory } from '~/utils/deal-categories'
 import TokenDealCard from '~/components/tokens/TokenDealCard.vue'
 import TokenFilterBar from '~/components/tokens/TokenFilterBar.vue'
 import TokenDealDetail from '~/components/tokens/TokenDealDetail.vue'
@@ -215,8 +216,9 @@ import TokenEditReviewPanel from '~/components/tokens/TokenEditReviewPanel.vue'
  * 关闭详情弹窗、编辑回填、刷新逻辑与抽取前保持完全一致。
  */
 const props = withDefaults(defineProps<{
-  /** 非空 → 锁死分类：请求固定带 category，筛选条的分类下拉隐藏 */
-  fixedCategory?: '' | 'token' | 'cloud' | 'domain' | 'client'
+  /** 非空 → 锁死分类：请求固定带 category，筛选条的分类下拉隐藏。
+   *  用真源的 `DealCategory` 而不是手写联合类型 —— 手写的那份新增分类时会静默过期。 */
+  fixedCategory?: '' | DealCategory
   /** 空 → 用默认标题「Token 白嫖通告」 */
   title?: string
   /** 空 → 用默认副文案（条数始终另起一行展示，不依赖这里） */

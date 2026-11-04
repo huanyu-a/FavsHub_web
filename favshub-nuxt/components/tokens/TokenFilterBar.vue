@@ -102,13 +102,8 @@ const SOURCE_OPTIONS = [
   { value: 'community', label: '社区转发' },
 ]
 
-// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致（顺序即展示顺序）
-const CATEGORY_OPTIONS = [
-  { value: 'token', label: 'API 额度' },
-  { value: 'cloud', label: '免费云服务器' },
-  { value: 'domain', label: '免费域名' },
-  { value: 'client', label: '客户端额度' },
-]
+// 分类下拉来自真源（顺序即展示顺序）——原先此处与 TokenDealEditor 各抄一份逐字相同的数组
+import { DEAL_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from '~/utils/deal-categories'
 
 const VERIFY_OPTIONS = [
   { value: '', label: '核实：全部记录' },

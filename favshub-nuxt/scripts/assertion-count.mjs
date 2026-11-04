@@ -52,6 +52,9 @@ const PRE_BUILD = [
   { name: 'private-ip-check', script: 'private-ip-check.mjs', args: [] },
   { name: 'sanitize-test', script: 'sanitize-test.mjs', args: ['--experimental-strip-types'] },
   { name: 'ssrf-pin-check', script: 'ssrf-pin-check.mjs', args: [] },
+  // 通告分类单一真源守卫（2026-11-05）：自包含，但要 import utils/deal-categories.ts，
+  // 故同样需要 --experimental-strip-types（Node ≥22.6，与 sanitize-test 同）。
+  { name: 'category-source-check', script: 'category-source-check.mjs', args: ['--experimental-strip-types'] },
 ]
 // build 后需要 .output 的套件
 const POST_BUILD = [

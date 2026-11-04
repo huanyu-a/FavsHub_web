@@ -103,7 +103,7 @@ jobs:
       #
       # 只挑自包含的：end-to-end 套件（third-batch-*、second-batch-e2e、ai-api-smoke-*）
       # 要起本地服务 + 真实 SQLite，CI 里没有该环境，故不纳入。
-      # 计入断言数：102 + 17 + 12 = 131 项。
+      # 计入断言数：102 + 17 + 12 + 36 = 167 项。
       - name: Type check (named imports)
         working-directory: favshub-nuxt
         run: pnpm ts:check
@@ -121,6 +121,13 @@ jobs:
       - name: Test — SSRF 出站地址钉死（TOCTOU）
         working-directory: favshub-nuxt
         run: node scripts/ssrf-pin-check.mjs
+
+      # 通告分类单一真源守卫：断言除 utils/deal-categories.ts 外没有任何文件再手抄
+      # 一份分类清单（分类枚举曾散在 8 处，client/domain 各漏过一次）。
+      # 同样需要 --experimental-strip-types —— 它 import 了 utils/deal-categories.ts。
+      - name: Test — 通告分类单一真源
+        working-directory: favshub-nuxt
+        run: node --experimental-strip-types scripts/category-source-check.mjs
 
       - name: Build Nuxt
         working-directory: favshub-nuxt
@@ -140,8 +147,8 @@ jobs:
       #
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
-      # 加上 build 前的 ts:check(895 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12，
-      # CI 断言总计 1078。
+      # 加上 build 前的 ts:check(933 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 36，
+      # CI 断言总计 1114。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs

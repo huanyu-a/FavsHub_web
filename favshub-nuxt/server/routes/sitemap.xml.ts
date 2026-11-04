@@ -28,6 +28,7 @@
  *   与站内链接被发现；若将来条目量级超过上限，再按协议拆 sitemap 索引（sitemapindex）。
  */
 import { getRawDb } from '../database'
+import { DEAL_CATEGORY_ROUTES } from '../../utils/deal-categories'
 import { publicVisibleClause } from '../utils/token-deals'
 
 /** sitemap 单次输出的详情条数上限（见文件头「性能取舍」） */
@@ -159,33 +160,19 @@ export default defineEventHandler((event) => {
     // 白嫖分类落地页与精选对比（2026-11-04）：
     // 各自有独立导语 + 分类 FAQ，是「免费 API / 服务器 / 域名」等长尾词的落点，
     // 优先级高于详情页（0.7），与 /tokens 同级。
-    {
-      loc: `${baseUrl}/tokens/api`,
+    // 白嫖分类落地页与精选对比（2026-11-04；2026-11-05 改为派生）：
+    // 各自有独立导语 + 分类 FAQ，是「免费 API / 服务器 / 域名」等长尾词的落点，
+    // 优先级高于详情页（0.7），与 /tokens 同级。
+    //
+    // ⚠️ 这里原先手抄了 4 条分类路由，`client` 就漏过一次 —— 服务端 DEAL_CATEGORIES
+    // 早有该分类，但首页分类卡、详情页底部导航、本 sitemap 三处都漏，导致 4 条客户端
+    // 额度通告没有可被搜索引擎收录的入口页。现在从真源派生，新增分类自动进 sitemap。
+    ...DEAL_CATEGORY_ROUTES.map(route => ({
+      loc: `${baseUrl}${route}`,
       lastmod: now,
       changefreq: 'daily',
       priority: 0.9,
-    },
-    {
-      loc: `${baseUrl}/tokens/server`,
-      lastmod: now,
-      changefreq: 'daily',
-      priority: 0.9,
-    },
-    {
-      loc: `${baseUrl}/tokens/domain`,
-      lastmod: now,
-      changefreq: 'daily',
-      priority: 0.9,
-    },
-    // 2026-11-04 补：客户端额度落地页此前缺失 ——
-    // 服务端 DEAL_CATEGORIES 早有 client 类，但首页分类卡、详情页底部导航、
-    // 本 sitemap 三处都漏了，4 条 client 通告因此没有可被收录的入口页。
-    {
-      loc: `${baseUrl}/tokens/client`,
-      lastmod: now,
-      changefreq: 'daily',
-      priority: 0.9,
-    },
+    })),
     {
       loc: `${baseUrl}/tokens/compare`,
       lastmod: now,

@@ -479,6 +479,7 @@
 
 <script setup lang="ts">
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
+import { dealCategoryMeta } from '~/utils/deal-categories'
 
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '白嫖通告管理' })
@@ -928,14 +929,11 @@ function sourceLabel(s?: string) {
 }
 
 function categoryLabel(cat?: string) {
-  // 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 对齐。
-  // 原先只认 cloud / client，其余一律回落「API 额度」——
-  // 于是 domain（免费域名）在后台会被显示成「API 额度」，
-  // 审核的人根本分不清这条是域名还是模型额度。
-  if (cat === 'cloud') return '云服务器'
-  if (cat === 'client') return '客户端额度'
-  if (cat === 'domain') return '免费域名'
-  return 'API 额度'
+  // 分类短标签来自真源（后台徽标窄，用 shortLabel）。
+  // 这里原先是一串 if：只认 cloud / client，其余一律回落「API 额度」——
+  // 于是 domain（免费域名）在后台被显示成「API 额度」，
+  // 审核的人根本分不清这条是域名还是模型额度。新增分类不必再改这里。
+  return dealCategoryMeta(cat).shortLabel
 }
 
 function formatTime(ts?: number) {

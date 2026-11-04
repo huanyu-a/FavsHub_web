@@ -56,6 +56,7 @@
 
 <script setup lang="ts">
 import TokenDealsBoard from '~/components/tokens/TokenDealsBoard.vue'
+import { DEAL_CATEGORY_CARDS } from '~/utils/deal-categories'
 import TokenCompareTable, { type IFeaturedDeal } from '~/components/tokens/TokenCompareTable.vue'
 import BackToTop from '~/components/BackToTop.vue'
 import SiteFooter from '~/components/common/SiteFooter.vue'
@@ -98,41 +99,15 @@ useHead({
   ],
 })
 
-/** 分类导航卡（顺序与 DEAL_CATEGORIES 一致；client 分类是细分入口，不单独做落地页） */
-const CATEGORY_CARDS = [
-  {
-    category: 'token',
-    to: '/tokens/api',
-    name: '免费 API / 模型',
-    icon: 'ri-robot-2-line',
-    desc: '各家大模型与推理服务的免费额度、试用金、每日签到送 Token。',
-  },
-  {
-    category: 'cloud',
-    to: '/tokens/server',
-    name: '免费服务器 / VPS',
-    icon: 'ri-server-line',
-    desc: '免费云主机、PaaS 与 Serverless 免费档，能真正跑起一个小站或 Bot。',
-  },
-  {
-    category: 'domain',
-    to: '/tokens/domain',
-    name: '免费域名',
-    icon: 'ri-global-line',
-    desc: '免费二级域名、公益顶级域与 DDNS，给自建服务一个稳定入口。',
-  },
-  // 2026-11-04 补：`client`（客户端额度）原先漏在这一处 ——
-  // 服务端 DEAL_CATEGORIES 有 4 类、筛选栏/编辑器/卡片/详情页的常量副本都有 client，
-  // 唯独首页分类导航卡只列了 3 类，导致 4 条客户端额度通告（LightVela、讯飞 Loomy、
-  // 码道CodeArts、AutoClaw）在首页没有任何入口，用户只能在「全部」里翻到。
-  {
-    category: 'client',
-    to: '/tokens/client',
-    name: '客户端额度',
-    icon: 'ri-apps-2-line',
-    desc: '桌面 / 移动端 AI 客户端自带的免费额度：注册积分、每日签到、拉新奖励。',
-  },
-] as const
+/**
+ * 分类导航卡 —— 直接取真源，不再手抄一份。
+ *
+ * 这里原先手列 4 张卡，而 `client` 就漏过一次：服务端 `DEAL_CATEGORIES` 早有 4 类，
+ * 筛选栏/编辑器/卡片/详情页的副本也都有 client，**唯独首页导航卡只列了 3 类** ——
+ * 于是 4 条客户端额度通告在首页没有任何入口，用户只能在「全部」里翻到。
+ * 现在顺序、路由、图标、文案全部派生自 `~/utils/deal-categories`。
+ */
+const CATEGORY_CARDS = DEAL_CATEGORY_CARDS
 
 /**
  * 各分类条数。

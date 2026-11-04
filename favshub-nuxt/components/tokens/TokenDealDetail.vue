@@ -886,6 +886,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { copyText } from '~/utils/clipboard'
+import { dealCategoryMeta } from '~/utils/deal-categories'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
@@ -1209,17 +1210,10 @@ const isCloud = computed(() => deal.value?.category === 'cloud')
  * 三种取值都要有徽标（默认的 token 也要）—— 否则正文那条「分类」被移走后，
  * 大多数通告的分类信息就整个消失了。配色全部走站点既有变量（tokens.css）。
  */
-const CATEGORY_META: Record<string, { label: string; tone: string }> = {
-  token: { label: 'API 额度', tone: 'blue' },
-  cloud: { label: '免费云服务器', tone: 'purple' },
-  client: { label: '客户端额度', tone: 'primary' },
-  // 2026-11-04：W1 把 domain 加入 DEAL_CATEGORIES（免费域名），徽标同步补一档。
-  // teal 取自站点既有变量（primary 与 accent-blue 混合），不引入新色板。
-  domain: { label: '免费域名', tone: 'teal' },
-}
-const categoryMeta = computed(
-  () => CATEGORY_META[String(deal.value?.category || 'token')] || CATEGORY_META.token!,
-)
+// 分类徽标（标签 + 色调）直接取真源，不再手抄一份：
+// 原先这里是一份独立副本，domain 加进来时就得手动补一档（注释还在），
+// 而每多一个副本就多一次漏改的机会。色调取自站点既有变量，不引入新色板。
+const categoryMeta = computed(() => dealCategoryMeta(deal.value?.category))
 
 const qualityClass = computed(() => {
   const map: Record<string, string> = {

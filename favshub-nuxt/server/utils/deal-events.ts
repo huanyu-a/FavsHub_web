@@ -210,10 +210,11 @@ export function eventReasonLabel(kind: string, reason: string): string {
  */
 function snapshotFacts(snap: DealEventSnapshot): string[] {
   const facts: string[] = []
-  // 云服务器 / 客户端额度的「看点」与 API 额度不同：先说分类，读者才知道拿什么标准衡量
-  if (snap.category === 'cloud') facts.push('分类 免费云服务器')
-  else if (snap.category === 'domain') facts.push('分类 免费域名')
-  else if (snap.category === 'client') facts.push('分类 客户端额度')
+  // 云服务器 / 免费域名 / 客户端额度的「看点」与 API 额度不同：先说分类，读者才知道拿什么标准衡量。
+  // 标签取自真源 —— 这里原先手写 if 链，而**同一文件第 28 行就导入了 DEAL_CATEGORY_LABELS**、
+  // 第 357 行也在用它，两套口径并存，新增分类必然漏一处。`token` 是默认分类，不占位。
+  const catLabel = DEAL_CATEGORY_LABELS[String(snap.category ?? '')]
+  if (catLabel && snap.category !== 'token') facts.push(`分类 ${catLabel}`)
   // 一句话摘要（2026-11-04）：比额度更能回答「这条跟我有没有关系」，故排在额度之前。
   // 存量通告与历史事件都没有这个字段，`?` 可选 + 真值判断双重兜底。
   if (snap.summary) facts.push(clip(snap.summary, 60))

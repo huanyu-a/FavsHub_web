@@ -251,6 +251,10 @@ async function loadInviteCodesModule() {
   const src = readFileSync(join(ROOT, 'server', 'utils', 'invite-codes.ts'), 'utf8')
   const code = src.replace("from './jwt'", "from './jwt.ts'")
   if (!code.includes("from './jwt.ts'")) throw new Error('导入改写失败：invite-codes.ts 的 ./jwt 导入可能已变动')
+  // 临时目录是扁平的，任何 `../` 导入都会指到文件系统根，报成
+  // 「file:///xxx 找不到」这种看不出根因的错。改动被测源码时在此拦住。
+  const escaping = [...code.matchAll(/from\s+'(\.[^']*)'/g)].map(m => m[1]).filter(s => s.startsWith('../'))
+  if (escaping.length) throw new Error(`invite-codes.ts 有导入逃出临时目录：${escaping.join(', ')}；请把它复制进临时目录并加入改写表`)
   writeFileSync(join(dir, 'invite-codes.ts'), code)
   return await import(pathToFileURL(join(dir, 'invite-codes.ts')).href)
 }
@@ -775,6 +779,20 @@ async function guestModuleSuite(dbPath) {
       if (!code.includes(from)) throw new Error(`导入改写失败（源码可能已变动）：${from}`)
       code = code.replaceAll(from, to)
     }
+    // 兜底：改写表只覆盖**预期内**的导入，新增一个向上跳目录的导入不在表里，
+    // 就会被静默漏过 —— 然后在 `import()` 时报「file:///utils/... 找不到」这种
+    // 完全看不出根因的错。2026-11-05 真被这个坑过一次（token-deals.ts 新增
+    // `../../utils/deal-categories`），故在此显式拦住并给出可操作的提示。
+    const escaping = [...code.matchAll(/from\s+'(\.[^']*)'/g)]
+      .map(m => m[1])
+      .filter(spec => spec.startsWith('../'))
+    if (escaping.length) {
+      throw new Error(
+        `改写后有导入逃出临时目录：${escaping.join(', ')}\n`
+        + '    临时目录是扁平的，`../` 会指到文件系统根。请把它加入改写表，'
+        + '或把目标文件一并复制进临时目录。',
+      )
+    }
     return code
   }
 
@@ -785,8 +803,13 @@ async function guestModuleSuite(dbPath) {
       ["from './config'", "from './stub-config.ts'"],
       ["from '../database'", "from './stub-database.ts'"],
       ["from './qq-notify'", "from './stub-qq-notify.ts'"],
+      // 「通告分类」真源（2026-11-05 收敛后 token-deals.ts 从这里取分类枚举）。
+      // 原样复制而非桩化：被测的正是 `DEAL_CATEGORIES.includes(...)` 这条校验，
+      // 桩掉它等于把断言变成自证。
+      ["from '../../utils/deal-categories'", "from './deal-categories.ts'"],
     ],
   ))
+  write('deal-categories.ts', readFileSync(join(ROOT, 'utils', 'deal-categories.ts'), 'utf8'))
   write('guest-deals.ts', rewrite(
     readFileSync(join(ROOT, 'server', 'utils', 'guest-deals.ts'), 'utf8'),
     [

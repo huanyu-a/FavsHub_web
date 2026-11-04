@@ -29,6 +29,10 @@ try {
   // 打包器（Nitro/Vite）允许省略扩展名，Node 的 ESM 解析器不允许；实现本身一字未动。
   const code = readFileSync(SRC, 'utf8').replace("from './config'", "from './config.ts'")
   if (!code.includes("from './config.ts'")) throw new Error('导入改写失败，源码可能已变动')
+  // 临时目录是扁平的：任何 `../` 导入都会指到文件系统根，报成
+  // 「file:///xxx 找不到」这种看不出根因的错（2026-11-05 被这个坑过）。
+  const escaping = [...code.matchAll(/from\s+'(\.[^']*)'/g)].map(m => m[1]).filter(s => s.startsWith('../'))
+  if (escaping.length) throw new Error(`favicon-download.ts 有导入逃出临时目录：${escaping.join(', ')}；请复制目标文件并加入改写表`)
   writeFileSync(join(dir, 'favicon-download.ts'), code)
   const mod = await import(pathToFileURL(join(dir, 'favicon-download.ts')).href)
   isPrivateIP = mod.isPrivateIP

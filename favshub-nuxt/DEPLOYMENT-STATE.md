@@ -16,7 +16,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:7ea729a42e72661dac1b0c1be2673f58b18ed85d30e79cf2b11103f321e29a88` |
 | **CI run** | `41876107389`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1078**（10 个套件）· `ts:check` 927 个具名导入 |
+| **断言总数** | **1114**（11 个套件）· `ts:check` 933 个具名导入 |
 | **线上数据分布** | `published 72 / pending 12 / rejected 11 / invalid 10 / deleted 5`（合计 110） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.79`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.78-20261105012129` + `data/backups/favshub.db.pre-1.0.79-20261105012129` |
@@ -112,7 +112,7 @@
    至此除 `/tokens` 列表页外，站点各页都有 main 地标；`/tokens` 因文件被另一团队占用**未触碰**。
 2. **门改结构判定，避免假红**：⑨ 段第 5 条原先是精确字面量比对，签名/换行微调就会把好代码判红；
    改成正则 `X-RateLimit-Reason',\s*asciiHeader\(`。实测双向：control 仍 252/0，reverted 仍 249/3。
-   断言总数 964 → 1078（新增 `state-machine` 套件 107 项；2026-11-05 又为密钥形态串脱敏加 7 项）。
+   断言总数 964 → 1114（新增 `state-machine` 套件 107 项；2026-11-05 为密钥形态串脱敏加 7 项，又新增 `category-source-check` 单一真源守卫 36 项）。
 
 ### ⚠ 那轮「独立验证」中断了（如实记录）
 
@@ -512,15 +512,16 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1078 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1114 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
-| `ts:check`（具名导入） | 927 | |
+| `ts:check`（具名导入） | 933 | |
 | `private-ip-check` | 102 | **是** |
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
 | `ssrf-pin-check` | 12 | |
+| `category-source-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `second-batch-e2e` | 150 | |
 | `third-batch-detail` | 252 | |
@@ -528,7 +529,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1078** | |
+| **合计（断言）** | **1114** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

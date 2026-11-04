@@ -29,6 +29,7 @@ import { parseAdminUsers } from './auth'
 // 即便镜像没装 tzdata 也生效），但本地起服务、去掉 TZ 或换部署方式时，
 // 「11-01 00:30 +08:00」就会被算成 10-31。这里收口成不依赖环境变量的算法。
 import { formatEventDay } from './deal-events'
+import { DEAL_CATEGORY_LABELS } from './token-deals'
 import { sendOfficialMessage, isOfficialConfigured } from './qq-official'
 
 /** 出站队列条目 */
@@ -515,11 +516,14 @@ function dealLink(deal: any): string {
 /** 通告字段清单（Markdown 列表用，每项一条） */
 function dealFactList(deal: any): string[] {
   const out: string[] = []
-  // 云服务器 / 客户端额度的「额度 / 模型」两行没有意义，用分类代替位置
+  // 云服务器 / 免费域名 / 客户端额度的「额度 / 模型」两行没有意义，用分类代替位置
   // （措辞与事件流、后台表单、详情页 fact-label 统一为「分类」）
-  const category = String(deal?.category ?? 'token')
-  if (category === 'cloud') out.push('分类 免费云服务器')
-  else if (category === 'client') out.push('分类 客户端额度')
+  //
+  // 标签取自真源。这里原先手写 if 链且**只认 cloud / client，漏了 domain** ——
+  // 免费域名通告的 QQ 推送里因此完全不显示分类（与首页导航卡漏 client、
+  // sitemap 漏 client 属同一类事故：多一处手抄副本，就多一次漏改机会）。
+  const catLabel = DEAL_CATEGORY_LABELS[String(deal?.category ?? '')]
+  if (catLabel && deal?.category !== 'token') out.push(`分类 ${catLabel}`)
   const provider = clipText(deal?.provider, 24)
   if (provider) out.push(`服务商 ${provider}`)
   const quota = clipText(deal?.quota, 40)
