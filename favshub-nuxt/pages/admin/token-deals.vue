@@ -311,14 +311,38 @@
             <td>{{ formatTime(d.created_at) }}</td>
             <td class="actions">
               <template v-if="d.status === 'pending'">
+                <!-- 2026-11-04：待审行原先只有「通过 / 驳回」，管理员看不到内容就得盲批。
+                     详情打开站内详情页（新窗口，能看到用户最终看到的样子）；
+                     编辑复用 openEdit（同一套 TokenDealEditor），改完仍留在 pending。 -->
+                <a
+                  class="btn btn-ghost btn-sm"
+                  :href="`/tokens/${encodeURIComponent(d.id)}.html`"
+                  target="_blank"
+                  rel="noopener"
+                  title="在新窗口打开详情页（站内视角）"
+                >详情</a>
+                <button class="btn btn-ghost btn-sm" title="编辑后再决定通过 / 驳回" @click="openEdit(d)">编辑</button>
                 <button class="btn btn-primary btn-sm" @click="review(d, 'approve')">通过</button>
                 <button class="btn btn-danger btn-sm" @click="openReject(d)">驳回</button>
               </template>
               <template v-else-if="d.status === 'rejected'">
+                <a
+                  class="btn btn-ghost btn-sm"
+                  :href="`/tokens/${encodeURIComponent(d.id)}.html`"
+                  target="_blank"
+                  rel="noopener"
+                >详情</a>
                 <button class="btn btn-primary btn-sm" @click="review(d, 'approve')">通过</button>
                 <button class="btn btn-ghost btn-sm" title="查看驳回原因" @click="showRejectReason(d)">原因</button>
               </template>
               <template v-else>
+                <a
+                  class="btn btn-ghost btn-sm"
+                  :href="`/tokens/${encodeURIComponent(d.id)}.html`"
+                  target="_blank"
+                  rel="noopener"
+                  title="在新窗口打开详情页"
+                >详情</a>
                 <button class="btn btn-ghost btn-sm" @click="togglePin(d)">
                   {{ d.pinned ? '取消置顶' : '置顶' }}
                 </button>

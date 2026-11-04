@@ -193,7 +193,10 @@ for (const row of rows) {
     if (m) {
       const d = m[0].replace(/年|月/g, (c) => (c === '年' ? '-' : ''))
       const t = Date.parse(d)
-      if (!Number.isNaN(t)) next.expires_at = Math.floor(t / 1000)
+      // 单位是**毫秒**，与表内既有数据一致（实测 13 位，如 1796054399000 = 2026-11-30）。
+      // 早先这里写了 Math.floor(t / 1000) 存秒，结果 UI 按毫秒解释成 1970-01-22，
+      // CF Pro / CodeHost 因此被判「已过期」而退出审核队列 —— 这个 bug 已在生产库修正。
+      if (!Number.isNaN(t)) next.expires_at = t
     }
   }
   if (Object.keys(next).length) updates.push({ row, next })
