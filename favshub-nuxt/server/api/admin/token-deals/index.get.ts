@@ -142,8 +142,10 @@ export default defineEventHandler(async (event) => {
     WHERE ${C.live} GROUP BY state
   `).all() as { status: string; count: number }[]
 
+  // 2026-11-04：键名改用 state（pending/verified/published/...），
+  // 不再有 'approved' —— 那个概念已拆成 verified（已审核）与 published（已发布）。
   const counts: Record<string, number> = {
-    pending: 0, approved: 0, rejected: 0, all: 0,
+    pending: 0, verified: 0, published: 0, rejected: 0, all: 0,
     expired: 0, invalid: 0, deleted: 0, invalid_total: 0, stale: 0,
   }
   for (const row of countRows) {

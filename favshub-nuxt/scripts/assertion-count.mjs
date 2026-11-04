@@ -61,6 +61,8 @@ const POST_BUILD = [
   { name: 'third-batch-ratelimit', script: 'third-batch-ratelimit.mjs' },
   { name: 'cache-privacy-check', script: 'cache-privacy-check.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
+  // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
+  { name: 'state-machine', script: 'state-machine.mjs' },
 ]
 
 /**

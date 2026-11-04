@@ -11,9 +11,16 @@
         <div class="value orange">{{ counts.pending }}</div>
         <div class="label">待审核</div>
       </div>
+      <!-- 2026-11-04：状态合并后，「已通过」拆成两档。
+           「已审核」= 审过了但还没发布（前端不展示）；「已发布」才是对外可见的。
+           分开显示是为了知道「还有多少审过的等我发布」——导入渠道替换链接时就靠这个数。 -->
       <div class="stat-card">
-        <div class="value green">{{ counts.approved }}</div>
-        <div class="label">已通过</div>
+        <div class="value orange">{{ counts.verified }}</div>
+        <div class="label">已审核（待发布）</div>
+      </div>
+      <div class="stat-card">
+        <div class="value green">{{ counts.published }}</div>
+        <div class="label">已发布</div>
       </div>
       <div class="stat-card">
         <div class="value">{{ counts.rejected }}</div>

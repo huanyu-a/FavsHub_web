@@ -49,7 +49,8 @@
           <div class="stat-group-items">
             <div class="stat-group-item"><span class="sgi-label">总数</span><span class="sgi-value blue">{{ stats.tokenDeals?.total || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">待审</span><span class="sgi-value orange">{{ stats.tokenDeals?.pending || 0 }}</span></div>
-            <div class="stat-group-item"><span class="sgi-label">已发布</span><span class="sgi-value green">{{ stats.tokenDeals?.approved || 0 }}</span></div>
+            <div class="stat-group-item"><span class="sgi-label">已审核</span><span class="sgi-value orange">{{ stats.tokenDeals?.verified || 0 }}</span></div>
+            <div class="stat-group-item"><span class="sgi-label">已发布</span><span class="sgi-value green">{{ stats.tokenDeals?.published || 0 }}</span></div>
             <div class="stat-group-item"><span class="sgi-label">驳回</span><span class="sgi-value">{{ stats.tokenDeals?.rejected || 0 }}</span></div>
             <div class="stat-group-item">
               <span class="sgi-label">已失效</span>

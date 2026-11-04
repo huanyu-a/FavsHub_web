@@ -132,6 +132,8 @@ export default defineEventHandler(async (event) => {
   return {
     success: true,
     deal_id: id,
+    // 2026-11-04：state 是真相源，status 保留为兼容字段（老调用方仍读它）
+    state,
     status,
     message: isAdmin ? '已发布' : '已提交，等待管理员审核',
   }

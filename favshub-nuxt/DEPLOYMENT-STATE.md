@@ -31,7 +31,7 @@
    至此除 `/tokens` 列表页外，站点各页都有 main 地标；`/tokens` 因文件被另一团队占用**未触碰**。
 2. **门改结构判定，避免假红**：⑨ 段第 5 条原先是精确字面量比对，签名/换行微调就会把好代码判红；
    改成正则 `X-RateLimit-Reason',\s*asciiHeader\(`。实测双向：control 仍 252/0，reverted 仍 249/3。
-   断言总数不变（964）。
+   断言总数 964 → 1062（新增 `state-machine` 套件 98 项）。
 
 ### ⚠ 那轮「独立验证」中断了（如实记录）
 
@@ -428,24 +428,26 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 先跑 **9 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
-`ssrf-pin-check`；6 个跑产物：`second-batch-e2e` / `third-batch-detail` /
+推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
+`ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server`，共 **964 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
+`third-batch-server` / `state-machine`，共 **1062 项断言**），另加 `ts:check`
+与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
-| `ts:check`（具名导入） | 895 | |
+| `ts:check`（具名导入） | 925 | |
 | `private-ip-check` | 102 | **是** |
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
 | `ssrf-pin-check` | 12 | |
-| `cache-privacy-check` | 20 | |
+| `cache-privacy-check` | 8 | |
 | `second-batch-e2e` | 150 | |
 | `third-batch-detail` | 252 | |
 | `third-batch-notify` | 161 | |
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
-| **合计（断言）** | **964** | |
+| `state-machine` | 98 | |
+| **合计（断言）** | **1062** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

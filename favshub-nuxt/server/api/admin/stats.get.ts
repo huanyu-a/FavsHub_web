@@ -109,11 +109,17 @@ export default defineEventHandler(async (event) => {
     result.dbSize = dbSize > 1024 * 1024
       ? (dbSize / 1024 / 1024).toFixed(2) + ' MB'
       : (dbSize / 1024).toFixed(1) + ' KB'
-    // 白嫖通告按状态聚合
+    // 白嫖通告按状态聚合（2026-11-04 起按 state）
     result.tokenDeals = {
       total: sysStats.tokenDealsTotal,
       pending: sysStats.tokenDealsPending,
-      approved: sysStats.tokenDealsApproved,
+      /** 已审核：审过了但还没发布（新增档位，前端不展示） */
+      verified: sysStats.tokenDealsVerified,
+      /** 已发布：唯一对外可见的档位 */
+      published: sysStats.tokenDealsPublished,
+      /** @deprecated 兼容旧读法，等于 published */
+      approved: sysStats.tokenDealsPublished,
+      offline: sysStats.tokenDealsOffline,
       rejected: sysStats.tokenDealsRejected,
       invalid: sysStats.tokenDealsInvalid,
       expired: sysStats.tokenDealsExpired,
