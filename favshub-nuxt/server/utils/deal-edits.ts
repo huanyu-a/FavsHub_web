@@ -397,17 +397,26 @@ export function reviewDealEdit(
   const nextStatus = deal.status === 'rejected' ? 'pending' : deal.status
 
   db.transaction(() => {
+    // ⚠️ 列清单与 `api/token-deals/[id].put.ts` / `ai-service.ts` **四处共用**（含此处）。
+    // 2026-11-04 修：这里原先漏了 `category` 与本批新增的结构化字段 ——
+    // 而 `validateDealPatch` / `diffDealPatch` 都以 `DEAL_PATCHABLE` 为准，
+    // 于是「提案里改了 summary / limits / requirements / verify_scope / faq（或 category）
+    // → 校验通过 → 审核通过 → changes 里报告了 → 主表却没写」，
+    // 属对调用方撒谎（与 2026-10-30 AI 通道 `category` 那次是同一类缺陷）。
+    // `source_url` / `featured` **刻意不在** `DEAL_PATCHABLE`，故此路径天然不碰它们。
     db.prepare(`
       UPDATE token_deals SET
         provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
-        region = ?, quality = ?, source_tag = ?, expires_at = ?, note = ?,
+        region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
         real_name = ?, real_name_other = ?,
+        summary = ?, limits = ?, requirements = ?, verify_scope = ?, faq = ?,
         status = ?, reject_reason = ?, updated_at = ?
       WHERE id = ?
     `).run(
       d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
-      d.region, d.quality, d.sourceTag, d.expiresAt, d.note,
+      d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
       d.realName, d.realNameOther,
+      d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
       nextStatus, nextStatus === 'pending' ? '' : deal.reject_reason, now, deal.id,
     )
     db.prepare(

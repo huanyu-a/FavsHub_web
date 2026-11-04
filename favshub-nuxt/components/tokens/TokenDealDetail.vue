@@ -1,3 +1,40 @@
+<!--
+  TokenDealDetail.vue — 通告详情（列表页弹层 variant="modal" / 伪静态落地页 variant="page"）
+
+  ══ 2026-11-04 信息架构改版（W2 / task-3）══
+  本次只做「插入新块 + 调整顺序 + 视觉打磨」，既有区块（接入信息 / 邀请码 / 支持模型 /
+  备注 / 我的修改建议 / 待我审核 / 社区健康度 / 游客评测 / 登录评测 / 评测列表 / footer）
+  的行为与事件（@close / @edit / @changed、props deal-id / variant / initial / initialReviews）
+  全部保持不变。
+
+  ── 依赖的服务端契约（W1 / task-1）与未就绪时的退化路径 ──
+  1) 详情 GET /api/token-deals/:id 新增下发：
+     summary / limits / limits_html / requirements / requirements_html / verify_scope /
+     faq([{q,a}]) / featured。
+     → 本组件对以上字段**一律 v-if 兜底**：字段缺失（旧数据或接口未落地）时对应区块不渲染，
+       不出现空白框。其中 `faq` 实测已由 W1 的 `parseFaq` 解析成数组
+       （`[{q,a}]`）；本组件仍保留「JSON 字符串」形态的兼容分支 —— 原因是
+       `server/api/token-deals/[id].get.ts` 用 `...row` 展开原始列，
+       任何一处漏调 `parseFaq` 都会让 `faq` 退化成字符串，兼容分支保证那种时候
+       FAQ 照样渲染（而不是静默消失）。
+  2) 列表 GET /api/token-deals 的新参数 `exclude=<dealId>`（相关推荐排除当前条目）。
+     ✅ **该参数已落地**（W1 已合并 `index.get.ts` 的 exclude 分支，实测
+        `?exclude=<id>` 返回结果里不含该 id）→ `loadRelated()` 直接依赖它。
+        同时仍保留**客户端二次过滤**（`.filter(item => item.id !== <本条目 id>)`）作为纵深防御：
+        服务端若因回滚/降级忽略该参数，也不会把当前条目推给自己（代价只是少一格推荐位）。
+  3) 收藏依赖 W3 的 `~/composables/useDealFavorites`（已落盘；签名
+     `useDealFavorites(): { favorites, isFavorite(id), toggleFavorite(id) }`）。
+
+  ── 两条**数据事实**（别当成 bug）──
+  a) `requirements` 可能为空是**正常状态**。对标站导入的 138 条渠道里只有 15 条能切出
+     独立的「领取条件」，其余 123 条的条件与使用限制本来就写在同一句里（对方站点自己也是
+     合并的：详情页标题叫「限制」，对比表列名是「领取与使用限制」）。因此信息面板对
+     「条件类」格子用三态规则（两格 / 一格跨行「限制与领取条件」/ 实名兜底），
+     详见 `specCells` 的注释 —— 目的是「不许出现空白格，也不许两格显示同一段文本」。
+  b) `verify_scope` 大多数条目为空（138 条里约 134 条），所以「核实情况」区块
+     **大部分条目不会渲染** —— 这是预期行为。该区块只在真有核实信息时出现，
+     不会留下「只有标题」的半截空壳（见 `verifyBlock`）。
+-->
 <template>
   <Teleport to="body" :disabled="isPage">
     <div class="tdd-backdrop" :class="{ 'is-page': isPage }" @click.self="onBackdrop">
@@ -106,16 +143,76 @@
 
             <h3 class="tdd-title">{{ deal.title }}</h3>
 
-            <!-- 关键信息：2026-10-30 精简 —— 分类移到 header；有效期与 header 重复；
-                 发布者、最近核验不再以文字形式展示（核验状态改为水印徽标）。
-                 是否实名（2026-10-30 三轮）：用户要求放到本区块右端，改为小号彩色徽标，
-                 不再是底部的大水印。`real_name === ''` 时不渲染（存量空串）。 -->
-            <div class="tdd-facts">
-              <div class="tdd-fact">
-                <span class="fact-label">免费额度</span>
-                <span class="fact-value">{{ deal.quota || '未说明' }}</span>
+            <!-- 一句话摘要（2026-11-04 改版）：W1 新增列 summary，旧数据无此列 → 整段不渲染。
+                 纯文本插值（{{ }} 由 Vue 转义），运营侧只许写一句话，不含富文本。 -->
+            <p v-if="summaryText" class="tdd-summary">{{ summaryText }}</p>
+
+            <!-- ── 结构化信息面板（2026-11-04 改版，核心区块）──
+                 对齐对标站「额度 / 限制 / 有效期」的信息密度：读者第一眼就能判断
+                 「给多少、要不要满足条件、有什么坑、什么时候结束」。
+                 设计要点：
+                  1. 格子由 `specCells` 计算（见 script）：**空值格子不入列**，
+                     所以旧数据（无 requirements / limits 列）不会留空框；
+                     全空时连整块都不渲染（`v-if="specCells.length"`）。
+                  2.「领取条件 / 限制」是**三态**的（lead 2026-11-04 决策）：
+                     两字段都有且不同 → 两格；否则合并成**一格跨满整行**「限制与领取条件」；
+                     都空但有实名标签 → 一格「领取条件」。
+                     数据事实：导入的 138 条渠道里只有 15 条能切出独立「领取条件」，
+                     `requirements` 为空是**正常状态**（来源本身把条件与限制写在一句里），
+                     不是数据缺失；合并态让这一格 100% 有内容，且不会两格显示同一段文本。
+                  3. `.tdd-facts` 这个类名**刻意保留**（外层网格容器）：它是既有的
+                     「关键信息」区块，样式与「水印半透明（方案 A）」规则都挂在它上面；
+                     `.tdd-spec` 只做「统一形态」的补充命名，不另起一套色板。
+                  4. 领取条件 / 限制 是**普通用户可写**字段 → 富文本只吃服务端消毒后的
+                     `requirements_html` / `limits_html`（与 note_html 同一路 renderRichText）。
+                     前端绝不自己 marked 解析原文；无 HTML 时只做**纯文本转义渲染**兜底。
+                  5. 是否实名徽标已移至 header（2026-10-30 九轮），不再占本区块位置。 -->
+            <div v-if="specCells.length" class="tdd-facts tdd-spec">
+              <div
+                v-for="cell in specCells"
+                :key="cell.key"
+                class="tdd-fact"
+                :class="[`is-${cell.key}`, { 'is-wide': cell.wide }]"
+              >
+                <span class="fact-label">
+                  <i :class="cell.icon" aria-hidden="true"></i>{{ cell.label }}
+                </span>
+                <!-- 服务端已消毒的 HTML：用 :deep() 命中（scoped 样式管不到 v-html 节点） -->
+                <div v-if="cell.html" class="fact-value tdd-rich" v-html="cell.html"></div>
+                <span v-else class="fact-value">{{ cell.text }}</span>
               </div>
             </div>
+
+            <!-- ── 核实范围 + 核验时点（2026-11-04 改版）──
+                 情报站与「纯聚合站」的区别就在这段诚实披露：说清这次核实**看了什么、
+                 没验证什么**，读者才不会把「官网页面上确实这么写」误读成「我实测能领到」。
+                 - `verify_scope`（W1 新增，≤500）：核实范围文案；
+                 - `verified_at` / `verify_note` / `verify_stale`：既有字段，迁到这里集中展示；
+                 - `verified_by` **任何身份都不读**（服务端已下发空串，见 CLAUDE.md「核验人永不出现在前端」）。
+                 四类信息全缺时整块不渲染（旧数据不留空框）。 -->
+            <section v-if="verifyBlock" class="tdd-section tdd-verify">
+              <h4 class="section-title"><i class="ri-shield-check-line"></i> 核实情况</h4>
+              <div class="verify-head">
+                <span class="verify-state" :class="verifyBlock.stale ? 'is-pending' : 'is-ok'">
+                  <i :class="verifyBlock.stale ? 'ri-time-line' : 'ri-checkbox-circle-line'" aria-hidden="true"></i>
+                  {{ verifyBlock.stale ? '待复核' : '已核实' }}
+                </span>
+                <span v-if="verifyBlock.date" class="verify-date">核实日期 {{ verifyBlock.date }}</span>
+                <span v-else class="verify-date">尚无核实记录</span>
+              </div>
+              <div v-if="verifyBlock.scope" class="verify-scope">
+                <span class="verify-scope-label">核实范围</span>
+                <p class="verify-scope-text">{{ verifyBlock.scope }}</p>
+              </div>
+              <p v-if="verifyBlock.stale" class="verify-hint">
+                {{ verifyBlock.date
+                  ? `距上次核实已 ${verifyBlock.days > 0 ? verifyBlock.days : '多'} 天，条款可能已有调整，领取前请以官方页面为准。`
+                  : '站点尚未人工核实过这条通告，信息来自公开渠道整理，领取前请以官方页面为准。' }}
+              </p>
+              <p v-if="verifyBlock.note" class="verify-note">
+                <i class="ri-chat-quote-line" aria-hidden="true"></i> {{ verifyBlock.note }}
+              </p>
+            </section>
 
             <!-- 接入信息 -->
             <section class="tdd-section">
@@ -207,6 +304,26 @@
                    备注是普通用户可写字段，对原文直接 v-html 等于开 XSS 口子。 -->
               <div v-if="deal.note_html" class="tdd-note markdown-body" v-html="deal.note_html"></div>
               <p v-else class="tdd-note">{{ deal.note }}</p>
+            </section>
+
+            <!-- ── 常见问题 FAQ（2026-11-04 改版）──
+                 W1 新增列 `faq`，服务端已 parse 成 `[{q,a}]`（≤10 条）。
+                 用原生 <details>/<summary> 而不是受控展开：零 JS 状态、SSR 直出、
+                 键盘与读屏默认可达（自定义折叠要自己补 role/aria-expanded，容易漏）。
+                 q/a 均为纯文本插值（Vue 转义），服务端字段没有对应的 *_html。
+                 条数上限 10 由 `faqList` 兜底（服务端校验之外的第二道闸）。
+                 旧数据（无该列 / 空数组 / 结构非法）→ 整块不渲染。 -->
+            <section v-if="faqList.length" class="tdd-section tdd-faq">
+              <h4 class="section-title"><i class="ri-question-answer-line"></i> 常见问题</h4>
+              <!-- GEO / SEO（2026-11-04）：`open` 默认展开全部问答。
+                   原先是折叠的 —— 折叠内容的正文不在可见文本里，搜索引擎与 AI 抓取
+                   拿到的只是问题、拿不到答案，等于白写。展开后答案进入首屏文本，
+                   同时仍保留 <details> 语义（读屏可折叠、无 JS 也能用）。
+                   若担心长列表占屏，可在 .faq-item 上限制高度并加滚动，但不要收回折叠。 -->
+              <details v-for="(item, i) in faqList" :key="`${i}-${item.q}`" class="faq-item" open>
+                <summary class="faq-q">{{ item.q }}</summary>
+                <p class="faq-a">{{ item.a }}</p>
+              </details>
             </section>
 
             <!-- 我的修改建议状态 -->
@@ -596,6 +713,51 @@
               </button>
             </section>
 
+            <!-- ── 相关推荐（2026-11-04 改版）──
+                 「薅完这个，接着逛」：同分类再推 6 条，把读完一条的流量留在板块内。
+                 数据来自 `loadRelated()`（见 script）：同 category、`limit=8`、
+                 带 `exclude=<本条目 id>`；**无论服务端是否已支持 exclude，前端都会再过滤一次**，
+                 所以 be 的新参数未就绪时只是少拿几条、不会把当前这条推给自己。
+                 加载失败 / 无结果 → 整块不渲染（不留空标题）。 -->
+            <section v-if="related.length" class="tdd-section tdd-related">
+              <h4 class="section-title"><i class="ri-compass-3-line"></i> 薅完这个，接着逛</h4>
+              <div class="related-strip">
+                <NuxtLink
+                  v-for="item in related"
+                  :key="item.id"
+                  :to="`/tokens/${item.id}.html`"
+                  class="related-card"
+                >
+                  <span class="related-provider">{{ item.provider }}</span>
+                  <span class="related-title">{{ item.title }}</span>
+                  <span class="related-desc">{{ item.summary || item.quota || '查看详情' }}</span>
+                </NuxtLink>
+              </div>
+            </section>
+
+            <!-- 底部导航（2026-11-04）：通往各分类落地页。
+                 用 NuxtLink（客户端路由）而非 <a>，避免整页刷新。
+                 「精选对比」不再作为导航项（对比表已内嵌在 /tokens 页底部）。 -->
+            <nav class="tdd-nav" aria-label="白嫖资源分类导航">
+              <NuxtLink to="/tokens/api" class="tdd-nav-link">
+                <i class="ri-code-s-slash-line" aria-hidden="true"></i> 免费 API / 模型
+              </NuxtLink>
+              <NuxtLink to="/tokens/server" class="tdd-nav-link">
+                <i class="ri-server-line" aria-hidden="true"></i> 免费服务器 / VPS
+              </NuxtLink>
+              <NuxtLink to="/tokens/domain" class="tdd-nav-link">
+                <i class="ri-global-line" aria-hidden="true"></i> 免费域名
+              </NuxtLink>
+              <!-- 2026-11-04 补：客户端额度此前漏在这一处（与首页分类卡同一个疏漏），
+                   导致 4 条 client 通告在详情页底部也没有入口。 -->
+              <NuxtLink to="/tokens/client" class="tdd-nav-link">
+                <i class="ri-apps-2-line" aria-hidden="true"></i> 客户端额度
+              </NuxtLink>
+              <!-- 精选对比（2026-11-04）：此处不再列出。对比表已内嵌在 /tokens 页底部，
+                   以分类导航形式再挂一个入口层级重复；/tokens/compare 路由仍保留，
+                   老链接与搜索收录不受影响。 -->
+            </nav>
+
             </div>
         </div>
 
@@ -627,10 +789,27 @@
               v-if="deal.status === 'approved'"
               type="button"
               class="tdd-btn ghost"
-              title="生成 3:4 信息卡分享"
+              title="分享：生成信息卡 / 复制链接"
               @click="shareOpen = true"
             >
               <i class="ri-share-line"></i> 分享
+            </button>
+            <!-- ── 收藏 / 已收藏（2026-11-04 改版）──
+                 状态来自 W3 的 `composables/useDealFavorites.ts`（localStorage 单例 ref）。
+                 该 composable 的 SSR 约定：服务端与 hydration 首帧 favorites 恒为 []，
+                 `isFavorite()` 返回 false，客户端 onMounted 后自动翻成真实状态 ——
+                 因此**首屏渲染「收藏」不是 bug**，也不会 hydration mismatch（两边首帧一致）。
+                 这里不自己维护本地 state，跨组件（卡片/筛选）天然同步。 -->
+            <button
+              type="button"
+              class="tdd-btn ghost"
+              :class="{ 'is-fav': favActive }"
+              :aria-pressed="favActive"
+              :title="favActive ? '取消收藏（仅存本地）' : '收藏到本地，方便下次查找'"
+              @click="toggleFav"
+            >
+              <i :class="favActive ? 'ri-heart-fill' : 'ri-heart-line'"></i>
+              {{ favActive ? '已收藏' : '收藏' }}
             </button>
           </div>
           <div class="tdd-foot-right">
@@ -706,10 +885,15 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { copyText } from '~/utils/clipboard'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import TokenShareSheet from '~/components/tokens/TokenShareSheet.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 import DealBadge from '~/components/tokens/DealBadge.vue'
+// 收藏（2026-11-04 改版）：状态托管在 W3 的 composable 单例里，本组件不自持一份 state。
+// 显式导入而非依赖自动导入 —— 该文件由 task-4 提供，显式路径能让「模块缺失」在 build 期
+// 直接定位到这一行，而不是在模板里报一个含糊的 auto-import 错误。
+import { useDealFavorites } from '~/composables/useDealFavorites'
 
 interface ITokenDeal {
   id: string
@@ -728,6 +912,27 @@ interface ITokenDeal {
   note?: string
   /** 2026-10-30：服务端渲染并消毒后的备注 HTML（前端直接 v-html，勿自行渲染 note） */
   note_html?: string
+  // ── 2026-11-04 改版新增（W1 / task-1 契约）──
+  /** 一句话摘要（≤200），标题下方 TL;DR；旧数据为默认空串 → 不渲染 */
+  summary?: string
+  /** 限制条款**原文**（≤2000）—— 普通用户可写，前端**只读不渲染**（渲染走 limits_html） */
+  limits?: string
+  /** 服务端 renderRichText() 渲染并消毒后的限制 HTML（与 note_html 同一路） */
+  limits_html?: string
+  /** 领取条件**原文**（≤2000）—— 同上，只读不渲染 */
+  requirements?: string
+  /** 服务端渲染并消毒后的领取条件 HTML */
+  requirements_html?: string
+  /** 核实范围说明（≤500）：本次核实看了什么、没验证什么（旧数据为空串 → 不渲染） */
+  verify_scope?: string
+  /**
+   * FAQ（≤10 条）。契约是服务端已 parse 好的 `[{q,a}]`；
+   * 类型里保留 `string` 是兼容 W1 的 parseFaq 落地前详情端点 `...row` 展开出的原始 JSON 串
+   * （见 normalizeFaq() 的防御性解析）。
+   */
+  faq?: Array<{ q: string; a: string }> | string
+  /** 1 = 进「精选对比」（W3 的 /tokens/compare 用；本组件只透传不展示） */
+  featured?: number
   /** 2026-10-30：是否还有可用邀请码（码池不下发，码本身走 /invite-code 单独抽） */
   has_invite_code?: boolean
   /**
@@ -1008,6 +1213,9 @@ const CATEGORY_META: Record<string, { label: string; tone: string }> = {
   token: { label: 'API 额度', tone: 'blue' },
   cloud: { label: '免费云服务器', tone: 'purple' },
   client: { label: '客户端额度', tone: 'primary' },
+  // 2026-11-04：W1 把 domain 加入 DEAL_CATEGORIES（免费域名），徽标同步补一档。
+  // teal 取自站点既有变量（primary 与 accent-blue 混合），不引入新色板。
+  domain: { label: '免费域名', tone: 'teal' },
 }
 const categoryMeta = computed(
   () => CATEGORY_META[String(deal.value?.category || 'token')] || CATEGORY_META.token!,
@@ -1096,6 +1304,260 @@ const realNameBadge = computed(() => {
     srText: other ? `是否实名：${meta.label}（${other}）` : `是否实名：${meta.label}`,
   }
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── 结构化信息面板 / 核实范围 / FAQ / 相关推荐（2026-11-04 改版）────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+/** FAQ 条数上限（与 W1 的 LIMITS.faq 一致）—— 服务端已校验，这里是第二道闸 */
+const FAQ_LIMIT = 10
+/** 相关推荐的展示条数 */
+const RELATED_LIMIT = 6
+
+/** 一句话摘要（W1 新增 summary）；空串 → 模板整段不渲染 */
+const summaryText = computed(() => String(deal.value?.summary || '').trim())
+
+/**
+ * 「领取条件」的兜底文案（`requirements` 与 `limits` 都为空时才用得上）。
+ *
+ * 对 API / 云资源来说「要不要实名」本身就是最关键的领取条件，比留空更有信息量。
+ * `real_name === ''`（存量数据的默认值）返回空串 → 该格不入列（不留空框）。
+ */
+const realNameRequirementText = computed(() => {
+  switch (String(deal.value?.real_name || '')) {
+    case 'no': return '无需实名'
+    case 'id_card': return '需实名认证（身份证）'
+    case 'face': return '需实名认证（人脸识别）'
+    case 'other': {
+      const other = String(deal.value?.real_name_other || '').trim()
+      return other ? `需实名认证（${other}）` : '需实名认证'
+    }
+    default: return ''
+  }
+})
+
+/**
+ * 富文本单元格取值（「领取条件」与「限制」共用）。
+ *
+ * ⚠️ 安全约束（CLAUDE.md「富文本备注与 HTML 消毒」）：
+ *   `requirements` / `limits` 都是**普通用户可写**字段，消毒点必须在服务端唯一入口
+ *   （`server/utils/rich-text.ts` 的 `renderRichText()`）。
+ *   所以这里**只**把服务端下发的 `*_html` 交给 `v-html`；
+ *   原文**绝不**做 marked 解析（那等于前端自己开一个 XSS 口子，且每个消费方都得记得消毒一次）。
+ *   仅在 `*_html` 缺失时以**纯文本插值**兜底 —— `{{ }}` 由 Vue 转义，不存在注入面。
+ *   该兜底只覆盖 W1 落地前的短暂窗口（落地后恒走 HTML 分支），也覆盖脚本直连 DB 导入的行。
+ */
+function richCell(html?: string, raw?: string): { html?: string; text?: string } | null {
+  const safeHtml = String(html || '').trim()
+  if (safeHtml) return { html: safeHtml }
+  const plain = String(raw || '').trim()
+  return plain ? { text: plain } : null
+}
+
+/**
+ * 有效期文案：由 `expires_at` 推导。
+ * 绝对日期一律走 `formatTime()`（固定 Asia/Shanghai），否则 SSR 与客户端可能算出不同日期。
+ * 无 `expires_at` → 「长期有效（未标注截止）」，与 header 的 `expiryText` 口径一致。
+ */
+const validityText = computed(() => {
+  const ts = Number(deal.value?.expires_at || 0)
+  if (!ts) return '长期有效（未标注截止）'
+  const date = formatTime(ts)
+  const diff = ts - Date.now()
+  if (diff <= 0) return `已于 ${date} 过期`
+  const days = Math.ceil(diff / 86400000)
+  if (days <= 1) return `${date} 截止 · 今天到期`
+  return `${date} 截止 · 剩 ${days} 天`
+})
+
+/**
+ * 四格结构化面板的数据源：额度 / 领取条件 / 限制 / 有效期。
+ *
+ * **空值格子不入列** —— 这就是「旧数据不留空框」的实现方式：不是渲染一个空占位，
+ * 而是根本不产生这一格。四格全空时数组为空 → 模板整块 `v-if` 掉。
+ * 「有效期」恒有值（无 expires_at 时是「长期有效…」），所以正常情况下至少出一格。
+ *
+ * ── 「条件类」格子的三态规则（2026-11-04 lead 决策，**改设计不改数据**）──
+ * 数据事实：对标站导入的 138 条渠道里只有 15 条能切出**独立**的「领取条件」，
+ * 其余 123 条的领取条件与使用限制本来就揉在同一句里（对方站点自己也是合并的 ——
+ * 详情页标题叫「限制」，对比表列名是「领取与使用限制」）。
+ * 所以 `requirements` 为空是**正常状态**，不是数据缺失，更不是 bug；硬拆只会得到
+ * 「一个空格子 + 一段重复文本」。规则：
+ *
+ *   1. `requirements` 非空 **且** 与 `limits` 不同 → 两格：「领取条件」+「限制」；
+ *   2. 否则 `limits` 非空 → **一格占满整行**，标题「限制与领取条件」（`.is-wide`
+ *      跨列，避免出现半行空白）；这一条让 138 条渠道的该格信息 100% 有内容；
+ *   3. 否则 `real_name` 有值 → 一格「领取条件」，用既有中文标签拼一句
+ *      （`no` → 「无需实名」/ `id_card` → 「需实名认证（身份证）」…）；
+ *   4. 都不满足 → 不产生这一格。
+ *
+ * 两种「合并成一句」的情形（`requirements === limits`，或 `requirements` 为空）
+ * 都收敛到规则 2，因此**不会出现两格显示同一段文本**，也不会出现空白格。
+ */
+const specCells = computed(() => {
+  const d = deal.value
+  const cells: Array<{
+    key: string
+    icon: string
+    label: string
+    html?: string
+    text?: string
+    /** 跨满整行（合并态的「限制与领取条件」用） */
+    wide?: boolean
+  }> = []
+  if (!d) return cells
+
+  const quota = String(d.quota || '').trim()
+  if (quota) cells.push({ key: 'quota', icon: 'ri-coin-line', label: '免费额度', text: quota })
+
+  // ── 条件类格子（三态，见上方注释）──
+  const reqRaw = String(d.requirements || '').trim()
+  const limRaw = String(d.limits || '').trim()
+  const reqCell = richCell(d.requirements_html, d.requirements)
+  const limCell = richCell(d.limits_html, d.limits)
+  if (reqRaw && reqRaw !== limRaw && reqCell) {
+    cells.push({ key: 'requirements', icon: 'ri-user-follow-line', label: '领取条件', ...reqCell })
+    if (limCell) cells.push({ key: 'limits', icon: 'ri-forbid-2-line', label: '限制', ...limCell })
+  } else if (limCell) {
+    cells.push({
+      key: 'limits',
+      icon: 'ri-forbid-2-line',
+      label: '限制与领取条件',
+      ...limCell,
+      wide: true,
+    })
+  } else if (realNameRequirementText.value) {
+    cells.push({
+      key: 'requirements',
+      icon: 'ri-user-follow-line',
+      label: '领取条件',
+      text: realNameRequirementText.value,
+    })
+  }
+
+  cells.push({ key: 'validity', icon: 'ri-calendar-check-line', label: '有效期', text: validityText.value })
+  return cells
+})
+
+/**
+ * 核实情况（核实范围 + 核验时点）。
+ *
+ * 触发条件：**有实质核实信息**（`verify_scope` / `verified_at` / `verify_note` 任一非空）。
+ * 全缺 → null → 整块不渲染 —— 存量「从未补充过新字段、也从未人工核验」的旧数据因此
+ * 与改版前完全一致，不会多出一块只有「尚无核实记录」的空壳。
+ * 注：`verify_stale`（待复核）**刻意不作为触发条件** —— 它是「已有核验但过期了」的提示，
+ * 没有核验日期/范围时它没有任何可承载的内容；「从未核验」这个状态本来就由水印徽标传达
+ * （见 `verifyState`），不需要第二块地方重复说一遍。
+ *
+ * ⚠️ 刻意**不读** `verified_by`：CLAUDE.md 规定核验人任何身份都不下发，
+ *    前端也不得渲染。即使服务端将来漏了脱敏，这里也没有渲染路径（纵深防御）。
+ */
+const verifyBlock = computed(() => {
+  const d = deal.value
+  if (!d) return null
+  const scope = String(d.verify_scope || '').trim()
+  const note = String(d.verify_note || '').trim()
+  const ts = Number(d.verified_at || 0)
+  if (!scope && !note && !ts) return null
+  const days = Number(d.verify_age_days ?? -1)
+  return {
+    scope,
+    note,
+    stale: !!d.verify_stale,
+    days: Number.isFinite(days) ? days : -1,
+    date: ts > 0 ? formatTime(ts) : '',
+  }
+})
+
+/**
+ * FAQ 归一化：只接受 `[{q,a}]`，逐条要求 q / a 都非空，硬截断到 `FAQ_LIMIT` 条。
+ *
+ * 兼容「JSON 字符串」的原因见文件头：详情端点用 `...row` 展开全列，
+ * 在 W1 的 `parseFaq()` 落地前 `faq` 会是数据库里的原始串。
+ * 这里做一次防御性 JSON.parse 只为让新旧两种响应都能渲染；解析失败一律降级成 `[]`
+ * （不抛错、不留空块）。q / a 均按**纯文本**插值渲染，不存在注入面。
+ */
+function normalizeFaq(raw: unknown): Array<{ q: string; a: string }> {
+  let value: unknown = raw
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value) } catch { return [] }
+  }
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item: any) => ({ q: String(item?.q ?? '').trim(), a: String(item?.a ?? '').trim() }))
+    .filter(item => item.q && item.a)
+    .slice(0, FAQ_LIMIT)
+}
+const faqList = computed(() => normalizeFaq(deal.value?.faq))
+
+/** 相关推荐卡片的最小形状（列表接口下发全量行，这里只取展示需要的几个字段） */
+interface IRelatedDeal {
+  id: string
+  provider: string
+  title: string
+  quota: string
+  summary: string
+}
+
+const related = ref<IRelatedDeal[]>([])
+const relatedLoading = ref(false)
+/** 已成功加载过的 deal id —— 弹窗反复开关时不重复请求 */
+const relatedLoadedFor = ref('')
+
+/**
+ * 拉「同分类的相关推荐」。
+ *
+ * 请求带 W1 新增的 `exclude=<本条目 id>`。**该参数未落地时服务端会忽略它**，
+ * 所以拿到结果后**再按 id 过滤一次** —— 正常路径与退化路径都保证「不推荐自己」。
+ * limit 取 `RELATED_LIMIT + 2` 正是给这层过滤留余量。
+ * 任何异常都静默降级为空列表：推荐位不值得打扰读者，也绝不能因此让详情页报错。
+ */
+async function loadRelated() {
+  const id = String(deal.value?.id || '')
+  if (!id || relatedLoading.value || relatedLoadedFor.value === id) return
+  relatedLoading.value = true
+  try {
+    const res = await $fetch<{ deals?: any[] }>('/api/token-deals', {
+      params: {
+        category: deal.value?.category || 'token',
+        limit: RELATED_LIMIT + 2,
+        exclude: id,
+      },
+      credentials: 'include',
+    })
+    const list = Array.isArray(res?.deals) ? res.deals : []
+    related.value = list
+      // 客户端二次过滤 = be 的 exclude 参数未就绪时的退化路径（也是纵深防御）
+      .filter((item: any) => String(item?.id || '') && String(item.id) !== id)
+      .slice(0, RELATED_LIMIT)
+      .map((item: any) => ({
+        id: String(item.id),
+        provider: String(item.provider || '未注明'),
+        title: String(item.title || ''),
+        quota: String(item.quota || '').trim(),
+        summary: String(item.summary || '').trim(),
+      }))
+    relatedLoadedFor.value = id
+  } catch {
+    related.value = []
+  } finally {
+    relatedLoading.value = false
+  }
+}
+
+// ── 收藏（2026-11-04 改版）──────────────────────────────────────────────
+// 状态完全托管在 W3 的 composable 单例里（模块级 ref + localStorage），
+// 本组件不另持一份 state —— 否则卡片/筛选/详情三处会各自漂移。
+const { isFavorite, toggleFavorite } = useDealFavorites()
+const favActive = computed(() => isFavorite(String(deal.value?.id || '')))
+
+function toggleFav() {
+  const id = String(deal.value?.id || '')
+  if (!id) return
+  toggleFavorite(id)
+  // 提示语按 toggle 之后的真实状态给：favorites 是 ref，计算属性在同一 tick 内就已更新。
+  toast(favActive.value ? '已收藏，可在列表页「只看收藏」里找到' : '已取消收藏')
+}
 
 // ── 领取地址的 {邀请码} 占位符（2026-10-30）──────────────────
 /**
@@ -1749,7 +2211,8 @@ async function copyInviteCode() {
   const current = inviteCode.value
   if (!current || !import.meta.client) return
   try {
-    await navigator.clipboard.writeText(current.code)
+    // 共用工具：http 下 navigator.clipboard 不存在
+    if (!(await copyText(current.code))) throw new Error('copy failed')
   } catch {
     toast('复制失败，请手动选择', 'err')
     return
@@ -1771,13 +2234,11 @@ async function copyInviteCode() {
 
 async function copy(text?: string) {
   if (!text || !import.meta.client) return
-  try {
-    await navigator.clipboard.writeText(text)
-    toast('已复制到剪贴板')
-  } catch {
-    toast('复制失败，请手动选择', 'err')
-  }
+  // 共用工具：http 下 navigator.clipboard 不存在，原写法必然失败
+  if (await copyText(text)) toast('已复制到剪贴板')
+  else toast('复制失败，请手动选择', 'err')
 }
+
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') close()
@@ -1793,6 +2254,14 @@ if (props.initialReviews) applyInitialReviews(props.initialReviews)
 // 落地页 refresh()（编辑保存/投票后重取）会下发新的载荷 → 就地更新
 watch(() => props.initial, (v) => { if (v) applyDealPayload(v) })
 watch(() => props.initialReviews, (v) => { if (v) applyInitialReviews(v) })
+
+// 相关推荐（2026-11-04）：详情可能是**异步到达**的（弹窗形态先 fetch 再渲染），
+// 所以除了 onMounted 里主动拉一次，deal.id 一到也补拉一次。
+// 只在客户端触发：SSR 里发起的请求不会被 await，拿不到首屏 HTML 收益，反而多一次服务端查询。
+// `relatedLoadedFor` 保证同一个 deal 只成功加载一次（弹窗反复开关不重复请求）。
+watch(() => deal.value?.id, () => {
+  if (import.meta.client) void loadRelated()
+})
 
 onMounted(() => {
   // 滚动锁定与 Esc 关闭只属于弹窗形态；落地页形态让页面正常滚动
@@ -1811,6 +2280,10 @@ onMounted(() => {
     loadDeal()
   }
   if (!props.initialReviews) loadReviews(true)
+  // 相关推荐（2026-11-04）：落地页形态的 deal 在 setup 阶段就已由 initial 填入，
+  // 此时 watch(deal.id) 不会触发（值没有「变化」）→ 这里主动拉一次。
+  // `relatedLoadedFor` / `relatedLoading` 保证与 watcher 的触发不会并发重复请求。
+  void loadRelated()
 })
 
 onUnmounted(() => {
@@ -2014,6 +2487,8 @@ onUnmounted(() => {
 .tdd-body-inner > .tdd-section,
 .tdd-body-inner > .tdd-facts,
 .tdd-body-inner > .tdd-title,
+.tdd-body-inner > .tdd-summary,
+.tdd-body-inner > .tdd-nav,
 .tdd-body-inner > .tdd-status {
   position: relative;
   z-index: 0;
@@ -2093,6 +2568,46 @@ onUnmounted(() => {
 .fact-label { font-size: 11px; color: var(--text-tertiary); }
 .fact-value { font-size: 13px; color: var(--text-primary); }
 
+/* ── 一句话摘要（2026-11-04 改版）──
+   紧跟标题，负 margin 抵消 `.tdd-title` 的 16px 下边距，让「标题 + 摘要」读成一个整体。 */
+.tdd-summary {
+  margin: -8px 0 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* ── 结构化信息面板：额度 / 领取条件 / 限制 / 有效期（2026-11-04 改版）──
+   `.tdd-facts` 是**既有容器**（grid + auto-fit），这里只做增量：
+     1. 单元格下限 140px → 200px：「领取条件 / 限制」是成句内容，
+        140px 会把它们压成窄柱（一行三五个字），200px 才能在桌面两列排布下正常成行；
+     2. 空值格子根本不会被渲染（见 specCells 的空值不入列策略）→ 无需 :empty 兜底；
+     3. 富文本格（.tdd-rich）与纯文字格（.fact-value）视觉保持一致。
+   配色全部走既有变量，未引入新色板。 */
+.tdd-spec {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: start;
+}
+/* 图标与标签同排（`<i>` 由模板注入，见 fact-label 内） */
+.tdd-fact .fact-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tdd-fact .fact-label i { font-size: 13px; }
+/* 合并态格子跨满整行（「限制与领取条件」，见 specCells 的三态规则）：
+   两列布局下若只占一列，右侧会留一块空白，看着像「这里缺了点东西」。 */
+.tdd-fact.is-wide { grid-column: 1 / -1; }
+/* 富文本格容器。元素级排版（p / ul / table / code…）与备注共用同一套规则，
+   见上方「备注富文本」段里并列 `.tdd-rich` 的各条 :deep() 选择器 —— 刻意不复制规则体，
+   否则两处排版会随时间漂移。这里只补容器自身属性。 */
+.tdd-rich {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
 .tdd-section { margin-bottom: 16px; }
 .section-title {
   display: flex;
@@ -2163,83 +2678,114 @@ onUnmounted(() => {
 /* ── 备注富文本（2026-10-30）─────────────────────────────────
    v-html 注入的节点不带 scoped 属性，必须用 :deep() 才命中。
    另外富文本要关掉 pre-wrap：marked 生成的是块级标签，
-   保留 pre-wrap 会把源码里的换行渲染成多余空行。 */
-.tdd-note.markdown-body {
+   保留 pre-wrap 会把源码里的换行渲染成多余空行。
+   2026-11-04：下面每一条规则的选择器都**并列了 `.tdd-rich`** ——
+   结构化面板里的「领取条件 / 限制」两格同样消费服务端消毒后的 HTML
+   （requirements_html / limits_html），排版需求与备注完全一致。
+   用逗号并列而不是复制一份规则体，避免两处排版随时间漂移。 */
+.tdd-note.markdown-body,
+.tdd-rich {
   white-space: normal;
   word-break: break-word;
 }
-.tdd-note.markdown-body :deep(p) { margin: 0 0 8px; }
+.tdd-note.markdown-body :deep(p),
+.tdd-rich :deep(p) { margin: 0 0 8px; }
 .tdd-note.markdown-body :deep(p:first-child),
+.tdd-rich :deep(p:first-child),
 .tdd-note.markdown-body :deep(ul:first-child),
-.tdd-note.markdown-body :deep(ol:first-child) { margin-top: 0; }
+.tdd-rich :deep(ul:first-child),
+.tdd-note.markdown-body :deep(ol:first-child),
+.tdd-rich :deep(ol:first-child) { margin-top: 0; }
 .tdd-note.markdown-body :deep(p:last-child),
+.tdd-rich :deep(p:last-child),
 .tdd-note.markdown-body :deep(ul:last-child),
-.tdd-note.markdown-body :deep(ol:last-child) { margin-bottom: 0; }
+.tdd-rich :deep(ul:last-child),
+.tdd-note.markdown-body :deep(ol:last-child),
+.tdd-rich :deep(ol:last-child) { margin-bottom: 0; }
 .tdd-note.markdown-body :deep(h1),
+.tdd-rich :deep(h1),
 .tdd-note.markdown-body :deep(h2),
+.tdd-rich :deep(h2),
 .tdd-note.markdown-body :deep(h3),
+.tdd-rich :deep(h3),
 .tdd-note.markdown-body :deep(h4),
+.tdd-rich :deep(h4),
 .tdd-note.markdown-body :deep(h5),
-.tdd-note.markdown-body :deep(h6) {
+.tdd-rich :deep(h5),
+.tdd-note.markdown-body :deep(h6),
+.tdd-rich :deep(h6) {
   margin: 12px 0 6px;
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
 }
 .tdd-note.markdown-body :deep(ul),
-.tdd-note.markdown-body :deep(ol) {
+.tdd-rich :deep(ul),
+.tdd-note.markdown-body :deep(ol),
+.tdd-rich :deep(ol) {
   margin: 0 0 8px;
   padding-left: 20px;
 }
-.tdd-note.markdown-body :deep(li) { margin: 2px 0; }
-.tdd-note.markdown-body :deep(a) {
+.tdd-note.markdown-body :deep(li),
+.tdd-rich :deep(li) { margin: 2px 0; }
+.tdd-note.markdown-body :deep(a),
+.tdd-rich :deep(a) {
   color: var(--primary);
   text-decoration: underline;
 }
-.tdd-note.markdown-body :deep(code) {
+.tdd-note.markdown-body :deep(code),
+.tdd-rich :deep(code) {
   font-family: var(--font-mono);
   font-size: 12px;
   background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
   padding: 1px 5px;
   border-radius: var(--radius-sm);
 }
-.tdd-note.markdown-body :deep(pre) {
+.tdd-note.markdown-body :deep(pre),
+.tdd-rich :deep(pre) {
   margin: 0 0 8px;
   padding: 10px 12px;
   background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
   border-radius: var(--radius-sm);
   overflow-x: auto;
 }
-.tdd-note.markdown-body :deep(pre code) {
+.tdd-note.markdown-body :deep(pre code),
+.tdd-rich :deep(pre code) {
   background: none;
   padding: 0;
 }
-.tdd-note.markdown-body :deep(blockquote) {
+.tdd-note.markdown-body :deep(blockquote),
+.tdd-rich :deep(blockquote) {
   margin: 0 0 8px;
   padding: 4px 0 4px 12px;
   border-left: 3px solid var(--border);
   color: var(--text-tertiary);
 }
-.tdd-note.markdown-body :deep(img) {
+.tdd-note.markdown-body :deep(img),
+.tdd-rich :deep(img) {
   display: block;
   max-width: 100%;
   height: auto;
   margin: 6px 0;
   border-radius: var(--radius-sm);
 }
-.tdd-note.markdown-body :deep(table) {
+.tdd-note.markdown-body :deep(table),
+.tdd-rich :deep(table) {
   width: 100%;
   margin: 0 0 8px;
   border-collapse: collapse;
   font-size: 12px;
 }
 .tdd-note.markdown-body :deep(th),
-.tdd-note.markdown-body :deep(td) {
+.tdd-rich :deep(th),
+.tdd-note.markdown-body :deep(td),
+.tdd-rich :deep(td) {
   padding: 4px 8px;
   border: 1px solid var(--border);
   text-align: left;
 }
-.tdd-note.markdown-body :deep(hr) {
+.tdd-note.markdown-body :deep(hr),
+.tdd-rich :deep(hr) {
   margin: 10px 0;
   border: none;
   border-top: 1px solid var(--border);
@@ -2931,6 +3477,195 @@ onUnmounted(() => {
 .toast-enter-from,
 .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ── 核实情况 / FAQ / 相关推荐 / 底部导航 / 收藏（2026-11-04 改版）─────────
+   配色一律复用站点既有变量（--success / --warning / --divider / --surface-sunken…），
+   不引入新色板；移动端覆盖写在下方本组件自己的 @media 里。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* 核实情况：状态 chip + 核实日期同排；核实范围单独成块（左侧竖线，视觉上像「引用/出处」） */
+.verify-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.verify-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.verify-state i { font-size: 13px; }
+.verify-state.is-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
+}
+.verify-state.is-pending {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
+}
+.verify-date { font-size: 12px; color: var(--text-tertiary); }
+.verify-scope {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--border);
+  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
+}
+.verify-scope-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.verify-scope-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+.verify-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--warning);
+}
+.verify-note {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+}
+.verify-note i { flex-shrink: 0; margin-top: 2px; }
+
+/* FAQ：原生 <details>，零 JS 状态、SSR 直出、键盘与读屏默认可达。
+   自绘三角替代各浏览器默认 marker（Chrome/Safari 走 ::-webkit-details-marker，
+   Firefox 走 marker，所以两处都要关）。 */
+.tdd-faq { display: flex; flex-direction: column; gap: 6px; }
+.faq-item {
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
+  overflow: hidden;
+}
+.faq-q {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+}
+.faq-q::-webkit-details-marker { display: none; }
+.faq-q::marker { content: ''; }
+.faq-q::before {
+  content: '';
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  margin-top: 5px;
+  border-left: 5px solid var(--text-tertiary);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease;
+}
+.faq-item[open] > .faq-q::before { transform: rotate(90deg); }
+.faq-a {
+  margin: 0;
+  padding: 0 12px 10px 23px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+/* 相关推荐：桌面为自适应网格（4~6 张），移动端改横向滚动条（见 @media） */
+.related-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+.related-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.related-card:hover {
+  border-color: var(--border-focus);
+  transform: translateY(-1px);
+}
+.related-provider {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.related-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.related-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* 底部导航：通往分类落地页与精选对比表 */
+.tdd-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 8px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--divider);
+}
+.tdd-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.tdd-nav-link:hover { color: var(--primary); }
+
+/* 收藏按钮激活态：复用 --primary，不新增变量 */
+.tdd-btn.is-fav { color: var(--primary); }
+
 /* ── 移动端 ── */
 @media (max-width: 640px) {
   .tdd-backdrop { padding: 0; align-items: flex-end; }
@@ -2944,6 +3679,26 @@ onUnmounted(() => {
   .tdd-foot { flex-direction: column; align-items: stretch; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .tdd-foot-left, .tdd-foot-right { width: 100%; }
   .tdd-foot-left .tdd-btn, .tdd-foot-right .tdd-btn { flex: 1; justify-content: center; }
+  /* ── 2026-11-04 新增块的移动端覆盖 ──
+     项目约定（CLAUDE.md「移动端覆盖必须写进组件内」）：外部 CSS 与组件 scoped 规则
+     同特异度、靠加载顺序决胜，所以这些覆盖只能放在本组件自己的 @media 里。 */
+  /* 四格面板：手机上单列，避免 200px 下限在 360px 屏上退化成横向挤压 */
+  .tdd-spec { grid-template-columns: 1fr; }
+  /* 相关推荐：网格 → 横向滚动条，一屏能扫到下一张卡（scroll-snap 停在卡边界） */
+  .related-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .related-card { flex: 0 0 78%; scroll-snap-align: start; }
+  /* 底部导航：两列均分，图标与文字居中 */
+  .tdd-nav-link { flex: 1 1 calc(50% - 4px); justify-content: center; }
+  /* FAQ 问题行更紧凑，但保留可点区域高度 */
+  .faq-q { padding: 9px 10px; }
+  .faq-a { padding: 0 10px 9px 21px; }
 }
 
 /* ── 窄屏 header：让右侧徽标组整体换行（2026-10-30）──
@@ -2983,6 +3738,14 @@ onUnmounted(() => {
 .tdd-category.is-primary {
   background: var(--primary-light);
   color: var(--primary);
+}
+/* teal（免费域名，2026-11-04）：站点没有 teal 语义变量，用既有 --primary（绿）
+   与 --accent-blue（蓝）混出青色 —— 属于「复用既有变量」，不是新增色板条目。
+   调色机制与上面三档完全一致（14% 打底 + 82% 上色，亮暗主题自动跟随）。 */
+.tdd-category.is-teal {
+  --tdd-teal: color-mix(in srgb, var(--primary) 55%, var(--accent-blue));
+  background: color-mix(in srgb, var(--tdd-teal) 14%, transparent);
+  color: color-mix(in srgb, var(--tdd-teal) 82%, var(--text-primary));
 }
 
 /* ── 是否实名徽标（2026-10-30 九轮：右上水印 → header 徽章）──

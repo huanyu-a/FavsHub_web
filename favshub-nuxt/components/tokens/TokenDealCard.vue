@@ -23,16 +23,17 @@
             <i v-if="deal.pinned" class="ri-pushpin-2-fill pin-mark" title="已置顶"></i>
           </h3>
           <p class="deal-meta">
-            {{ regionLabel }} · {{ sourceLabel }}<span
-              v-if="verifyText"
+            <span>{{ regionLabel }} · {{ sourceLabel }}</span>
+            <span
+              v-if="verifyBadge"
               class="deal-verify"
               :class="verifyClass"
               :title="verifyTitle"
-            > · {{ verifyText }}</span>
+            >{{ verifyBadge }}</span>
           </p>
         </div>
       </div>
-      <span v-if="categoryLabel" class="deal-category" :class="deal.category === 'client' ? 'category-client' : ''">{{ categoryLabel }}</span>
+      <span v-if="categoryLabel" class="deal-category" :class="categoryClass">{{ categoryLabel }}</span>
       <span class="deal-quality" :class="qualityClass">{{ deal.quality }}</span>
     </header>
 
@@ -60,7 +61,17 @@
 
     <h4 class="deal-title">{{ deal.title }}</h4>
 
-    <div v-if="deal.quota" class="deal-quota">
+    <!--
+      一句话摘要（2026-11-04）：`summary` 非空用它，否则回落 `quota`（Lead 确认的契约）。
+
+      回落时**不再重复渲染**下方的「免费额度」块 —— 那个块在 `quota` 非空时必然渲染，
+      同一个值会在同一张卡上印两遍（摘要行 + 额度块），读起来像 bug。
+      所以额度块的渲染条件带上 `!summaryFallsBackToQuota`：信息一个字不少，
+      只是旧数据（无 summary）改用摘要行的样式呈现额度。
+    -->
+    <p v-if="summaryText" class="deal-summary" :title="summaryText">{{ summaryText }}</p>
+
+    <div v-if="deal.quota && !summaryFallsBackToQuota" class="deal-quota">
       <span class="quota-label">免费额度</span>
       <span class="quota-value">{{ deal.quota }}</span>
     </div>
@@ -99,6 +110,8 @@ interface TokenDeal {
   verify_note?: string
   url: string
   quota?: string
+  /** 一句话摘要（2026-11-04，服务端新增列）；旧数据缺失 → 不渲染摘要行 */
+  summary?: string
   models?: string[]
   region?: string
   quality?: string
@@ -107,6 +120,8 @@ interface TokenDeal {
   expires_at?: number | null
   pinned?: number
   is_expired?: boolean
+  /** 1 = 进「精选对比」（仅管理员可写，公开侧只读） */
+  featured?: number
   vote_up?: number
   vote_down?: number
   rating_sum?: number
@@ -132,6 +147,28 @@ function onOpenClick(e: MouseEvent) {
   emit('open', props.deal)
 }
 
+/**
+ * 日期格式化（2026-11-04）
+ *
+ * 核实日期会进入 SSR 输出，而 `toLocaleDateString()` 依赖运行环境的本地时区 ——
+ * 服务端（服务器时区）与浏览器（用户时区）可能算出**不同的日期**，hydration 时
+ * 文本对不上（dev 报 Hydration text content mismatch，生产静默跳变一次）。
+ * 站点面向中文用户，固定 Asia/Shanghai：绝大多数访客看到的日期不变，
+ * 且服务端/客户端结果恒定一致。与 TokenDealDetail.vue 的 formatTime 同一口径。
+ */
+const SITE_TIME_ZONE = 'Asia/Shanghai'
+const DEAL_DATE_FMT = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: SITE_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
+/** 毫秒时间戳 → `YYYY-MM-DD`（固定时区）；非法值返回空串 */
+function formatDealDate(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) return ''
+  const parts = DEAL_DATE_FMT.formatToParts(new Date(ts))
+  const get = (type: string) => parts.find(p => p.type === type)?.value || ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
 const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
 const SOURCE_LABELS: Record<string, string> = {
   official: '官方直营',
@@ -145,10 +182,19 @@ const icon = computed(() => fallbackProxyIcon('', props.deal.url) || '')
 const initial = computed(() => (props.deal.provider || '?').trim().charAt(0).toUpperCase())
 const regionLabel = computed(() => REGION_LABELS[props.deal.region || 'cn'] || '国内直连')
 const sourceLabel = computed(() => SOURCE_LABELS[props.deal.source_tag || 'official'] || '官方直营')
-// 给「免费云服务器」与「客户端额度」挂徽标（API 额度为默认分类无须挂标）
-const categoryLabel = computed(() => {
-  if (props.deal.category === 'cloud') return '免费云服务器'
-  if (props.deal.category === 'client') return '客户端额度'
+// 分类徽标：API 额度是默认分类，不挂标；其余三类各有一句人话 + 一个配色 class
+const CATEGORY_LABELS: Record<string, string> = {
+  cloud: '免费云服务器',
+  domain: '免费域名',
+  client: '客户端额度',
+}
+const categoryLabel = computed(() => CATEGORY_LABELS[props.deal.category || ''] || '')
+/** 配色只用 tokens.css 既有变量派生（--primary / --accent-purple / --accent-blue），不新增变量 */
+const categoryClass = computed(() => {
+  const c = props.deal.category
+  if (c === 'cloud') return 'category-cloud'
+  if (c === 'domain') return 'category-domain'
+  if (c === 'client') return 'category-client'
   return ''
 })
 
@@ -196,25 +242,47 @@ const expiryText = computed(() => {
 })
 
 // 人工核验：最近一次「站点确认仍可用」的时间；待复核只提示，不代表已失效
-const verifyText = computed(() => {
-  const days = Number(props.deal.verify_age_days ?? -1)
-  if (!Number.isFinite(days) || days < 0) return props.deal.verify_stale ? '未核验' : ''
-  if (props.deal.verify_stale) return `${days} 天未核验`
-  if (days <= 0) return '今日已核验'
-  return `${days} 天前核验`
+/**
+ * 核实状态徽标（2026-11-04，对齐对标站列表的「规则已核实 / 待复核」）
+ *  - verify_stale                → 「待复核」（黄）
+ *  - verified_at > 0 && !stale   → 「已核实 YYYY-MM-DD」（绿）
+ *  - 其余（从未核验且服务端未判 stale）→ 不显示
+ */
+const verifyBadge = computed(() => {
+  if (props.deal.verify_stale) return '待复核'
+  const ts = Number(props.deal.verified_at || 0)
+  if (Number.isFinite(ts) && ts > 0) return `已核实 ${formatDealDate(ts)}`
+  return ''
 })
-const verifyClass = computed(() => {
-  const days = Number(props.deal.verify_age_days ?? -1)
-  if (!Number.isFinite(days) || days < 0) return 'is-muted'
-  return props.deal.verify_stale ? 'is-warn' : 'is-ok'
-})
+const verifyClass = computed(() => (props.deal.verify_stale ? 'is-warn' : 'is-ok'))
 const verifyTitle = computed(() => {
   const note = String(props.deal.verify_note || '').trim()
+  const days = Number(props.deal.verify_age_days ?? -1)
+  const ageText = !Number.isFinite(days) || days < 0
+    ? '从未人工核验'
+    : (days <= 0 ? '今天刚核验过' : `${days} 天前核验`)
   const head = props.deal.verify_stale
-    ? '超过核验阈值（默认 30 天）没有人工核验，建议先看社区投票再使用'
-    : '站点最近一次人工核验确认仍可用'
+    ? `待复核：${ageText}，已超过核验阈值（默认 30 天）。这只是新鲜度提示，不代表已失效，建议结合社区投票判断`
+    : `已核实：${ageText}，站点人工确认过仍可用`
   return note ? `${head}｜核验备注：${note}` : head
 })
+
+/**
+ * 摘要文本：`summary` 非空用它，否则回落 `quota`（Lead 2026-11-04 确认的契约）。
+ * 两者都为空 -> 空串 -> 整行不渲染（旧数据不会出现空白行）。
+ */
+const summaryText = computed(() => {
+  const s = String(props.deal.summary || '').trim()
+  return s || String(props.deal.quota || '').trim()
+})
+
+/**
+ * 摘要行是否正在用 `quota` 兜底。
+ * 为 true 时抑制下方「免费额度」块，避免同一个值在同一张卡上出现两次。
+ */
+const summaryFallsBackToQuota = computed(
+  () => !String(props.deal.summary || '').trim() && !!summaryText.value,
+)
 
 const expiryWarn = computed(() => {
   const ts = props.deal.expires_at
@@ -309,6 +377,10 @@ const expiryWarn = computed(() => {
   margin: 0;
   font-size: 12px;
   color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .deal-category {
@@ -324,6 +396,15 @@ const expiryWarn = computed(() => {
 .deal-category.category-client {
   background: color-mix(in srgb, #06b6d4 15%, transparent);
   color: #0891b2;
+}
+/* 免费云服务器 / 免费域名：配色同样从既有 CSS 变量派生，不新增变量 */
+.deal-category.category-cloud {
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  color: var(--accent-purple);
+}
+.deal-category.category-domain {
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  color: var(--accent-blue);
 }
 .deal-quality {
   flex-shrink: 0;
@@ -400,6 +481,19 @@ const expiryWarn = computed(() => {
   font-weight: 500;
   line-height: 1.5;
   color: var(--text-primary);
+}
+
+/* ── 一句话摘要：最多 2 行，超出省略 ── */
+.deal-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .deal-quota {
@@ -479,16 +573,23 @@ const expiryWarn = computed(() => {
 .deal-expiry.is-warn {
   color: var(--warning);
 }
+/* ── 核实状态徽标（已核实 / 待复核） ── */
 .deal-verify {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 .deal-verify.is-ok {
   color: var(--success);
+  background: var(--success-soft);
 }
 .deal-verify.is-warn {
   color: var(--warning);
-}
-.deal-verify.is-muted {
-  color: var(--text-tertiary);
+  background: var(--warning-soft);
 }
 </style>

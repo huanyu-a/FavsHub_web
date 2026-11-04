@@ -30,15 +30,22 @@ export const SOURCE_LABELS: Record<string, string> = {
 }
 
 /**
- * 通告分类 — API 额度（默认）/ 免费云服务器 / 客户端额度。
+ * 通告分类 — API 额度（默认）/ 免费云服务器 / 免费域名 / 客户端额度。
  *
- * 云服务器（VPS / PaaS / Serverless 免费档）、客户端额度（各类大模型客户端/桌面端专属免费额度）
- * 与「API 额度」共用一块通告板，用分类让读者一键筛掉不关心的那一半。
+ * 云服务器（VPS / PaaS / Serverless 免费档）、免费域名、客户端额度
+ * （各类大模型客户端/桌面端专属免费额度）与「API 额度」共用一块通告板，
+ * 用分类让读者一键筛掉不关心的那一半。
+ *
+ * **顺序即前端展示顺序**（`domain` 加在 `client` 之前）。
+ * 新增分类要同时改这里的 `DEAL_CATEGORIES`、`TokenFilterBar` / `TokenDealEditor` /
+ * `TokenDealCard` / `TokenDealDetail` 四处的常量副本（见 CLAUDE.md「通告事件流与订阅」）。
+ * 迁移里 `category` 列的默认值恒为 `'token'`，新增分类**不需要**改默认值。
  */
-export const DEAL_CATEGORIES = ['token', 'cloud', 'client'] as const
+export const DEAL_CATEGORIES = ['token', 'cloud', 'domain', 'client'] as const
 export const DEAL_CATEGORY_LABELS: Record<string, string> = {
   token: 'API 额度',
   cloud: '免费云服务器',
+  domain: '免费域名',
   client: '客户端额度',
 }
 
@@ -84,7 +91,117 @@ export const LIMITS = {
   reviewPerUserPerHour: 20,
   /** 登录用户评测限频（每 IP 每小时）—— 多账号同源刷量兜底 */
   reviewPerIpPerHour: 40,
+  // ── 2026-11-04 对齐 baipiao.org 详情页 IA 的结构化字段 ──
+  // 这些字段与 `note` 同级，都是**普通用户可写**，所以富文本一律走服务端
+  // `renderRichText()` 渲染（详见「富文本备注与 HTML 消毒」）。
+  /** 一句话摘要 TL;DR（列表卡片与详情页标题下方各用一次） */
+  summary: 200,
+  /** 限制条款（文本量最大，同 note 上限） */
+  limits: 2000,
+  /** 领取条件（实名 / 绑卡 / GitHub 登录 / PR / 邀请码等） */
+  requirements: 2000,
+  /** 核实范围说明（站点到底核了什么：注册 / 到账 / 调用） */
+  verifyScope: 500,
+  /** FAQ 条数上限 */
+  faq: 10,
+  /** FAQ 单条问题长度上限 */
+  faqQ: 100,
+  /** FAQ 单条答案长度上限 */
+  faqA: 600,
 } as const
+
+/**
+ * FAQ 存库形态：JSON 数组字符串。
+ *
+ * 抽成常量是为了**迁移 DDL 与代码不漂移** —— `migrate.ts` 的
+ * `ALTER TABLE ... DEFAULT '[]'` 与「解析失败回落成的空数组」必须是同一份写法。
+ */
+export const DEFAULT_FAQ_JSON = '[]'
+
+/** FAQ 单条 */
+export interface FaqItem {
+  q: string
+  a: string
+}
+
+/** 归一化一条 FAQ 的字段（trim + 截断），供解析与校验两路复用，避免规则分叉 */
+function normalizeFaqItem(raw: any): FaqItem {
+  return {
+    q: String(raw?.q ?? '').trim().slice(0, LIMITS.faqQ),
+    a: String(raw?.a ?? '').trim().slice(0, LIMITS.faqA),
+  }
+}
+
+/**
+ * 解析库中的 `faq` 字段（JSON 数组字符串）→ `{q,a}[]`。
+ *
+ * **只用于读 / 展示**，任何异常（非字符串、非法 JSON、不是数组）一律回 `[]`；
+ * 逐条丢弃结构不合法（缺 q 或 a）的项，并在超上限时截断到 `LIMITS.faq` 条。
+ * 不抛异常 —— 一条脏数据不该让整个详情页 500。
+ */
+export function parseFaq(raw: unknown): FaqItem[] {
+  if (Array.isArray(raw)) return raw.map(normalizeFaqItem).filter(it => it.q && it.a).slice(0, LIMITS.faq)
+  if (typeof raw !== 'string' || !raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map(normalizeFaqItem)
+      .filter(it => it.q && it.a)
+      .slice(0, LIMITS.faq)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 把关（写入口用）：`{q,a}[]` 或 `{ error }`。**严格**，与 `parseFaq` 的宽松解析刻意不同 ——
+ * 读取侧要容忍历史脏数据，写入侧不能悄悄吞掉用户输入。
+ *
+ * 拒绝条件：非数组（JSON 字符串会先解析一次）、超 `LIMITS.faq` 条、某条缺 q 或 a、q / a 超长。
+ * 返回的数组已 trim（与 `readDealField` 的「显式出现才算」语义配合：
+ * 传 `[]` = 清空 FAQ，不传 = 保持原值）。
+ *
+ * ⚠️ 解析与校验**必须分成两步**（`decodeFaqInput` 只做 JSON 解码、`checkFaqList` 只做校验）：
+ * 早先写成「字符串就递归调自己」，会让合法 JSON 字符串无限递归直到栈溢出。
+ */
+export function normalizeFaq(input: unknown): FaqItem[] | { error: string } {
+  const decoded = decodeFaqInput(input)
+  if (!decoded.ok) return { error: decoded.error }
+  return checkFaqList(decoded.value)
+}
+
+/** 只做「JSON 字符串 → 数组」的解码；空值视为空数组（= 清空 FAQ） */
+function decodeFaqInput(input: unknown): { ok: true; value: unknown[] } | { ok: false; error: string } {
+  if (input === undefined || input === null || input === '') return { ok: true, value: [] }
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input)
+      if (!Array.isArray(parsed)) return { ok: false, error: 'FAQ 必须是数组' }
+      return { ok: true, value: parsed }
+    } catch {
+      return { ok: false, error: 'FAQ 不是合法的 JSON' }
+    }
+  }
+  if (!Array.isArray(input)) return { ok: false, error: 'FAQ 必须是数组' }
+  return { ok: true, value: input }
+}
+
+/** 只做逐条校验（严格）+ trim */
+function checkFaqList(list: unknown[]): FaqItem[] | { error: string } {
+  if (list.length > LIMITS.faq) return { error: `FAQ 最多 ${LIMITS.faq} 条` }
+  const out: FaqItem[] = []
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') return { error: 'FAQ 每项必须包含「问题」与「答案」' }
+    const q = String((raw as any).q ?? '').trim()
+    const a = String((raw as any).a ?? '').trim()
+    if (!q || !a) return { error: 'FAQ 每项必须同时填写「问题」与「答案」' }
+    if (q.length > LIMITS.faqQ) return { error: `FAQ 问题不能超过 ${LIMITS.faqQ} 字` }
+    if (a.length > LIMITS.faqA) return { error: `FAQ 答案不能超过 ${LIMITS.faqA} 字` }
+    out.push({ q, a })
+  }
+  return out
+}
 
 /** 是否为合法的 http(s) 地址 */
 export function isHttpUrl(value: unknown): boolean {
@@ -134,6 +251,17 @@ export interface DealPayload {
   realName: string
   /** 「其他」的手填文案；real_name !== 'other' 时恒为空串 */
   realNameOther: string
+  // ── 2026-11-04 结构化字段（对齐 baipiao.org 详情页 IA）──
+  /** 一句话摘要 TL;DR */
+  summary: string
+  /** 限制条款 */
+  limits: string
+  /** 领取条件 */
+  requirements: string
+  /** 核实范围说明 */
+  verifyScope: string
+  /** FAQ（已校验的数组；落库时序列化为 JSON 字符串） */
+  faq: FaqItem[]
 }
 
 /**
@@ -213,6 +341,28 @@ export function validateDealPayload(body: any): ValidateResult {
   }
   const { realName, realNameOther } = normalizeRealName(realNameRaw, realNameOtherRaw)
 
+  // ── 2026-11-04 结构化字段：全部普通用户可写，超长一律 400（不静默截断）──
+  const summary = String(body?.summary ?? '').trim()
+  if (summary.length > LIMITS.summary) return { ok: false, error: `一句话摘要不能超过 ${LIMITS.summary} 字` }
+
+  const limits = String(body?.limits ?? '').trim()
+  if (limits.length > LIMITS.limits) return { ok: false, error: `限制条款不能超过 ${LIMITS.limits} 字` }
+
+  const requirements = String(body?.requirements ?? '').trim()
+  if (requirements.length > LIMITS.requirements) {
+    return { ok: false, error: `领取条件不能超过 ${LIMITS.requirements} 字` }
+  }
+
+  // 兼容 snake_case（DB / Web 表单）与 camelCase（部分调用方）
+  const verifyScope = String(body?.verify_scope ?? body?.verifyScope ?? '').trim()
+  if (verifyScope.length > LIMITS.verifyScope) {
+    return { ok: false, error: `核实范围不能超过 ${LIMITS.verifyScope} 字` }
+  }
+
+  // FAQ：严格校验（非数组 / 超条数 / 缺字段 / 超长 → 400），错误文案透传给调用方
+  const faqResult = normalizeFaq(body?.faq)
+  if (!Array.isArray(faqResult)) return { ok: false, error: faqResult.error }
+
   let expiresAt: number | null = null
   const rawExpires = body?.expires_at ?? body?.expiresAt
   if (rawExpires !== null && rawExpires !== undefined && rawExpires !== '') {
@@ -238,6 +388,11 @@ export function validateDealPayload(body: any): ValidateResult {
       note,
       realName,
       realNameOther,
+      summary,
+      limits,
+      requirements,
+      verifyScope,
+      faq: faqResult,
     },
   }
 }
@@ -343,6 +498,11 @@ export const DEAL_PATCHABLE = [
   // 枚举校验与「real_name_other 清空规则」收口在 `validateDealPayload`/`normalizeRealName`，
   // 三条写路径共用，不存在「直接编辑被拒、走建议通道却写进去」的旁路。
   'real_name', 'real_name_other',
+  // 结构化字段（2026-11-04）：与 note 同级，都是普通用户可写的**内容**字段，
+  // 故同样可走建议通道与 AI patch。
+  // ⚠️ 刻意**不含** `featured`（仅管理员可写，与 pinned 同口径）与 `source_url`
+  //    （运营字段，只由导入脚本直连 DB 写）。
+  'summary', 'limits', 'requirements', 'verify_scope', 'faq',
 ] as const
 
 /** 字段中文名，供 diff 展示 */
@@ -361,6 +521,11 @@ export const DEAL_FIELD_LABELS: Record<string, string> = {
   note: '备注',
   real_name: '是否实名',
   real_name_other: '实名方式说明',
+  summary: '一句话摘要',
+  limits: '限制条款',
+  requirements: '领取条件',
+  verify_scope: '核实范围',
+  faq: '常见问题',
 }
 
 /** snake_case → camelCase 别名（请求体两种写法都接受） */
@@ -370,6 +535,7 @@ const DEAL_FIELD_ALIASES: Record<string, string> = {
   expires_at: 'expiresAt',
   real_name: 'realName',
   real_name_other: 'realNameOther',
+  verify_scope: 'verifyScope',
 }
 
 
@@ -414,6 +580,14 @@ export function dealToPatchShape(deal: any): Record<string, any> {
     // 未填（空串）是合法值，故用 `?? ''` 兜住「旧库列尚未迁移」的 undefined
     real_name: deal?.real_name ?? '',
     real_name_other: deal?.real_name_other ?? '',
+    // 结构化字段（2026-11-04）：同样用 `?? ''` / `parseFaq` 兜住旧库未迁移的 undefined。
+    // `faq` 必须解成**数组**再参与比较 —— 库里的 JSON 字符串与请求体的数组
+    // 若直接 `JSON.stringify` 比对会永远不相等，导致每条通告误报一次 `faq` 变更。
+    summary: deal?.summary ?? '',
+    limits: deal?.limits ?? '',
+    requirements: deal?.requirements ?? '',
+    verify_scope: deal?.verify_scope ?? '',
+    faq: parseFaq(deal?.faq),
   }
 }
 
@@ -450,6 +624,11 @@ export function payloadToPatch(d: DealPayload, keys: Iterable<string>): Record<s
     note: d.note,
     real_name: d.realName,
     real_name_other: d.realNameOther,
+    summary: d.summary,
+    limits: d.limits,
+    requirements: d.requirements,
+    verify_scope: d.verifyScope,
+    faq: d.faq,
   }
   const out: Record<string, any> = {}
   for (const k of keys) out[k] = full[k]

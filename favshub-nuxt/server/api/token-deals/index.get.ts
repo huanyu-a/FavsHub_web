@@ -1,9 +1,15 @@
 /**
  * GET /api/token-deals — Token 白嫖通告列表
- * Query: page, limit, search, region, quality, source_tag, category, stale, sort (latest|nexus|hot|rating|expiring|verified), mine
+ * Query: page, limit, search, region, quality, source_tag, category, stale, verified, featured,
+ *        exclude, sort (latest|nexus|hot|rating|expiring|verified), mine
  *
  * `stale=1` 只返回「待复核」条目（超过 deal_verify_stale_days 没人工核验，含从未核验）。
+ * `verified=1` 只返回「近期已核实」条目（verified_at 非空且未超同一阈值）—— 与 `stale=1` 互补。
+ * `featured=1` 只返回 `featured=1` 的精选条目（仍须 approved + 可见，绝不放宽可见性）。
+ * `exclude=<dealId>` 排除指定 id（详情页「相关推荐」用）。
  * `sort=verified` 把最近核验过的排前面（未核验的垫底）。
+ *
+ * **`source_url` 任何身份都不下发**（运营字段，见下方剔除逻辑）。
  *
  * **默认排序 `latest`**（2026-10-30 需求：「/tokens 默认按最新排序」，此前默认 `nexus`）：
  * 置顶 → 最新发布。全站列表此前一进来是「Nexus 接入优先」，新通告容易被压在后面，
@@ -16,7 +22,8 @@
 import { getRawDb } from '../../database'
 import { optionalAuth } from '../../utils/auth'
 import {
-  escapeLike, isVerifyStale as isVerifyStaleRow, publicVisibleClause, verifyAgeDays, verifyStaleDays,
+  escapeLike, isVerifyStale as isVerifyStaleRow, parseFaq, publicVisibleClause,
+  verifyAgeDays, verifyStaleDays,
 } from '../../utils/token-deals'
 
 function parseModels(raw: unknown): string[] {
@@ -71,6 +78,13 @@ export default defineEventHandler(async (event) => {
   const sort = String(query.sort || 'latest')
   const mine = query.mine === '1' || query.mine === 'true'
   const staleOnly = query.stale === '1' || query.stale === 'true'
+  // 近期已核实（2026-11-04）：只留 verified_at 非空且未超「待复核」阈值的条目。
+  // 与 `stale=1` 恰好互补，但两者都只是**附加过滤**，叠加也合法（结果是空集）。
+  const verifiedOnly = query.verified === '1' || query.verified === 'true'
+  // 精选对比（2026-11-04）：只留 featured=1。仍需 approved + 可见（与公开侧同口径）
+  const featuredOnly = query.featured === '1' || query.featured === 'true'
+  // 详情页「相关推荐」用：排除当前条目，避免把自己推荐给自己
+  const exclude = String(query.exclude || '').trim()
 
   const db = getRawDb()
 
@@ -104,9 +118,10 @@ export default defineEventHandler(async (event) => {
   if (search) {
     const escaped = escapeLike(search)
     whereClause += ` AND (d.provider LIKE ? ESCAPE '\\' OR d.title LIKE ? ESCAPE '\\'`
-      + ` OR d.quota LIKE ? ESCAPE '\\' OR d.note LIKE ? ESCAPE '\\' OR d.models LIKE ? ESCAPE '\\')`
+      + ` OR d.quota LIKE ? ESCAPE '\\' OR d.note LIKE ? ESCAPE '\\' OR d.models LIKE ? ESCAPE '\\'`
+      + ` OR d.summary LIKE ? ESCAPE '\\')`
     const like = `%${escaped}%`
-    params.push(like, like, like, like, like)
+    params.push(like, like, like, like, like, like)
   }
   if (region) {
     whereClause += ' AND d.region = ?'
@@ -128,6 +143,23 @@ export default defineEventHandler(async (event) => {
     // 待复核：从未核验（0/NULL）或超过阈值没核验。只影响「提示」，不影响可见性
     whereClause += ' AND (d.verified_at IS NULL OR d.verified_at = 0 OR d.verified_at < ?)'
     params.push(Date.now() - verifyStaleDays() * 86400000)
+  }
+  if (verifiedOnly) {
+    // 近期已核实：`verified_at` 非空且非 0（0 = 从未核验，见 CLAUDE.md「人工核验时间轴」），
+    // 且在 `deal_verify_stale_days` 窗口内。窗口两端都用参数绑定（不字符串插值），
+    // 避免 `verified_at = 0` 那类边界值被 `>= 0` 误判成「已核实」。
+    const since = Date.now() - verifyStaleDays() * 86400000
+    whereClause += ' AND d.verified_at IS NOT NULL AND d.verified_at != 0 AND d.verified_at >= ?'
+    params.push(since)
+  }
+  if (featuredOnly) {
+    // 精选对比：仍叠加在 publicVisibleClause 之上 —— 绝不因为「精选」就放宽可见性
+    whereClause += ' AND d.featured = 1'
+  }
+  if (exclude) {
+    // 排除指定 id（详情页「相关推荐」）。`<>` 而非 `NOT IN`：单值，且 NULL 安全
+    whereClause += ' AND d.id != ?'
+    params.push(exclude)
   }
 
   const defaultOrder = 'd.pinned DESC, d.created_at DESC'
@@ -185,6 +217,11 @@ export default defineEventHandler(async (event) => {
     return {
       ...rest,
       models: parseModels(row.models),
+      // FAQ 是 JSON 字符串列 → 公开侧一律下发解析后的数组（前端拿到的永远是 [{q,a}]）。
+      // `parseFaq` 对脏数据（非法 JSON / 非数组 / 缺字段）回 `[]`，不会 500。
+      faq: parseFaq(row.faq),
+      // 精选对比：归一为 0/1 整数（SQLite 里可能存 0/1/NULL）
+      featured: row.featured ? 1 : 0,
       is_expired: !!row.expires_at && row.expires_at < now,
       is_invalid: !!row.invalid_at,
       // 走到这里的公开行一定可见（SQL 已过滤），mine=1 时才可能为 true
@@ -210,6 +247,12 @@ export default defineEventHandler(async (event) => {
       //    自己被驳回的原因才能改稿重提。
       deleted_at: undefined,
       invalid_reason: undefined,
+      // ⚠️ **情报来源 source_url：任何身份都不下发**（含管理员浏览公开前台）。
+      //    2026-11-04 新增列，属运营留痕（对标站点的详情页地址）——
+      //    公开侧用 `...rest` 展开全列，所以每加一个内部列都必须回到这里显式剔除。
+      //    与 `verified_by` / `guest_fingerprint` / `deleted_by` 同一份口径；
+      //    `ai-service.ts` 的 `DEAL_PRIVATE_FIELDS` 也同步加了它（AI 通道同样不下发）。
+      source_url: undefined,
       nexus,
     }
   })

@@ -32,7 +32,12 @@ __pycache__/
 *.py[cod]
 
 # Database
-data/
+# 注意：这里必须写**根锚定**的 `/data/`，不能写 `data/`。
+# 无前导斜杠的 `data/` 会匹配任意层级的同名目录，连带把 `server/data/` 也挡掉 ——
+# 而 `server/data/baipiao-channels.json` 是对标站点渠道的快照数据（来源留痕，需入库）。
+# 2026-11-04 实测：`git check-ignore -v server/data/baipiao-channels.json`
+# 曾命中本文件第 35 行的 `data/`，干净 clone 上导入脚本会因缺数据文件而无法运行。
+/data/
 *.db
 *.db-wal
 *.db-shm

@@ -16,15 +16,16 @@
     <div class="filter-selects">
       <label class="filter-select">
         <span class="sr-only">品质分级</span>
-        <select :value="quality" @change="onChange('update:quality', $event)">
+        <select :value="quality" @change="onSelect('update:quality', $event)">
           <option value="">品质：全部</option>
           <option v-for="q in QUALITY_LEVELS" :key="q" :value="q">{{ q }}</option>
         </select>
       </label>
 
-      <label class="filter-select">
+      <!-- 分类落地页（/tokens/api 等）由页面锁死分类，这里不再给用户改的机会 -->
+      <label v-if="!lockCategory" class="filter-select">
         <span class="sr-only">通告分类</span>
-        <select :value="category" @change="onChange('update:category', $event)">
+        <select :value="category" @change="onSelect('update:category', $event)">
           <option value="">分类：全部</option>
           <option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
@@ -32,22 +33,31 @@
 
       <label class="filter-select">
         <span class="sr-only">来源标签</span>
-        <select :value="sourceTag" @change="onChange('update:sourceTag', $event)">
+        <select :value="sourceTag" @change="onSelect('update:sourceTag', $event)">
           <option value="">来源：全部</option>
           <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
       </label>
 
-      <!-- 待复核：超过核验新鲜度阈值 / 从未人工核验的通告（只提示，不代表已失效） -->
+      <!-- 核实状态（2026-11-04）：替代原先独立的「待复核」chip，避免同一维度两套控件。
+           三档对应 /api/token-deals 的 verified=1 / stale=1，空值为不加条件。 -->
+      <label class="filter-select" :title="verifyTitle">
+        <span class="sr-only">核实状态</span>
+        <select :value="verifyState" @change="onSelect('update:verifyState', $event)">
+          <option v-for="v in VERIFY_OPTIONS" :key="v.value" :value="v.value">{{ v.label }}</option>
+        </select>
+      </label>
+
+      <!-- 只看收藏：纯本地过滤（收藏存在 localStorage，服务端不知道），由 board 侧执行 -->
       <button
         type="button"
         class="filter-chip"
-        :class="{ active: stale }"
-        :aria-pressed="stale"
-        title="只看超过核验阈值（默认 30 天）没有人工核验的通告"
-        @click="$emit('update:stale', !stale)"
+        :class="{ active: favOnly }"
+        :aria-pressed="favOnly"
+        title="只看我收藏过的通告（收藏保存在本机浏览器）"
+        @click="$emit('update:favOnly', !favOnly)"
       >
-        <i class="ri-refresh-line"></i> 待复核
+        <i :class="favOnly ? 'ri-star-fill' : 'ri-star-line'"></i> 只看收藏
       </button>
     </div>
   </div>
@@ -59,7 +69,11 @@ defineProps<{
   quality: string
   sourceTag: string
   category: string
-  stale: boolean
+  /** 核实状态：'' 全部 | 'verified' 近期已核实 | 'stale' 待复核 */
+  verifyState: string
+  favOnly: boolean
+  /** 分类落地页传 true：分类被页面锁死，隐藏分类下拉 */
+  lockCategory?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -67,7 +81,8 @@ const emit = defineEmits<{
   'update:quality': [value: string]
   'update:sourceTag': [value: string]
   'update:category': [value: string]
-  'update:stale': [value: boolean]
+  'update:verifyState': [value: string]
+  'update:favOnly': [value: boolean]
 }>()
 
 const SORT_OPTIONS = [
@@ -87,21 +102,32 @@ const SOURCE_OPTIONS = [
   { value: 'community', label: '社区转发' },
 ]
 
-// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致
+// 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 保持一致（顺序即展示顺序）
 const CATEGORY_OPTIONS = [
   { value: 'token', label: 'API 额度' },
   { value: 'cloud', label: '免费云服务器' },
+  { value: 'domain', label: '免费域名' },
   { value: 'client', label: '客户端额度' },
 ]
 
-function onChange(
-  eventName: 'update:quality' | 'update:sourceTag' | 'update:category',
+const VERIFY_OPTIONS = [
+  { value: '', label: '核实：全部记录' },
+  { value: 'verified', label: '核实：近期已核实' },
+  { value: 'stale', label: '核实：待复核' },
+]
+
+/** 「待复核」只是新鲜度提示，不代表已失效 —— 下拉自身没法挂 title，挂在外层 label 上 */
+const verifyTitle = '「近期已核实」= 阈值内人工确认过仍可用；「待复核」= 超过阈值（默认 30 天）没核验，只做提示、不代表已失效'
+
+function onSelect(
+  eventName: 'update:quality' | 'update:sourceTag' | 'update:category' | 'update:verifyState',
   e: Event,
 ) {
   const value = (e.target as HTMLSelectElement).value
   if (eventName === 'update:quality') emit('update:quality', value)
+  else if (eventName === 'update:sourceTag') emit('update:sourceTag', value)
   else if (eventName === 'update:category') emit('update:category', value)
-  else emit('update:sourceTag', value)
+  else emit('update:verifyState', value)
 }
 </script>
 
@@ -157,6 +183,7 @@ function onChange(
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 .filter-select select {
   font-size: 12px;
@@ -223,11 +250,17 @@ function onChange(
   .filter-selects {
     width: 100%;
   }
+  /* 移动端：4 个下拉 + 1 个 chip 挤一行会换行参差 —— 让每个控件各占半行，chip 独占整行 */
   .filter-select {
-    flex: 1;
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
   .filter-select select {
     width: 100%;
+  }
+  .filter-chip {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 }
 </style>

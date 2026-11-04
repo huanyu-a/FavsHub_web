@@ -1,203 +1,66 @@
 <template>
   <div>
-    <header class="tokens-header">
-      <div class="tokens-header-inner">
-        <div class="tokens-header-left">
-          <NuxtLink to="/" class="tokens-header-logo" title="返回主页">
-            <img src="/images/logo.svg" alt="FavsHub" class="tokens-header-logo-img">
-          </NuxtLink>
-          <h1 class="tokens-header-title"><i class="ri-gift-2-line"></i> Token 白嫖通告</h1>
-        </div>
-        <nav class="tokens-header-nav">
-          <NuxtLink to="/" class="tokens-header-link" title="主页">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <span>主页</span>
-          </NuxtLink>
-          <NuxtLink to="/collections" class="tokens-header-link">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
-            <span>精选集</span>
-          </NuxtLink>
-          <NuxtLink to="/tokens" class="tokens-header-link active">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13"/><path d="M19 12v3"/><path d="M5 12v3"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
-            <span>白嫖通告</span>
-          </NuxtLink>
-          <NuxtLink to="/tokens/keys" class="tokens-header-link" title="福利 Key">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-            <span>福利 Key</span>
-          </NuxtLink>
-          <NuxtLink to="/prompts" class="tokens-header-link">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
-            <span>提示词</span>
-          </NuxtLink>
-          <!-- 评测看板是服务器上的独立静态页（非 Nuxt 路由）→ 用原生 a 触发整页加载，避免 router 匹配失败 -->
-          <a href="/tokens/eval/" class="tokens-header-link" title="Nexus 模型评测看板">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <span>评测看板</span>
-          </a>
-        </nav>
-      </div>
-    </header>
-
-    <div class="tokens-page">
-      <section class="tokens-hero">
-        <div class="hero-text">
-          <h1 class="hero-title">Token 白嫖通告</h1>
-          <p class="hero-sub">
-            社区众包的免费 AI 额度情报：谁还能用、谁已经失效，由每一次投票与评测实时更新。共 {{ pagination.total }} 条通告。
-          </p>
-        </div>
-        <div class="hero-toolbar">
-          <div class="search-box">
-            <i class="ri-search-line"></i>
-            <input v-model="search" type="text" placeholder="搜索服务商、额度或模型..." @input="debouncedSearch">
-          </div>
-          <!-- 待我审核：作者审自己通告上的提案，管理员审全部 -->
-          <button
-            v-if="authStore.isLoggedIn"
-            type="button"
-            class="hero-review"
-            title="查看待我审核的修改建议"
-            @click="openReviewPanel"
+    <TokenDealsBoard
+      intro="白嫖资源最怕的不是「领不到」，而是「早失效了还挂在列表里」。这里按 API 额度、免费服务器、免费域名分门别类，每条都标出额度、领取门槛和最近一次核验时间，失效的会被社区投票压下去。"
+    >
+      <!-- 分类导航卡：三个分类各有独立落地页（可被搜索引擎单独收录） -->
+      <template #after-hero>
+        <nav class="cat-nav" aria-label="白嫖分类导航">
+          <NuxtLink
+            v-for="c in CATEGORY_CARDS"
+            :key="c.to"
+            :to="c.to"
+            class="cat-card"
           >
-            <i class="ri-inbox-unarchive-line"></i> 待我审核
-            <span v-if="reviewCount > 0" class="review-badge">{{ reviewCount }}</span>
-          </button>
-          <button type="button" class="hero-publish" @click="openEditor()">
-            <i class="ri-add-line"></i> 发布通告
-          </button>
-        </div>
-      </section>
+            <span class="cat-card-top">
+              <i :class="c.icon"></i>
+              <span class="cat-card-name">{{ c.name }}</span>
+              <span class="cat-card-count">{{ countOf(c.category) }} 条</span>
+            </span>
+            <span class="cat-card-desc">{{ c.desc }}</span>
+          </NuxtLink>
+        </nav>
+      </template>
+    </TokenDealsBoard>
 
-      <TokenFilterBar
-        v-model:sort="sort"
-        v-model:quality="quality"
-        v-model:source-tag="sourceTag"
-        v-model:category="category"
-        v-model:stale="staleOnly"
-      />
+    <!-- ── 精选对比（2026-11-04 从独立页并入本页）─────────────────────────
+         用户要求「compare 应放置到 tokens 页」：原先 /tokens/compare 是一个平级独立页，
+         用户看完列表想横向比价还要跳走一次，且它在导航里占了一个和「白嫖通告」同级的入口，
+         层级过高。
 
-      <!-- 加载状态：骨架屏 -->
-      <div v-if="loading" class="skeleton-grid" aria-hidden="true">
-        <div v-for="i in 6" :key="i" class="skeleton-card">
-          <div class="sk-row">
-            <div class="sk sk-avatar"></div>
-            <div class="sk sk-quality"></div>
-          </div>
-          <div class="sk sk-line w-55"></div>
-          <div class="sk sk-quota"></div>
-          <div class="sk-row">
-            <div class="sk sk-chip"></div>
-            <div class="sk sk-chip"></div>
-            <div class="sk sk-chip"></div>
-          </div>
-          <div class="sk sk-line w-40 sk-foot"></div>
-        </div>
+         现在：本页底部内嵌对比表，「精选对比」不再是顶层导航项。
+         /tokens/compare 路由**保留**（老链接、外链、已收录页面都指向它），
+         但导航不再突出它 —— 直接删会 404，属于不能做的事。
+
+         数据独立请求：featured=1 只有十几条，与主列表的筛选/分页无关，
+         挂在 Board 的筛选里反而会被「分类=API」这类条件误筛掉。 -->
+    <section v-if="featuredDeals.length" class="idx-compare">
+      <div class="idx-compare-head">
+        <h2 class="idx-compare-title">
+          <i class="ri-table-line" aria-hidden="true"></i> 精选对比
+        </h2>
+        <p class="idx-compare-sub">
+          值得优先考虑的这几条，放在一张表里逐项对照：额度、领取条件、限制、有效期与最近核实。
+        </p>
+        <NuxtLink to="/tokens/compare" class="idx-compare-more">
+          单独打开对比页 <i class="ri-arrow-right-line" aria-hidden="true"></i>
+        </NuxtLink>
       </div>
+      <TokenCompareTable :deals="featuredDeals" :pending="featuredPending" />
+    </section>
 
-      <!-- 空状态 -->
-      <div v-else-if="deals.length === 0" class="empty-state">
-        <i class="ri-inbox-line"></i>
-        <p>{{ hasFilter ? '没有符合条件的通告' : '暂无通告' }}</p>
-        <span>{{ hasFilter ? '试试放宽筛选条件' : '成为第一个分享免费额度的人吧' }}</span>
-      </div>
-
-      <!-- 卡片网格 -->
-      <div v-else class="tokens-grid">
-        <TokenDealCard v-for="d in deals" :key="d.id" :deal="d" @open="openDetail" />
-      </div>
-
-      <!-- 分页 -->
-      <div v-if="pagination.totalPages > 1" class="pagination">
-        <button :disabled="pagination.page <= 1" @click="prevPage">上一页</button>
-        <span class="page-info">{{ pagination.page }} / {{ pagination.totalPages }}</span>
-        <button :disabled="pagination.page >= pagination.totalPages" @click="nextPage">下一页</button>
-      </div>
-
-      <BackToTop />
-    </div>
-
-    <!-- 详情弹窗（列表页保留原有弹窗交互：点击卡片就地展开，地址栏不落查询参数） -->
-    <TokenDealDetail
-      v-if="detailDeal"
-      :deal-id="detailDeal.id"
-      @close="closeDetail"
-      @edit="onEditFromDetail"
-      @changed="refresh"
-    />
-
-    <!-- 发布 / 编辑弹窗 -->
-    <TokenDealEditor
-      v-if="editorOpen"
-      :deal="editorDeal"
-      @close="editorOpen = false"
-      @saved="onSaved"
-    />
-
-    <!-- 待我审核的修改建议面板 -->
-    <TokenEditReviewPanel
-      v-if="reviewPanelOpen"
-      @close="reviewPanelOpen = false"
-      @reviewed="loadReviewCount"
-      @open-deal="onOpenDealFromPanel"
-    />
-
-    <!-- 轻提示 -->
-    <Transition name="tokens-toast">
-      <div v-if="toastMessage" class="tokens-toast">{{ toastMessage }}</div>
-    </Transition>
-
-    <!-- 统一页脚 -->
+    <BackToTop />
     <SiteFooter />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import TokenDealCard from '~/components/tokens/TokenDealCard.vue'
-import TokenFilterBar from '~/components/tokens/TokenFilterBar.vue'
-import TokenDealDetail from '~/components/tokens/TokenDealDetail.vue'
-import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
-import TokenEditReviewPanel from '~/components/tokens/TokenEditReviewPanel.vue'
+import TokenDealsBoard from '~/components/tokens/TokenDealsBoard.vue'
+import TokenCompareTable, { type IFeaturedDeal } from '~/components/tokens/TokenCompareTable.vue'
 import BackToTop from '~/components/BackToTop.vue'
 import SiteFooter from '~/components/common/SiteFooter.vue'
 
 definePageMeta({ layout: 'default' })
-
-interface ITokenDeal {
-  id: string
-  provider: string
-  title: string
-  url: string
-  quota?: string
-  models?: string[]
-  region?: string
-  quality?: string
-  source_tag?: string
-  category?: string
-  expires_at?: number | null
-  pinned?: number
-  is_expired?: boolean
-  vote_up?: number
-  vote_down?: number
-  rating_sum?: number
-  rating_count?: number
-  // 人工核验时间轴（2026-10-20）
-  verified_at?: number
-  verify_age_days?: number
-  verify_stale?: boolean
-  verify_note?: string
-}
-
-interface IPagination {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-}
-
-const authStore = useAuthStore()
-const route = useRoute()
-const router = useRouter()
 
 const _tokensBase = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 const tokensBaseUrl = computed(() => `${_tokensBase}/tokens`)
@@ -235,603 +98,220 @@ useHead({
   ],
 })
 
-const search = ref('')
+/** 分类导航卡（顺序与 DEAL_CATEGORIES 一致；client 分类是细分入口，不单独做落地页） */
+const CATEGORY_CARDS = [
+  {
+    category: 'token',
+    to: '/tokens/api',
+    name: '免费 API / 模型',
+    icon: 'ri-robot-2-line',
+    desc: '各家大模型与推理服务的免费额度、试用金、每日签到送 Token。',
+  },
+  {
+    category: 'cloud',
+    to: '/tokens/server',
+    name: '免费服务器 / VPS',
+    icon: 'ri-server-line',
+    desc: '免费云主机、PaaS 与 Serverless 免费档，能真正跑起一个小站或 Bot。',
+  },
+  {
+    category: 'domain',
+    to: '/tokens/domain',
+    name: '免费域名',
+    icon: 'ri-global-line',
+    desc: '免费二级域名、公益顶级域与 DDNS，给自建服务一个稳定入口。',
+  },
+  // 2026-11-04 补：`client`（客户端额度）原先漏在这一处 ——
+  // 服务端 DEAL_CATEGORIES 有 4 类、筛选栏/编辑器/卡片/详情页的常量副本都有 client，
+  // 唯独首页分类导航卡只列了 3 类，导致 4 条客户端额度通告（LightVela、讯飞 Loomy、
+  // 码道CodeArts、AutoClaw）在首页没有任何入口，用户只能在「全部」里翻到。
+  {
+    category: 'client',
+    to: '/tokens/client',
+    name: '客户端额度',
+    icon: 'ri-apps-2-line',
+    desc: '桌面 / 移动端 AI 客户端自带的免费额度：注册积分、每日签到、拉新奖励。',
+  },
+] as const
+
 /**
- * 默认排序（2026-10-30 需求：「/tokens 默认按最新排序」）。
+ * 各分类条数。
  *
- * 原来是 `nexus`（Nexus 实测优先），而列表页**始终**把这个值作为 `sort` 查询参数发给
- * `/api/token-deals`，所以服务端默认值改不改都不影响页面首屏 —— 页面侧改这里就够了。
- * 「Nexus 实测」仍是排序条上的一个可选项，用户点了就切回去。
+ * 用 `limit=1` 只取分页里的 `total`：列表数据本身由 TokenDealsBoard 自己请求，
+ * 这里再拉全量就重复了。三次请求并行，任一分类失败只影响它自己的数字（显示 —），
+ * 不拖垮整页。
  */
-const sort = ref('latest')
-const quality = ref('')
-const sourceTag = ref('')
-const category = ref('')
-const staleOnly = ref(false)
-const page = ref(1)
-const limit = 24
-
-const detailDeal = ref<ITokenDeal | null>(null)
-const editorOpen = ref(false)
-const editorDeal = ref<ITokenDeal | null>(null)
-
-// ── 待我审核的修改建议 ──
-const reviewPanelOpen = ref(false)
-const reviewCount = ref(0)
-
-/** 拉取待审建议数量（用于入口角标）；未登录或接口不可用时静默归零 */
-async function loadReviewCount() {
-  if (!authStore.isLoggedIn) {
-    reviewCount.value = 0
-    return
-  }
-  try {
-    const res = await $fetch<{ total: number }>('/api/token-deal-edits', {
-      query: { limit: 1 },
-      credentials: 'include',
-    })
-    reviewCount.value = res?.total || 0
-  } catch {
-    reviewCount.value = 0
-  }
-}
-
-function openReviewPanel() {
-  reviewPanelOpen.value = true
-}
-
-/** 面板里点了某条通告 → 关面板并打开该通告详情 */
-function onOpenDealFromPanel(dealId: string) {
-  reviewPanelOpen.value = false
-  detailDeal.value = { id: dealId } as ITokenDeal
-}
-
-const toastMessage = ref('')
-let toastTimer: ReturnType<typeof setTimeout> | null = null
-
-function showToast(text: string) {
-  if (toastTimer) clearTimeout(toastTimer)
-  toastMessage.value = text
-  toastTimer = setTimeout(() => { toastMessage.value = '' }, 3000)
-}
-
-let searchTimeout: ReturnType<typeof setTimeout>
-
-// 服务端预取 + 客户端复用，避免 SSR 空白闪烁
-const { data, refresh, pending } = await useFetch<{ deals: ITokenDeal[]; pagination: IPagination }>('/api/token-deals', {
-  query: { page, limit, sort, quality, source_tag: sourceTag, category, search, stale: staleOnly },
-  server: true,
-  lazy: false,
-  getCachedData: (key, nuxtApp) => nuxtApp.payload?.data?.[key],
-})
-
-const loading = computed(() => pending.value)
-const deals = computed(() => data.value?.deals || [])
-const pagination = computed(() => data.value?.pagination || { page: 1, limit, total: 0, totalPages: 1 })
-const hasFilter = computed(() => !!(search.value || quality.value || sourceTag.value || category.value || staleOnly.value))
-
-function debouncedSearch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => reloadFirstPage(), 300)
-}
-
-function prevPage() {
-  if (page.value > 1) page.value--
-}
-
-function nextPage() {
-  if (page.value < pagination.value.totalPages) page.value++
-}
-
-function openDetail(deal: ITokenDeal) {
-  detailDeal.value = deal
-}
+const { data: categoryCounts } = await useAsyncData<Record<string, number>>(
+  'tokens-category-counts',
+  async () => {
+    const results = await Promise.all(
+      CATEGORY_CARDS.map(async (card) => {
+        try {
+          const res = await $fetch<{ pagination?: { total?: number } }>('/api/token-deals', {
+            query: { limit: 1, category: card.category },
+          })
+          return [card.category, Number(res?.pagination?.total ?? 0)] as const
+        } catch {
+          return [card.category, -1] as const
+        }
+      }),
+    )
+    return Object.fromEntries(results)
+  },
+  { server: true, lazy: false },
+)
 
 /**
- * 关闭详情：只关弹窗。
+ * 精选对比数据（2026-11-04 并入本页）。
  *
- * 这里**不再**同步 `?deal=` 查询参数（旧实现用 syncDealQuery 双向同步）：
- * 详情地址已改为伪静态路径 `/tokens/<id>.html`，弹窗就地展开时地址栏保持
- * `/tokens` 干净；老分享链接（`/tokens?deal=<id>`）由
- * server/middleware/legacy-detail-redirect.ts 在服务端 301 到新的落地页。
+ * 独立于 Board 的列表请求：`featured=1` 是十几条精选，与主列表的分类/搜索/分页
+ * 完全无关；混进 Board 的 query 会被「分类=API」这类筛选条件误伤。
+ *
+ * `server: true` 让首屏 SSR 就带上表格，避免对比区先空着再蹦出来（CLS）。
+ * 请求失败时 `featuredDeals` 为空 → 整块 v-if 不渲染，不留破图。
  */
-function closeDetail() {
-  detailDeal.value = null
+const { data: featuredData, pending: featuredPending } = await useFetch<{ deals: IFeaturedDeal[] }>(
+  '/api/token-deals',
+  {
+    query: { featured: 1, limit: 50, page: 1 },
+    server: true,
+    lazy: false,
+    // 与 /tokens/compare 共用同一个 payload key（Nuxt 默认按 url+query 生成，
+    // 两处 query 不同所以不会冲突）；这里显式给 key，便于将来做缓存预热
+    key: 'tokens-featured-deals',
+  },
+)
+const featuredDeals = computed(() => featuredData.value?.deals || [])
+
+/** -1（请求失败）显示成 —，避免把「查不到」误报成「0 条」 */
+function countOf(category: string): string {
+  const n = categoryCounts.value?.[category]
+  if (typeof n !== 'number' || n < 0) return '—'
+  return String(n)
 }
-
-/**
- * 打开发布 / 编辑表单。
- * 游客可直接发布（走游客通道，同样进入管理员审核）；
- * 编辑通告仍需登录（作者本人或管理员），未登录时先引导登录。
- */
-function openEditor(deal: ITokenDeal | null = null) {
-  if (!authStore.isLoggedIn && deal) {
-    router.push({ path: '/login', query: { redirect: '/tokens', action: 'publish' } })
-    return
-  }
-  editorDeal.value = deal
-  editorOpen.value = true
-}
-
-function onEditFromDetail(deal: ITokenDeal) {
-  closeDetail()
-  openEditor(deal)
-}
-
-function onSaved(message: string) {
-  editorOpen.value = false
-  editorDeal.value = null
-  if (message) showToast(message)
-  reloadFirstPage()
-}
-
-// 筛选变化 → 回到第 1 页（页码本身绝不能被回置：翻页只靠下面的 watch 重新请求）
-watch([sort, quality, sourceTag, category, staleOnly], () => {
-  if (page.value !== 1) page.value = 1
-})
-// 翻页 / 筛选变化 → 重新请求
-watch([page, sort, quality, sourceTag, category, staleOnly], () => refresh())
-
-/** 从第 1 页重新加载：已在第 1 页时直接请求，否则改页码交给上面的 watch（避免重复请求） */
-function reloadFirstPage() {
-  if (page.value !== 1) page.value = 1
-  else refresh()
-}
-
-// 从登录页跳回时自动展开发布表单
-onMounted(() => {
-  // 待审建议角标：不阻塞首屏，后台拉取
-  loadReviewCount()
-
-  if (route.query.action === 'publish' && authStore.isLoggedIn) {
-    const next: Record<string, any> = { ...route.query }
-    delete next.action
-    openEditor()
-    router.replace({ query: next })
-  }
-})
-
-onUnmounted(() => {
-  clearTimeout(searchTimeout)
-  if (toastTimer) clearTimeout(toastTimer)
-})
 </script>
 
-<style>
-/* ── tokens 模块共享（全局，非 scoped）──
-   4 个弹窗组件（详情 / 编辑 / 审核 / 分享）原先各自复制一套 backdrop fade、
-   modal rise、spin keyframes，现合并为一份全局定义统一引用。
-   本页是所有 tokens 弹窗的唯一宿主路由，全局定义在这里必然先行加载。 */
-@keyframes modal-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes modal-in {
-  from { opacity: 0; transform: translateY(12px) scale(0.99); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes modal-spin {
-  to { transform: rotate(360deg); }
-}
-</style>
-
 <style scoped>
-.tokens-header {
-  width: 100%;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.tokens-header-inner {
+/* ── 精选对比区块（2026-11-04 从 /tokens/compare 并入）──
+   包在 .tokens-page 之外：Table 有自己的 max-width 需求，
+   这里只负责与上方列表的间距和标题层级。 */
+.idx-compare {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  white-space: nowrap;
+  padding: 8px 24px 56px;
 }
-.tokens-header-left {
+.idx-compare-head { margin-bottom: 14px; }
+.idx-compare-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
 }
-.tokens-header-logo {
-  display: flex;
+.idx-compare-title i { color: var(--primary); }
+.idx-compare-sub {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+.idx-compare-more {
+  display: inline-flex;
   align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--primary);
   text-decoration: none;
-  border-radius: 6px;
-  transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tokens-header-logo:hover { opacity: 0.7; }
-.tokens-header-logo:active { opacity: 0.6; }
-.tokens-header-logo:focus-visible {
+.idx-compare-more:hover { text-decoration: underline; }
+.idx-compare-more:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (max-width: 768px) {
+  .idx-compare { padding: 8px 16px 40px; }
+}
+
+/* ── 分类导航卡：三张并排，窄屏堆叠 ── */
+.cat-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 16px 0 4px;
+}
+
+.cat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cat-card:hover {
+  border-color: var(--border-focus);
+  background: var(--surface-hover);
+  box-shadow: var(--shadow-sm);
+}
+.cat-card:active { background: var(--surface-active); }
+.cat-card:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-.tokens-header-logo-img {
-  width: 26px;
-  height: 26px;
+
+.cat-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cat-card-top i {
+  font-size: 16px;
+  color: var(--primary);
   flex-shrink: 0;
 }
-.tokens-header-title {
-  margin: 0;
-  font-size: 15px;
+.cat-card-name {
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.tokens-header-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: nowrap;
-}
-.tokens-header-link {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  text-decoration: none;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.tokens-header-link svg {
-  width: 15px;
-  height: 15px;
-  opacity: 0.7;
-}
-.tokens-header-link:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-.tokens-header-link:hover svg { opacity: 1; }
-.tokens-header-link:active { background: var(--surface-active); }
-.tokens-header-link:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.tokens-header-link.active {
+.cat-card-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
   color: var(--primary);
   background: var(--primary-light);
-}
-.tokens-header-link.active svg { opacity: 1; }
-
-.tokens-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-/* ── 克制的中性面板：主题色仅作强调（焦点环、主按钮），不再用满屏主色大色块 ── */
-/* 紧凑页头：左标题+副文、右搜索+操作，一行放下（窄屏自动换行） */
-.tokens-hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px 24px;
-  flex-wrap: wrap;
-  background: var(--surface-raised);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 20px;
-}
-.hero-text {
-  flex: 1 1 320px;
-  min-width: 0;
-}
-.hero-title {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-.hero-sub {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  max-width: 560px;
-  color: var(--text-secondary);
-}
-.hero-toolbar {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 0;
-  flex-wrap: wrap;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-.hero-toolbar .search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border: 0.5px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  flex: 1 1 240px;
-  min-width: 220px;
-  max-width: 420px;
-  transition: border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@media (max-width: 768px) {
-  .tokens-hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  /* 列方向下 flex-basis 的语义由宽度变为高度，必须重置，否则 hero 被撑满一屏 */
-  .hero-text { flex: 0 0 auto; }
-  .hero-toolbar .search-box {
-    max-width: none;
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-}
-.hero-toolbar .search-box i { color: var(--text-tertiary); font-size: 16px; transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
-.hero-toolbar .search-box:focus-within {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--primary-light);
-}
-.hero-toolbar .search-box:focus-within i { color: var(--primary); }
-.hero-toolbar .search-box input {
-  border: none;
-  background: none;
-  outline: none;
-  font-size: 13px;
-  width: 100%;
-  color: var(--text-primary);
-}
-.hero-toolbar .search-box input::placeholder { color: var(--text-tertiary); }
-
-.hero-publish {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 8px 16px;
-  border: 0.5px solid var(--primary);
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--primary);
-  color: var(--text-inverse);
-  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.hero-publish:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-  box-shadow: var(--shadow-sm);
-}
-.hero-publish:active { background: var(--primary-dark); border-color: var(--primary-dark); }
-.hero-publish:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.hero-publish i { font-size: 15px; }
-
-/* 待我审核入口：与「发布通告」同排，视觉弱一档以保持主次 */
-.hero-review {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 0.5px solid var(--border);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.hero-review:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-  border-color: var(--border-focus);
-}
-.hero-review:active { background: var(--surface-active); }
-.hero-review:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.hero-review i { font-size: 15px; }
-.review-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-inverse);
-  background: var(--danger);
-}
-
-.tokens-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
-}
-
-/* ── 骨架屏 ── */
-.skeleton-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  margin-bottom: 28px;
-}
-.skeleton-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--surface-raised);
-  border: 0.5px solid var(--border);
-  border-radius: 14px;
-}
-.sk {
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-hover) 50%, var(--surface-sunken) 75%);
-  background-size: 200% 100%;
-  animation: tokens-sk-shimmer 1.4s ease-in-out infinite;
-}
-.sk-row { display: flex; align-items: center; gap: 8px; }
-.sk-avatar { width: 28px; height: 28px; border-radius: 6px; }
-.sk-quality { width: 52px; height: 20px; border-radius: 6px; margin-left: auto; }
-.sk-line { height: 12px; }
-.sk-line.w-55 { width: 55%; }
-.sk-line.w-40 { width: 40%; }
-.sk-quota { height: 52px; border-radius: 10px; }
-.sk-chip { width: 76px; height: 22px; border-radius: 6px; }
-.sk-foot { margin-top: 2px; }
-@keyframes tokens-sk-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* ── 空状态 ── */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 64px 20px;
-  color: var(--text-tertiary);
-  background: var(--surface-raised);
-  border: 1px dashed var(--border);
-  border-radius: 14px;
-  margin-bottom: 28px;
-}
-.empty-state i {
-  font-size: 36px;
-  margin-bottom: 8px;
-}
-.empty-state p {
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0;
-}
-.empty-state span {
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-}
-.pagination button {
-  padding: 8px 16px;
-  border: 0.5px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-secondary);
-  transition: color 0.18s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pagination button:not(:disabled):hover {
-  color: var(--primary);
-  background: var(--surface-hover);
-  box-shadow: var(--shadow-md);
-}
-.pagination button:not(:disabled):active { background: var(--surface-active); }
-.pagination button:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.page-info {
-  font-size: 12px;
-  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-
-/* ── 轻提示（发布结果 / 审核状态） ── */
-.tokens-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  z-index: 1400;
-  padding: 8px 16px;
-  border-radius: 10px;
-  font-size: 13px;
-  color: var(--text-inverse);
-  background: var(--text-primary);
-  box-shadow: var(--shadow-lg);
-  white-space: nowrap;
+.cat-card-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
 }
-.tokens-toast-enter-active,
-.tokens-toast-leave-active { transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
-.tokens-toast-enter-from,
-.tokens-toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
 
-/* ── 移动端适配 ── */
-@media (max-width: 1024px) {
-  .tokens-page {
-    padding: 72px 16px 96px;
-  }
-}
 @media (max-width: 768px) {
-  .tokens-header {
-    display: none;
-  }
-  .tokens-page {
-    padding: 68px 12px 96px;
-  }
-  .tokens-hero {
-    padding: 24px 20px;
-    border-radius: 14px;
-  }
-  .hero-title { font-size: 24px; }
-  /* 工具栏保持基础 row+wrap：搜索框独占一行，「待我审核」「发布通告」平分一行 */
-  .hero-toolbar .search-box {
-    min-width: 0;
-    width: 100%;
-  }
-  .hero-publish {
-    flex: 1 1 0;
-    justify-content: center;
-  }
-  .hero-review {
-    flex: 1 1 0;
-    justify-content: center;
-  }
-  .tokens-grid {
+  .cat-nav {
     grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
   }
-  .skeleton-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 480px) {
-  .tokens-page {
-    padding: 60px 10px 96px;
-  }
-  .tokens-header-title {
-    font-size: 14px;
+  .cat-card {
+    padding: 12px 14px;
   }
 }
 </style>

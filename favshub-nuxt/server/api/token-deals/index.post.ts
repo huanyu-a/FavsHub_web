@@ -1,6 +1,10 @@
 /**
  * POST /api/token-deals — 发布 Token 白嫖通告
- * Body: { provider, title, url, call_url, quota, models[], region, quality, source_tag, expires_at, note }
+ * Body: { provider, title, url, call_url, quota, models[], region, quality, source_tag, expires_at, note,
+ *         real_name, real_name_other, summary, limits, requirements, verify_scope, faq[], featured? }
+ *
+ * `featured`（精选对比）**仅管理员**可写，普通用户传了静默忽略（见 `readFeaturedIntent`）。
+ * `source_url`（情报来源，运营字段）**不接受**任何身份写入 —— 只由导入脚本直连 DB 写。
  *
  * 三条通道：
  *   - 管理员：直接上线；
@@ -18,6 +22,21 @@ import { validateDealPayload, newDealId } from '../../utils/token-deals'
 import { appendDealEvent } from '../../utils/deal-events'
 import { submitGuestDeal } from '../../utils/guest-deals'
 import { notifyTokenDealPending, notifyTokenDealPublished } from '../../utils/qq-notify'
+
+/**
+ * 读取「精选对比」写入意图 —— **仅管理员**可写（与 `pinned` 同口径）。
+ *
+ * 新建时默认 0，故只关心三态里的两态：非管理员 / 未传 → 0；管理员显式传 → 按值。
+ * 普通用户传了 `featured` **静默忽略**（保持默认 0），不 403：
+ * 与本站既有惯例一致 —— 游客请求体里出现 `nickname` / `turnstile_token` 时
+ * 「字段级校验只读白名单」直接忽略；`pinned` 也从不作为载荷字段下发。
+ * 报 403 会把「表单多带了一个开关」变成硬失败，而忽略不产生任何越权效果（值恒为 0）。
+ */
+function readFeaturedIntent(body: any, isAdmin: boolean): boolean {
+  if (!isAdmin) return false
+  if (body?.featured === undefined || body?.featured === null) return false
+  return body.featured === true || body.featured === 1 || body.featured === '1' || body.featured === 'true'
+}
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -55,19 +74,27 @@ export default defineEventHandler(async (event) => {
   const id = newDealId()
   const now = Date.now()
   const status = isAdmin ? 'approved' : 'pending'
+  // 精选对比：仅管理员可置 1（普通用户传了忽略，见 readFeaturedIntent）
+  const featured = readFeaturedIntent(body, isAdmin) ? 1 : 0
 
   try {
+    // ⚠️ 列清单是**三处共用**的（本文件 / `[id].put.ts` / `ai-service.ts`）：
+    // 新增可写字段时三处的 INSERT / UPDATE 列都要补，少改一处会「校验通过但没写库」。
+    // `source_url` **刻意不在列清单**：运营字段，只由导入脚本直连 DB 写入，写接口一律拒收。
     db.prepare(`
       INSERT INTO token_deals (
         id, user_id, provider, title, url, call_url, quota, models, region, quality,
         source_tag, category, expires_at, pinned, note, real_name, real_name_other,
+        summary, limits, requirements, verify_scope, faq, featured,
         status, reject_reason,
         vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
     `).run(
       id, user.id, d.provider, d.title, d.url, d.callUrl, d.quota,
       JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
-      d.expiresAt, d.note, d.realName, d.realNameOther, status, now, now,
+      d.expiresAt, d.note, d.realName, d.realNameOther,
+      d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq), featured,
+      status, now, now,
     )
   } catch (err: any) {
     console.error('发布 Token 白嫖通告失败:', err)

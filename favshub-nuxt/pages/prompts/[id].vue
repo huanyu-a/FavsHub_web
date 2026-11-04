@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import SiteFooter from '~/components/common/SiteFooter.vue'
+import { copyText } from '~/utils/clipboard'
 
 /**
  * /prompts/<promptId>.html —— 提示词详情的伪静态落地页
@@ -178,7 +179,8 @@ async function copyContent() {
   const content = prompt.value?.content || ''
   if (!content) return
   try {
-    await navigator.clipboard.writeText(content)
+    // 共用工具：http 下 navigator.clipboard 不存在，原写法会抛错被 catch 吞掉
+    if (!(await copyText(content))) throw new Error('copy failed')
     copied.value = true
     setTimeout(() => { copied.value = false }, 1500)
     // 使用量上报与提示词库里的复制行为保持一致（失败不打扰用户）

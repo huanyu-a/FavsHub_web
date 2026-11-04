@@ -156,6 +156,42 @@ export default defineEventHandler((event) => {
       changefreq: 'daily',
       priority: 0.9,
     },
+    // 白嫖分类落地页与精选对比（2026-11-04）：
+    // 各自有独立导语 + 分类 FAQ，是「免费 API / 服务器 / 域名」等长尾词的落点，
+    // 优先级高于详情页（0.7），与 /tokens 同级。
+    {
+      loc: `${baseUrl}/tokens/api`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    {
+      loc: `${baseUrl}/tokens/server`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    {
+      loc: `${baseUrl}/tokens/domain`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    // 2026-11-04 补：客户端额度落地页此前缺失 ——
+    // 服务端 DEAL_CATEGORIES 早有 client 类，但首页分类卡、详情页底部导航、
+    // 本 sitemap 三处都漏了，4 条 client 通告因此没有可被收录的入口页。
+    {
+      loc: `${baseUrl}/tokens/client`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.9,
+    },
+    {
+      loc: `${baseUrl}/tokens/compare`,
+      lastmod: now,
+      changefreq: 'daily',
+      priority: 0.85,
+    },
     // 福利 Key 看板（公开页面，随爬虫轮次日更）
     {
       loc: `${baseUrl}/tokens/keys`,

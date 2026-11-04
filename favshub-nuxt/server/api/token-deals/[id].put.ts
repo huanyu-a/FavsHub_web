@@ -1,7 +1,12 @@
 /**
- * PUT /api/token-deals/:id — 编辑通告
+ * PUT /api/token-deals/:id — 编辑通告（**全量替换**语义，未传的可写字段会落成默认值）
  *
  * 权限：通告作者或管理员。
+ *
+ * 可写字段：provider / title / url / call_url / quota / models / region / quality /
+ * source_tag / category / expires_at / note / real_name / real_name_other /
+ * summary / limits / requirements / verify_scope / faq，以及 **仅管理员**的 `featured`。
+ * `source_url`（运营字段）**不接受**任何身份写入 —— 列清单里根本没有它。
  *
  * 状态流转（站点规则：通告内容允许所有人修改，但需经作者或管理员审核）：
  *   - 作者是本人通告的审核人之一 → 直接编辑**即刻生效**，不再退回待审；
@@ -18,6 +23,25 @@ import {
 } from '../../utils/token-deals'
 import { appendDealEvent } from '../../utils/deal-events'
 import { notifyTokenDealRePending } from '../../utils/qq-notify'
+
+/**
+ * 读取「精选对比」写入意图 —— **仅管理员**可写（与 `pinned` 同口径）。
+ *
+ * 返回值三态（**必须**保留「未传」与「显式 false」的区别）：
+ *   `null`      = 未传（或非管理员）→ 保持库中原值；
+ *   `true`/`false` = 管理员显式传入 → 落 1 / 0。
+ *
+ * 早先写成「返回 boolean，未传时回落成原值」会让**管理员无法取消精选**
+ * （`featured:false` 与未传都是 falsy，落库都变成 1）。
+ * 普通用户传了 `featured` **静默忽略**，不 403：与本站既有惯例一致 ——
+ * 游客请求体里出现 `nickname` / `turnstile_token` 时「字段级校验只读白名单」直接忽略；
+ * `pinned` 也从不作为载荷字段下发。忽略不产生任何越权效果。
+ */
+function readFeaturedIntent(body: any, isAdmin: boolean): boolean | null {
+  if (!isAdmin) return null
+  if (body?.featured === undefined || body?.featured === null) return null
+  return body.featured === true || body.featured === 1 || body.featured === '1' || body.featured === 'true'
+}
 
 export default defineEventHandler(async (event) => {
   const role = getAuthRole(event)
@@ -52,18 +76,31 @@ export default defineEventHandler(async (event) => {
     ? deal.status
     : (deal.status === 'rejected' ? 'pending' : deal.status)
 
+  // 精选对比：管理员显式传了才改，否则保持库中原值（普通用户恒保持原值）。
+  // ⚠️ 走请求体而非独立端点，因为 W3 的编辑器是**全量替换**语义的 PUT 表单。
+  const featuredIntent = readFeaturedIntent(body, isAdmin)
+  const featuredNext = featuredIntent === null ? (deal.featured ? 1 : 0) : (featuredIntent ? 1 : 0)
+
   try {
+    // ⚠️ 列清单与 `index.post.ts` / `ai-service.ts` **三处共用**：
+    // 新增可写字段时三处都要补，少改一处会「校验通过但没写库」。
+    // `source_url` **刻意不在列清单**：运营字段，只由导入脚本直连 DB 写入，写接口一律拒收
+    // （调用方传了也不会落库 —— 白名单式写入，不是靠端点里 `delete body.source_url`）。
     db.prepare(`
       UPDATE token_deals SET
         provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
         region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
         real_name = ?, real_name_other = ?,
+        summary = ?, limits = ?, requirements = ?, verify_scope = ?, faq = ?,
+        featured = ?,
         status = ?, reject_reason = '', updated_at = ?
       WHERE id = ?
     `).run(
       d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
       d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
       d.realName, d.realNameOther,
+      d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
+      featuredNext,
       status, Date.now(), id,
     )
   } catch (err: any) {

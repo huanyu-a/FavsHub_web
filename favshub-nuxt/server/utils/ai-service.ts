@@ -21,6 +21,7 @@ import {
   escapeLike,
   DEAL_PATCHABLE,
   parseDealModels,
+  parseFaq,
   readDealField,
   extractDealPatch,
   validateDealPatch,
@@ -28,6 +29,8 @@ import {
   normalizeModels,
   softDeleteDeal,
   DEAL_FIELD_LABELS,
+  isVerifyStale,
+  verifyAgeDays,
 } from './token-deals'
 import { appendDealEvent } from './deal-events'
 import {
@@ -38,7 +41,6 @@ import {
   withdrawDealEdit,
 } from './deal-edits'
 import { AI_BATCH_LIMIT } from './ai-auth'
-import { isVerifyStale, verifyAgeDays } from './token-deals'
 import { parseAdminUsers } from './auth'
 
 type DB = Database.Database
@@ -696,6 +698,8 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
   const now = Date.now()
   for (const d of deals) {
     try { d.models = JSON.parse(d.models || '[]') } catch { d.models = [] }
+    // FAQ 与 Web 通道同口径：库里是 JSON 字符串，对外一律给数组（脏数据回 []）
+    d.faq = parseFaq(d.faq)
     d.verified_at = Number(d.verified_at || 0)
     d.verify_age_days = verifyAgeDays(d, now)
     d.verify_stale = isVerifyStale(d, now)
@@ -739,6 +743,9 @@ const DEAL_PRIVATE_FIELDS = [
   'deleted_by',        // 下架操作人
   'deleted_at',        // 谁在何时删的
   'invalid_reason',    // 为什么判失效（expired / votes / manual）
+  // 情报来源（2026-11-04）：导入时记下的对标站点详情页地址，属运营留痕。
+  // AI 通道走 `SELECT td.*`，不显式剥离就会随列表/详情一起下发。
+  'source_url',
 ] as const
 
 /** 就地剥离内部字段（不动 `models` 反序列化，方便列表循环里单独调用） */
@@ -782,13 +789,16 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
     INSERT INTO token_deals (
       id, user_id, provider, title, url, call_url, quota, models, region, quality,
       source_tag, category, expires_at, pinned, note, real_name, real_name_other,
+      summary, limits, requirements, verify_scope, faq, featured,
       status, reject_reason,
       vote_up, vote_down, rating_sum, rating_count, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, '', 0, 0, 0, 0, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, '', 0, 0, 0, 0, ?, ?)
   `).run(
     id, userId, d.provider, d.title, d.url, d.callUrl, d.quota,
     JSON.stringify(d.models), d.region, d.quality, d.sourceTag, d.category,
-    d.expiresAt, d.note, d.realName, d.realNameOther, status, now, now,
+    d.expiresAt, d.note, d.realName, d.realNameOther,
+    d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
+    status, now, now,
   )
 
   // 管理员直接上线 → 对外「上新」事件
@@ -807,6 +817,11 @@ export function createTokenDeal(db: DB, userId: number, body: any) {
  * 此前本文件与 Web 端点各存一份白名单 + 各写一个 `readDealField`，
  * 属于「同一规则两处实现」的漂移温床：任一侧新增字段，另一侧会静默丢弃。
  * 现统一从共享模块导入。
+ *
+ * 注意 `featured` 与 `source_url` **不在** `DEAL_PATCHABLE` 里（刻意）：
+ *   - `featured` 仅管理员可写 —— 走 Web/AI 的载荷字段会被静默忽略，
+ *     管理员改精选请用 Web 表单（那里按 `isAdmin` 单独处理）；
+ *   - `source_url` 是运营字段，只由导入脚本直连 DB 写。
  */
 const DEAL_UPDATABLE = DEAL_PATCHABLE
 
@@ -870,6 +885,14 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     // 校验（枚举 + real_name_other 清空规则）仍由 validateDealPayload 单点负责。
     real_name: deal.real_name ?? '',
     real_name_other: deal.real_name_other ?? '',
+    // 结构化字段（2026-11-04）：同样「以库中现值为底」。`faq` 必须解成数组再进 merged ——
+    // 库里是 JSON 字符串，而 `validateDealPayload` 的 `normalizeFaq` 两种形态都收，
+    // 但 compare 段要靠数组形态才能与请求体的数组正确比对。
+    summary: deal.summary ?? '',
+    limits: deal.limits ?? '',
+    requirements: deal.requirements ?? '',
+    verify_scope: deal.verify_scope ?? '',
+    faq: parseFaq(deal.faq),
   }
   for (const [k, v] of fields) merged[k] = v
 
@@ -895,6 +918,13 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
     // 是否实名：同样进 changes，dry_run 能预演、正式执行能如实报告
     ['real_name', d.realName, deal.real_name ?? ''],
     ['real_name_other', d.realNameOther, deal.real_name_other ?? ''],
+    // 结构化字段（2026-11-04）：逐字沿用上面那条教训 —— 凡在 DEAL_PATCHABLE 里的字段，
+    // 都必须同时出现在 merged / compare / UPDATE 三处，否则「校验通过但没写库」。
+    ['summary', d.summary, deal.summary ?? ''],
+    ['limits', d.limits, deal.limits ?? ''],
+    ['requirements', d.requirements, deal.requirements ?? ''],
+    ['verify_scope', d.verifyScope, deal.verify_scope ?? ''],
+    ['faq', d.faq, parseFaq(deal.faq)],
   ]
   const changes: Record<string, any> = {}
   for (const [k, next, prev] of compare) {
@@ -911,12 +941,14 @@ export function updateTokenDeal(db: DB, userId: number, rawId: unknown, body: an
       provider = ?, title = ?, url = ?, call_url = ?, quota = ?, models = ?,
       region = ?, quality = ?, source_tag = ?, category = ?, expires_at = ?, note = ?,
       real_name = ?, real_name_other = ?,
+      summary = ?, limits = ?, requirements = ?, verify_scope = ?, faq = ?,
       status = ?, reject_reason = '', updated_at = ?
     WHERE id = ?
   `).run(
     d.provider, d.title, d.url, d.callUrl, d.quota, JSON.stringify(d.models),
     d.region, d.quality, d.sourceTag, d.category, d.expiresAt, d.note,
     d.realName, d.realNameOther,
+    d.summary, d.limits, d.requirements, d.verifyScope, JSON.stringify(d.faq),
     status, Date.now(), id,
   )
 

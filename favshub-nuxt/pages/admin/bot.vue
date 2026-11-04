@@ -549,6 +549,7 @@ hermes send -t qqbot:你的群OpenID "【上新】服务商名称｜某免费额
 
 <script setup lang="ts">
 import BackToTop from '~/components/BackToTop.vue'
+import { copyText as copyTextSafe } from '~/utils/clipboard'
 
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '机器人与 API' })
@@ -653,11 +654,16 @@ function onQqSecretFocus() {
 }
 
 function copyText(txt: string) {
-  if (process.client) {
-    navigator.clipboard?.writeText(txt)
-    copiedWebhook.value = true
-    setTimeout(() => { copiedWebhook.value = false }, 2000)
-  }
+  if (!process.client) return
+  // 共用工具（别名导入，避免与本函数同名）：http 下 navigator.clipboard 不存在，
+  // 原写法 `navigator.clipboard?.writeText(...)` 会被 ?. 静默吞掉 —— 点了没反应，
+  // 却仍然把 copiedWebhook 置 true，等于对用户撒谎。
+  copyTextSafe(txt).then((ok) => {
+    if (ok) {
+      copiedWebhook.value = true
+      setTimeout(() => { copiedWebhook.value = false }, 2000)
+    }
+  })
 }
 
 async function sendTestMessage() {
@@ -837,7 +843,8 @@ function closePlainToken() {
 
 async function copyPlainToken() {
   try {
-    await navigator.clipboard.writeText(plainToken.value)
+    // 共用工具：原写法在 http 下抛错 → 直接落到「复制失败」，等于按钮永远不可用
+    if (!(await copyTextSafe(plainToken.value))) throw new Error('copy failed')
     copiedToken.value = true
     setTimeout(() => { copiedToken.value = false }, 2000)
   } catch {

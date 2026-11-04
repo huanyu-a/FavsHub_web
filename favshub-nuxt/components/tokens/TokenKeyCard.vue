@@ -156,6 +156,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { copyText } from '~/utils/clipboard'
 
 interface ITokenKeyRow {
   id: string
@@ -278,24 +279,7 @@ async function copyKey() {
     settleFeedback(false)
     return
   }
-  let ok = false
-  try {
-    await navigator.clipboard.writeText(text)
-    ok = true
-  } catch {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-    } catch {
-      ok = false
-    }
-  }
+  const ok = await copyText(text)
   if (ok) {
     settleFeedback(true)
   }
@@ -312,24 +296,7 @@ async function copyBaseUrl() {
     settleFeedback(false)
     return
   }
-  let ok = false
-  try {
-    await navigator.clipboard.writeText(url)
-    ok = true
-  } catch {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = url
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-    } catch {
-      ok = false
-    }
-  }
+  const ok = await copyText(url)
   if (ok) {
     baseCopied.value = true
     clearTimeout(baseCopiedTimer)

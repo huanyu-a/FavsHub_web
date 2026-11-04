@@ -99,11 +99,18 @@ export interface DealEventSnapshot {
   models: string[]
   region: string
   quality: string
-  /** 通告分类：token=API 额度 / cloud=免费云服务器（旧数据缺省为 token） */
+  /** 通告分类：token=API 额度 / cloud=免费云服务器 / domain=免费域名（旧数据缺省为 token） */
   category: string
   expires_at: number | null
   rating: string
   share_path: string
+  /**
+   * 一句话摘要（2026-11-04）：推送文案的可读性用。
+   *
+   * ⚠️ 可选（`?`）而非必填 —— **历史事件行里没有这个键**，读取侧必须容忍 undefined。
+   * `source_url`（情报来源）属内部字段，**永不进快照**。
+   */
+  summary?: string
 }
 
 /** 从库中一行生成公开快照 —— 任何非公开字段都不得进入 */
@@ -124,6 +131,7 @@ export function buildDealSnapshot(deal: any): DealEventSnapshot {
     expires_at: deal?.expires_at ?? null,
     rating: count > 0 ? avg.toFixed(1) : '',
     share_path: `/tokens/${encodeURIComponent(String(deal?.id ?? ''))}.html`,
+    summary: String(deal?.summary ?? ''),
   }
 }
 
@@ -204,7 +212,11 @@ function snapshotFacts(snap: DealEventSnapshot): string[] {
   const facts: string[] = []
   // 云服务器 / 客户端额度的「看点」与 API 额度不同：先说分类，读者才知道拿什么标准衡量
   if (snap.category === 'cloud') facts.push('分类 免费云服务器')
+  else if (snap.category === 'domain') facts.push('分类 免费域名')
   else if (snap.category === 'client') facts.push('分类 客户端额度')
+  // 一句话摘要（2026-11-04）：比额度更能回答「这条跟我有没有关系」，故排在额度之前。
+  // 存量通告与历史事件都没有这个字段，`?` 可选 + 真值判断双重兜底。
+  if (snap.summary) facts.push(clip(snap.summary, 60))
   if (snap.quota) facts.push(`额度 ${clip(snap.quota, 28)}`)
   if (snap.models && snap.models.length) facts.push(`模型 ${clip(snap.models.join(' / '), 48)}`)
   if (snap.expires_at) facts.push(`到期 ${formatEventDay(snap.expires_at)}`)
@@ -436,6 +448,8 @@ export function appendDealEvent(
 
 /** 下架事件的最小快照：认出是哪条，但不留可被继续分发的内容 */
 function offlineSnapshot(snap: DealEventSnapshot): Partial<DealEventSnapshot> {
+  // ⚠️ 这里刻意用**白名单列出**而非展开：2026-11-04 新增的 `summary` 因此自动被挡在下架快照之外
+  //    （下架后连摘要都不该继续从公开事件流里被分发）。`source_url` 属内部字段，从不进快照。
   return {
     id: snap.id,
     provider: snap.provider,

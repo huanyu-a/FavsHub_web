@@ -271,6 +271,19 @@ export const tokenDeals = sqliteTable('token_deals', {
   // real_name_other 存「其他」的手填文案，仅 real_name='other' 时有意义
   realName: text('real_name').default(''),
   realNameOther: text('real_name_other').default(''),
+  // ── 结构化字段（2026-11-04，对齐 baipiao.org 详情页 IA）──────────
+  // 全部由 `ensureColumn` 增量补列（见 migrate.ts），此处只做 drizzle 侧的类型映射，
+  // 不参与建表 —— 建表语句在 migrate.ts 的 createTables()。
+  summary: text('summary').default(''),                // 一句话摘要 TL;DR
+  limits: text('limits').default(''),                  // 限制条款（普通用户可写，详情按富文本渲染）
+  requirements: text('requirements').default(''),      // 领取条件（实名 / 绑卡 / GitHub 登录 / PR 等）
+  verifyScope: text('verify_scope').default(''),       // 核实范围说明（站点到底核了什么）
+  faq: text('faq').default('[]'),                      // FAQ JSON 数组 [{q,a}]，解析用 parseFaq
+  // 情报来源：**运营字段，任何身份都不下发**（含管理员浏览公开前台）。
+  // 与 verified_by / guest_fingerprint 同级，公开端点用 `...row` 展开全列时必须显式置 undefined；
+  // 只由导入脚本直连 DB 写入，写接口一律拒收。
+  sourceUrl: text('source_url').default(''),
+  featured: integer('featured').default(0),            // 1 = 进「精选对比」（仅管理员可写，与 pinned 同口径）
   voteUp: integer('vote_up').default(0),         // 缓存计数
   voteDown: integer('vote_down').default(0),
   ratingSum: integer('rating_sum').default(0),
@@ -282,6 +295,7 @@ export const tokenDeals = sqliteTable('token_deals', {
   index('idx_td_user').on(table.userId),
   index('idx_td_region').on(table.region, table.quality),
   index('idx_td_verified').on(table.verifiedAt),
+  index('idx_td_featured').on(table.featured, table.status),
 ])
 
 // ─── token_deal_verifications（人工核验流水，append-only）──────────

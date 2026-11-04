@@ -68,6 +68,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { copyText } from '~/utils/clipboard'
 import { fallbackProxyIcon } from '~/utils/favicon'
 import {
   SHARE_CARD_W,
@@ -223,14 +224,18 @@ async function saveImage() {
   }
 }
 
+/**
+ * 复制分享链接。
+ * 走共用工具 `copyText`：它内含 Clipboard API → execCommand → 失败返回 false
+ * 的三级降级。原先这里只写 `navigator.clipboard.writeText`，而该 API 要求
+ * secure context —— http 访问（内网/局域网）时它是 undefined，点了只会弹
+ * 「复制失败」。用户报的「详情页链接无法复制」根因就在这里。
+ */
 async function copyLink() {
   const url = buildShareUrl(props.deal.id, shareOrigin())
-  try {
-    await navigator.clipboard.writeText(url)
-    toast('详情链接已复制')
-  } catch {
-    toast('复制失败，请手动复制地址栏链接', 'err')
-  }
+  if (!import.meta.client) return
+  if (await copyText(url)) toast('详情链接已复制')
+  else toast('复制失败，请手动复制地址栏链接', 'err')
 }
 
 function close() {

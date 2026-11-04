@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { copyText } from '~/utils/clipboard'
 const props = defineProps<{
   bookmark: any
   visible: boolean
@@ -135,12 +136,13 @@ function openIncognito() {
   emit('close')
 }
 
-function copyUrl() {
+async function copyUrl() {
   if (props.bookmark?.url) {
-    navigator.clipboard.writeText(props.bookmark.url).then(() => {
+    // 走共用工具：http 下 navigator.clipboard 不存在，原写法会静默无反应
+    if (await copyText(props.bookmark.url)) {
       copyLabel.value = '已复制!'
       setTimeout(() => { copyLabel.value = '复制链接' }, 1500)
-    }).catch(() => {})
+    }
   }
   emit('close')
 }

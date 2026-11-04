@@ -8,7 +8,8 @@
 import { getRawDb } from '../../database'
 import { getAuthRole } from '../../utils/auth'
 import {
-  isPubliclyVisible, isVerifyStale, loadVerifications, INVALID_REASON_LABELS, verifyAgeDays,
+  isPubliclyVisible, isVerifyStale, loadVerifications, INVALID_REASON_LABELS, parseFaq,
+  verifyAgeDays,
 } from '../../utils/token-deals'
 import { dealEditSummary } from '../../utils/deal-edits'
 import { guestReviewSummary } from '../../utils/guest-reviews'
@@ -141,6 +142,10 @@ export default defineEventHandler(async (event) => {
     deal: {
       ...row,
       models: parseModels(row.models),
+      // FAQ：JSON 字符串列 → 下发解析后的 [{q,a}] 数组（脏数据回 []，不 500）
+      faq: parseFaq(row.faq),
+      // 精选对比：归一为 0/1（SQLite 可能存 0/1/NULL）
+      featured: row.featured ? 1 : 0,
       is_expired: !!row.expires_at && row.expires_at < Date.now(),
       is_deleted: !!row.deleted_at,
       is_invalid: !!row.invalid_at,
@@ -168,6 +173,12 @@ export default defineEventHandler(async (event) => {
       //    （`TokenDealDetail.vue` 的「未通过审核」区块），且驳回通告对非作者一律 404。
       deleted_at: undefined,
       invalid_reason: undefined,
+      // ⚠️ **情报来源 source_url：任何身份都不下发**（2026-11-04 新增列，含管理员浏览公开前台）。
+      //    它是运营留痕（导入时记下的对标站点详情页地址），对本条目的读者零价值，
+      //    泄露则暴露「这条是从哪个站搬来的」。
+      //    与 verified_by / user_id / deleted_by / guest_fingerprint 同一份口径；
+      //    注意 `AI 通道` 的 DEAL_PRIVATE_FIELDS 也必须同步（ai-service.ts）。
+      source_url: undefined,
       is_owner: isOwner,
       can_edit: isOwner || isAdmin,
       can_moderate: isAdmin,
@@ -191,6 +202,12 @@ export default defineEventHandler(async (event) => {
       // 2026-10-30 备注富文本：服务端渲染 + 白名单消毒，只下发成品 HTML。
       // 备注是**普通用户可写**字段，前端绝不该对原文直接 v-html（XSS）。原始 `note` 仍保留给编辑器回填。
       note_html: renderRichText(row.note),
+      // 2026-11-04 限制条款 / 领取条件：与 note 同一路（`renderRichText()` 服务端渲染 + 白名单消毒）。
+      // 这两个字段同样是**普通用户可写**，所以「只下发成品 HTML」的规则在这里逐字复用 ——
+      // 前端一律 v-html `*_html`，绝不对 `limits` / `requirements` 原文自己 marked。
+      // 原文照常下发（编辑器回填需要），消费方请只用来回填、不要直接渲染。
+      limits_html: renderRichText(row.limits),
+      requirements_html: renderRichText(row.requirements),
       // 邀请码（2026-10-30）：这里只告诉前端「还有没有可用码」，
       // 码本身走 GET /:id/invite-code 单独抽一个 —— 码池绝不随详情下发
       has_invite_code: hasAvailableInviteCode(db, id),

@@ -214,6 +214,29 @@
                 选「其他」可手填具体方式；选「未标注」时详情页不显示实名徽标。
               </p>
             </div>
+
+            <!-- 精选对比（2026-11-04）：**仅管理员**渲染 —— 与 pinned 同口径。
+                 普通用户连控件都看不到，提交时也不会带上这个字段。 -->
+            <div v-if="isAdmin" class="tde-field">
+              <span class="field-label">精选对比</span>
+              <div class="chip-row">
+                <button
+                  type="button"
+                  class="chip"
+                  :class="{ active: form.featured }"
+                  :aria-pressed="form.featured"
+                  @click="form.featured = !form.featured"
+                >
+                  <i :class="form.featured ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'"></i>
+                  进「精选对比」表
+                </button>
+              </div>
+              <p class="tde-hint">
+                勾选后这条会进入「精选对比」表 —— 现在该表内嵌在 <code class="tde-code">/tokens</code>
+                页底部（<code class="tde-code">/tokens/compare</code> 仍可单独访问）。
+                仅管理员可设置。
+              </p>
+            </div>
           </fieldset>
 
           <!-- 模型与有效期 -->
@@ -293,6 +316,103 @@
               <input v-model="expiresDate" type="date">
               <span class="field-hint">留空表示永久有效</span>
             </label>
+          </fieldset>
+
+          <!-- 结构化信息（2026-11-04）──
+               列表卡片的「一句话摘要」、详情页的「额度 / 领取条件 / 限制」与底部 FAQ
+               都读这几列。requirements / limits 是普通用户可写字段，展示时由**服务端**
+               渲染成 *_html 并消毒，前端不自行 marked。 -->
+          <fieldset class="tde-group">
+            <legend class="tde-legend">结构化信息</legend>
+
+            <label class="tde-field">
+              <span class="field-label">一句话摘要</span>
+              <input
+                v-model="form.summary"
+                type="text"
+                :maxlength="LIMITS.summary"
+                placeholder="如：注册即送 100 万 Token，无需实名，额度长期有效"
+              >
+              <span class="field-hint">
+                {{ form.summary.length }} / {{ LIMITS.summary }} · 列表卡片上最多显示两行
+              </span>
+            </label>
+
+            <label class="tde-field">
+              <span class="field-label">领取条件</span>
+              <textarea
+                v-model="form.requirements"
+                rows="4"
+                :maxlength="LIMITS.requirements"
+                placeholder="如：手机号注册 + 实名认证；或 GitHub 账号注册满 30 天"
+              ></textarea>
+              <span class="field-hint">
+                {{ form.requirements.length }} / {{ LIMITS.requirements }} ·
+                支持 Markdown / HTML，展示时由服务端渲染并消毒
+              </span>
+            </label>
+
+            <label class="tde-field">
+              <span class="field-label">限制条款</span>
+              <textarea
+                v-model="form.limits"
+                rows="4"
+                :maxlength="LIMITS.limits"
+                placeholder="如：每分钟 60 次调用；不支持并发；禁止商用转售"
+              ></textarea>
+              <span class="field-hint">
+                {{ form.limits.length }} / {{ LIMITS.limits }} ·
+                支持 Markdown / HTML，展示时由服务端渲染并消毒
+              </span>
+            </label>
+
+            <label class="tde-field">
+              <span class="field-label">核实范围</span>
+              <textarea
+                v-model="form.verify_scope"
+                rows="3"
+                :maxlength="LIMITS.verifyScope"
+                placeholder="如：本站核实了「注册成功 + 额度到账 + 完成一次调用」，未验证长期稳定性"
+              ></textarea>
+              <span class="field-hint">
+                {{ form.verify_scope.length }} / {{ LIMITS.verifyScope }} ·
+                写清站点到底核了什么，别让「能注册」被读成「能长期用」
+              </span>
+            </label>
+
+            <div class="tde-field">
+              <span class="field-label">常见问题（{{ form.faq.length }} / {{ LIMITS.faq }}）</span>
+              <div v-for="(item, i) in form.faq" :key="i" class="faq-row">
+                <div class="faq-row-main">
+                  <input
+                    v-model="item.q"
+                    type="text"
+                    :maxlength="LIMITS.faqQ"
+                    placeholder="问题（不超过 100 字）"
+                  >
+                  <textarea
+                    v-model="item.a"
+                    rows="2"
+                    :maxlength="LIMITS.faqA"
+                    placeholder="答案（不超过 600 字）"
+                  ></textarea>
+                </div>
+                <button type="button" class="faq-remove" title="删除这条问答" @click="removeFaq(i)">
+                  <i class="ri-delete-bin-line"></i>
+                </button>
+              </div>
+              <button
+                v-if="form.faq.length < LIMITS.faq"
+                type="button"
+                class="faq-add"
+                @click="addFaq"
+              >
+                <i class="ri-add-line"></i> 添加一条问答
+              </button>
+              <p class="tde-hint">
+                展示在详情页底部，可被搜索引擎收录。每条必须同时填写问题与答案。
+              </p>
+            </div>
           </fieldset>
 
           <!-- 备注 -->
@@ -459,6 +579,18 @@ interface ITokenDeal {
   category?: string
   expires_at?: number | null
   note?: string
+  /** 一句话摘要（2026-11-04） */
+  summary?: string
+  /** 限制条款（2026-11-04，支持富文本，服务端渲染 *_html） */
+  limits?: string
+  /** 领取条件（2026-11-04，支持富文本） */
+  requirements?: string
+  /** 核实范围说明（2026-11-04） */
+  verify_scope?: string
+  /** FAQ（2026-11-04）：数组形态回填 */
+  faq?: Array<{ q: string; a: string }>
+  /** 1 = 精选对比（仅管理员可写） */
+  featured?: number
   /** 是否实名（2026-10-30）：'' = 未填 | no | id_card | face | other */
   real_name?: string
   /** 「其他」的手填文案，仅 real_name === 'other' 时有意义 */
@@ -494,6 +626,15 @@ const LIMITS = {
   inviteCodes: 20,
   inviteCode: 300,
   inviteLabel: 40,
+  // ── 结构化字段（2026-11-04）：与 server/utils/token-deals.ts 的 LIMITS 一一对应 ──
+  summary: 200,
+  limits: 2000,
+  requirements: 2000,
+  verifyScope: 500,
+  /** FAQ 条数上限（单条 q ≤ faqQ、a ≤ faqA） */
+  faq: 10,
+  faqQ: 100,
+  faqA: 600,
 }
 
 const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品']
@@ -510,6 +651,7 @@ const SOURCE_OPTIONS = [
 const CATEGORY_OPTIONS = [
   { value: 'token', label: 'API 额度' },
   { value: 'cloud', label: '免费云服务器' },
+  { value: 'domain', label: '免费域名' },
   { value: 'client', label: '客户端额度' },
 ]
 
@@ -585,6 +727,9 @@ const PATCHABLE = [
   'provider', 'title', 'url', 'call_url', 'quota', 'models',
   'region', 'quality', 'source_tag', 'category', 'expires_at', 'note',
   'real_name', 'real_name_other',
+  // 结构化字段（2026-11-04）：普通用户可写，同样可走建议通道。
+  // `featured` 刻意不在其中（仅管理员、且不走建议通道，与 pinned 同口径）。
+  'summary', 'limits', 'requirements', 'verify_scope', 'faq',
 ] as const
 
 const FIELD_LABELS: Record<string, string> = {
@@ -602,6 +747,11 @@ const FIELD_LABELS: Record<string, string> = {
   note: '备注',
   real_name: '是否实名',
   real_name_other: '实名方式说明',
+  summary: '一句话摘要',
+  limits: '限制条款',
+  requirements: '领取条件',
+  verify_scope: '核实范围',
+  faq: '常见问题',
 }
 
 /** 编辑器里的邀请码草稿；`copy_count` / `exhausted` 来自服务端，只读回显 */
@@ -632,6 +782,19 @@ const form = ref({
   real_name: '',
   /** 「其他」的手填文案：real_name !== 'other' 时提交前会被清空（与服务端同一规则） */
   real_name_other: '',
+  // ── 结构化字段（2026-11-04，均对应服务端新增列）──
+  /** 一句话摘要（≤200） */
+  summary: '',
+  /** 限制条款（≤2000，富文本由服务端渲染） */
+  limits: '',
+  /** 领取条件（≤2000，富文本由服务端渲染） */
+  requirements: '',
+  /** 核实范围说明（≤500） */
+  verify_scope: '',
+  /** FAQ 草稿（≤10 条，单条 q ≤100 / a ≤600） */
+  faq: [] as Array<{ q: string; a: string }>,
+  /** 精选对比：仅管理员可见可写（与 pinned 同口径），普通用户不渲染该开关 */
+  featured: false,
   /** 邀请码池（2026-10-30）：全量提交，服务端做全量替换 */
   inviteCodes: [] as InviteCodeDraft[],
 })
@@ -782,7 +945,28 @@ function currentPatch(): Record<string, any> {
     // 与服务端 `normalizeRealName` 同一规则：非「其他」时文案一律为空
     // （这里先清空，提案模式的 diff 才不会把一句残留文案当成改动提交上去）
     real_name_other: f.real_name === 'other' ? f.real_name_other.trim() : '',
+    // 结构化字段（2026-11-04）
+    summary: f.summary.trim(),
+    limits: f.limits.trim(),
+    requirements: f.requirements.trim(),
+    verify_scope: f.verify_scope.trim(),
+    faq: faqForSubmit(f.faq),
+    // ⚠️ 刻意**不含** `featured`：仅管理员可写，且与 pinned 同口径不走建议通道。
+    // 直接编辑路径在 submit() 里按 isAdmin 补上，避免普通用户提交时被服务端拒。
   }
+}
+
+/**
+ * FAQ 草稿 → 提交形态。
+ *
+ * 只丢掉「问题与答案都为空」的整行（用户点了「添加一条」又没填是常态）；
+ * 只填了一半的行原样提交，让服务端返回「FAQ 每项必须同时填写…」的明确中文错误，
+ * 而不是在这里静默吞掉用户输入。
+ */
+function faqForSubmit(list: Array<{ q: string; a: string }>): Array<{ q: string; a: string }> {
+  return (Array.isArray(list) ? list : [])
+    .map(it => ({ q: String(it?.q ?? '').trim(), a: String(it?.a ?? '').trim() }))
+    .filter(it => it.q || it.a)
 }
 
 /** 值语义比较（models 按数组比，expires_at 把 undefined 归一成 null） */
@@ -813,6 +997,11 @@ function displayValue(field: string, value: any): string {
   if (field === 'real_name') return REAL_NAME_LABELS[String(value ?? '')] ?? String(value ?? '')
   if (value === null || value === undefined || value === '') return '（空）'
   if (field === 'models') return Array.isArray(value) && value.length ? value.join('、') : '（空）'
+  // FAQ 是 {q,a}[]：diff 里只列问题，答案太长会把面板撑爆
+  if (field === 'faq') {
+    if (!Array.isArray(value) || value.length === 0) return '（空）'
+    return value.map((it: any) => String(it?.q ?? '')).filter(Boolean).join('；') || '（空）'
+  }
   if (field === 'region') return REGION_LABELS[value] || String(value)
   if (field === 'source_tag') return SOURCE_LABELS[value] || String(value)
   if (field === 'expires_at') {
@@ -834,6 +1023,16 @@ function addModel() {
 
 function removeModel(index: number) {
   form.value.models.splice(index, 1)
+}
+
+// ── FAQ 草稿增删（2026-11-04）──
+function addFaq() {
+  if (form.value.faq.length >= LIMITS.faq) return
+  form.value.faq.push({ q: '', a: '' })
+}
+
+function removeFaq(index: number) {
+  form.value.faq.splice(index, 1)
 }
 
 function close() {
@@ -902,6 +1101,9 @@ async function submit() {
       body.nickname = guestNickname.value.trim()
       body.turnstile_token = turnstileToken.value
     }
+    // 精选对比：仅管理员可写（与 pinned 同口径）。普通用户**不传**这个字段 ——
+    // 传了要么被忽略要么被 403，白白把一次正常保存变成报错。
+    if (isAdmin.value) body.featured = form.value.featured ? 1 : 0
 
     const res = await $fetch<{ success: boolean; message?: string }>(
       isEdit.value ? `/api/token-deals/${props.deal!.id}` : '/api/token-deals',
@@ -1087,6 +1289,15 @@ onMounted(() => {
       note: d.note || '',
       real_name: d.real_name || '',
       real_name_other: d.real_name_other || '',
+      // 结构化字段（2026-11-04）：旧数据没有这些列 → 一律回落到空值，编辑器照常可用
+      summary: d.summary || '',
+      limits: d.limits || '',
+      requirements: d.requirements || '',
+      verify_scope: d.verify_scope || '',
+      faq: Array.isArray(d.faq)
+        ? d.faq.map(it => ({ q: String(it?.q ?? ''), a: String(it?.a ?? '') }))
+        : [],
+      featured: Number(d.featured || 0) === 1,
       inviteCodes: [],
     }
     expiresDate.value = toDateInput(d.expires_at)
@@ -1255,6 +1466,69 @@ onUnmounted(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* ── FAQ 草稿行（2026-11-04）── */
+.faq-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+.faq-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+/* 行首留 8px 上边距是为了和输入框视觉对齐 —— 删除按钮本身不参与输入区 */
+.faq-remove {
+  flex-shrink: 0;
+  margin-top: 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 0.5px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.faq-remove:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+.faq-remove:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.faq-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 0.5px dashed var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.faq-add:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.faq-add:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }

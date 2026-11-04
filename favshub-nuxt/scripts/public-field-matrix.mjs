@@ -16,11 +16,23 @@
 const BASE = (process.argv[2] || 'https://hao.bx9y.com.cn').replace(/\/+$/, '')
 
 // 绝不能出现在公开响应里的键（键不出现，或值必须为空）
-const INTERNAL_KEYS = ['deleted_at', 'invalid_reason', 'deleted_by', 'user_id', 'guest_fingerprint']
+// 2026-11-04：新增 `source_url`（情报来源，运营留痕）。它是 `token_deals` 的第 6 个
+// 内部列，写入口只有导入脚本直连 DB —— 但公开端点用 `{ ...row }` 展开全列，
+// 每加一个内部列都必须回到列表**和**详情两处显式剔除。这个探针就是那两处的回归网。
+// 特别地：库里 116 条导入行**确实有这个值**，所以「字段有值但不下发」是可验证的强断言。
+const INTERNAL_KEYS = ['deleted_at', 'invalid_reason', 'deleted_by', 'user_id', 'guest_fingerprint', 'source_url']
 // 键保留但值必须为空串的例外
 const EMPTY_ONLY = ['verified_by']
 // 前端依赖、脱敏时必须保留的字段（防「脱敏过界」）
+// 2026-11-04 新增的结构化字段：summary / limits / requirements / verify_scope / faq / featured
+// 都是**公开**字段（其中 limits / requirements 另有服务端渲染的 *_html 副本）。
+// ⚠️ 若拿本脚本探**早于 2026-11-04 的部署**（例如尚未升级的生产），这些 mustKeep 会如实报缺失 ——
+//    那不是回归，是版本差；升级后复跑即转绿。
 const MUST_KEEP = ['verified_at', 'note_html', 'reject_reason']  // 仅 token_deals 适用
+/** 2026-11-04 结构化字段：列表与详情都应下发 */
+const MUST_KEEP_STRUCTURED = ['summary', 'limits', 'requirements', 'verify_scope', 'faq', 'featured']
+/** 仅详情下发（服务端渲染后的 HTML 副本） */
+const MUST_KEEP_STRUCTURED_HTML = ['limits_html', 'requirements_html']
 
 let pass = 0, fail = 0, skip = 0
 const bad = (msg, detail) => { fail++; console.log(`  ✗ ${msg}${detail ? ' — ' + detail : ''}`) }
@@ -171,10 +183,10 @@ async function main() {
 
   console.log('▶ token_deals 相关端点')
   // 列表只保留派生字段；note_html 仅详情下发（备注富文本要给编辑器/渲染用）
-  await probe('列表(第1页)', '/api/token-deals?limit=5', { mustKeep: ['is_hidden', 'verified_at', 'reject_reason'] })
+  await probe('列表(第1页)', '/api/token-deals?limit=5', { mustKeep: ['is_hidden', 'verified_at', 'reject_reason', ...MUST_KEEP_STRUCTURED] })
   await probe('列表(第2页)', '/api/token-deals?page=2&limit=5')
   await probe('列表(搜索)', '/api/token-deals?q=a&limit=3')
-  await probe('详情', `/api/token-deals/${dealId}`, { mustKeep: ['is_deleted', 'is_invalid', 'invalid_reason_label', ...MUST_KEEP] })
+  await probe('详情', `/api/token-deals/${dealId}`, { mustKeep: ['is_deleted', 'is_invalid', 'invalid_reason_label', ...MUST_KEEP, ...MUST_KEEP_STRUCTURED, ...MUST_KEEP_STRUCTURED_HTML] })
   await probeHtml('详情页 SSR', `/tokens/${dealId}.html`)
   // 再抽两条不同类型的通告页（有码池 / 无 call_url），避免「恰好那一条干净」
   for (const q of ['/api/token-deals?limit=30']) {
@@ -205,7 +217,14 @@ async function main() {
   const pid = rowsOf(pl)[0]?.id
   if (pid) await probe('prompts 详情', `/api/prompts/${encodeURIComponent(pid)}`, { allowKeys: allowed })
   await probe('tags', '/api/tags', { allowKeys: allowed })
-  await probe('token-keys', '/api/token-keys?limit=3', { allowKeys: allowed })
+  // 2026-11-04：开发/新部署的库里 `token_keys` 常常是**空表**（福利 Key 靠用户上报累积）。
+  // 空表时 `rowsOf()` 返回 []，探针会记失败 —— 但它其实「没东西可测」，不是泄露。
+  // 用显式 `allowSkip` 说明理由（而不是放宽全局规则）：跳过仍然是**跳过**，
+  // 不计入通过数、在汇总里单独计数，绝不会冒充「验过了」。
+  //
+  // 为什么必须处理：一条长期以失败态存在的断言会训练人忽略这个脚本的输出 ——
+  // 那比少一条探针更危险（`be` 指出）。
+  await probe('token-keys', '/api/token-keys?limit=3', { allowKeys: allowed, allowSkip: 'Key 表可能为空，无行可验' })
 
   console.log(`\n═══ 结果：${pass} 通过 / ${fail} 失败${skip ? ` / ${skip} 跳过（未验证）` : ''} ═══`)
   process.exit(fail ? 1 : 0)

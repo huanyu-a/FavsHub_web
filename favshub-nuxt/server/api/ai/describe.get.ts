@@ -130,11 +130,18 @@ export default defineAiHandler('read', async (_event, token) => {
           id: '字符串', provider: '字符串，必填，≤60', title: '字符串，必填，≤120',
           url: '字符串，必填，http(s)，≤500', call_url: '字符串，可空，http(s)，≤500',
           quota: '字符串，可空，≤200', models: '字符串数组，≤20 项', region: 'cn | global',
-          category: 'token(默认，API 额度) | cloud(免费云服务器) | client(客户端额度)',
+          category: 'token(默认，API 额度) | cloud(免费云服务器) | domain(免费域名) | client(客户端额度)',
           quality: '上上品 | 上品 | 中品 | 下品 | 下下品', source_tag: 'official | relay | community',
           expires_at: '毫秒时间戳或 null（null=永久）',
           note: '字符串，可空，≤2000，支持 Markdown / HTML / 图片等富文本',
+          // 结构化字段（2026-11-04）：都是普通用户可写的**内容**字段，可走 AI patch。
+          summary: '字符串，可空，≤200，一句话摘要（TL;DR）',
+          requirements: '字符串，可空，≤2000，领取条件（实名 / 绑卡 / GitHub 登录 / PR / 邀请码等）',
+          limits: '字符串，可空，≤2000，限制条款',
+          verify_scope: '字符串，可空，≤500，核实范围说明（站点到底核了什么）',
+          faq: '数组 [{q: 问题≤100, a: 答案≤600}]，最多 10 条；传 [] 即清空。非数组 / 超条数 / 缺字段 / 超长一律 400',
           status: 'pending | approved | rejected', pinned: '0/1，仅管理员可置顶',
+          featured: '0/1，1 = 进「精选对比」；**只读**（仅管理员可在 Web 表单设置，AI 通道不接受写入）',
           // 2026-10-30：`deleted_at` / `invalid_reason` 已不再下发给 AI 通道
           // （与 Web 端同口径，见 `ai-service.ts` 的 `DEAL_PRIVATE_FIELDS`）——
           // 「谁在何时删的」「为什么判失效」属运营审计信息。
@@ -147,7 +154,7 @@ export default defineAiHandler('read', async (_event, token) => {
           real_name: "是否实名：''（未填）| no（否）| id_card（身份证）| face（人脸）| other（其他）",
           real_name_other: '字符串，≤40；「其他」的手填文案，**仅 real_name=other 时有意义**，其余取值服务端强制清空',
         },
-        note: '**内部字段一律不返回**：verified_by（核验人）、guest_fingerprint（游客身份指纹）、deleted_by（执行删除的用户 id）。这些字段在表里存在，但任何对外通道都不下发，请勿依赖。'
+        note: '**内部字段一律不返回**：verified_by（核验人）、guest_fingerprint（游客身份指纹）、deleted_by（执行删除的用户 id）、source_url（情报来源，运营留痕）。这些字段在表里存在，但任何对外通道都不下发，请勿依赖；`source_url` 同样**不接受**任何身份的写入。'
           + '列表默认返回公开可见的 approved 通告（status=approved 且 deleted_at/invalid_at 为空且未过期）+ 自己发布的全部（含 pending，但不含已软删除）。'
           + '已失效 / 已过期 / 已删除的通告对外一律不可见（详情、投票、评测、建议、分享卡片均返回 404），恢复与彻底删除只能由管理员在后台「已失效」面板操作。'
           + '每条通告还有人工核验时间轴（verified_at / verify_stale）：`verified_at` 是站点最近一次确认「此刻仍可用」的时间，'

@@ -570,6 +570,38 @@ export function runMigrations(db: Database.Database) {
     console.warn('[DB] 实名列 NULL 归一失败（忽略）:', err.message)
   }
 
+  // ── 2026-11-04 结构化字段（对齐 baipiao.org 详情页信息架构）──
+  //
+  // 每个 ensureColumn 都**逐个独立调用**：ensureColumn 内部各自 try/catch，
+  // 一条 DDL 失败不会带走其后的语句（见本文件头「迁移三坑」——曾因一条索引失败
+  // 连带其后 31 条 CREATE INDEX 全部静默不执行）。
+  //
+  // 取 `DEFAULT ''` / `DEFAULT '[]'` 而非可空列：`ALTER TABLE ADD COLUMN ... DEFAULT x`
+  // 让**存量行直接读作默认值**而不是 NULL，读取侧只需判空串，不必再防 null。
+  //   summary        —— 一句话摘要 TL;DR（列表卡片 + 详情标题下方）
+  //   limits         —— 限制条款（普通用户可写 → 详情按 note 同路渲染上限消毒）
+  //   requirements   —— 领取条件（同上）
+  //   verify_scope   —— 核实范围说明（站点到底核了什么）
+  //   faq            —— FAQ JSON 数组 [{q,a}]，解析用 `parseFaq`
+  //   source_url     —— 情报来源（**运营字段，任何身份都不下发**，含管理员浏览公开前台；
+  //                     与 verified_by / guest_fingerprint 同级，由导入脚本直连 DB 写入）
+  //   featured       —— 1 = 进「精选对比」；**仅管理员可写**（与 pinned 同口径）
+  ensureColumn(db, 'token_deals', 'summary', "ALTER TABLE token_deals ADD COLUMN summary TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'limits', "ALTER TABLE token_deals ADD COLUMN limits TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'requirements', "ALTER TABLE token_deals ADD COLUMN requirements TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'verify_scope', "ALTER TABLE token_deals ADD COLUMN verify_scope TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'faq', "ALTER TABLE token_deals ADD COLUMN faq TEXT DEFAULT '[]'")
+  ensureColumn(db, 'token_deals', 'source_url', "ALTER TABLE token_deals ADD COLUMN source_url TEXT DEFAULT ''")
+  ensureColumn(db, 'token_deals', 'featured', 'ALTER TABLE token_deals ADD COLUMN featured INTEGER DEFAULT 0')
+
+  // 精选对比表按 `featured=1` 过滤，配一条部分索引。
+  // 独立 try/catch：索引失败（例如旧 SQLite 版本）不该影响启动。
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_td_featured ON token_deals(featured, status)')
+  } catch (err: any) {
+    console.warn('[DB] 创建 idx_td_featured 失败（忽略）:', err.message)
+  }
+
   // ── 游客评测：软删除三列 + 处置审计表（2026-10-30，由 task-5 的惰性补列收编而来）──
   //
   // 为什么搬到启动迁移：原先只在 `utils/guest-reviews.ts` 的 `ensureGuestReviewSchema()` 里

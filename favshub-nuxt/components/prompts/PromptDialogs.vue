@@ -324,6 +324,7 @@
 </template>
 
 <script setup lang="ts">
+import { copyText } from '~/utils/clipboard'
 	const props = defineProps<{
 	  viewingPrompt: any
 	  showEditDialog: boolean
@@ -435,7 +436,7 @@ function showVersionDetail(v: any) {
 
 function copyVersionContent() {
   if (viewingVersion.value?.content && import.meta.client) {
-    navigator.clipboard.writeText(viewingVersion.value.content).catch(() => {})
+    copyText(viewingVersion.value.content).catch(() => {})
   }
 }
 

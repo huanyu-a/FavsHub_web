@@ -279,6 +279,7 @@ import BackToTop from '~/components/BackToTop.vue'
 import SiteFooter from '~/components/common/SiteFooter.vue'
 import { parseTemplateVariables } from '~/utils/template-variables'
 import { searchPrompts } from '~/utils/pinyin'
+import { copyText } from '~/utils/clipboard'
 
 definePageMeta({ layout: 'default' })
 
@@ -1022,7 +1023,9 @@ function copyContent(content: string, promptId?: string) {
 /** 实际执行复制 */
 function doCopy(content: string, promptId?: string) {
   if (import.meta.client) {
-    navigator.clipboard.writeText(content).then(() => {
+    // 共用工具：http 环境下 navigator.clipboard 为 undefined，原写法会静默无反应
+    copyText(content).then((ok) => {
+      if (!ok) return
       copySuccess.value = true
       setTimeout(() => { copySuccess.value = false }, 1500)
       if (promptId) {
