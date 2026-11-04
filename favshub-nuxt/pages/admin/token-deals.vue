@@ -858,8 +858,13 @@ function sourceLabel(s?: string) {
 }
 
 function categoryLabel(cat?: string) {
+  // 与 server/utils/token-deals.ts 的 DEAL_CATEGORIES 对齐。
+  // 原先只认 cloud / client，其余一律回落「API 额度」——
+  // 于是 domain（免费域名）在后台会被显示成「API 额度」，
+  // 审核的人根本分不清这条是域名还是模型额度。
   if (cat === 'cloud') return '云服务器'
   if (cat === 'client') return '客户端额度'
+  if (cat === 'domain') return '免费域名'
   return 'API 额度'
 }
 
