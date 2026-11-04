@@ -208,7 +208,136 @@ ok(`品级/地区/来源枚举副本只允许在 ${FIELDS_SOURCE}`,
   FIELD_OFFENDERS.length === 0,
   FIELD_OFFENDERS.length ? `以下文件仍各自定义了一份，请改为从真源派生：\n      ${FIELD_OFFENDERS.join('\n      ')}` : '')
 
-// ── 9. 已知消费方必须引用真源 ────────────────────────────────────────
+// ── 10. 已导出枚举常量不得被别处重抄 ──────────────────────────────────
+//
+// 扫描「所有导出的短字符串数组常量」，检查是否有别的文件把同一组值又字面写了一遍。
+// 2026-11-05 实测扫出 **6 处命中，但只有 1 类是真缺陷** —— 所以这里**不写通用扫描器**，
+// 而是逐个人工判定后登记（通用扫描器会把「两个概念恰好同值」误报为漂移）。
+//
+// 判定结果（这是本节的真正价值：把「哪些不合并」也记录下来）：
+//
+//   ✗ 真缺陷，已修：`INVALID_REASONS` 被 restore/state 两个 admin 端点手抄 ——
+//      真源就在它们已 import 的同一个模块里，纯属漏用。
+//   ○ 误报，**刻意分开**：`DEAL_STATUS`（通告审核状态）与 `GUEST_REVIEW_STATUSES`
+//      （评价审核状态）都是 `['pending','approved','rejected']`，但是**两个不同概念**。
+//      合并会让改一个动到另一个 —— 同值不等于同源。
+//   ○ 误报，**刻意分开**：`SAFE_URL_SCHEMES`（书签可存储的协议）与 `rich-text.ts` 的
+//      `allowedSchemes`（markdown 里可渲染的链接协议）今天都是 `['http','https','mailto']`，
+//      但一个是**存储策略**、一个是**渲染策略**，各自可能独立演化（例如备注若要支持
+//      `tel:` 电话链接，不该顺带让书签也接受 `tel:`）。
+//   △ 真重复但暂不合并：`GUEST_REVIEW_ADMIN_STATUS_FILTERS` 在前端 admin 页被手抄。
+//      合并需要新建共用模块（该常量在 `server/utils/guest-reviews.ts`，含 DB 依赖，
+//      前端不能直接引）。服务端对未知值安全回落 `'all'`，实际影响仅「筛选器点了没结果」，
+//      成本大于收益 —— 记录在此，等真有第三处消费方时再抽公共模块。
+console.log('\n▶ 已导出枚举常量不得被别处重抄')
+
+/**
+ * 把注释内容替换成**等长空格**（保留换行与偏移）。
+ *
+ * 为什么需要它：判断「这个字面数组旁边是否引用了常量」时，如果直接把原文
+ * 拿去做 `includes(name)`，那么**注释里提一句常量名就会被当成已引用**——
+ * 于是 `// 值清单来自 INVALID_REASONS` 下面的手抄清单反而检测不到。
+ * （这不是假想：本守卫的第一版就是这么漏掉植入的漂移的，由「测试有牙齿」当场抓到。）
+ *
+ * 用等长空格而非直接删除，是为了让 `m.index` 仍然能映射回原文行号。
+ * 用小型状态机跳过字符串/模板串，避免把字符串里的 `//` 误当注释。
+ */
+function maskComments(text) {
+  const out = text.split('')
+  let i = 0
+  const n = text.length
+  while (i < n) {
+    const c = text[i]
+    // 字符串 / 模板串 / 正则字面量难以完全区分，这里只处理最常见的引号串
+    if (c === "'" || c === '"' || c === '`') {
+      const q = c
+      i++
+      while (i < n) {
+        if (text[i] === '\\') { i += 2; continue }
+        if (text[i] === q) { i++; break }
+        i++
+      }
+      continue
+    }
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < n && text[i] !== '\n') { out[i] = ' '; i++ }
+      continue
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      out[i] = ' '; out[i + 1] = ' '; i += 2
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) {
+        if (text[i] !== '\n') out[i] = ' '
+        i++
+      }
+      if (i < n) { out[i] = ' '; out[i + 1] = ' '; i += 2 }
+      continue
+    }
+    i++
+  }
+  return out.join('')
+}
+
+/** 真源常量 → 它所在文件；断言其余文件里不得再出现同值字面数组 */
+const SINGLE_SOURCE_ENUMS = [
+  { name: 'INVALID_REASONS', file: 'server/utils/token-deals.ts', vals: ['expired', 'votes', 'manual'] },
+]
+
+for (const en of SINGLE_SOURCE_ENUMS) {
+  const src = readFileSync(join(ROOT, en.file), 'utf8')
+  ok(`${en.file} 确实导出了 ${en.name}`,
+    new RegExp(`export const ${en.name}\\b`).test(src))
+
+  const offenders = []
+  const keySet = [...en.vals].sort().join(',')
+  for (const rel of walkAll()) {
+    if (rel === en.file) continue
+    let raw
+    try { raw = readFileSync(join(ROOT, rel), 'utf8') } catch { continue }
+    const text = maskComments(raw)   // 注释不算「引用」
+    // 逐个字面数组比对「值集是否完全相同」
+    for (const m of text.matchAll(/\[([^[\]]{0,200}?)\]/g)) {
+      const got = [...m[1].matchAll(/'([^'\\\n]{1,20})'/g)].map(x => x[1])
+      if (got.length < 3) continue
+      if ([...new Set(got)].sort().join(',') !== keySet) continue
+      // 该片段本身在**代码里**引用了常量，说明它是派生而非手抄
+      if (text.slice(Math.max(0, m.index - 60), m.index + m[0].length + 20).includes(en.name)) continue
+      offenders.push(`${rel}:${text.slice(0, m.index).split('\n').length}`)
+    }
+  }
+  ok(`${en.name} 未在别处被手抄`,
+    offenders.length === 0,
+    offenders.length ? `以下位置只手抄了值清单，请改为引用真源 ${en.file}：\n      ${offenders.join('\n      ')}` : '')
+
+  // 「用了但没导入」检测。
+  //
+  // 为什么需要：本项目**没有**服务端静态的未定义标识符检查 ——
+  // `pnpm ts:check` 只校验导入路径能否解析（948 个），不管标识符有没有定义；
+  // `pnpm build` 也不查服务端 .ts。所以「引用了常量却忘了 import」只能靠运行时暴露。
+  // 这不是假想：v1.0.85 就是这么把 `/api/admin/token-deals/:id/state` 打成
+  // **全量 500** 的（`INVALID_REASONS is not defined`），由 `state-machine` 套件
+  // 从 107 掉到 84 才抓到。这里补一道静态检查，让它在跑测试前就报错。
+  const missingImports = []
+  const importRe = new RegExp(`import\\s*(?:type\\s*)?\\{[^}]*\\b${en.name}\\b[^}]*\\}`, 's')
+  for (const rel of walkAll()) {
+    if (rel === en.file) continue
+    let raw
+    try { raw = readFileSync(join(ROOT, rel), 'utf8') } catch { continue }
+    const text = maskComments(raw)
+    // 该文件在代码里用到了这个常量名吗？
+    if (!new RegExp(`\\b${en.name}\\b`).test(text)) continue
+    // 用到就必须有导入（或本文件自己定义 / 重导出）
+    if (importRe.test(text)) continue
+    if (new RegExp(`(?:export\\s+)?const\\s+${en.name}\\b`).test(text)) continue
+    missingImports.push(rel)
+  }
+  ok(`${en.name} 的使用方都正确导入了它`,
+    missingImports.length === 0,
+    missingImports.length
+      ? `以下文件用到了 ${en.name} 却没有 import（服务端无静态未定义检查，会在运行时 500）：\n      ${missingImports.join('\n      ')}`
+      : '')
+}
+
+// ── 11. 已知消费方必须引用真源 ────────────────────────────────────────
 console.log('\n▶ 已知消费方引用真源')
 const CONSUMERS = [
   'components/tokens/TokenDealCard.vue',

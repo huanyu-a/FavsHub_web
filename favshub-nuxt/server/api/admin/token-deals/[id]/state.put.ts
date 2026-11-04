@@ -12,7 +12,7 @@
  *     **不能**自行 published 或 verified —— 否则自审自过，审核形同虚设
  */
 import { requireAuth, isAdminUserById } from '../../../../utils/auth'
-import { setDealState, SETTABLE_STATES, DEAL_STATE_LABELS } from '../../../../utils/token-deals'
+import { setDealState, SETTABLE_STATES, DEAL_STATE_LABELS, INVALID_REASONS } from '../../../../utils/token-deals'
 import type { DealState, InvalidReason } from '../../../../utils/token-deals'
 import { getRawDb } from '../../../../database'
 
@@ -49,8 +49,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const reason = String(body?.reason ?? '').trim().slice(0, 200)
-  const invalidReason = (['expired', 'votes', 'manual'] as const)
-    .includes(body?.invalidReason as InvalidReason)
+  // 同上：值清单来自 INVALID_REASONS，不再手抄一份
+  const invalidReason = (INVALID_REASONS as readonly string[])
+    .includes(String(body?.invalidReason ?? ''))
     ? (body.invalidReason as InvalidReason)
     : 'manual'
 

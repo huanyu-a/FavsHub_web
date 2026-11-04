@@ -24,6 +24,7 @@ import {
   markDealInvalid,
   restoreDeletedDeal,
   type InvalidReason,
+  INVALID_REASONS,
 } from '../../../../utils/token-deals'
 import { appendDealEvent } from '../../../../utils/deal-events'
 
@@ -85,7 +86,9 @@ export default defineEventHandler(async (event) => {
     if (deal.invalid_at) {
       changes.push('已处于失效状态，未重复标记')
     } else {
-      const reason: InvalidReason = (['expired', 'votes', 'manual'] as const).includes(body?.reason)
+      // 值清单来自 INVALID_REASONS（同模块已导出）—— 原先在这里手抄了一份，
+      // 与真源重复；真源增删取值时这里会静默失配。
+      const reason: InvalidReason = (INVALID_REASONS as readonly string[]).includes(body?.reason)
         ? body.reason
         : 'manual'
       markReason = reason
