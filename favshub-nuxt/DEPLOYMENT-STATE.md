@@ -1,4 +1,4 @@
-**最后更新：2026-11-05（第 29 次修订：正式部署 1.0.94 —— 新增 SSR head 注入契约套件（41 项）；本轮**未发现漏洞**，实测转义在全部落点都正确，套件作为回归护栏）**
+**最后更新：2026-11-05（第 30 次修订：正式部署 1.0.95 —— 把两个「孤儿」AI 套件接进门禁与 CI，激活 253 项此前从未执行过的断言；新增编排器 `ai-api-gate`）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1838**（18 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **2108**（19 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -38,6 +38,7 @@
 | `1.0.92` | **`GET /api/settings` 按值脱敏**（`scrubSecretValues`）：原先只有一张空的**名字**黑名单，等于不设防 —— 任何写进系统设置（`user_id=0`）的密钥形态值都会发给所有访客。**刻意不用名字模式匹配**：生产真实存在 `showPasswordsLink`（扩展 UI 开关），会被 `password` 模式误杀。新增 `public-secret-scan`（23 项）从整个公开面查泄露 |
 | `1.0.93` | 游客订阅 `[token].get/patch/delete` 的限流键改用 `rateKeyForIp`（IPv6 → /64），与 `index.post` 对齐 —— 此前用原始地址，同一个人在 /64 内换个地址即可重置 60 次/小时的配额。新增 `deal-subscriptions`（53 项）：该链路是**游客可写 + 发放能力令牌**，此前零行为覆盖 |
 | `1.0.94` | 新增 `head-injection`（41 项）：SSR head 注入契约。**本轮未发现漏洞** —— 实测管理员 TDK 与用户可控的通告标题/精选集名称在 `<title>` 与 meta 属性里都被正确转义；套件是回归护栏（转义由 unhead 这个依赖负责，升级可能改变行为） |
+| `1.0.95` | 新增 `ai-api-gate`（270 项）：把 `ai-api-smoke-read/write` 这两个**孤儿套件**接进门禁与 CI —— 它们覆盖 30 个 `/api/ai/**` 与 `/api/mcp`，此前不在门禁、不在 CI、不在 package.json，**253 项断言从未执行过** |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -188,6 +189,63 @@
 种入的值**必须真的到达 head**，否则「没有破出」是全绿但毫无意义的。实测 `/tokens` 列表页
 就是如此 —— 页面级 `useHead` 覆盖了 TDK，TDK 压根没进 head。所以每组都断言载荷确实到达，
 且全局要求到达落点数 ≥ 5。这条控制在实测中当场如实报了「断言会空洞」。
+
+### 🐞 1.0.95 修的「覆盖假象」：两个 AI 套件写好了，却从来没有被执行过
+
+清点 `scripts/*.mjs` 与门禁/CI/`package.json` 的交叉引用时发现 **28 个脚本不在任何执行路径上**。
+其中多数是数据工具/生成器（`seed-*`、`gen-*`、`copy-*icons`、`import-*`）—— 那没问题。
+但有两个是**真正的测试套件**：
+
+| 脚本 | 行数 | 覆盖 | 被谁跑过 |
+|---|---|---|---|
+| `ai-api-smoke-read.mjs` | 526 | 122 项 | 只被 write 套件当助手引用 |
+| `ai-api-smoke-write.mjs` | 667 | 123 + 8 项 | **没有任何东西引用** |
+
+它们覆盖 30 个 `/api/ai/**` 端点与 `/api/mcp`：令牌创建与展示安全、**通道隔离（PAT ≠ JWT 双向不承认）**、
+scope 分级（read 令牌不可写/删）、MCP 的 `initialize`/`tools/list`/`tools/call` 与权限一致、
+书签/文件夹/提示词/标签/通告的写删与跨用户隔离、`dry_run` 不落库、审计日志绝不记录请求体。
+
+**它们是通过的**（实测 122 / 123 / 8 全绿）—— 但从来没有任何一次构建执行过它们。
+这就是「有测试 ≠ 有保障」：`/api/ai/*` 一旦回归，门禁与 CI 都不会响。
+
+#### 它们为什么没被接进去
+
+它们是**黑盒烟测**（`process.argv[2]` 收 BASE），自己不启应用，还需要特定环境：
+放开注册（`allow_registration=true`）、关掉注册人机校验（`register_turnstile_enabled=false`）、
+`NUXT_ADMIN_USERS=smokeadmin`、`NUXT_TRUST_PROXY=true`。
+
+更关键的是写套件有**两种互斥模式**，套件作者自己在注释里论证过：
+
+- 常规模式（第 0~5、7 节）：每令牌打 40~90 个 AI 请求，必须**放宽** `FAVSHUB_RL_AI_*`
+- `--limit` 模式（只跑第 6 节）：要验证「第 N+1 次才 429」，必须用**默认**配额
+
+两者不能在同一进程里共存 → 新增编排器 `ai-api-gate.mjs`**分两次启服务**，把配方固化下来。
+
+#### 编排器的六道护栏（其中第三条是关键）
+
+1. 端口必须先空闲（3210）—— 否则测到残留实例
+2. 每个阶段 PASS 必须 > 0 —— 空跑不算成功
+3. **`--limit` 阶段不许出现「跳过限频压测」的 WARN**
+4. read 阶段输出里必须真的出现过 `favs_ai_` 前缀 —— 证明 PAT 通道真被走过了
+5. 输出里不许出现未捕获异常 / `ECONNREFUSED` —— 防「脚本崩了但 PASS=0 当成没事」
+6. 临时库用完即删
+
+#### 第 3 条为什么必须有（一次实测）
+
+套件在配额被覆盖时会打 `[WARN] … 跳过限频压测` 而**不是**失败。我故意给会话B 也放宽了 AI 配额：
+
+    · ai-write-limit      4 项  退出码 0        ← 套件自己：退出码 0，看起来是绿的
+    ✗ --limit 阶段没有出现「跳过限频压测」的 WARN — 出现跳过 WARN
+    → 265 通过 / 1 失败
+
+**限流那一节（8 → 4 项）被静默跳过，而套件退出码仍是 0。** 只有这条护栏抓到了它 ——
+否则「全绿」是空的，限流回归谁都发现不了。
+
+#### 顺带记一个脚手架坑
+
+第一次跑 read 套件时有 1 项失败：`notifications/* → status=429`。
+那是**站点层限流**（默认读 600/分钟），烟测自己请求太多撞上的 —— 不是产品缺陷。
+编排器给两个会话都放宽了站点层配额，AI 通道配额则分模式处理。
 
 ### 🔍 后台「提示词版本历史」的管理员可见性缺口（2026-11-05 查清，未改，需产品决策）
 
@@ -822,7 +880,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1838 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **2108 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -835,6 +893,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `ai-api-gate` | 270 | AI 数据通道：PAT/JWT 通道隔离、scope 分级、MCP 工具权限、写删与跨用户隔离、dry_run、审计（253 项套件断言 + 17 项编排检查） |
 | `head-injection` | 41 | SSR head 注入契约：管理员 TDK 与用户可控标题/摘要进 head 的转义（含判定器自检 8 项） |
 | `deal-subscriptions` | 53 | 游客订阅生命周期：token 形态 / 404 文案一致性 / PATCH 白名单 / 退订 / 总闸门 / 限流 IPv6 按 /64 聚合 |
 | `public-secret-scan` | 23 | 公开面密钥泄露：明文只允许出现在 copy 端点；`/api/settings` 按值脱敏 + 不得误杀正常设置 |
@@ -846,7 +905,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1838** | |
+| **合计（断言）** | **2108** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

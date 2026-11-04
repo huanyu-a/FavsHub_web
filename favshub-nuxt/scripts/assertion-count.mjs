@@ -89,6 +89,11 @@ const POST_BUILD = [
   // 一处没转义就是存储型 XSS。判定器自带安全/危险样本自检（判定器写错会永远绿）。
   // 独占端口 3272。
   { name: 'head-injection', script: 'head-injection.mjs' },
+  // 把两个「孤儿」AI 套件接进来：它们覆盖 30 个 /api/ai/** 端点与 /api/mcp
+  // （PAT 与 JWT 通道隔离、scope 分级、MCP 工具权限、写删与跨用户隔离、dry_run、审计），
+  // 但此前不在门禁、不在 CI、不在 package.json —— 从来没有被执行过。
+  // 编排器自带两次启服务（常规模式要放宽 AI 配额，--limit 模式要默认配额），独占端口 3210。
+  { name: 'ai-api-gate', script: 'ai-api-gate.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },

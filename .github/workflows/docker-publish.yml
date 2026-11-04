@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1838。
+      # CI 断言总计 2108。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -230,6 +230,13 @@ jobs:
       - name: Test — SSR head 注入契约（存储型 XSS，41 项）
         working-directory: favshub-nuxt
         run: node scripts/head-injection.mjs
+
+      # AI 数据通道（/api/ai/** 与 /api/mcp，共 31 个端点）。这套覆盖早就写好了，
+      # 但此前不在门禁、不在 CI、不在 package.json —— **从来没有被执行过**（253 项断言空转）。
+      # 编排器分两次启服务：常规模式放宽 AI 配额，--limit 模式必须用默认配额才测得准限流。
+      - name: Test — AI 数据通道（PAT/JWT 隔离、scope、MCP、写删、审计，253 项）
+        working-directory: favshub-nuxt
+        run: node scripts/ai-api-gate.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：
