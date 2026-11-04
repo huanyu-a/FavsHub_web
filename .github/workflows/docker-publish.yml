@@ -103,7 +103,7 @@ jobs:
       #
       # 只挑自包含的：end-to-end 套件（third-batch-*、second-batch-e2e、ai-api-smoke-*）
       # 要起本地服务 + 真实 SQLite，CI 里没有该环境，故不纳入。
-      # 计入断言数：102 + 17 + 12 + 47 = 178 项。
+      # 计入断言数：102 + 17 + 12 + 47 + 36 = 214 项。
       - name: Type check (named imports)
         working-directory: favshub-nuxt
         run: pnpm ts:check
@@ -129,6 +129,12 @@ jobs:
         working-directory: favshub-nuxt
         run: node --experimental-strip-types scripts/category-source-check.mjs
 
+      # 书签图标解析守卫：断言「合法形态放行 / 坏值回落」。生产实测有 30 条
+      # icon 是缺前导斜杠的相对路径（img/<hex>.webp），会渲染成 404 坏图标。
+      - name: Test — 书签图标解析
+        working-directory: favshub-nuxt
+        run: node --experimental-strip-types scripts/favicon-resolve-check.mjs
+
       - name: Build Nuxt
         working-directory: favshub-nuxt
         run: pnpm build
@@ -148,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(946 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1140。
+      # CI 断言总计 1176。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs

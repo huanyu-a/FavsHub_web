@@ -55,6 +55,9 @@ const PRE_BUILD = [
   // 通告分类单一真源守卫（2026-11-05）：自包含，但要 import utils/deal-categories.ts，
   // 故同样需要 --experimental-strip-types（Node ≥22.6，与 sanitize-test 同）。
   { name: 'category-source-check', script: 'category-source-check.mjs', args: ['--experimental-strip-types'] },
+  // 书签图标解析守卫（2026-11-05）：import utils/favicon.ts，同样需要类型剥离。
+  // 断言「合法形态放行 / 坏值回落」，覆盖生产实测到的 30 条 404 坏 icon。
+  { name: 'favicon-resolve-check', script: 'favicon-resolve-check.mjs', args: ['--experimental-strip-types'] },
 ]
 // build 后需要 .output 的套件
 const POST_BUILD = [

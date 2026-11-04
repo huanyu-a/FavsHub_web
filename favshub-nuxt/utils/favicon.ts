@@ -28,9 +28,46 @@ export function isPrivateOrLocalHost(hostname: string): boolean {
   return false
 }
 
+/**
+ * icon 值是否可以直接渲染进 `<img src>`。
+ *
+ * 背景（2026-11-05 生产数据实测）：原先 `resolveBookmarkIcon` 的做法是
+ * 「icon 非空就原样返回」，不做任何形态校验。查了生产全量 2667 条 icon，
+ * 实际存在三类不该直接渲染的值：
+ *
+ *   1. **危险协议**：理论上可写入 `javascript:` / `vbscript:` 等。`<img src>` 不会执行
+ *      脚本，但仍是不该出现在 DOM 里的值，且换个渲染位置就成了洞。
+ *   2. **相对路径缺前导斜杠**：实测 **30 条** 形如 `img/<32位hex>.webp`。
+ *      它会被解析成 `/bookmarks/img/xxx.webp`（相对当前页面），而 `public/img`
+ *      根本不存在 —— 这 30 条**全部 404**，用户看到的是坏图标。
+ *   3. 白名单外的其它协议（`file:` / `blob:` 等）。
+ *
+ * 处理策略是**放行可安全渲染的形态，其余一律返回 null 让调用方回落**：
+ * 站内绝对路径（`/...`，含落盘的 `/images/favicons/*.png`）、
+ * `data:image/*` 内联图标（实测 25 条合法用途）、`http(s)` 外链（实测 10 条）。
+ *
+ * 刻意**不**在这里把相对路径「补成」绝对路径：`img/xxx.webp` 指向的文件在
+ * 站点上根本不存在，补斜杠只会把一个 404 换成另一个 404，还会掩盖上游数据问题。
+ * 回落到代理图标（按书签 URL 域名现取）才是对用户有意义的兜底。
+ */
+export function isRenderableIcon(icon: string | null | undefined): boolean {
+  if (!icon) return false
+  const s = String(icon).trim()
+  if (!s) return false
+  // 站内绝对路径（/images/favicons/x.png、/favicon.ico …）
+  if (s.startsWith('/') && !s.startsWith('//')) return true
+  // 内联图片 data URI —— 必须限定 image/*，不接受 data:text/html
+  if (/^data:image\/[a-z0-9.+-]+[;,]/i.test(s)) return true
+  // 绝对 http(s) 地址
+  if (/^https?:\/\//i.test(s)) return true
+  return false
+}
+
 /** 返回可用的 icon URL；null 表示使用文字首字母占位 */
 export function resolveBookmarkIcon(icon: string | null | undefined, url: string | null | undefined): string | null {
-  if (icon && String(icon).trim()) return String(icon).trim()
+  // 只渲染形态合法的 icon；坏值（危险协议 / 缺前导斜杠的相对路径 / 未知协议）
+  // 一律忽略并回落到按域名取的代理图标 —— 详见 isRenderableIcon 的说明。
+  if (isRenderableIcon(icon)) return String(icon).trim()
   if (!url) return null
   const hostname = hostnameFromUrl(url)
   if (!hostname || isPrivateOrLocalHost(hostname)) return null

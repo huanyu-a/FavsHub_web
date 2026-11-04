@@ -16,7 +16,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:7ea729a42e72661dac1b0c1be2673f58b18ed85d30e79cf2b11103f321e29a88` |
 | **CI run** | `41876107389`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1140**（11 个套件）· `ts:check` 946 个具名导入 |
+| **断言总数** | **1176**（12 个套件）· `ts:check` 946 个具名导入 |
 | **线上数据分布** | `published 72 / pending 12 / rejected 11 / invalid 10 / deleted 5`（合计 110） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.79`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.78-20261105012129` + `data/backups/favshub.db.pre-1.0.79-20261105012129` |
@@ -512,7 +512,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1140 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1176 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -522,6 +522,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
 | `ssrf-pin-check` | 12 | |
 | `category-source-check` | 47 | **是**（`--experimental-strip-types`） |
+| `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `second-batch-e2e` | 165 | 含 URL 协议白名单回归 15 项 |
 | `third-batch-detail` | 252 | |
@@ -529,7 +530,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1140** | |
+| **合计（断言）** | **1176** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——
