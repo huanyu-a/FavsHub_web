@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1215。
+      # CI 断言总计 1239。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -177,6 +177,17 @@ jobs:
       - name: Test — 缓存与隐私（Cache-Control/Vary/SSR payload）
         working-directory: favshub-nuxt
         run: node scripts/cache-privacy-check.mjs
+
+      # 「福利 Key」复制端点的可见性契约。单开一个套件是因为：
+      # `GET /api/token-keys/:id/copy` 是全站**唯一下发明文密钥**的接口
+      # （列表/详情的 SELECT 列清单里根本没有 key_plain），它的守卫一失守，
+      # 泄漏的是**可用的真实密钥**而不是元数据 —— 而此前它零覆盖。
+      # 断言：可复制行才 200、其余分支一律 404 且**文案完全一致**（避免存在性泄露）、
+      # 明文端点绝不入缓存、以及「列表遮蔽 / copy 给完整 base_url」这条**有意差异**
+      # 不被日后「顺手统一」掉。
+      - name: Test — 福利 Key 复制端点可见性（明文出口契约，24 项）
+        working-directory: favshub-nuxt
+        run: node scripts/key-copy-visibility.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：

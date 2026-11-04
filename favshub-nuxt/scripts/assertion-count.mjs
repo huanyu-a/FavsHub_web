@@ -66,6 +66,9 @@ const POST_BUILD = [
   { name: 'third-batch-detail', script: 'third-batch-detail.mjs' },
   { name: 'third-batch-ratelimit', script: 'third-batch-ratelimit.mjs' },
   { name: 'cache-privacy-check', script: 'cache-privacy-check.mjs' },
+  // 「福利 Key」复制端点的可见性契约（2026-11-05）：全站唯一下发明文密钥的接口，
+  // 此前零覆盖。独占端口 3257。
+  { name: 'key-copy-visibility', script: 'key-copy-visibility.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },
