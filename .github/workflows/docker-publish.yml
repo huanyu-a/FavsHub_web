@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1364。
+      # CI 断言总计 1460。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -194,8 +194,11 @@ jobs:
       # 端点没有任何统一入口把关，全靠每个文件自己调鉴权，而它们是权限最高、
       # 也最危险的一批（删用户、改通告状态、清空提示词、重建精选集）。
       # 本步骤从**文件系统枚举**端点（代码增删自动跟上），逐个以未登录身份打一遍，
-      # 再单独测越权（IDOR）与提权，并核对库里确实没变。
-      - name: Test — 管理后台 API 鉴权面（未登录/越权/提权，125 项）
+      # 再单独测越权（IDOR）与提权，并核对库里确实没变；
+      # 最后以**登录的普通用户**身份再扫一遍，要求放行的端点**恰好**是一张
+      # 逐个读过源码的白名单（8 个），且响应里不得出现他人数据 ——
+      # 这样「某端点日后被放宽到登录即可」会立刻报红，而不是靠人去读源码发现。
+      - name: Test — 管理后台 API 鉴权面（未登录/越权/提权/普通用户白名单，221 项）
         working-directory: favshub-nuxt
         run: node scripts/admin-auth-guard.mjs
 

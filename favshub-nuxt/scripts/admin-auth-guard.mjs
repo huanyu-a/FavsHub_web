@@ -385,6 +385,65 @@ try {
       { cookie: cookieAdmin, body: { state: 'deleted' } })
     check('D3 deleted 不在可设状态里 → 400（软删除只能走专用端点）', r3.status === 400, `status=${r3.status}`)
   }
+  // ══════════════════════════════════════════════════════════════
+  console.log('\n▶ E. 以【登录的普通用户】身份扫全部 admin 端点：放行的必须恰好是这 8 个')
+  // ══════════════════════════════════════════════════════════════
+  //
+  // 为什么要有这一组：A 组只证明「未登录进不来」。而本项目有 23 个端点走的是
+  // `getAuthRole`（登录即可、非管理员），此前我只能**读源码相信**它们各自做了归属过滤。
+  // 这里把它变成实测契约：任何端点日后对普通用户放行、而它不在这张白名单里 → 报红。
+  //
+  // 白名单逐个读过源码，过滤条件都在下面写着（不是凭名字猜的）：
+  const NORMAL_ALLOWED = new Map([
+    ['GET /api/admin/bookmarks', '自身书签 —— `WHERE b.user_id = ?`'],
+    ['GET /api/admin/folders', '自身文件夹 —— `WHERE f.user_id = ?`'],
+    ['GET /api/admin/prompt-folders', '自身提示词文件夹 —— `WHERE pf.user_id = ?`'],
+    ['GET /api/admin/prompts', '自身提示词 —— `WHERE p.user_id = ?`'],
+    ['GET /api/admin/prompts/history', '自身提示词版本历史 —— `WHERE p.user_id = ?`'],
+    ['GET /api/admin/stats', '个人统计 —— 5 个计数全部 `user_id = ?`；系统统计走 isAdmin 分支'],
+    ['GET /api/admin/tags', '自身标签 —— `t.id IN (... WHERE p.user_id = ?)`'],
+    ['GET /api/admin/search-engines', '自身引擎 + 他人**已审核**引擎 —— `user_id = ? OR (user_id != ? AND status = \'approved\')`'],
+  ])
+  // 他人（受害者）数据里的独有标记 —— 出现在响应里就说明归属过滤失效。
+  const VICTIM_MARKERS = [
+    'victim-bookmark', 'victim-folder', 'victim-prompt', 'victim-pfolder',
+    '探针通告(受害者)', 'probe-victim-provider', U.victim,
+  ]
+  {
+    const allowedForReal = []
+    for (const ep of endpoints) {
+      const key = `${ep.method} ${ep.route}`
+      const r = await req(ep.method, ep.route, {
+        cookie: cookieNormal,
+        body: ep.method === 'GET' ? undefined : {},
+      })
+      const isAllowed = r.status >= 200 && r.status < 300
+      if (isAllowed) allowedForReal.push(key)
+      if (NORMAL_ALLOWED.has(key)) {
+        check(`E·${key} 普通用户应可访问（白名单）`, isAllowed, `status=${r.status} ${r.text.slice(0, 100)}`)
+        // 只放行还不够 —— 必须证明它**只返回自己的数据**。
+        // 探针里受害者的书签/文件夹/提示词都是非空的，所以「响应为空」才是归属过滤生效的证据；
+        // 一旦这些标记出现，说明过滤失效。
+        const leaked = VICTIM_MARKERS.filter((m) => r.text.includes(m))
+        check(`E·${key} 且响应不含他人数据`, leaked.length === 0, `捕到他人数据标记: ${leaked.join(' / ')}`)
+      } else {
+        check(`E·${key} 普通用户不得访问 → 非 2xx`, !isAllowed, `status=${r.status} ${r.text.slice(0, 100)}`)
+      }
+    }
+    // 反向：白名单里的端点必须真的放行（防止我把某个已收紧的端点漏在名单里而两边都不报错）
+    for (const key of NORMAL_ALLOWED.keys()) {
+      check(`E·白名单里的 ${key} 确实出现在放行结果中`,
+        allowedForReal.includes(key), `实际放行: ${allowedForReal.join(', ') || '(无)'}`)
+    }
+    // 期望集合与实际集合精确相等
+    const expected = [...NORMAL_ALLOWED.keys()].sort()
+    const actual = [...allowedForReal].sort()
+    check(`E·放行集合与白名单精确相等（${expected.length} 个）`,
+      expected.length === actual.length && expected.every((k, i) => k === actual[i]),
+      `多出: ${actual.filter((k) => !expected.includes(k)).join(', ') || '无'}；缺失: ${expected.filter((k) => !actual.includes(k)).join(', ') || '无'}`)
+    console.log(`  （实测放行 ${actual.length} 个，与白名单 ${expected.length} 个对照）`)
+  }
+
 } catch (err) {
   console.error('\n套件异常：', err?.message || err)
   fails.push(`套件异常：${err?.message || err}`)
