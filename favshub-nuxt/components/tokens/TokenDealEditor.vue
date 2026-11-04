@@ -590,6 +590,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  QUALITY_LEVELS, REGION_OPTIONS, SOURCE_OPTIONS,
+  REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS,
+} from '~/utils/deal-fields'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { SETTABLE_STATES, DEAL_STATE_LABELS } from '~/utils/deal-state'
 import type { DealState } from '~/utils/deal-state'
@@ -672,16 +676,9 @@ const LIMITS = {
   faqA: 600,
 }
 
-const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品']
-const REGION_OPTIONS = [
-  { value: 'cn', label: '国内直连' },
-  { value: 'global', label: '海外（需代理）' },
-]
-const SOURCE_OPTIONS = [
-  { value: 'official', label: '官方直营' },
-  { value: 'relay', label: '中转站' },
-  { value: 'community', label: '社区转发' },
-]
+// 品级 / 地区 / 来源选项全部来自真源（`utils/deal-fields.ts`）。
+// 注意地区：下拉用 `REGION_OPTIONS`（label 带「（需代理）」提示，给填写者看），
+// 展示已有数据用 `REGION_LABELS`（纯「海外」）—— 两者语义不同，别再混用。
 // 分类下拉见顶部 import（真源 `~/utils/deal-categories`，与 TokenFilterBar 同源）
 
 /**
@@ -705,12 +702,10 @@ const REAL_NAME_LABELS: Record<string, string> = {
   other: '其他',
 }
 
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外（需代理）' }
-const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// 展示标签（字段差异表用）来自真源；这里原先是「海外（需代理）」，
+// 与详情页/后台的「海外」不一致 —— 已按真源统一。
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 
 const isEdit = computed(() => !!props.deal?.id)
 const isProposal = computed(() => !!props.proposal)

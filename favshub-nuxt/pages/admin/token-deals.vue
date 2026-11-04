@@ -478,6 +478,7 @@
 </template>
 
 <script setup lang="ts">
+import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from '~/utils/deal-fields'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 import { dealCategoryMeta } from '~/utils/deal-categories'
 
@@ -509,12 +510,9 @@ const STATUS_LABELS: Record<string, string> = {
   // 兼容：如果后端仍返回旧值
   approved: '已发布',
 }
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
-const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// 地区 / 来源标签来自真源（`utils/deal-fields.ts`）
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 
 // 2026-11-04：status 现在直接映射数据库的 state 列。
 // 'approved' 已拆成 verified（已审核）/ published（已发布）两档。

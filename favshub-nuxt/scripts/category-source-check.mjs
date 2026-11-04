@@ -127,14 +127,88 @@ function walk(dir) {
 }
 for (const r of SCAN_ROOTS) walk(join(ROOT, r))
 
+/** 列出全部可扫描源的相对路径（供后面的枚举副本检查复用） */
+function walkAll() {
+  const out = []
+  const seen = new Set()
+  const go = (dir) => {
+    let entries
+    try { entries = readdirSync(dir) } catch { return }
+    for (const name of entries) {
+      if (SKIP_DIRS.has(name)) continue
+      const full = join(dir, name)
+      let st
+      try { st = statSync(full) } catch { continue }
+      if (st.isDirectory()) { go(full); continue }
+      if (!/\.(ts|vue|mjs|js)$/.test(name)) continue
+      const rel = relative(ROOT, full).split('\\').join('/')
+      if (seen.has(rel)) continue
+      seen.add(rel); out.push(rel)
+    }
+  }
+  for (const r of SCAN_ROOTS) go(join(ROOT, r))
+  return out
+}
+
 ok(`除 ${SOURCE_FILE} 外无分类字面量副本`, offenders.length === 0,
   offenders.length ? `以下文件又抄了一份分类清单，请改为从真源派生：\n      ${offenders.join('\n      ')}` : '')
 ok('真源自身确实列全了四个分类',
   CATEGORY_LITERALS.every(lit => readFileSync(join(ROOT, SOURCE_FILE), 'utf8').includes(lit)))
 
-// ── 7. 已知消费方必须引用真源 ────────────────────────────────────────
-// 光靠「字面量不到 3 个」可能漏掉「只认 2 个分类」的手写分支（qq-notify 就是这样漏掉
-// domain 的）。所以对已知消费方额外断言它们确实引用了真源模块。
+// ── 8. 品级 / 地区 / 来源三组枚举同样只能有单一真源 ──────────────────
+// 与分类同源的毛病：`QUALITY_LEVELS` 曾有 3 份、`REGION_LABELS` 7 份、`SOURCE_LABELS` 6 份，
+// 且**已经漂移出真实不一致** —— 2 份把 region 的展示标签写成「海外（需代理）」，
+// 导致同一条通告在详情页显示「海外」、在编辑器的字段差异里显示「海外（需代理）」。
+console.log('\n▶ 品级 / 地区 / 来源（第二组枚举）')
+
+const FIELDS_SOURCE = 'utils/deal-fields.ts'
+const {
+  QUALITY_LEVELS, REGIONS, REGION_LABELS, REGION_OPTIONS,
+  SOURCE_TAGS, SOURCE_LABELS, SOURCE_OPTIONS, regionLabel, sourceLabel,
+} = await import('../utils/deal-fields.ts')
+
+check('QUALITY_LEVELS 五档且顺序固定',
+  JSON.stringify([...QUALITY_LEVELS]), JSON.stringify(['上上品', '上品', '中品', '下品', '下下品']))
+check('REGIONS 两个取值', JSON.stringify([...REGIONS]), JSON.stringify(['cn', 'global']))
+check('SOURCE_TAGS 三个取值', JSON.stringify([...SOURCE_TAGS]), JSON.stringify(['official', 'relay', 'community']))
+
+// 展示标签 vs 填写提示：这两者**必须不同**，且展示口径要纯净（不含操作建议）
+check('region 展示标签 global = 海外（不含「需代理」提示）',
+  REGION_LABELS.global, '海外')
+check('region 下拉提示 global 带「（需代理）」', REGION_OPTIONS.find(o => o.value === 'global')?.label, '海外（需代理）')
+check('region 下拉每项都给出 displayLabel 供展示复用',
+  REGION_OPTIONS.every(o => o.displayLabel === REGION_LABELS[o.value]), true)
+check('regionLabel() 回落 cn', regionLabel('不存在的地区'), '国内直连')
+check('sourceLabel() 回落 official', sourceLabel(undefined), '官方直营')
+
+check('SOURCE_LABELS 三值齐全',
+  SOURCE_TAGS.every(s => Boolean(SOURCE_LABELS[s])), true)
+check('SOURCE_OPTIONS 由真源派生（同值同序）',
+  JSON.stringify(SOURCE_OPTIONS.map(o => o.value)), JSON.stringify([...SOURCE_TAGS]))
+
+// 防漂移：这两组枚举的字面量副本同样只许出现在真源里。
+//
+// 判据要精确，避免误伤两类**合法**写法：
+//   1. `const REGION_LABELS = DEAL_REGION_LABELS` —— 这是**引用**真源，不是副本；
+//   2. 样例/种子数据里的 `quality: '上上品'` —— 这是**取值**，不是枚举定义。
+// 所以只认「字面对象 / 字面数组」形态的定义：
+//   `REGION_LABELS = {`、`SOURCE_LABELS: Record<...> = {`、`QUALITY_LEVELS = ['`
+const FIELD_OFFENDERS = []
+for (const rel of walkAll()) {
+  if (rel === FIELDS_SOURCE) continue
+  let text
+  try { text = readFileSync(join(ROOT, rel), 'utf8') } catch { continue }
+  const bad = []
+  if (/const QUALITY_LEVELS\s*=\s*\[/.test(text)) bad.push('品级数组定义')
+  if (/(?:const|export const)\s+REGION_LABELS\s*(?::\s*Record<[^>]*>\s*)?=\s*\{/.test(text)) bad.push('REGION_LABELS 字面定义')
+  if (/(?:const|export const)\s+SOURCE_LABELS\s*(?::\s*Record<[^>]*>\s*)?=\s*\{/.test(text)) bad.push('SOURCE_LABELS 字面定义')
+  if (bad.length) FIELD_OFFENDERS.push(`${rel}（${bad.join('、')}）`)
+}
+ok(`品级/地区/来源枚举副本只允许在 ${FIELDS_SOURCE}`,
+  FIELD_OFFENDERS.length === 0,
+  FIELD_OFFENDERS.length ? `以下文件仍各自定义了一份，请改为从真源派生：\n      ${FIELD_OFFENDERS.join('\n      ')}` : '')
+
+// ── 9. 已知消费方必须引用真源 ────────────────────────────────────────
 console.log('\n▶ 已知消费方引用真源')
 const CONSUMERS = [
   'components/tokens/TokenDealCard.vue',
@@ -153,7 +227,7 @@ for (const rel of CONSUMERS) {
   try { text = readFileSync(join(ROOT, rel), 'utf8') } catch {
     fail++; console.error(`✗ 消费方文件不存在：${rel}`); continue
   }
-  ok(`${rel} 引用真源`, /deal-categories|DEAL_CATEGORY_LABELS/.test(text))
+  ok(`${rel} 引用真源`, /deal-categories|DEAL_CATEGORY_LABELS|deal-fields/.test(text))
 }
 
 // ── 汇总 ────────────────────────────────────────────────────────────

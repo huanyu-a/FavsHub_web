@@ -121,6 +121,7 @@
  * 管理员 → 全部用户的待审建议；普通用户 → 自己发布的通告上、他人提交的待审建议。
  * 通过 = 把建议内容写入通告；驳回 = 标记为已驳回（可附理由）。
  */
+import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from '~/utils/deal-fields'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 interface IFieldDiff {
@@ -159,12 +160,11 @@ const busy = ref(false)
 const rejectTarget = ref<IReviewableEdit | null>(null)
 const rejectReason = ref('')
 
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外（需代理）' }
-const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// 地区 / 来源标签来自真源（`utils/deal-fields.ts`）。
+// 原先这里把 region 的展示标签写成「海外（需代理）」—— 那是**填写提示**的措辞，
+// 用在「字段差异」这种呈现已有数据的地方，会让同一条通告与详情页/后台显示不一致。
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 
 const scopeHint = computed(() => (authStore.isAdmin
   ? '你是管理员，这里汇总全部用户提交的待审修改建议。'

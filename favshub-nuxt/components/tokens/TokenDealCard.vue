@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from '~/utils/deal-fields'
 import { computed, ref } from 'vue'
 import { dealCategoryMeta } from '~/utils/deal-categories'
 import { fallbackProxyIcon } from '~/utils/favicon'
@@ -170,12 +171,9 @@ function formatDealDate(ts: number): string {
   return `${get('year')}-${get('month')}-${get('day')}`
 }
 
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
-const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// 地区 / 来源标签来自真源（`utils/deal-fields.ts`），不再各抄一份
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 
 const iconFailed = ref(false)
 

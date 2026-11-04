@@ -37,6 +37,7 @@
  * 块少时虚线提示卡补位；分词断行 + CJK 悬挂标点；图片 4s 超时回退。
  */
 
+import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from './deal-fields'
 export const SHARE_CARD_W = 900
 export const SHARE_CARD_H = 1200
 
@@ -176,8 +177,9 @@ export type ShareCtx = any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ShareImage = any
 
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
-const SOURCE_LABELS: Record<string, string> = { official: '官方直营', relay: '中转站', community: '社区转发' }
+// 地区 / 来源标签来自真源（`utils/deal-fields.ts`）
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 
 export interface ShareDealNexus {
   enabled: boolean

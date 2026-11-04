@@ -807,9 +807,13 @@ async function guestModuleSuite(dbPath) {
       // 原样复制而非桩化：被测的正是 `DEAL_CATEGORIES.includes(...)` 这条校验，
       // 桩掉它等于把断言变成自证。
       ["from '../../utils/deal-categories'", "from './deal-categories.ts'"],
+      // 品级 / 地区 / 来源三组枚举真源（2026-11-05 第二轮收敛）：同样原样复制，
+      // 因为被测的 `QUALITY_LEVELS` / `SOURCE_TAGS` 校验就在 token-deals.ts 里。
+      ["from '../../utils/deal-fields'", "from './deal-fields.ts'"],
     ],
   ))
   write('deal-categories.ts', readFileSync(join(ROOT, 'utils', 'deal-categories.ts'), 'utf8'))
+  write('deal-fields.ts', readFileSync(join(ROOT, 'utils', 'deal-fields.ts'), 'utf8'))
   write('guest-deals.ts', rewrite(
     readFileSync(join(ROOT, 'server', 'utils', 'guest-deals.ts'), 'utf8'),
     [

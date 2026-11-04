@@ -884,6 +884,7 @@
 </template>
 
 <script setup lang="ts">
+import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from '~/utils/deal-fields'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { copyText } from '~/utils/clipboard'
 import { dealCategoryMeta } from '~/utils/deal-categories'
@@ -1092,12 +1093,9 @@ const authStore = useAuthStore()
 /** 落地页形态：不使用遮罩定位与滚动锁定，「关闭」改为返回列表 */
 const isPage = computed(() => props.variant === 'page')
 
-const REGION_LABELS: Record<string, string> = { cn: '国内直连', global: '海外' }
-const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// 地区 / 来源标签来自真源（`utils/deal-fields.ts`）
+const REGION_LABELS = DEAL_REGION_LABELS
+const SOURCE_LABELS = DEAL_SOURCE_LABELS
 const RATING_TEXTS: Record<number, string> = {
   1: '很差',
   2: '较差',

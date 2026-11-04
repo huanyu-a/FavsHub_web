@@ -95,14 +95,11 @@ const SORT_OPTIONS = [
 ]
 
 // 与 server/utils/token-deals.ts 的 QUALITY_LEVELS / SOURCE_TAGS 保持一致
-const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品']
-const SOURCE_OPTIONS = [
-  { value: 'official', label: '官方直营' },
-  { value: 'relay', label: '中转站' },
-  { value: 'community', label: '社区转发' },
-]
+// 品级来自真源（`utils/deal-fields.ts`）
+// 来源选项来自真源（与 TokenDealEditor 同源）
 
 // 分类下拉来自真源（顺序即展示顺序）——原先此处与 TokenDealEditor 各抄一份逐字相同的数组
+import { QUALITY_LEVELS, SOURCE_OPTIONS } from '~/utils/deal-fields'
 import { DEAL_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from '~/utils/deal-categories'
 
 const VERIFY_OPTIONS = [

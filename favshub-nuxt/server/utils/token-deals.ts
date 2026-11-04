@@ -10,24 +10,16 @@ import { getConfigInt } from './config'
 import { getRawDb } from '../database'
 import { notifyTokenDealApproved, notifyTokenDealRejected } from './qq-notify'
 
-/** 品质分级 — 上上品 → 下下品 */
-export const QUALITY_LEVELS = ['上上品', '上品', '中品', '下品', '下下品'] as const
-export type QualityLevel = (typeof QUALITY_LEVELS)[number]
-
-/** 访问区域 — 国内直连 / 海外（海外通常需要代理） */
-export const REGIONS = ['cn', 'global'] as const
-export const REGION_LABELS: Record<string, string> = {
-  cn: '国内直连',
-  global: '海外',
-}
-
-/** 来源标签 — 官方直营 / 中转站 / 社区转发 */
-export const SOURCE_TAGS = ['official', 'relay', 'community'] as const
-export const SOURCE_LABELS: Record<string, string> = {
-  official: '官方直营',
-  relay: '中转站',
-  community: '社区转发',
-}
+// ── 品级 / 地区 / 来源枚举 ──────────────────────────────────────────
+// 真源在 `utils/deal-fields.ts`（2026-11-05 收敛）。这里「先 import 再 export」，
+// **不能只写 `export { ... } from '...'`** —— 纯重导出不建立本地绑定，
+// 而同文件下方还要用到它们（上轮 `DEAL_CATEGORIES` 就是这么炸的）。
+// 保留本模块的导出面，是为了不动既有引用方（sitemap / deal-events / 各页面）。
+import {
+  QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS,
+} from '../../utils/deal-fields'
+export type { QualityLevel } from '../../utils/deal-fields'
+export { QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS }
 
 /**
  * 通告分类 — API 额度（默认）/ 免费云服务器 / 免费域名 / 客户端额度。
