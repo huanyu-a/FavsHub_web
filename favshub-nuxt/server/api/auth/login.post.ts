@@ -6,6 +6,7 @@ import { getRawDb } from '../../database'
 import { signToken } from '../../utils/jwt'
 import { checkRateLimit, recordFailedLogin, clearFailedLogin, getClientIP } from '../../utils/rate-limit'
 import { getConfigInt } from '../../utils/config'
+import { isAdminUser } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   // IP 级限频（防止单 IP 暴力扫描多账户）
@@ -58,7 +59,9 @@ export default defineEventHandler(async (event) => {
   const isExtensionRequest = origin.startsWith('chrome-extension://') || origin.startsWith('moz-extension://')
 
   const responseData: any = {
-    user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname || '', is_admin: !!user.is_admin },
+    // 与 requireAdmin / isAdminUserById 同口径：库列 **或** NUXT_ADMIN_USERS 名单。
+    // 只读库列会让名单型管理员在登录瞬间被前端当成普通用户（见 me.get.ts 注释）。
+    user: { id: user.id, username: user.username, email: user.email, nickname: user.nickname || '', is_admin: isAdminUser(user) },
   }
 
   // 仅对扩展请求返回 token；Web 端使用 httpOnly cookie，减少 XSS token 窃取风险

@@ -472,30 +472,62 @@ async function main() {
     checkEq('公开列表只含 published', states, ['published'])
   }
 
-  // ═══ ⑬ 迁移回填幂等（老库升级场景）═══
-  console.log('\n▶ ⑬ 迁移回填幂等性')
+  // ═══ ⑬ 回填的两面：既自愈旧行，又不碰人工档位 ═══
+  //
+  // 这一组针对一个**真实发生过的 bug**：回填按旧列重算，而 offline 行双写的
+  // status 仍是 'approved' → 每次容器重启都被算成 published，下架的条目
+  // 悄悄重新上线。
+  //
+  // 断言必须走**真实重启**（重跑迁移），不能在这里复制一份 SQL ——
+  // 复制品测不出实现里的漏写，而那正是这个 bug 的成因。
+  console.log('\n▶ ⑬ 回填：自愈旧行 + 不碰人工档位')
   {
-    // 手工把几条改回旧形态（state 停在 pending），再跑一次回填，应恢复正确档位
-    withDb(db => {
-      db.prepare("UPDATE token_deals SET state = 'pending' WHERE id = ?").run(idAdmin)
+    // ── A. 人工档位必须先造出来 ──
+    await api(`/api/admin/token-deals/${idAdmin}/state`, {
+      method: 'PUT', cookie: admin, body: { state: 'offline' },
     })
-    checkEq('人为打回 pending 后', stateOf(idAdmin), 'pending')
-    // 直接验证回填 SQL 的语义（与 migrate.ts 的 backfillDealState 同逻辑）
-    const now = Date.now()
-    withDb(db => {
-      db.prepare("UPDATE token_deals SET state = 'published' WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'approved' AND (expires_at IS NULL OR expires_at > ?) AND COALESCE(state,'') <> 'verified'").run(now)
+    checkEq('准备：idAdmin 置为 offline', stateOf(idAdmin), 'offline')
+    await api(`/api/admin/token-deals/${idUser}/state`, {
+      method: 'PUT', cookie: admin, body: { state: 'verified' },
     })
-    checkEq('回填后回到 published', stateOf(idAdmin), 'published')
+    checkEq('准备：idUser 置为 verified', stateOf(idUser), 'verified')
 
-    // verified 是管理员的显式选择，回填不得把它打回 published
-    withDb(db => {
-      db.prepare("UPDATE token_deals SET state = 'verified', status = 'approved' WHERE id = ?").run(idAdmin)
-    })
-    withDb(db => {
-      db.prepare("UPDATE token_deals SET state = 'published' WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'approved' AND (expires_at IS NULL OR expires_at > ?) AND COALESCE(state,'') <> 'verified'").run(now)
-    })
-    checkEq('★ 回填不会把 verified 打回 published', stateOf(idAdmin), 'verified')
+    // 造一条「只有旧列」的行 —— 模拟运营脚本直连库导入、只写了 status 的情况。
+    // 它的 state 停在列默认值 'pending'，属于需要被自愈的对象。
+    const legacyId = 'sm_legacy_row'
+    withDb(db => db.prepare(`
+      INSERT INTO token_deals (id, user_id, provider, title, url, models, region, quality,
+        source_tag, category, status, note, pinned, created_at, updated_at)
+      VALUES (?, 0, '旧列导入服务商', '旧列导入通告', 'https://example.com/legacy', '[]',
+        'cn', '中品', 'official', 'token', 'approved', 'x', 0, ?, ?)
+    `).run(legacyId, Date.now(), Date.now()))
+    checkEq('旧列导入的行 state 停在默认值 pending', stateOf(legacyId), 'pending')
+
+    // ── B. 重启 → 回填跑一遍 ──
+    await stopApp()
+    await startApp()
+
+    checkEq('★ 重启后 offline 仍是 offline（修复前会变 published）', stateOf(idAdmin), 'offline')
+    checkEq('★ 重启后 verified 仍是 verified', stateOf(idUser), 'verified')
+    checkEq('offline 仍不对外', await publicDetailStatus(idAdmin), 404)
+    checkEq('★ 只写旧列的行被自愈为 published', stateOf(legacyId), 'published')
+    check('自愈后的行公开可见', await inPublicList(legacyId))
+
+    // ── C. 再重启一次，结果稳定（幂等）──
+    await stopApp()
+    await startApp()
+    checkEq('再重启：offline 依然 offline', stateOf(idAdmin), 'offline')
+    checkEq('再重启：verified 依然 verified', stateOf(idUser), 'verified')
+    checkEq('再重启：自愈的行依然 published', stateOf(legacyId), 'published')
+    checkEq('全库 state 与旧列仍然零不自洽', withDb(db => db.prepare(`
+      SELECT COUNT(*) AS c FROM token_deals
+      WHERE (state = 'published' AND (deleted_at IS NOT NULL OR invalid_at IS NOT NULL))
+         OR (state = 'deleted'   AND deleted_at IS NULL)
+         OR (state = 'offline'   AND status <> 'approved')
+         OR (state = 'verified'  AND status <> 'approved')
+    `).get().c), 0)
   }
+
 
   await stopApp()
   console.log(`\n═══ 结果：${passCount} 通过 / ${failCount} 失败 ═══`)

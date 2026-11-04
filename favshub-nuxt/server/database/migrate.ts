@@ -502,41 +502,44 @@ function ensureColumn(db: Database.Database, table: string, column: string, alte
 export function backfillDealState(db: Database.Database): number {
   try {
     const now = Date.now()
-    // ⚠️ 关键陷阱（踩过一次）：`ALTER TABLE ADD COLUMN state TEXT DEFAULT 'pending'`
-    // 会给**所有既有行**填上 'pending'。此时若用 `state NOT IN (...)` 排除，
-    // 「本来是 approved」的行会被当成「本来就是 pending」而永不回填，
-    // 表现为「迁移跑完，线上条目全部消失」。
+    // ⚠️ 两个必须同时成立的约束（各踩过一次，写清楚免得再踩）：
     //
-    // 正确做法：旧库的 state 只有两种可能 —— 全是那个默认 'pending'（未回填过），
-    // 或者已被回填/人工改过。所以以 `status` 为准重算，**不管当前 state 是什么**，
-    // 只要旧列指向别的状态就覆盖。旧列是双写的真相备份，比 state 的默认值可靠。
+    // ① **不能被默认值卡住**
+    //    `ALTER TABLE ADD COLUMN state TEXT DEFAULT 'pending'` 会给所有既有行填 'pending'。
+    //    若用 `state NOT IN (...)` 去排除，本来 approved 的行会被当成「本来就是 pending」
+    //    而永不回填 —— 现象是「迁移跑完，线上条目全部消失」。
+    //    所以判定以**旧列**为准，不管当前 state 是什么。
     //
-    // 幂等性：本函数只按旧列重算，同一份旧列跑两次结果相同；
-    // 而人工改过 state（例如「已审核 → 已发布」）时旧列 status 仍是 'approved'，
-    // 重算会得到 'published' —— 为了不把 verified 打回 published，
-    // 单独放行 `status='approved' AND state='verified'` 不覆盖。
+    // ② **不能覆盖只能由人工设置的档位**
+    //    回填只会产出 deleted / invalid / rejected / pending / published，
+    //    **永远不会产出 offline 与 verified**。反过来说：库里已经是这两个值的行，
+    //    必然是有人手动设的，回填无权改写它们。
+    //    漏掉这条的后果很严重：offline 行双写的旧列 status 仍是 'approved'，
+    //    于是每次**容器重启**都会把下架的条目重新算成 published —— 悄悄复活上线。
+    //
+    // 幂等性：只按旧列重算，同一份旧列跑两次结果相同；
+    // 且下面每步都跳过 offline / verified，所以重启重跑不会扰动人工状态。
+    const GUARD = ` AND COALESCE(state, '') NOT IN ('offline', 'verified')`
     const steps: Array<[string, any[]]> = [
       // 已删除
-      [`UPDATE token_deals SET state = 'deleted' WHERE deleted_at IS NOT NULL`, []],
+      [`UPDATE token_deals SET state = 'deleted' WHERE deleted_at IS NOT NULL${GUARD}`, []],
       // 已失效
       [`UPDATE token_deals SET state = 'invalid'
-        WHERE deleted_at IS NULL AND invalid_at IS NOT NULL`, []],
+        WHERE deleted_at IS NULL AND invalid_at IS NOT NULL${GUARD}`, []],
       // 到期未归档 → 失效
       [`UPDATE token_deals SET state = 'invalid'
         WHERE deleted_at IS NULL AND invalid_at IS NULL
-          AND expires_at IS NOT NULL AND expires_at <= ?`, [now]],
+          AND expires_at IS NOT NULL AND expires_at <= ?${GUARD}`, [now]],
       // 已驳回
       [`UPDATE token_deals SET state = 'rejected'
-        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'rejected'`, []],
+        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'rejected'${GUARD}`, []],
       // 待审核
       [`UPDATE token_deals SET state = 'pending'
-        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'pending'`, []],
-      // 已发布（旧 approved）。**跳过 state='verified'** —— 那是管理员
-      // 「审过了但还没发布」的显式选择，不该被回填逻辑打回 published。
+        WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'pending'${GUARD}`, []],
+      // 已发布（旧 approved 且未删除未失效未过期）
       [`UPDATE token_deals SET state = 'published'
         WHERE deleted_at IS NULL AND invalid_at IS NULL AND status = 'approved'
-          AND (expires_at IS NULL OR expires_at > ?)
-          AND COALESCE(state, '') <> 'verified'`, [now]],
+          AND (expires_at IS NULL OR expires_at > ?)${GUARD}`, [now]],
     ]
 
     let total = 0
@@ -550,6 +553,7 @@ export function backfillDealState(db: Database.Database): number {
     return 0
   }
 }
+
 
 
 /**
@@ -661,6 +665,13 @@ export function runMigrations(db: Database.Database) {
   // 每个读路径各自组合判断。收敛成单列 state 后，一处判定即全局一致。
   // 旧列保留并继续双写（当备份，回滚时数据仍在），但代码只读 state。
   ensureColumn(db, 'token_deals', 'state', "ALTER TABLE token_deals ADD COLUMN state TEXT DEFAULT 'pending'")
+  // 每次启动都回填（幂等）：直接往 SQLite 里写数据、只填了旧列的场合真实存在 ——
+  // 例如运营脚本批量导入渠道时只写 status。这类行若没人认领就会永远停在默认的
+  // 'pending'，表现为「导入了却在前端看不见」。让启动时兜一次，比要求每个脚本
+  // 都记得写新列更可靠。
+  //
+  // 之所以可以每次都跑：backfillDealState 内部保证**从不改写 offline / verified**
+  // （回填永远不会产出这两个值，所以库里的它们必定是人工设的）。详见其注释。
   backfillDealState(db)
   db.exec('CREATE INDEX IF NOT EXISTS idx_td_state ON token_deals(state, pinned, created_at)')
 
