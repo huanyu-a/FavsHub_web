@@ -1280,9 +1280,13 @@ async function main() {
       `出现「超出限频」=${limitedHits.filter(Boolean).length} 次；为 0 说明桶没打满，本条未生效`)
 
     // (c) 纵深防御（**不是**主证据，见段首注释）：头仍走 asciiHeader()。
-    check('⑨ 纵深防御：限流头仍走 asciiHeader()',
-      readFileSync(join(ROOT, 'server', 'utils', 'rate-limit.ts'), 'utf8')
-        .includes("setResponseHeader(event, 'X-RateLimit-Reason', asciiHeader(code))"))
+    // 用「调用点 + 兜底函数仍被调用」两条来判，而不是只比对一个字符串：
+    // 这样即便未来签名或写法微调（例如多一个参数、换行重排），门也不会假红；
+    // 而**真把中文塞回头的写法**（`…, label)`）仍会被抓住。
+    const rlSrc = readFileSync(join(ROOT, 'server', 'utils', 'rate-limit.ts'), 'utf8')
+    check('⑨ 纵深防御：限流头写的是 asciiHeader(...) 而非原始 label',
+      /setResponseHeader\(\s*event,\s*'X-RateLimit-Reason',\s*asciiHeader\(/.test(rlSrc),
+      '没有找到 X-RateLimit-Reason 走 asciiHeader 的写法')
 
     // 恢复默认阈值，避免影响后续段落
     await stopApp()

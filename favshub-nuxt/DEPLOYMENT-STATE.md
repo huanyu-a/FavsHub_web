@@ -122,6 +122,11 @@ v1.0.69 用「断言响应头全为 ASCII」守那次 429→500。独立验证�
 | 含修复 | 252 通过 / 0 失败，exit 0 |
 | 回退 `asciiHeader`→`label` | 249 通过 / **3 失败**，exit 1（`出现「加载失败」=1 次`）|
 
+该对照**我自己完整复跑了两次**（`git archive HEAD` 抽干净副本 → `pnpm build` → 跑套件 → 改一行 → 再
+`pnpm build` → 再跑），两次结论一致；并把第 5 条断言从「精确字面量比对」改成正则
+（`X-RateLimit-Reason',\s*asciiHeader\(`），避免未来签名微调让门**假红**，同时
+`…, label)` 这种真回退仍被判红 —— 改写后 control 仍 252/0、reverted 仍 249/3。
+
 断言总数 962 → **976**（ratelimit 106→115、detail 247→252）。`assertion-count.mjs --check-only` 实测
 三条（DEPLOYMENT-STATE 两处 + workflow 注释）**全一致** —— 顺带更正 1.0.69 时的一处口径错误：
 `--check` 只校验 `DEPLOYMENT-STATE.md`，**不校验 workflow 注释**（注释写错 CI 不会报警）。
@@ -136,8 +141,10 @@ v1.0.69 用「断言响应头全为 ASCII」守那次 429→500。独立验证�
 - **`html-has-lang`**：三页全红 —— `<html>` 从无 `lang`。已在 `nuxt.config.ts` 补
   `app.head.htmlAttrs.lang='zh-CN'`。线上复核：`/`、`/tokens`、`/tokens/keys`、`/prompts`、`/collections`
   **五页全部 `lang="zh-CN"`**。
-- **`landmark-one-main`**：`/tokens/keys` 无 main 地标 → `.tokens-page` 由 `<div>` 改 `<main>`
-  （样式全用类选择器，不影响外观）。线上复核：`<main>` 存在。
+- **`landmark-one-main`**：`/tokens/keys`（`.tokens-page`）与 `/collections`（`.collections-page`）
+  原先都是 `<div>`，均改为 `<main>`（样式全用类选择器，不影响外观）。
+  详情页 `/tokens/<id>` **本来就有** `<main class="deal-page-main">`，无需改动。
+  线上复核：`/tokens/keys`、`/collections` 均存在 `<main>`。
 
 **未修（如实标注，不假装修好）**：`color-contrast`（`/tokens` 6 处、`/keys` 9 处、详情页 **73** 处）、
 `heading-order`（卡片里的 `h3`）、`label-content-name-mismatch`（卡片 `aria-label` 与可见文本）。

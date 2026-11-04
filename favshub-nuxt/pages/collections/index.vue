@@ -37,7 +37,9 @@
         </nav>
       </div>
     </header>
-    <div class="collections-page">
+    <!-- 用 <main> 而不是 <div>：给页面一个 main 地标（Lighthouse landmark-one-main）。
+         样式全靠类选择器 .collections-page，换标签不影响外观。 -->
+    <main class="collections-page">
       <section class="market-hero">
         <div class="hero-text">
           <h1 class="hero-title">精选集市场</h1>
@@ -92,7 +94,7 @@
       <button :disabled="pagination.page >= pagination.totalPages" @click="nextPage">下一页</button>
     </div>
     <BackToTop />
-    </div>
+    </main>
 
     <!-- 统一页脚 -->
     <SiteFooter />
