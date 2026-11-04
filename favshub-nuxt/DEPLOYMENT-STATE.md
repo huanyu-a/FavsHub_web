@@ -6,7 +6,7 @@
 
 **最后更新：2026-11-04（第 18 次修订：正式部署 1.0.69，定位并修复「详情页偶发加载失败」的根因 —— 限流响应头含中文导致 429 变 500）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.69（2026-11-04）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.70（2026-11-04）
 
 生产现在运行的镜像由 GitHub Actions 构建并推送：
 
@@ -104,6 +104,62 @@
 取舍：若把内部自取数豁免，页面就**永远不会因限流而降级**，但也**同时失去「爬虫刹车」**——
 那层刹车目前正是由限流顺带提供的。**要不要豁免需要按业务意图拍板，我没有单方面改。**
 
+### 1) 回归门重做：前一版是**装饰**，已被独立验证打回
+
+v1.0.69 用「断言响应头全为 ASCII」守那次 429→500。独立验证用 `git archive 57670c8` 抽出确切 commit、
+只把 `asciiHeader(code)` 改回 `label` 重新构建：**两边都是 115 通过 / 0 失败 / exit 0**。
+因为 `rateLimitError()` 外层本就有 try/catch，中文头被**静默丢弃**，客户端收不到非 ASCII 头 ——
+那条断言在当前技术栈下**不可能触发**（真实机制：`new Headers({...中文})` 直接抛 `value of 20840`）。
+它并非恒真（latin-1 `é` 会被 Node 接受并真上线，客户端读回 `Ã©`，那种值它能抓），故按**纵深防御**保留，
+但标签已改成「无 latin-1 乱码」并注明**不是主证据**。
+
+真正的门重做在 `third-batch-detail.mjs` 的 **⑨ 段**（+5 项）：把全站读档压到 1 次/分钟并按 phase 重启实例，
+断言**用户可见语义** —— 页面不得回落成「加载失败」、必须诚实显示「超出限频」、状态码是 429、
+响应体仍带中文长文案、源码仍走 `asciiHeader()`。**实测会真的翻转**：
+
+| 构建 | 结果 |
+|---|---|
+| 含修复 | 252 通过 / 0 失败，exit 0 |
+| 回退 `asciiHeader`→`label` | 249 通过 / **3 失败**，exit 1（`出现「加载失败」=1 次`）|
+
+断言总数 962 → **976**（ratelimit 106→115、detail 247→252）。`assertion-count.mjs --check-only` 实测
+三条（DEPLOYMENT-STATE 两处 + workflow 注释）**全一致** —— 顺带更正 1.0.69 时的一处口径错误：
+`--check` 只校验 `DEPLOYMENT-STATE.md`，**不校验 workflow 注释**（注释写错 CI 不会报警）。
+
+> **教训**：「断言跑得通」不等于「断言守得住」。**证明一个回归门有效，唯一办法是把修复回退掉，看它红不红。**
+> 我上一版没做这个实验就宣称「装了门」，是这次被独立验证打回的直接原因。
+
+### 2) 无障碍：axe/Lighthouse 实测，修两条**全站性**缺陷
+
+实测基线：`/tokens` **86**、`/tokens/keys` **91**、详情页 **90**（Best Practices / SEO 均 100）。
+
+- **`html-has-lang`**：三页全红 —— `<html>` 从无 `lang`。已在 `nuxt.config.ts` 补
+  `app.head.htmlAttrs.lang='zh-CN'`。线上复核：`/`、`/tokens`、`/tokens/keys`、`/prompts`、`/collections`
+  **五页全部 `lang="zh-CN"`**。
+- **`landmark-one-main`**：`/tokens/keys` 无 main 地标 → `.tokens-page` 由 `<div>` 改 `<main>`
+  （样式全用类选择器，不影响外观）。线上复核：`<main>` 存在。
+
+**未修（如实标注，不假装修好）**：`color-contrast`（`/tokens` 6 处、`/keys` 9 处、详情页 **73** 处）、
+`heading-order`（卡片里的 `h3`）、`label-content-name-mismatch`（卡片 `aria-label` 与可见文本）。
+这三类属**设计取舍**且集中在 `components/tokens/*`（另一团队正在改），未单方面改 —— 需按视觉意图定。
+
+### 3) 镜像补 `HEALTHCHECK`（补上长期缺口）
+
+此前 `docker inspect` 恒报 `Health=(no healthcheck defined)`，`docker ps` 永远不显示 `(healthy)`，
+运维只能手打 `/api/health`。本版加：
+`HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1`
+（用 alpine 自带 busybox wget，不额外装包）。上线实测：`Up (healthy)`、`FailingStreak=0`。
+
+### ⚠ 发布时踩到的坑：**工作区的探针可能已先于代码前进**
+
+`post-deploy-verify` 跑出 `public-field-matrix 15 通过 / 16 失败`，一度像是回归。
+查下来是**另一团队刚改了工作区里的 `scripts/public-field-matrix.mjs`**（+23/-4），新增对
+`summary` / `limits` / `requirements` / `verify_scope` / `faq` / `featured` 等**尚未发布字段**的断言；
+而我部署的 commit 里这些字段**一个都没有**（`git show HEAD:…schema.ts | grep -c` = 0）。
+换用**已提交版本**的探针（`git show HEAD:…`）再跑：**17 通过 / 0 失败**。
+
+> **教训**：验收必须跑**与发布 commit 同版本**的探针，不能跑工作区里的。
+> 多人共用一个工作区时，「探针比代码跑得快」会伪装成线上回归 —— 差一点就要回滚一个没坏的系统。
 ## 历史：1.0.68 状态（2026-11-04）
 
 | 项 | 值 |
