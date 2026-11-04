@@ -101,6 +101,19 @@ async function startApp(dbPath) {
   }
   throw new Error('应用 30s 内未就绪')
 }
+// 需要清理的临时库文件（含 WAL/SHM 边车）。
+// 放在模块级是因为 dbPath 是 main() 内的局部变量，而**异常路径也要能清**。
+let cleanupTargets = []
+
+/** 删掉临时库。成功和异常两条路径都必须调 —— 失败时更需要清，否则会一直攒。 */
+async function cleanupDb() {
+  try {
+    const { rmSync } = await import('node:fs')
+    for (const f of cleanupTargets) rmSync(f, { force: true })
+    cleanupTargets = []
+  } catch { /* 清不掉不影响测试结论 */ }
+}
+
 async function stopApp() {
   if (!appProcess) return
   const proc = appProcess; appProcess = null
@@ -112,6 +125,7 @@ async function stopApp() {
 async function main() {
   mkdirSync(join(ROOT, 'data'), { recursive: true })
   const dbPath = join(ROOT, 'data', `e2e-second-batch-${Date.now()}.db`)
+  cleanupTargets = ['', '-wal', '-shm'].map((s) => dbPath + s)
   console.log(`▶ 启动应用（PORT=${APP_PORT}，db=${dbPath}）`)
   await startApp(dbPath)
   disableRegisterChallenge(dbPath)
@@ -731,12 +745,9 @@ async function main() {
   }
 
   await stopApp()
-  // 清理临时库：**必须连 WAL/SHM 边车一起删** —— 只删 .db 会留下 -wal/-shm，
-  // 在 data/ 里越攒越多（本仓 WAL 模式下每次运行都会生成这两个文件）。
-  try {
-    const { rmSync } = await import('node:fs')
-    for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true })
-  } catch {}
+    // 清理临时库：**必须连 WAL/SHM 边车一起删** —— 只删 .db 会留下 -wal/-shm，
+    // 在 data/ 里越攒越多（本仓 WAL 模式下每次运行都会生成这两个文件）。
+    await cleanupDb()
 }
 
 let exitCode = 0
@@ -747,6 +758,7 @@ try {
   failures.push(`脚本异常：${err?.message || err}`)
   console.error('\n✗ 脚本异常：', err?.stack || err)
   await stopApp()
+  await cleanupDb()   // 失败时更要清：这条路径此前漏了，残留的全是失败那几次跑出来的
   exitCode = 1
 }
 
