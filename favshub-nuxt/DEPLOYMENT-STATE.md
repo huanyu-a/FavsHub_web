@@ -4,9 +4,90 @@
 > 本文件记录**当前生产环境的状态**与易踩的坑。日常部署步骤见 `README.md`；
 > 含密码的本机步骤见 `DEPLOY.md`（gitignore，不入库）。
 
-**最后更新：2026-11-04（第 20 次修订：正式部署 1.0.71 —— 累计 1.0.69 结案 429→500、1.0.70 回归门重做 + a11y + HEALTHCHECK、1.0.71 /collections 补 main 地标）**
+**最后更新：2026-11-05（第 21 次修订：正式部署 1.0.79 —— 1.0.76 状态收敛为 `state` 单列、1.0.77 状态机专项套件、1.0.78 修「重启复活下架条目」与「管理员控件不渲染」、1.0.79 技能包同步 `state`）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.71（2026-11-04）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.79（2026-11-05）
+
+| 项 | 值 |
+|---|---|
+| **版本** | `1.0.79` |
+| **来源提交** | `8e3a4534247520dfa5b63df81a4412e120c0874d` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.79`、`revision=8e3a453…` —— 部署前拿它当**闸门**：不符就不重建容器 |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:7ea729a42e72661dac1b0c1be2673f58b18ed85d30e79cf2b11103f321e29a88` |
+| **CI run** | `41876107389`，`success` |
+| **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
+| **断言总数** | **1071**（10 个套件）· `ts:check` 927 个具名导入 |
+| **线上数据分布** | `published 72 / pending 12 / rejected 11 / invalid 10 / deleted 5`（合计 110） |
+| **技能包版本** | `1.12.0`（`site_version=1.0.79`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
+| **回滚锚点** | 镜像 tag `rollback-1.0.78-20261105012129` + `data/backups/favshub.db.pre-1.0.79-20261105012129` |
+
+### 1.0.76 → 1.0.79 这一串改了什么
+
+| 版本 | 内容 |
+|---|---|
+| `1.0.76` | **状态收敛**：原 `status` / `deleted_at` / `invalid_at` / `invalid_reason` 四列合并为单列 `state`；新增 `verified`（已审核）档 |
+| `1.0.77` | 新增**状态机专项套件** `state-machine.mjs`（107 项，独占端口 3266），并修它抓出的 3 处遗漏（后台统计卡片读旧键名恒为 0、`counts` 初始化缺新档位、stats 接口算了新值却没下发） |
+| `1.0.78` | 修**两个线上级 bug**（见下节） |
+| `1.0.79` | 技能包同步 `state` 模型；CI 新增技能清单漂移检查 |
+
+### ⚠️ 状态字段 `state`：运维必读
+
+**七档取值**，只有 `published` 对外可见：
+
+    pending(待审核) / verified(已审核) / published(已发布) ← 仅此档公开
+    offline(已下架) / invalid(已失效) / rejected(已驳回) / deleted(已删除)
+
+- 非 `published` 档对匿名与搜索引擎一律返回 **404**（**不是 403** —— 403 等于承认「该 id 存在」）；
+  sitemap 也不收录。
+- **旧列仍在，但只是双写备份，判断可见性一律以 `state` 为准。**
+  `status` 只有 `pending` / `approved` / `rejected` 三值、**粒度不够**：
+  `verified` 与 `published` 的 `status` **都是 `approved`**，按 `status` 判断会把
+  「已审核但还没发布」的条目误当已公开。选这个双写方案是为了回滚到 1.0.75 时数据仍自洽。
+- `deleted` **不在**可设置档位里（只有软删除端点能产生），避免误把条目直接置为已删除。
+
+**每次重启都会跑一次状态回填**（`backfillDealState`），这是**幂等**的，且有一条硬不变量：
+
+> 回填只会产出 `deleted` / `invalid` / `rejected` / `pending` / `published`，
+> **永远不会产出 `offline` 与 `verified`**。因此库里已是这两个值的行**必定是人工设置的**，
+> 回填无权改写（所有步骤都带 `state NOT IN ('offline','verified')` 守卫）。
+
+这条守卫是 1.0.78 才补上的，它防的是一个真实事故（见下节 ①）。
+
+### 🐞 1.0.78 修的两个线上级 bug（都做过线上验证）
+
+**① 每次重启，下架的条目自动重新上线**
+
+回填按旧列重算，而「已下架」行双写的 `status` 仍是 `approved`（下架是主动行为，不改审核结论），
+于是被回填算成 `published` —— **容器重启一次，所有下架条目就悄悄回到线上，且没有任何提示**。
+
+本地复现：设为 offline → 重启 → 自动变回 published。
+修法即上面的硬不变量。**线上实测：连续重启 3 次，分布纹丝不动**（回填日志出现 4 次，结果不变）。
+
+> 中途我曾改成「用标记只回填一次」，结果 `third-batch-server` 的「旧库升级」用例立刻变红 ——
+> 它揭示了那个设计过紧：运营脚本直连 SQLite 导入、只写 `status` 的行是真实存在的
+> （本项目就干过：域名渠道批量导入），应当每次启动都能自愈。
+> 最终形态是「每次回填 + 守卫保护人工档位」，兼得自愈与安全。
+
+**② 管理员专属控件对「名单型管理员」不渲染**
+
+`/api/auth/me` 与 `/api/auth/login` 只回数据库的 `is_admin` 列，**忽略了 `NUXT_ADMIN_USERS`**；
+而服务端其余判定用 `isAdminUser()`（库列 **或** 名单，取或）—— 两边口径不一致。
+
+后果：靠名单授权的管理员，前端 `authStore.isAdmin` 恒为 `false`，**所有管理员专属控件都不渲染**
+（新加的状态选择器，以及既有的「精选对比」开关 —— 说明这是**既有**缺陷，非该轮引入），而 API 却放行。
+修法：两个端点统一改用 `isAdminUser(user)`。
+
+> 对当前线上**无影响**：生产管理员是 `admin_favs`，库中 `is_admin=1`，
+> 所以状态下拉正常可见。此修复是为消除口径不一致与未来用名单授权的隐患。
+
+### 🔧 更正：HEALTHCHECK 是有的（原文写反了）
+
+本文档此前（1.0.69 及更早）记录「镜像**没有定义** `HEALTHCHECK`，别拿 `docker ps` 的 `(healthy)` 当证据」。
+**该结论自 1.0.70 起已不成立**：`1.0.70` 那次就加了 HEALTHCHECK，`docker image inspect` 实测
+`Config.Healthcheck=已定义`、容器 `Health.Status=healthy`、`FailingStreak=0`。
+所以 `docker ps` 的 `(healthy)` **现在是可信的部署证据**；`/api/health` 仍可作应用层交叉验证。
+
+## 历史：1.0.71 状态（2026-11-04）
 
 生产现在运行的镜像由 GitHub Actions 构建并推送：
 
@@ -497,30 +578,53 @@ ABI 与 Node 大版本绑定。**手工在本地跑时，必须用「装 `node_m
 服务器上按 tag 保留了逐次部署的镜像，回滚只需改 `compose.yaml` 的 tag 并 `up -d`
 （**不要**先 `rmi`）。
 
-**注意 `fix-X` 与 `rollback-before-X` 是同一个 image ID 的两个标签**，不占额外空间
-（18 个 tag 只对应 9 个唯一镜像 ≈ 2.8GB）。
+**注意同一镜像可能有多个 tag**，不占额外空间。
 
-| tag（= 同一镜像的别名） | 内容 |
+| tag | 内容 |
 |---|---|
-| **`1.0.55` = `latest` = `sha-417696c`** | **CI 正规镜像（当前生产，`sha256:421e28c8…`）** |
-| **`fix-col404-4c33a83`** | 手工镜像：全部 11 项修复（**2026-10-31 部署前的生产，现为回滚锚点**）|
-| `rollback-before-col404` | 去掉「精选集不存在返回 404」 |
-| `fix-describe-cdaaf47` | 去掉 describe 字段字典修正 |
-| `rollback-before-describe` | 去掉上述两项 |
-| `fix-precycle-a6f1155` | 去掉 describe 修正 |
-| `rollback-before-precycle` | 去掉 prompts 隐私修复 |
-| `fix-pdetail-d4c2c24` | 去掉 prompts 详情脱敏 |
-| `fix-prompts-99b2f01` | 去掉 prompts 列表脱敏 |
-| `fix-list-144fc9c` | 去掉 token-deals 列表脱敏 |
-| `fix-fields-3d7c569` | 去掉 token-deals 详情脱敏 |
-| `fix-events-b04916f` | 去掉事件流脱敏 |
-| `fix-claimrow-18cdcfc` | 去掉领取行/API 行修复 |
+| **`1.0.79` = `latest`** | **CI 正规镜像（当前生产，`sha256:7ea729a4…`）** |
+| `rollback-1.0.78-20261105012129` | 1.0.78 —— **修了「重启复活下架条目」+「管理员控件不渲染」** |
+| `rollback-1.0.76-20261105010809` | 1.0.76 —— 状态收敛首版，**没有**上面那条重启守卫 |
+| `rollback-1.0.75-20261105003555` | 1.0.75 —— `state` 之前最后一版，**只认旧四列** |
+| `rollback-1.0.71-20261104184912` | 1.0.71 |
+| `rollback-20261104131025` / `rollback-20261104115453` … | 更早的手工镜像档（见「历史」各节） |
 
-**回滚链已验证可用**（2026-10-31 实测）：9 档逐个冷启动均为 `running`；
-最旧档 `fix-claimrow-18cdcfc` 配**当前生产库副本**能正常启动，
-`/api/health` 返回 `{"status":"ok","database":"connected"}`、`/api/token-deals` 正常出数据。
-本轮 58 个提交**零 schema / 零迁移改动**，所以回滚不存在结构不兼容
-（两个方向都验过：旧镜像启动后 `token_deals` 仍是 34 列、42 张表，与回滚前一致）。
+数据库备份同步留存：`data/backups/favshub.db.pre-1.0.79-*`、`…pre-1.0.78-*`、
+`…pre-state-migrate-*`（状态迁移前）等。
+
+### ⚠️ 本轮回滚有两个**版本相关**的坑，回滚前必读
+
+**① 回滚到 `1.0.75` 及更早 → 「已审核」与「已下架」条目都会变成公开**
+
+`1.0.75` 及更早**不认 `state` 列**，只读旧四列。而这两档的双写 `status` 都是 `approved`，
+且 `deleted_at` / `invalid_at` 均为空 —— 在旧版眼里就是「审核通过且未失效」，于是**会直接出现在前台**。
+
+> **2026-11-05 实测确认（不是推断）**：把生产库副本改出一条 `verified`、一条 `offline`，
+> 用 `rollback-1.0.75-*` 镜像起独立容器读该副本 —— **两条都出现在公开列表里**。
+>
+> 复现方法：把库副本 `docker cp` 进一个 `-e NUXT_DB_PATH=/data/probe.db` 的临时容器再重启。
+> **务必先自校验探针库真被读到**（公开条数应 ≈72，若为 10 则是容器自建的空库，结论无效）——
+> 我第一次就踩了这个坑：`-v 宿主目录:/data` 被本地路径转换改写成了 `$/mnt/t/data`，
+> 挂载根本没生效，而**对照组也 404** 正是暴露它的信号。
+>
+> 教训：**先验证测试装置本身，再采信它的结论。** 反过来我最初的推理是「`offline` 语义一致、无风险」，
+> 实测证明推理是错的 —— 两档都泄露。
+
+- **当前线上安全**：`verified` 与 `offline` 计数**均为 0**（13 条域名渠道尚未置为已审核）。
+- **回滚前先查**，非 0 就先把这几条在后台改回「待审核」再回滚：
+
+      SELECT state, COUNT(*) FROM token_deals
+      WHERE state IN ('verified','offline') GROUP BY state;
+
+- 其余档位（`published` / `pending` / `rejected` / `invalid` / `deleted`）在旧版下语义一致，无此风险。
+
+**② `1.0.76` / `1.0.77` 不要单独回滚**
+
+这两版缺 `1.0.78` 加的回填守卫，**每次重启都会把 `offline`（已下架）条目复活成 `published`**。
+要回就回 `1.0.78` 或 `1.0.79`。
+
+> 双写旧列（`status` / `deleted_at` / `invalid_at` / `invalid_reason`）就是为了让回滚路径存在 ——
+> 代价就是上面 ① 这条语义差，故必须写在这里而不是散在提交信息里。
 
 ## 为什么用「补丁镜像」而不是完整重建
 
@@ -590,10 +694,39 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "User-Agent: Mozilla/5.0" \
   https://hao.bx9y.com.cn/collections/nonexistent_xyz
 
 # 5) 关键页面冒烟（期望全 200）
-for p in / /tokens /tokens/keys /prompts /collections; do
+for p in / /tokens /tokens/keys /prompts /collections /tokens/domain; do
   printf "%s " "$(curl -s -o /dev/null -w '%{http_code}' https://hao.bx9y.com.cn$p)"; echo "$p"
 done
+
+# 6) 状态口径哨兵（期望：只会打印 {'published'}）
+#    刻意用断言而不是打印 —— 一旦有未发布档位漏到公开接口，这里必须**非零退出**。
+#    这是「只有 published 对外可见」这条规则的回归哨兵。
+curl -s "https://hao.bx9y.com.cn/api/token-deals?limit=200" | python3 -c "
+import sys, json
+states = {r['state'] for r in json.load(sys.stdin)['deals']}
+print('  state 集合:', states)
+assert states <= {'published'}, '⚠️ 公开接口出现了未发布档位！'
+"
 ```
+
+### 触及状态/迁移的版本：额外做「重启不回退」
+
+改动过 `state` 回填逻辑的版本（`1.0.76` 起），部署后**连续重启 2–3 次**并比对分布，
+确认人工档位（`offline` / `verified`）没有被回填改写：
+
+```bash
+# 在服务器上跑；三次输出必须完全一致
+for i in 1 2 3; do
+  docker compose restart favshub >/dev/null && sleep 14
+  python3 -c "
+import sqlite3; db=sqlite3.connect('data/favshub.db')
+print('  ' + '  '.join('%s=%s' % r for r in db.execute(
+  'SELECT state, COUNT(*) FROM token_deals GROUP BY state ORDER BY state')))"
+done
+```
+
+> 1.0.78 上线时实测：重启 3 次分布均为 `deleted=5 invalid=10 pending=12 published=72 rejected=11`，
+> 回填日志出现 4 次而结果不变 —— 幂等成立。
 
 `public-field-matrix.mjs` 是**只读探针**，检查「公开出口 × 内部字段」全矩阵：
 token_deals 列表/详情/SSR、prompts、collections、tags、token-keys。
