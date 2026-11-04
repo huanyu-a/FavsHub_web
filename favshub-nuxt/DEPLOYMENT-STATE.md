@@ -4,22 +4,46 @@
 > 本文件记录**当前生产环境的状态**与易踩的坑。日常部署步骤见 `README.md`；
 > 含密码的本机步骤见 `DEPLOY.md`（gitignore，不入库）。
 
-**最后更新：2026-11-04（第 18 次修订：正式部署 1.0.69，定位并修复「详情页偶发加载失败」的根因 —— 限流响应头含中文导致 429 变 500）**
+**最后更新：2026-11-04（第 20 次修订：正式部署 1.0.71 —— 累计 1.0.69 结案 429→500、1.0.70 回归门重做 + a11y + HEALTHCHECK、1.0.71 /collections 补 main 地标）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.70（2026-11-04）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.71（2026-11-04）
 
 生产现在运行的镜像由 GitHub Actions 构建并推送：
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.69` |
-| **来源提交** | `57670c8e471a7a086239bbb4e0d0316f85c36c0d` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.69`、`revision=57670c8…` —— 部署前拿它当**闸门**：不符就不重建容器 |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:35896b734934f53d2224aad73fb49f3162db6005249a07c900ea5f94769e3ddd`（上版 1.0.68 是 `cfdff281…`）|
-| **容器 Image ID** | `sha256:0738121d05ba26afb0040d4115ad4a130fa539f207bd199f2ddbd25b5f43c804` |
-| **CI run** | `41769915926`，`success`，含「文档里的断言总数与实测一致」这一步（971 项断言）|
-| **部署后验证** | `scripts/post-deploy-verify.mjs` → **5 通过 / 0 失败**；单独跑 `full-deal-row-audit` → 62 条：两行都在 39 / 只有 API 地址 2 / 只有领取地址 20 / 需抽码·无 API 1 / **两行都无 0 / 错误 0**（与 1.0.68 基线同分布，无回归）|
-| **回滚锚点** | 镜像 tag `rollback-20261104115453`（= 1.0.68 的 `50b0d631…`）+ `data/backups/favshub.db.pre-1.0.69-20261104115453`（`integrity_check`=ok）|
+| **版本** | `1.0.71` |
+| **来源提交** | `5a97dad855fcc78a9a37089de3237187b0bbbf10` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.71`、`revision=5a97dad…` —— 部署前拿它当**闸门**：不符就不重建容器 |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:757e82aaeaa9a13e2a15cf7986790bc39c64d1056c3e00b86d2e6ee0a6c56a9c`（1.0.70 是 `0572b7d2…`）|
+| **CI run** | `41777123612`，`success`，**29 个 step 全 success** |
+| **部署后验证** | 用**已提交的探针**跑 `post-deploy-verify.mjs` → **5 通过 / 0 失败**（`public-field-matrix` 17/0、`full-deal-row-audit` 两行都无 0 / 错误 0）|
+| **健康检查** | `docker ps` → `Up (healthy)`；`State.Health.Status=healthy`、`FailingStreak=0` |
+| **a11y 线上复核** | `/tokens/keys`、`/collections` 均有 `<main>`；`/`、`/tokens`、`/tokens/keys`、`/prompts`、`/collections` 五页均有 `lang="zh-CN"`。`/tokens` 列表页仍缺 `<main>`（该文件被另一团队占用，未触碰）|
+| **回滚锚点** | 镜像 tag `rollback-20261104131025`（= 1.0.70 的 `0572b7d2…`）+ `data/backups/favshub.db.pre-1.0.71-20261104131025`（`integrity_check`=ok）|
+
+> 完整回滚档（同日三个）：`rollback-20261104115453`(1.0.68) → `rollback-20261104123605`(1.0.69)
+> → `rollback-20261104131025`(1.0.70)。
+
+### 1.0.71 补的两件小事
+
+1. **`/collections` 补 main 地标**：`.collections-page` 由 `<div>` 改 `<main>`（类选择器，不动外观）。
+   至此除 `/tokens` 列表页外，站点各页都有 main 地标；`/tokens` 因文件被另一团队占用**未触碰**。
+2. **门改结构判定，避免假红**：⑨ 段第 5 条原先是精确字面量比对，签名/换行微调就会把好代码判红；
+   改成正则 `X-RateLimit-Reason',\s*asciiHeader\(`。实测双向：control 仍 252/0，reverted 仍 249/3。
+   断言总数不变（976）。
+
+### ⚠ 那轮「独立验证」中断了（如实记录）
+
+我请 verifier 对 1.0.70 复验，它在写出 `REPORT-1070.md` 前**进程失败、无结论留下**（`.agents/t5-verify/`
+下只有 1.0.69 的 `REPORT-1069.md`）。所以 1.0.70/1.0.71 的**回归门双向对照是我自己做的**，
+不是独立第三方结论。我已在干净副本里（`git archive HEAD`，排除他人 WIP）完整复跑两轮：
+
+    含修复    → 252 通过 / 0 失败 / exit 0
+    回退一行  → 249 通过 / 3 失败 / exit 1
+
+> 这条留在文档里，是因为「自己验自己」的说服力低于第三方 —— **下次仍应补上独立复验**。
+
 
 > ⚠️ **「健康」的口径**：镜像**没有定义 `HEALTHCHECK`**（`docker inspect` 会报
 > `Health=(no healthcheck defined)`）。所以只能背书**应用层**健康：容器内
