@@ -64,8 +64,23 @@
   `site-ip-concurrency` / `ai-quota` / `ai-token-concurrency` / `ai-ip-concurrency`）；
   人读的中文长文案留在 body 的 `data.error`（客户端契约不变，「错误文案里同时写清秒数」照旧）；
 - 新增 `asciiHeader()` 兜底 percent-encode 非 ASCII —— **以后新加的中文标签也不会再炸**；
-- **回归断言**：`third-batch-ratelimit` 的 `assert429()` 现在校验每条 429 的**响应头全为 ASCII**
-  （+9 项；该套件 106 → 115，总断言 962 → 971；文档三处与 workflow 注释已同步，否则 CI 那步会红）。
+- **回归断言（第一版是错的，已被独立验证打回并重做）**：
+  第一版在 `third-batch-ratelimit` 里加了「响应头全为 ASCII」（+9 项）。独立验证实测：
+  **把 `asciiHeader(code)` 改回 `label`、重新构建后，该断言依然 115 项全过、退出码 0** ——
+  因为 `rateLimitError()` 外层本就有 try/catch，中文头被**静默丢弃**，客户端收不到非 ASCII 头。
+  它咬的是 latin-1 `é` 那类「Node 会接受并真上线」的值，**不是本次这条路径**，
+  故按「纵深防御」保留，但标签已改成「无 latin-1 乱码」并注明**不是主证据**。
+  真正的门重做在 `third-batch-detail.mjs` 的 **⑨ 段**（+5 项）：把全站读档压到 1/分钟，
+  断言「页面**不再**回落成『加载失败』」+「页面诚实展示『超出限频』」+ 状态码语义 +
+  源码仍走 `asciiHeader()`。**实测会真的翻转**：
+
+  | 构建 | 结果 |
+  |---|---|
+  | 含修复 | 252 通过 / 0 失败，exit 0 |
+  | 回退 `asciiHeader`→`label` | 249 通过 / **3 失败**，exit 1（`出现「加载失败」=1 次`） |
+
+  套件与总数：`third-batch-ratelimit` 106 → 115、`third-batch-detail` 247 → 252，
+  总断言 **962 → 976**（文档两处 + workflow 注释已同步，否则 CI 那步会红）。
 
 > **教训（写给下一次）**
 >
@@ -329,7 +344,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **9 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；6 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server`，共 **971 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
+`third-batch-server`，共 **976 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
@@ -339,11 +354,11 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `ssrf-pin-check` | 12 | |
 | `cache-privacy-check` | 20 | |
 | `second-batch-e2e` | 150 | |
-| `third-batch-detail` | 247 | |
+| `third-batch-detail` | 252 | |
 | `third-batch-notify` | 161 | |
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
-| **合计（断言）** | **971** | |
+| **合计（断言）** | **976** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

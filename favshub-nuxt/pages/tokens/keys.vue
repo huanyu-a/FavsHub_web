@@ -39,7 +39,9 @@
       </div>
     </header>
 
-    <div class="tokens-page">
+    <!-- 用 <main> 而不是 <div>：给页面一个 main 地标（Lighthouse landmark-one-main）。
+         样式全靠类选择器 .tokens-page，换标签不影响外观。 -->
+    <main class="tokens-page">
       <!-- ① 免责声明条：D12 原文逐字（07 §8.5 第 4 条），常驻第一视觉位，不可关闭 -->
       <div class="keys-disclaimer" role="note">
         <i class="ri-error-warning-line"></i>
@@ -156,7 +158,7 @@
       </template>
 
       <BackToTop />
-    </div>
+    </main>
 
     <!-- 统一页脚 -->
     <SiteFooter />

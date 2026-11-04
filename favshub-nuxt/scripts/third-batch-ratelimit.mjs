@@ -229,10 +229,15 @@ function assert429(desc, r, mustInclude) {
   check(`${desc} 错误体点名限流层（含「${mustInclude}」）`,
     bodyErr.includes(mustInclude), `body=${bodyErr.slice(0, 220)}`)
   check(`${desc} 带合法 Retry-After`, Number.isFinite(raNum) && raNum >= 1 && raNum <= 86400, `retry-after=${ra}`)
-  // 头值必须是纯 ASCII：中文标签曾让 429 在「内部 fetch 解析响应头」时抛 ByteString 错 → 退化成 500，
-  // 且失败不走 error hook → docker logs 零痕迹。见 server/utils/rate-limit.ts 的 asciiHeader()。
+  // ⚠️ 诚实标注（2026-11-04 被独立验证打回后更正）：
+  //   这条**不是**「429 退化成 500」那次的回归门。`rateLimitError()` 外层本来就有 try/catch
+  //   （「头写不进去不改变 429 语义」），中文头会被**静默丢弃**，客户端根本收不到 ——
+  //   所以把修复回退掉，这条依然全绿（实测：115 项全过、退出码 0）。
+  //   它仍**不是恒真**：latin-1 的 `é` 这类值 Node 会接受并真上线（客户端读回 `Ã©`），本断言能抓到，
+  //   故按「纵深防御」保留。**真回归门在 `third-batch-detail.mjs` 的 ⑨ 段**（页面级症状 +
+  //   状态码语义，实测回退后会红 3 条、退出码 1）。
   const nonAscii = [...r.headers.entries()].filter(([, v]) => /[^\x20-\x7E]/.test(String(v)))
-  check(`${desc} 响应头全为 ASCII（非 ASCII 头会把 429 退化成 500）`,
+  check(`${desc} 响应头无 latin-1 乱码（纵深防御，非 429→500 的主证据）`,
     nonAscii.length === 0, `non-ascii: ${JSON.stringify(nonAscii)}`)
 }
 

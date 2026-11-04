@@ -53,4 +53,10 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 
+# 健康检查：此前镜像**没有定义 HEALTHCHECK**，`docker ps` 永远不显示 (healthy)，
+# 运维只能靠 `docker logs` 或手打 /api/health 判断存活（DEPLOYMENT-STATE 记过这个坑）。
+# 用 alpine 自带的 busybox wget，不额外装包；start-period 给足冷启动时间。
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1
+
 CMD ["node", ".output/server/index.mjs"]

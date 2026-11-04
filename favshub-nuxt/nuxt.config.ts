@@ -7,6 +7,15 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // `<html lang>` 此前全站缺失（Lighthouse `html-has-lang` 在 /tokens 三页全红）。
+  // 声明语种后读屏才会选对发音、搜索引擎也能判定语种；站点是中文站，统一 zh-CN。
+  // 注意：theme 插件运行时会加 `data-theme` 等属性，这里只补 lang，不与之冲突。
+  app: {
+    head: {
+      htmlAttrs: { lang: 'zh-CN' },
+    },
+  },
+
   experimental: {
     viewTransition: true,
   },

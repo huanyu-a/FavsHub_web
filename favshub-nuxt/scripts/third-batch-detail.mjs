@@ -159,13 +159,15 @@ function disableRegisterChallenge(dbPath) {
     ).run()
   } finally { db.close() }
 }
-async function startApp(dbPath) {
+async function startApp(dbPath, extraEnv = {}) {
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 `pnpm build`'); process.exit(1) }
   ensureNativeModule()
   appProcess = spawn('node', [entry], {
     cwd: ROOT,
-    env: { ...process.env, NODE_ENV: 'production', PORT: String(APP_PORT), NUXT_DB_PATH: dbPath, NUXT_ADMIN_USERS: 'e2eadmin' },
+    // extraEnv 用于「按 phase 改阈值」的段落（⑨ 429 不得退化成 500）。
+    // 默认 {} —— 其余段落的行为与此前完全一致。
+    env: { ...process.env, NODE_ENV: 'production', PORT: String(APP_PORT), NUXT_DB_PATH: dbPath, NUXT_ADMIN_USERS: 'e2eadmin', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
@@ -1215,6 +1217,76 @@ async function main() {
       `first=${firstCardId} newest=${newestId}`)
     check('页面源码里默认排序值为 latest',
       readFileSync(join(ROOT, 'pages', 'tokens', 'index.vue'), 'utf8').includes("const sort = ref('latest')"))
+  }
+
+  // ═══ ⑨ 429 不得退化成 500（限流响应头含中文曾把 429 变成 500）═══
+  //
+  // 为什么需要这一段（2026-11-04 生产事故，已结案）：
+  //   限流把**中文标签**写进 `X-RateLimit-Reason`；非 ASCII 头值在构造响应时抛
+  //   `TypeError: Cannot convert argument to a ByteString … value of 20840`（20840='全'），
+  //   本该 429 的响应变成 **500**；失败在响应落盘阶段、**不经过 error hook** → 服务端零日志；
+  //   SSR 详情页内部取数拿到 500 后回落成兜底文案「加载失败，请稍后重试」。
+  //
+  // ⚠️ 为什么**不能**用「断言响应头没有非 ASCII」来守（第一版就错在这，被独立验证打回）：
+  //   `rateLimitError()` 外层本来就有 try/catch（注释：「头写不进去不改变 429 语义」），
+  //   中文头被**静默丢弃**，客户端永远收不到非 ASCII 头 —— 那种断言恒绿
+  //   （实测：把修复回退掉，它依然 115 项全过、退出码 0）。它咬的是 latin-1 `é` 那类
+  //   Node 会接受并真上线的值，**不是本次这条路径**。
+  //   真正要守的是**语义**：限流无论如何都必须仍然是 429，页面不得回落成兜底文案。
+  console.log('\n▶ ⑨ 429 不得退化成 500（限流头含中文的历史回归）')
+  {
+    // 把「全站读档」压到 1 次/分钟（只影响本套件自建实例）：
+    // /api 的每次读都计数，而 SSR 内部自取数也算 → 第 2 页起必然被限。
+    await stopApp()
+    await startApp(DB_PATH, {
+      FAVSHUB_RL_SITE_READ_PER_MIN: '1',
+      FAVSHUB_RL_SITE_WRITE_PER_MIN: '600',
+      FAVSHUB_RL_SITE_ASSET_PER_MIN: '600',
+    })
+
+    // (a) 接口级语义：连打直到出现限流，状态码必须是 429 —— 不能是 500。
+    //     ⚠️ 诚实标注：**这一条不区分本次回归**。直接打 /api 时 `rateLimitError()` 的 try/catch
+    //     会吞掉中文头错误、照常返回 429，所以回退修复后它依然绿（实测）。
+    //     它守的是另一类失效（例如有人让限流路径抛 500）。**主证据是下面的 (b)**。
+    let limitedStatus = 0
+    let limitedText = ''
+    for (let i = 0; i < 8; i++) {
+      const r = await api(`/api/token-deals?limit=1&probe=${'a'.repeat(i + 1)}`)
+      if (r.status === 429 || r.status >= 500) { limitedStatus = r.status; limitedText = r.text; break }
+    }
+    check('⑨ 限流响应状态码是 429（历史 bug 会退化成 500）',
+      limitedStatus === 429,
+      `实际=${limitedStatus || '8 次内未触发限流'} body=${limitedText.slice(0, 160)}`)
+    check('⑨ 限流响应体仍带中文长文案（契约未变）',
+      limitedText.includes('超出限频'),
+      limitedText.slice(0, 200))
+
+    // (b) 页面级症状：SSR 内部取数被限流时，页面必须展示「超出限频」，
+    //     而**不能**回落到兜底文案「加载失败」。这一条直击用户可见症状，且修复前后真的翻转。
+    const degradedHits = []
+    const limitedHits = []
+    for (let i = 0; i < 4; i++) {
+      const r = await api(`/tokens/${idVerified}.html`)
+      const body = visibleHtmlOf(r.text)
+      degradedHits.push(body.includes('加载失败'))
+      limitedHits.push(body.includes('超出限频'))
+      if (degradedHits.at(-1) || limitedHits.at(-1)) break
+    }
+    check('⑨ SSR 被限流时页面**不再**渲染兜底文案「加载失败」',
+      !degradedHits.some(Boolean),
+      `出现「加载失败」=${degradedHits.filter(Boolean).length} 次`)
+    check('⑨ 页面改为诚实展示「超出限频」（说明拿到的是 429 而非 500）',
+      limitedHits.some(Boolean),
+      `出现「超出限频」=${limitedHits.filter(Boolean).length} 次；为 0 说明桶没打满，本条未生效`)
+
+    // (c) 纵深防御（**不是**主证据，见段首注释）：头仍走 asciiHeader()。
+    check('⑨ 纵深防御：限流头仍走 asciiHeader()',
+      readFileSync(join(ROOT, 'server', 'utils', 'rate-limit.ts'), 'utf8')
+        .includes("setResponseHeader(event, 'X-RateLimit-Reason', asciiHeader(code))"))
+
+    // 恢复默认阈值，避免影响后续段落
+    await stopApp()
+    await startApp(DB_PATH)
   }
 
   // ── 未覆盖项（如实列出，避免报告里出现没有证据的结论）──
