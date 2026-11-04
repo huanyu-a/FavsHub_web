@@ -4,11 +4,59 @@
 > 本文件记录**当前生产环境的状态**与易踩的坑。日常部署步骤见 `README.md`；
 > 含密码的本机步骤见 `DEPLOY.md`（gitignore，不入库）。
 
-**最后更新：2026-11-02（第 15 次修订：正式部署 1.0.66，修复侧边栏子分类换行与样式内置防缓存）**
+**最后更新：2026-11-04（第 16 次修订：正式部署 1.0.67，/tokens 全段换用 Token 主题分享封面并修正图片 alt）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.66（2026-11-02）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.67（2026-11-04）
 
 生产现在运行的镜像由 GitHub Actions 构建并推送：
+
+| 项 | 值 |
+|---|---|
+| **版本** | `1.0.67` |
+| **来源提交** | `b4b1a40715bfbb2a27ff4f705f077b64f7b4b875` |
+| **`latest` / `1.0.67` / `sha-b4b1a40`** | 三者指向**同一个** digest：`sha256:9c927e975a1d1a65a37153c880d53db09127757da34f203356a1ebfa47dd8edd` |
+| **容器 Image ID** | `sha256:b7fb62c1b63985e0438a9328ac5a2353af5637aeebe17aed78a962fc79771460` |
+| **CI run** | #63（41757199103），约 4 分 8 秒，全步 success，962 项断言 |
+| **部署后验证** | `scripts/post-deploy-verify.mjs` → **4 通过 / 1 失败**；失败项 `full-deal-row-audit` 是**改动前就存在**的既有数据边角，见下方「1.0.67 的已知既有失败」|
+| **回滚锚点** | 镜像 `rollback-202611040950`（= 旧的 `c9890971414a`）+ `data/backups/favshub.db.pre-1.0.67-20261104095305`（`integrity_check`=ok）|
+
+- 本次改了什么（纯 SEO / 分享卡片，**不涉及业务逻辑、接口与数据库**）：
+  - **/tokens 全段换用专属分享封面**：新增 `public/images/og-cover-tokens.png`（1200x630，154413 B）；
+    `pages/tokens/index.vue`、`keys.vue`、`[id].vue` 各自在页面级 `useHead` 覆盖 `og:image` /
+    `og:image:secure_url` / `og:image:alt` / `twitter:image` / `twitter:image:alt`（共 5 键，实测各只出现 1 次，
+    页面级正确压过 `layouts/default.vue` 的默认值）。旧 `public/images/og-cover.png` **一字未动**，
+    首页 / 精选集 / 提示词等页面继续用它（`og:*/twitter:*` 17 键与部署前逐键 IDENTICAL）。
+  - **修掉「图片 alt 描述错对象」**：`og:image:alt` 与 `twitter:image:alt` 原先由布局统一取 `siteTitle`
+    （"FavsHub-网址导航与智能书签管理工作台"）—— 对 Token 通告页来说描述的是**首页那张封面**，
+    属真实缺陷；现在三页各自给出与图内容一致的 alt（详情页为 `computed`，随 deal 变化）。
+  - **全站 8 处页头 logo 的 `alt="Logo"` → `alt="FavsHub"`**：`alt="Logo"` 是无意义占位符，
+    且它是「返回主页」链接的**可访问名**。只改属性、不动任何图片；页脚原本就是 `alt="FavsHub"`，
+    未触碰（残留 `alt="Logo"` 现在为 0）。
+  - `twitter:card` 三页**保持 `summary`**（用户明确：新图缩到小图时中心内容仍完整可见）。
+
+#### 1.0.67 的已知既有失败（**不是本次改动引入的**，2026-11-04 已用旧镜像实证）
+
+`post-deploy-verify.mjs` 的 `full-deal-row-audit`（「两行可见性」回归哨兵）报 **「两行都无 1」**（期望 0），
+命中 `deal_1793671760979_8xit89`（AutoClaw，`category=client`）。
+
+- **成因是数据边角，不是渲染回归**：该通告 `call_url` 为空 → 结构上不可能有「API 地址」行；
+  同时 `has_invite_code=true` / `claim_url_has_placeholder=true` → SSR 阶段不抽码，
+  「领取地址」行被有意扣住（页脚按钮呈 `is-disabled`，`title` 为「该平台需邀请码，抽取后自动生成领取地址」）。
+  两条叠加 → SSR 的「接入信息」区块两行皆空；客户端挂载抽到码后该行才出现。
+  即 `full-deal-row-audit` 的四分支判据没有覆盖「无 `call_url` **且** 需抽码」这一组合。
+- **为什么 1.0.66 那次报 0 失败**：该通告创建于 `2026-11-03 10:09`，**晚于** 1.0.66 的部署后验证（2026-11-02）。
+  也就是说这是「新数据触发了旧判据的盲区」，与 1.0.67 无关。
+- **实证手法（可复现）**：把 `rollback-202611040950`（= 旧生产镜像）用**生产库副本**
+  （`sqlite3 … ".backup"` 到 `/tmp/pre/`）在服务器本机 `docker run` 起来，同一详情页 URL 渲染出的
+  「接入信息」区块与线上**逐字节同构**（同为 `<h4 …>接入信息</h4><!----><!----></section>`、
+  同为 `is-disabled` 按钮）。两版**正文**的全部差异只有 `alt="Logo"→"FavsHub"`（+3 字符）与
+  Vue scope-id / buildId 的取值；**head 之外的业务内容零差异**。验证后已删除临时容器与 `/tmp/pre`。
+- **未修**：属产品/数据口径决策（补第 5 条判据，还是让该组合回退显示领取行），
+  不属本次「换图 + 修 alt」的范围，留待单独评估。下一位部署者看到这条 **不必回滚**。
+
+## 历史：1.0.66 状态（2026-11-02）
+
+当时运行的镜像由 GitHub Actions 构建并推送：
 
 | 项 | 值 |
 |---|---|
