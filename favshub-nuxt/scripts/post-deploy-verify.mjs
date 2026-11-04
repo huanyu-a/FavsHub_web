@@ -24,6 +24,7 @@
  *   1. /api/health             → 200
  *   2. public-field-matrix     → 通过数 > 0 且 失败数 = 0（跳过要显式报出来）
  *   3. full-deal-row-audit     → 「两行都无」= 0 且 错误 = 0
+ *      （五分支判据：「需抽码·无 API」是正常分支，不计失败；见该脚本文件头）
  *   4. 软 404                  → /collections/<不存在> 必须 404
  *   5. 5 个关键页面            → 全 200
  *
@@ -185,10 +186,13 @@ async function main() {
       const { code, out } = await withTimeout(runSuite('full-deal-row-audit.mjs'), 30_000, 'full-deal-row-audit')
       const neither = (out.match(/两行都无:\s*(\d+)/) || [])[1]
       const errors = (out.match(/错误:\s*(\d+)/) || [])[1]
+      const drawOnly = (out.match(/需抽码·无 API:\s*(\d+)/) || [])[1]
       check(
         'full-deal-row-audit（两行可见性回归哨兵）',
         code === 0 && neither === '0' && errors === '0',
-        neither !== undefined ? `两行都无 ${neither} / 错误 ${errors}` : `无法解析结果（exit ${code}）`,
+        neither !== undefined
+          ? `两行都无 ${neither} / 错误 ${errors}` + (drawOnly !== undefined ? ` / 需抽码·无 API ${drawOnly}（正常）` : '')
+          : `无法解析结果（exit ${code}）`,
       )
     }
   }
