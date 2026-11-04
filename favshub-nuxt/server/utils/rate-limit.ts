@@ -478,18 +478,42 @@ export function inflightCount(key: string): number {
 // ─── 统一的 429 错误构造 ────────────────────────────────────────────────
 
 /**
+ * HTTP 头值只能是 ByteString（0–255）。非 ASCII 会**在解析响应头时抛异常**。
+ *
+ * ⚠️ 2026-11-04 实测定位：`X-RateLimit-Reason` 原先直接写中文标签（`全站 读接口 …`），
+ * 一旦限流真的触发，**内部 SSR 自取数**解析响应头时抛
+ *   `TypeError: Cannot convert argument to a ByteString because the character at index 0
+ *    has a value of 20840 which is greater than 255`   （20840 = '全'）
+ * 于是本该是 429 的响应变成 **500**；而失败发生在响应落盘阶段、**不经过 error hook**，
+ * 所以 `docker logs` 里一条痕迹都没有，现场只剩「详情页偶发渲染『加载失败』」这种极难归因的症状。
+ * 这里统一兜一层：非 ASCII 一律 percent-encode，以后新加的中文标签也不会再炸。
+ */
+function asciiHeader(v: string): string {
+  return /^[\x20-\x7E]*$/.test(v) ? v : encodeURIComponent(v)
+}
+
+/**
  * 构造 429 并附 `Retry-After`。
  *
  * 这里**必须**先把响应头写进 event，再 throw：本仓所有 API 错误体都由
  * `server/plugins/error-handler.ts` 统一接管（只输出 `{ error }`），它只改
  * status 与 content-type，不会清掉已写的头，所以 Retry-After 能带出去。
  * 错误文案里同时写清秒数，保证客户端即使只看 body 也能退避。
+ *
+ * @param code 机器可读的 **ASCII** 短码，写进 `X-RateLimit-Reason`。
+ *   人读的长文案留在 body 的 `data.error` 里，不重复进头（原因见 `asciiHeader`）。
  */
-export function rateLimitError(event: H3Event, label: string, retryAfterSec: number, detail?: string) {
+export function rateLimitError(
+  event: H3Event,
+  label: string,
+  retryAfterSec: number,
+  detail?: string,
+  code = 'rate-limited',
+) {
   const sec = Math.max(1, Math.ceil(retryAfterSec || 1))
   try {
     setResponseHeader(event, 'Retry-After', String(sec))
-    setResponseHeader(event, 'X-RateLimit-Reason', label)
+    setResponseHeader(event, 'X-RateLimit-Reason', asciiHeader(code))
   } catch {
     /* 头写不进去不改变 429 语义 */
   }

@@ -119,6 +119,8 @@ export default defineEventHandler((event) => {
       event,
       `全站 ${TIER_LABELS[tier]} 每 IP ${limit} 次/${windowLabel(cfg.site.windowMs)}`,
       decision.retryAfterSec,
+      undefined,
+      `site-${tier}-per-ip`,
     )
   }
 
@@ -131,6 +133,7 @@ export default defineEventHandler((event) => {
       `全站同 IP 并发上限 ${cfg.site.concurrency}`,
       1,
       '同一来源 IP 的在途请求过多，请稍后再试',
+      'site-ip-concurrency',
     )
   }
 })

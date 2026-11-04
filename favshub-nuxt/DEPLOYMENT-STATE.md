@@ -271,7 +271,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **9 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；6 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server`，共 **962 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
+`third-batch-server`，共 **971 项断言**），另加 `ts:check` 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
@@ -283,9 +283,9 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `second-batch-e2e` | 150 | |
 | `third-batch-detail` | 247 | |
 | `third-batch-notify` | 161 | |
-| `third-batch-ratelimit` | 106 | |
+| `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
-| **合计（断言）** | **962** | |
+| **合计（断言）** | **971** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

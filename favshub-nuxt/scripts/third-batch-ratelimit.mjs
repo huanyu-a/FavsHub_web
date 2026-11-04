@@ -229,6 +229,11 @@ function assert429(desc, r, mustInclude) {
   check(`${desc} 错误体点名限流层（含「${mustInclude}」）`,
     bodyErr.includes(mustInclude), `body=${bodyErr.slice(0, 220)}`)
   check(`${desc} 带合法 Retry-After`, Number.isFinite(raNum) && raNum >= 1 && raNum <= 86400, `retry-after=${ra}`)
+  // 头值必须是纯 ASCII：中文标签曾让 429 在「内部 fetch 解析响应头」时抛 ByteString 错 → 退化成 500，
+  // 且失败不走 error hook → docker logs 零痕迹。见 server/utils/rate-limit.ts 的 asciiHeader()。
+  const nonAscii = [...r.headers.entries()].filter(([, v]) => /[^\x20-\x7E]/.test(String(v)))
+  check(`${desc} 响应头全为 ASCII（非 ASCII 头会把 429 退化成 500）`,
+    nonAscii.length === 0, `non-ascii: ${JSON.stringify(nonAscii)}`)
 }
 
 async function main() {

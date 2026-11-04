@@ -151,7 +151,7 @@ function enforceAiWindow(
 ): void {
   const d = consumeWindow(key, limit, windowMs)
   if (!d.allowed) {
-    throw rateLimitError(event, label, d.retryAfterSec, 'AI 通道有每分钟与每 30 分钟两层配额')
+    throw rateLimitError(event, label, d.retryAfterSec, 'AI 通道有每分钟与每 30 分钟两层配额', 'ai-quota')
   }
 }
 
@@ -303,7 +303,7 @@ export function defineAiHandler(
       const tokenSlot = acquireRequestSlot(event, `ai_c:${token.id}`, cfg.concurrency)
       if (!tokenSlot) {
         throw rateLimitError(event, `AI 同令牌并发上限 ${cfg.concurrency}`, 1,
-          '同一令牌的在途请求过多，请串行调用或稍后再试')
+          '同一令牌的在途请求过多，请串行调用或稍后再试', 'ai-token-concurrency')
       }
       releases.push(tokenSlot)
 
@@ -311,7 +311,7 @@ export function defineAiHandler(
         event, `ai_c_ip:${rateKeyForIp(clientIpOf(event))}`, cfg.ipConcurrency)
       if (!ipSlot) {
         throw rateLimitError(event, `AI 同 IP 并发上限 ${cfg.ipConcurrency}`, 1,
-          '同一来源 IP 的在途请求过多，请串行调用或稍后再试')
+          '同一来源 IP 的在途请求过多，请串行调用或稍后再试', 'ai-ip-concurrency')
       }
       releases.push(ipSlot)
 
