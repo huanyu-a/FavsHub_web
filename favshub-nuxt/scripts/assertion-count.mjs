@@ -77,6 +77,10 @@ const POST_BUILD = [
   // 2xx 的必须恰好是一张逐个读过源码的白名单（26 个）。
   // 独占端口 3267。
   { name: 'api-public-surface', script: 'api-public-surface.mjs' },
+  // 公开面不许漏密钥：种一条真实形态的明文 Key，断言只有 copy 端点能吐出它。
+  // 顺带钉住 /api/settings 的按值脱敏，并防止脱敏误杀 showPasswordsLink 这类正常设置。
+  // 独占端口 3269。
+  { name: 'public-secret-scan', script: 'public-secret-scan.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },

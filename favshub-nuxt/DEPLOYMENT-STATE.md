@@ -1,4 +1,4 @@
-**最后更新：2026-11-05（第 26 次修订：正式部署 1.0.91 —— 修掉「套件失败时残留临时库」，并查清后台提示词版本历史的管理员可见性缺口）**
+**最后更新：2026-11-05（第 27 次修订：正式部署 1.0.92 —— `GET /api/settings` 改为**按值**脱敏，修掉「往系统设置写密钥即公开泄露」；新增公开面密钥泄露扫描套件（23 项））**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1721**（15 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **1744**（16 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -35,6 +35,7 @@
 | `1.0.89` | **普通用户白名单契约**（+96 项）：以**登录的普通用户**身份扫全部 79 个端点，要求 2xx 的**恰好**是一张逐个读过源码过滤条件的白名单（8 个），且响应里不得出现他人数据。此前那 23 个走 `getAuthRole` 的端点只能靠读源码相信 —— 现在「某端点日后被放宽到登录即可」会立刻报红 |
 | `1.0.90` | **全站 API 公开面契约**（261 项）：224 个端点全部以未登录身份打一遍，2xx 的必须恰好是 26 个逐个读过源码的白名单项；另查 429/5xx/超时三类会污染结论的情形。顺带查证 `GET /api/settings` 的 `SENSITIVE_KEYS` 为空数组（潜伏项，生产无暴露，见下节） |
 | `1.0.91` | 修 `second-batch-e2e.mjs` **失败路径漏清临时库**（成功路径有清、异常路径没清 —— 残留的 4 个库全部对应失败的那几次跑）；查清 `admin/prompts/:id/versions` 与 `admin/prompts/history` 都不让管理员看他人版本历史（需产品决策，未改） |
+| `1.0.92` | **`GET /api/settings` 按值脱敏**（`scrubSecretValues`）：原先只有一张空的**名字**黑名单，等于不设防 —— 任何写进系统设置（`user_id=0`）的密钥形态值都会发给所有访客。**刻意不用名字模式匹配**：生产真实存在 `showPasswordsLink`（扩展 UI 开关），会被 `password` 模式误杀。新增 `public-secret-scan`（23 项）从整个公开面查泄露 |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -100,6 +101,60 @@
 
 > 教训：我最初把这个发现的原因说成「它是唯一不自清的套件」——**理由是错的**（它成功时会清）。
 > 是看了残留文件的时间戳才发现真正原因是异常路径。**只看到「文件存在」就下结论，不算证据。**
+
+### 🔍 后台「提示词版本历史」的管理员可见性缺口（2026-11-05 查清，未改，需产品决策）
+
+起因：`server/api/admin/prompts/[id]/versions.get.ts:25` 的归属校验是
+`if (prompt.user_id !== auth.id)` —— **比它 5 个同类端点少了 `!isAdmin` 逃生口**
+（`[id].delete.ts` / `[id].put.ts` / `prompt-folders/[id].delete.ts` /
+`folders/[id].delete.ts` / `bookmarks/[id].delete.ts` 全都是 `if (!isAdmin && X.user_id !== auth.id)`）。
+
+查下去发现实际情况比「一处不一致」更值得说：
+
+| 端点 | 前端调用方 | 管理员能看到他人版本吗 |
+|---|---|---|
+| `/api/admin/prompts/:id/versions` | **无任何调用方**（死代码） | 否（403） |
+| `/api/admin/prompts/history` | `pages/admin/prompts.vue:444` 的「历史记录」页 | **否** —— SQL 是无条件的 `WHERE p.user_id = ?`，连 `isAdmin` 都没用上 |
+
+两个都不让管理员看他人版本历史，**而管理员能删改他人的提示词**。
+
+- **不是安全洞**：两处都 fail-closed（更严），`history.get.ts` 的文件头也明写「所有用户仅返回自己的」。
+- **是可见性 / 预期缺口**：后台页头写着「查看和管理所有用户的提示词、标签和文件夹」，
+  但「历史记录」页只显示管理员自己的。
+- 附带一个小 code smell：`history.get.ts:12` 解构了 `isAdmin` 却**从未使用**。
+
+**没改。** 要不要让管理员浏览他人提示词的修订历史，是产品决策（涉及隐私预期），
+不该由测试轮次顺手决定。改 `[id]/versions.get.ts` 那一处也只是让死代码与同类一致，无实际收益。
+
+### ✅ 已修（1.0.92）：`GET /api/settings` 的敏感字段过滤曾是空表
+
+**原缺陷**：`server/api/settings/index.get.ts` 的游客分支本意是「返回系统设置并过滤敏感字段」，
+实现也真的遍历 `SENSITIVE_KEYS` 过滤 —— 但那张表是空数组，等于什么都没滤。
+任何写进 `settings` 表 `user_id = 0` 的键值，都会原样发给匿名访客。
+
+**生产当时无实际暴露**（已查证）：那行是 `{}`（长度 2），匿名请求返回空对象。
+所以它是**潜伏**而非**泄露** —— 但**一旦有人在系统设置里存了密钥，就会立刻变成公开泄露，
+且不会有任何东西提醒你**。1.0.92 用临时库实测确认了这点：种一个密钥形态的值进去，
+匿名 `GET /api/settings` 原样吐出来。
+
+#### 「显然的修法」是错的 —— 本节最该记住的一段
+
+最直觉的修法是「名字里含 `password`/`secret`/`key` 就过滤」。**实测证明它会误杀**：
+生产 settings 出现过的 27 个键里有一个叫 **`showPasswordsLink`** —— 那是扩展的
+「显示密码链接」**UI 开关**，值是个布尔。按名字过滤会把它摘掉，破坏扩展同步。
+
+真正安全的是**按值**判断（`scrubSecretValues`）：名字可以随便起，值的形态骗不了人；
+`showPasswordsLink` 的值是 `true`，天然不会命中。
+
+对现存数据是 no-op：27 个键的值全是布尔/短字符串，没有任何一个命中 `containsKeyLike`。
+它只在真的有人写入密钥时起作用 —— 不会因为「防未来的事」弄坏现在的功能。
+
+#### 另一处关键测量：遮蔽形态不匹配 `KEY_LIKE`
+
+「按值扫」成立的前提是**遮蔽值不会被误判成密钥**。实测 `key_masked = "sk-probe…wxyz"`
+**不**匹配 `KEY_LIKE`（`…` 不在 `[A-Za-z0-9_-]` 里，`sk-` 之后只有 6 个字符，不足 `{8,}`）。
+否则按值扫会满屏误报、根本没法用。这条前提也写成了套件里的一条断言，
+将来前缀规则若改动导致它失效，会当场报出来。
 
 ### 🔍 后台「提示词版本历史」的管理员可见性缺口（2026-11-05 查清，未改，需产品决策）
 
@@ -680,7 +735,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1721 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1744 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -693,6 +748,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `public-secret-scan` | 23 | 公开面密钥泄露：明文只允许出现在 copy 端点；`/api/settings` 按值脱敏 + 不得误杀正常设置 |
 | `api-public-surface` | 261 | 全站 224 个端点的「未登录可达」白名单（26 个）+ 429/5xx/超时三类污染检查 |
 | `admin-auth-guard` | 221 | 管理后台 79 个端点：未登录全拒 / IDOR / 提权 / 普通用户白名单（8 个）+ 不含他人数据 |
 | `second-batch-e2e` | 165 | 含 URL 协议白名单回归 15 项 |
@@ -701,7 +757,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1721** | |
+| **合计（断言）** | **1744** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

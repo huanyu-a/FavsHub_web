@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1721。
+      # CI 断言总计 1744。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -209,6 +209,13 @@ jobs:
       - name: Test — 全站 API 公开面契约（未登录可达端点，261 项）
         working-directory: favshub-nuxt
         run: node scripts/api-public-surface.mjs
+
+      # 「公开面不许漏密钥」。226 个端点里唯一按设计吐明文的是 /api/token-keys/:id/copy；
+      # 种一条真实形态的明文进临时库，断言明文只出现在它那里。同时钉住 /api/settings 的
+      # 按值脱敏，并**反向**断言脱敏没误杀 showPasswordsLink 这类正常设置。
+      - name: Test — 公开面密钥泄露扫描（明文出口契约，23 项）
+        working-directory: favshub-nuxt
+        run: node scripts/public-secret-scan.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：
