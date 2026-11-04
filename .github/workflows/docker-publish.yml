@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1460。
+      # CI 断言总计 1721。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -201,6 +201,14 @@ jobs:
       - name: Test — 管理后台 API 鉴权面（未登录/越权/提权/普通用户白名单，221 项）
         working-directory: favshub-nuxt
         run: node scripts/admin-auth-guard.mjs
+
+      # 整个 /api 的「公开面」。226 个端点里哪些不需要登录就能访问，此前没有任何东西
+      # 记录 —— 而这是最容易悄悄出错的地方（把 requireAuth 写成 optionalAuth、新端点
+      # 忘了加鉴权、某个端点从「返回点公开数据」变成「返回全部数据」）。
+      # 本步骤把公开面变成一张逐个读过源码的白名单，逐条比对。
+      - name: Test — 全站 API 公开面契约（未登录可达端点，261 项）
+        working-directory: favshub-nuxt
+        run: node scripts/api-public-surface.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：

@@ -73,6 +73,10 @@ const POST_BUILD = [
   // 各自为政 —— 漏一个就是未鉴权的管理员操作（删用户/清提示词/改通告）。
   // 独占端口 3258。
   { name: 'admin-auth-guard', script: 'admin-auth-guard.mjs' },
+  // 整个 /api 的「公开面」契约：224 个端点全部以未登录身份打一遍，
+  // 2xx 的必须恰好是一张逐个读过源码的白名单（26 个）。
+  // 独占端口 3267。
+  { name: 'api-public-surface', script: 'api-public-surface.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },

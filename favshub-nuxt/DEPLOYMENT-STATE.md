@@ -1,4 +1,4 @@
-**最后更新：2026-11-05（第 24 次修订：正式部署 1.0.89 —— admin 鉴权面套件从 125 项扩到 221 项，新增「登录的普通用户」白名单扫描，把 23 个登录即可的端点从「读源码相信」变成实测契约）**
+**最后更新：2026-11-05（第 25 次修订：正式部署 1.0.90 —— 新增「全站 API 公开面」套件（261 项），把 224 个端点里「未登录可达」的 26 个变成逐个读过源码的白名单）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1460**（14 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **1721**（15 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -33,6 +33,7 @@
 | `1.0.87` | **福利 Key 复制端点可见性套件**：该端点全站唯一下发明文密钥却零覆盖；新套件 24 项，并修「404 文案不一致导致存在性泄露」与一段不可达的 24h 死代码 |
 | `1.0.88` | **管理后台 API 鉴权面套件**（125 项）：`admin-guard` 中间件只管页面，79 个 `/api/admin` 端点各自为政；本套件从文件系统枚举端点逐个打，覆盖未登录/越权(IDOR)/提权，并核对库里确实没变。同时修门禁两个自身缺陷（见下节） |
 | `1.0.89` | **普通用户白名单契约**（+96 项）：以**登录的普通用户**身份扫全部 79 个端点，要求 2xx 的**恰好**是一张逐个读过源码过滤条件的白名单（8 个），且响应里不得出现他人数据。此前那 23 个走 `getAuthRole` 的端点只能靠读源码相信 —— 现在「某端点日后被放宽到登录即可」会立刻报红 |
+| `1.0.90` | **全站 API 公开面契约**（261 项）：224 个端点全部以未登录身份打一遍，2xx 的必须恰好是 26 个逐个读过源码的白名单项；另查 429/5xx/超时三类会污染结论的情形。顺带查证 `GET /api/settings` 的 `SENSITIVE_KEYS` 为空数组（潜伏项，生产无暴露，见下节） |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -78,6 +79,32 @@
 > 教训：**门禁自身的缺陷比被测代码的 bug 更隐蔽** —— 前者会让人以为「绿灯 = 没问题」。
 > 一条机器速度相关的魔数上界，代价是 5% 的随机红；而一个不设防的退出码，代价是
 > 真的失败被当成通过。
+
+### ⚠️ 已知潜伏项：`GET /api/settings` 的敏感字段过滤是空表（2026-11-05 查证）
+
+`server/api/settings/index.get.ts` 的游客分支本意是「返回系统设置并**过滤敏感字段**」，
+实现也真的遍历 `SENSITIVE_KEYS` 过滤 —— 但那张表：
+
+```ts
+const SENSITIVE_KEYS: string[] = []
+```
+
+**是空数组，等于什么都没滤。** 任何写进 `settings` 表 `user_id = 0` 的键值，都会原样发给匿名访客。
+
+**当前无实际暴露**（已查证）：
+
+| 查证项 | 结果 |
+|---|---|
+| 生产 `settings` 表 `user_id = 0` 那行 | `{}`（长度 2） |
+| 匿名 `GET https://hao.bx9y.com.cn/api/settings` | 空对象，顶层键 0 个 |
+
+所以这是**潜伏**而不是**泄露** —— 与 1.0.86 那次（读侧脱敏名单比写侧窄、生产 0 命中）同一类。
+
+**为什么没改**：改 `SENSITIVE_KEYS` 的内容是产品决策（哪些键算敏感，取决于将来实际往
+settings 里放什么），不该由测试轮次顺手决定。但它值得记住：**一旦有人在系统设置里存了
+密钥/token/内部地址，会立刻变成公开泄露，且不会有任何东西提醒你。**
+
+复现方法：匿名 `GET /api/settings`，检查响应里有没有你不想公开的键。
 
 ### 🔒 客户端真实 IP 的可信链：两条**不能碰坏**的部署事实（2026-11-05 查证）
 
@@ -608,7 +635,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1460 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1721 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -621,6 +648,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `api-public-surface` | 261 | 全站 224 个端点的「未登录可达」白名单（26 个）+ 429/5xx/超时三类污染检查 |
 | `admin-auth-guard` | 221 | 管理后台 79 个端点：未登录全拒 / IDOR / 提权 / 普通用户白名单（8 个）+ 不含他人数据 |
 | `second-batch-e2e` | 165 | 含 URL 协议白名单回归 15 项 |
 | `third-batch-detail` | 252 | |
@@ -628,7 +656,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1460** | |
+| **合计（断言）** | **1721** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——
