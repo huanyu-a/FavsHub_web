@@ -2,6 +2,7 @@
  * PUT /api/bookmarks/:id — 更新书签
  * 使用事务包裹所有 UPDATE，确保原子性
  */
+import { isSafeUrl } from '../../../utils/url-safety'
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
 import { normalizeUrl } from '../../utils/bookmark-labels'
@@ -19,9 +20,8 @@ export default defineEventHandler(async (event) => {
 
   // 校验 URL scheme（拒绝危险协议，防止存储型 XSS）
   if (url !== undefined) {
-    const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-    const lowerUrl = url.toLowerCase().trim()
-    if (DANGER_SCHEMES.some(s => lowerUrl.startsWith(s))) {
+    // 白名单来自 utils/url-safety.ts（原黑名单可被 `java\tscript:` 绕过）
+    if (!isSafeUrl(url)) {
       throw createError({ statusCode: 400, data: { error: `不支持的 URL 协议` } })
     }
   }

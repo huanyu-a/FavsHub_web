@@ -10,6 +10,7 @@
  *      prompts 只允许操作自己的（不允许 AI 触发管理员内容的审核流程）；
  *      token-deals 管理员发布即上线、普通用户进 pending。
  */
+import { isSafeUrl, UNSAFE_URL_MESSAGE } from '../../utils/url-safety'
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { createError } from 'h3'
@@ -108,13 +109,10 @@ function assertFolderOwnership(db: DB, userId: number, folderId: unknown) {
   if (folder.user_id !== userId) fail(403, '无权写入此文件夹')
 }
 
-const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-
-/** URL 校验：长度 + 危险协议白名单 */
+/** URL 校验：长度 + 协议白名单（`utils/url-safety.ts` 唯一真源） */
 function assertSafeUrl(url: string, maxLen = 2048) {
   if (url.length > maxLen) fail(400, `URL 最长 ${maxLen} 字符`)
-  const lower = url.toLowerCase().trim()
-  if (DANGER_SCHEMES.some(s => lower.startsWith(s))) fail(400, '不支持的 URL 协议')
+  if (!isSafeUrl(url)) fail(400, UNSAFE_URL_MESSAGE)
 }
 
 // ════════════════════════════════════════════════════════════════

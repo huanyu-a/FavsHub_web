@@ -3,6 +3,7 @@
  * 管理员：可更新任意书签
  * 普通用户：仅可更新自己的书签，且不能更改公开状态
  */
+import { isSafeUrl } from '../../../../utils/url-safety'
 import { getRawDb } from '../../../database'
 import { getAuthRole } from '../../../utils/auth'
 import { normalizeUrl } from '../../../utils/bookmark-labels'
@@ -34,9 +35,8 @@ export default defineEventHandler(async (event) => {
 
   // URL scheme 校验
   if (url !== undefined) {
-    const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-    const lowerUrl = url.toLowerCase().trim()
-    if (DANGER_SCHEMES.some(s => lowerUrl.startsWith(s))) {
+    // 白名单来自 utils/url-safety.ts（原黑名单可被 `java\tscript:` 绕过）
+    if (!isSafeUrl(url)) {
       throw createError({ statusCode: 400, data: { error: '不支持的 URL 协议' } })
     }
   }

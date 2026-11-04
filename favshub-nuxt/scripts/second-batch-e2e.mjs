@@ -641,6 +641,45 @@ async function main() {
     console.log(`  ⚠ 成功出站路径本机无法验证（fake-ip DNS），留待生产验收`)
   }
 
+  // ═══ ⑤b 书签 URL 协议白名单（存储型 XSS 回归，2026-11-05）═══
+  //
+  // 背景：原实现是**黑名单**（javascript:/data:/vbscript:/file:）+ `startsWith` 逐条比对。
+  // 但按 WHATWG 规范，浏览器在解析 URL 协议前会剥离所有 ASCII tab / 换行 / 回车，
+  // 于是 `java\tscript:alert(1)` 匹配不上黑名单而放行，浏览器却解析成 `javascript:` —
+  // 而 `BookmarkCard.vue` 是 `:href="bookmark.url"` 直接渲染，构成**存储型 XSS**。
+  //
+  // 这里断言两件事：注入变体**必须被拒**，合法 URL **必须仍可写入**（防过度收紧）。
+  console.log('\n▶ ⑤b 书签 URL 协议白名单（注入变体 + 合法放行）')
+  {
+    const bad = [
+      ['经典 javascript:', 'javascript:alert(1)'],
+      ['大小写变形', 'JavaScript:alert(1)'],
+      ['首尾空白包裹', '   javascript:alert(1)   '],
+      ['TAB 注入（旧实现放行）', 'java\tscript:alert(1)'],
+      ['LF 注入（旧实现放行）', 'java\nscript:alert(1)'],
+      ['CR 注入（旧实现放行）', 'java\rscript:alert(1)'],
+      ['data: 伪协议', 'data:text/html,<script>alert(1)</script>'],
+      ['vbscript:', 'vbscript:msgbox(1)'],
+      ['file:', 'file:///etc/passwd'],
+      ['blob:', 'blob:https://example.com/uuid'],
+      ['无协议', 'example.com/no-scheme'],
+    ]
+    for (const [label, u] of bad) {
+      const r = await api('/api/bookmarks', { method: 'POST', cookie: alice, body: { title: `xss-${label}`, url: u } })
+      check(`拒绝 ${label}`, r.status === 400, `status=${r.status} body=${r.text.slice(0, 120)}`)
+    }
+    const good = [
+      ['https', 'https://example.com/xss-ok-1'],
+      ['http', 'http://example.com/xss-ok-2'],
+      ['大写协议', 'HTTPS://Example.com/xss-ok-3'],
+      ['带路径与查询', 'https://example.com/a/b?c=d&e=f'],
+    ]
+    for (const [label, u] of good) {
+      const r = await api('/api/bookmarks', { method: 'POST', cookie: alice, body: { title: `ok-${label}`, url: u } })
+      check(`放行合法 ${label}`, r.status === 200, `status=${r.status} body=${r.text.slice(0, 120)}`)
+    }
+  }
+
   // ── 错误出口契约（error-handler 的对外承诺）────────────────────
   //
   // 这个出口是**所有 API 错误响应的唯一格式化点**（server/plugins/error-handler.ts），

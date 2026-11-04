@@ -1,6 +1,7 @@
 /**
  * POST /api/bookmarks — 创建书签
  */
+import { isSafeUrl, UNSAFE_URL_MESSAGE } from '../../../utils/url-safety'
 import { getRawDb } from '../../database'
 import { requireAuth } from '../../utils/auth'
 import { normalizeUrl } from '../../utils/bookmark-labels'
@@ -19,11 +20,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { error: '字段长度超出限制' } })
   }
 
-  // 校验 URL scheme（拒绝危险协议，防止存储型 XSS）
-  const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-  const lowerUrl = url.toLowerCase().trim()
-  if (DANGER_SCHEMES.some(s => lowerUrl.startsWith(s))) {
-    throw createError({ statusCode: 400, data: { error: `不支持的 URL 协议` } })
+  // 校验 URL scheme（防止存储型 XSS）—— 白名单来自 utils/url-safety.ts 唯一真源。
+  // 原实现是黑名单 + 逐条 startsWith，被 `java\tscript:` 这类注入变体绕过
+  // （浏览器解析协议前会剥离 tab/换行/回车），详见该文件说明。
+  if (!isSafeUrl(url)) {
+    throw createError({ statusCode: 400, data: { error: UNSAFE_URL_MESSAGE } })
   }
 
   const db = getRawDb()

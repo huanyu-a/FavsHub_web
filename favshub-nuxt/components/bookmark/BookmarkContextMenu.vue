@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { isSafeUrl } from '~/utils/url-safety'
 import { copyText } from '~/utils/clipboard'
 const props = defineProps<{
   bookmark: any
@@ -109,11 +110,10 @@ const menuStyle = computed(() => {
   return { left: `${x}px`, top: `${y}px` }
 })
 
-// 安全打开 URL：拒绝危险协议（javascript:/data:/vbscript:/file:）
+// 安全打开 URL：协议白名单来自 `utils/url-safety.ts` 唯一真源。
+// 原实现的黑名单会被 `java\tscript:` 绕过（浏览器解析协议前会剥离 tab/换行）。
 function safeOpenUrl(url: string, target?: string, features?: string) {
-  const lower = url.toLowerCase().trim()
-  const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-  if (DANGER_SCHEMES.some(s => lower.startsWith(s))) {
+  if (!isSafeUrl(url)) {
     console.warn('[BookmarkContextMenu] 拒绝打开危险 URL:', url)
     return
   }

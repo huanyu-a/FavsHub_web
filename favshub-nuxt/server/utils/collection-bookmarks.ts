@@ -5,13 +5,9 @@
 import type Database from 'better-sqlite3'
 import { isPoolBookmark, normalizeUrl, SQL_IS_POOL } from './bookmark-labels'
 
-const DANGER_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
-
-export function isDangerUrl(url: string | undefined | null): boolean {
-  if (!url) return true
-  const lower = url.toLowerCase().trim()
-  return DANGER_SCHEMES.some(s => lower.startsWith(s))
-}
+// 协议校验收敛到 `utils/url-safety.ts` 唯一真源（原黑名单可被 `java\tscript:` 绕过）。
+// 这里保留 `isDangerUrl` 这个导出名，既有调用点无需改动。
+export { isDangerUrl } from '../../utils/url-safety'
 
 /**
  * 在用户（通常是管理员）书签池中按 URL upsert，返回 bookmark_id。
