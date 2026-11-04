@@ -357,8 +357,14 @@ async function main() {
   console.log('\n▶ ② 正文去掉「发布者」与「有效期」（header 的有效期保留）')
   {
     const body = bodyHtmlOf(pageVerified)
+    // 2026-11-04：断言从「整段正文」收窄到「事实区 .tdd-facts」。
+    // 原因：新版在正文里新增了 verify_scope（核实范围）与 FAQ，两者都会自然地
+    // 出现「有效期」字样（如「核对过…与有效期」「额度什么时候到期？」）。
+    // 用整段 body.includes 会把这类**合理的**新文案判成回归。
+    // 本断言真正要保证的是：有效期不再作为**事实区的一行**重复展示（已移到 header 徽标）。
+    const facts = slice(body, 'class="tdd-facts', '</div>')
     check('正文不含「发布者」', !body.includes('发布者'))
-    check('正文不含「有效期」标签', !body.includes('有效期'))
+    check('事实区不含「有效期」行', !facts.includes('有效期'), facts.slice(0, 120))
     check('正文仍保留「免费额度」事实行', body.includes('免费额度'))
     const head = headHtmlOf(pageVerified)
     check('header 仍展示有效期文案（永久有效 / 天后到期 / 已过期）',
@@ -375,8 +381,15 @@ async function main() {
       const t = classTokensWith(head, 'tdd-category')
       return !!t && t.some(x => ['is-blue', 'is-purple', 'is-primary'].includes(x))
     })(), JSON.stringify(classTokensWith(head, 'tdd-category')))
-    const facts = slice(bodyHtmlOf(pagePending), 'class="tdd-facts"', '接入信息')
-    check('正文事实区不再有「分类」', facts.length > 0 && !facts.includes('分类'), facts.slice(0, 200))
+    const bodyPending = bodyHtmlOf(pagePending)
+    // 2026-11-04：`.tdd-facts` 现在是 v-if="specCells.length" 条件渲染 ——
+    // 只有填了 models / call_url 等规格信息才出现。测试造的 pending 样本没有这些字段，
+    // 于是整块不渲染、切片为空，旧断言 `facts.length > 0` 必然失败。
+    // 真正的意图是「正文里没有分类文字」，就按这个意思断言，不依赖某个块是否存在。
+    const facts = slice(bodyPending, 'class="tdd-facts', '接入信息')
+    check('正文事实区不含「分类」文字',
+      !facts.includes('分类'),
+      facts.length ? facts.slice(0, 160) : '(该样本无 spec 信息，.tdd-facts 未渲染)')
     // 默认分类（API 额度）也要有徽标：否则正文那条被移走后信息就消失了
     check('默认分类 token 也渲染徽标（「API 额度」）', headHtmlOf(pagePending).includes('API 额度'))
   }
@@ -1215,8 +1228,12 @@ async function main() {
     const firstCardId = (listPage.match(/href="\/tokens\/([^"]+?)\.html"/) || [])[1]
     check('列表首张卡片就是最新那条', !!firstCardId && firstCardId === newestId,
       `first=${firstCardId} newest=${newestId}`)
+    // 2026-11-04：列表主体（含 sort 默认值）已从 pages/tokens/index.vue 抽到
+    // TokenDealsBoard.vue，四个分类页共用。断言改指向实际承载它的文件 ——
+    // 否则重构本身会让这条「源码字面量」断言假红。
     check('页面源码里默认排序值为 latest',
-      readFileSync(join(ROOT, 'pages', 'tokens', 'index.vue'), 'utf8').includes("const sort = ref('latest')"))
+      readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealsBoard.vue'), 'utf8')
+        .includes("const sort = ref('latest')"))
   }
 
   // ═══ ⑨ 429 不得退化成 500（限流响应头含中文曾把 429 变成 500）═══

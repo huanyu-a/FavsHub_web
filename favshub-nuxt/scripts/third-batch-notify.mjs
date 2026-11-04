@@ -436,7 +436,11 @@ async function main() {
   console.log('\n▶ (f) 字段审阅：事件负载不含内部 / 身份字段')
   {
     const forbidden = ['user_id', 'deleted_by', 'verified_by', 'guest_fingerprint', 'submitter', 'username', 'nickname', 'reject_reason', 'ip', 'fingerprint']
-    const allowedDealKeys = ['id', 'provider', 'title', 'url', 'quota', 'call_url', 'models', 'region', 'quality', 'category', 'expires_at', 'rating', 'share_path']
+    // summary 是 2026-11-04 新增的**公开**字段（列表页/详情页都直接展示，
+    // 也用于搜索匹配），因此允许出现在事件快照里。
+    // 加字段时记得同步这里：本断言的作用就是逼着人显式确认「新字段能不能公开」，
+    // 不是拦住所有新增 —— 但漏加会让 CI 红。
+    const allowedDealKeys = ['id', 'provider', 'title', 'url', 'quota', 'call_url', 'models', 'region', 'quality', 'category', 'expires_at', 'rating', 'share_path', 'summary']
     let leaked = 0
     let unexpected = 0
     for (const ev of afterEvents) {
