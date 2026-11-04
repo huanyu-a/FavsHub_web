@@ -200,6 +200,18 @@ jobs:
         working-directory: favshub-nuxt
         run: node scripts/assertion-count.mjs --check
 
+      # 技能包真源在仓库顶层 `favshub-data-ops/`，而对用户分发的
+      # `public/skills/favshub-data-ops.json` 是**生成物且必须入库** ——
+      # Docker 构建上下文只有 `favshub-nuxt/`，容器内看不到顶层源目录，
+      # 所以清单只能在本地/CI 生成后随镜像分发。
+      #
+      # 两者之间没有任何自动同步：源改了却忘了重新生成，用户 AI 助手
+      # 自查更新时拿到的就是**过期文档**（它们完全依赖这份清单自我更新）。
+      # 这类漂移不会让任何测试变红，只能靠这一步拦。
+      - name: Check — 技能包分发清单与源文件一致
+        working-directory: favshub-nuxt
+        run: node scripts/build-skill-manifest.mjs --check
+
       # 注意：这里**不需要**再把 .output 拷成 `favshub/` 之类的中间目录。
       # 后面 `docker/build-push-action` 的 context 是整个 `favshub-nuxt`，
       # Dockerfile 内部会自己 `pnpm install` + `pnpm build`（多阶段构建）。

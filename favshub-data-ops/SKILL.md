@@ -1,6 +1,6 @@
 ---
 name: favshub-data-ops
-version: 1.11.0
+version: 1.12.0
 description: >
   通过 FavsHub 的 AI 数据接口读写站点数据 —— 书签、文件夹、提示词、标签、Token 白嫖通告、福利 Key。
   支持 REST（/api/ai/*）与 MCP（/api/mcp）两条通道，同一套 PAT 令牌鉴权。
@@ -155,18 +155,44 @@ POST   /api/ai/token-deal-edits/:id/review { action: 'approve'|'reject', reason?
 DELETE /api/ai/token-deal-edits/:id       # 撤回自己的待审建议（write）
 ```
 
-- 列表默认返回**公开可见**的已审核通告 + 自己发布的全部（含待审核，但不含已删除）
+- 列表默认返回**公开可见**（`state = 'published'`）的通告 + 自己发布的全部（含待审核，但不含已删除）
 - **已过期 / 判定失效 / 已删除的通告对 AI 接口不可见**：详情、投票、评测、建议、分享卡片一律 404，
   不要指望「先 GET 再改」能救回这类条目 —— 处置权在站点管理员的「已失效」面板
 - **`DELETE` 是软删除**：前台立即消失，投票 / 评测 / 修改建议全部保留，管理员可恢复；
   重复删除返回 404。物理清除只能由管理员在后台执行
-- 管理员发布直接上线（`approved`）；普通用户发布进入待审核（`pending`）
+- 管理员发布直接上线（`state = 'published'`）；普通用户发布进入待审核（`state = 'pending'`）
 - `region`: `cn` | `global`；`quality`: 上上品 | 上品 | 中品 | 下品 | 下下品；`source_tag`: `official` | `relay` | `community`
 - `category`: `token`（默认，API 额度）| `cloud`（免费云服务器 —— VPS / PaaS / Serverless 免费档）。
   **云服务器条目必须带 `category: 'cloud'`**，否则会被算进 API 额度里，读者按分类筛选时找不到它
 - **`PUT` 是部分更新**：只传要改的字段，未传字段保持原值 —— 改标题不必回填其余字段
 - 作者编辑已通过审核的通告会回到 `pending` 重新审核；管理员编辑保持原状态
 - `models` 若传入则**整体替换**（不是追加）
+
+#### 通告状态字段 `state`（2026-11-04 起）
+
+通告的对外可见性由 **`state`** 单列决定，取值七选一：
+
+| `state` | 中文 | 前端展示 | 含义 |
+|---|---|---|---|
+| `pending` | 待审核 | ✗ | 已提交，等站点审核 |
+| `verified` | 已审核 | ✗ | **审核已通过，但尚未发布** —— 只表示「内容可信」，不对外可见 |
+| `published` | 已发布 | **✓** | 唯一对外可见的档位 |
+| `offline` | 已下架 | ✗ | 主动下架，可再发布 |
+| `invalid` | 已失效 | ✗ | 过期或判定失效 |
+| `rejected` | 已驳回 | ✗ | 审核未通过 |
+| `deleted` | 已删除 | ✗ | 软删除，作者与管理员仍可读 |
+
+**只有 `published` 对外可见**，其余六档对匿名与搜索引擎一律 **404**（不是 403 —— 403 会泄露「该 id 存在」）。
+
+两条容易踩的坑：
+
+1. **别用 `status` 判断可见性。** 响应里 `status` 是**旧列**（双写备份），
+   它只有 `pending` / `approved` / `rejected` 三值，**粒度不够**：
+   `verified`（已审核未发布）与 `published`（已发布）的 `status` **都是 `approved`**，
+   按 `status` 判断会把「还没发布」的条目当成已公开。**一律以 `state` 为准。**
+2. **AI 令牌不能写 `state`**（`POST` / `PUT` 传了会被忽略）。状态流转只能在站点后台操作 ——
+   审核、发布、下架、置顶都是站长的动作。AI 侧只能创建（管理员 → `published`，普通用户 → `pending`）、
+   提交修改建议，以及下架/删除自己的条目。
 - **人工核验字段只读**：列表每条带 `verified_at`（站点最近一次确认「此刻仍可用」的时刻，`0`=从未核验）、
   `verify_age_days`（距今天数，`-1`=从未核验）、`verify_stale`（超过 30 天没核验）、`verify_note`（核验备注）。
   **AI 令牌不能写这些字段**（`POST`/`PUT` 传了也会被忽略），核验只能由站长在后台操作；
