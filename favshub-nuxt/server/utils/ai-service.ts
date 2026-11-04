@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { createError } from 'h3'
 import { normalizeUrl } from './bookmark-labels'
+import { redactKeyLike } from './key-redact'
 import { deleteKeyVotesForKeys } from './key-votes'
 import {
   validateDealPayload,
@@ -1319,8 +1320,14 @@ export function validateTokenKeyPayload(body: any): TokenKeyValidateResult {
     verdict,
     source_id: str(body?.source_id) || 'linux_sb',
     source_tid: sourceTid,
-    source_url: sourceUrl,
-    source_title: sourceTitle,
+    source_url: redactKeyLike(sourceUrl),
+    // source_title / source_url **就地清洗密钥形态串**（2026-11-05 新增）：
+    // 这两个字段是「原帖标题 / 原帖地址」，语义上绝不该含 key，但实测确实漏进来过
+    // （一把 51 字符明文 key 混在 source_title 里，随列表响应与页面 HTML 外流）。
+    // 选择**清洗而非拒收**：为了一个元数据字段的脏值而整条丢弃，会连带丢掉真实可用的 key。
+    // 注意 `base_url` 不能这样处理 —— 部分站点「URL 即 key」，base_url 合法含 key，
+    // 只能靠出口侧遮蔽（见 token-keys/index.get.ts 与 utils/key-redact.ts）。
+    source_title: redactKeyLike(sourceTitle),
     source_author: sourceAuthor,
     consecutive_failures: consecutiveFailuresRaw ?? 0,
     last_probe_at: lastProbeAt,
@@ -1481,7 +1488,15 @@ export function upsertTokenKey(db: DB, userId: number, body: any) {
     .get(rowId) as any
 
   return {
-    token_key: { ...row, models: parseDealModels(row?.models) },
+    // 出口侧同样遮蔽密钥形态串（与写入侧清洗构成纵深防御；base_url 也一并遮蔽）：
+    // 写入侧清洗只覆盖**本次**上报，存量的脏行仍要靠这里兜住。
+    token_key: {
+      ...row,
+      models: parseDealModels(row?.models),
+      base_url: redactKeyLike(row?.base_url),
+      source_title: redactKeyLike(row?.source_title),
+      source_url: redactKeyLike(row?.source_url),
+    },
     upserted,
     status: dealStatus,
     message: upserted === 'inserted'

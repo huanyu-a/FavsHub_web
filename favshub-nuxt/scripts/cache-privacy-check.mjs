@@ -98,6 +98,34 @@ try {
     } finally { db.close() }
   }
 
+  // 种一条「元数据里混进明文 key」的福利 Key 记录 —— 2026-11-05 线上实测的真实数据形态：
+  // source_title 里带一把完整明文 key、base_url 里带另一把。列表响应与 SSR HTML 都不得外流。
+  // ⚠️ 合成串必须**真的匹配** key-redact 的前缀规则（sk- / gsk_ / nvapi- …），
+  //    否则脱敏根本不触发、测的是「没命中」而不是「命中了且被脱敏」。
+  //    刻意不用 `{{...}}` 形式，避免被当成占位符替换掉。
+  const LEAK_TITLE = 'sk-PROBELEAK0123456789ghij'
+  const LEAK_BASE = 'nvapi-PROBELEAK9876543210zyxwvutsrq'
+  const REDACTED_TITLE = 'sk-PRO…ghij'
+  const REDACTED_BASE = 'nvapi-…tsrq'
+  const KEY_ID = 'key_cacheprivacy_0001'
+  {
+    const requireFromRoot = createRequire(join(ROOT, 'package.json'))
+    const Database = requireFromRoot('better-sqlite3')
+    const db = new Database(dbPath)
+    const now = Math.floor(Date.now() / 1000)
+    try {
+      db.prepare(`
+        INSERT INTO token_keys (id, key_masked, key_hash, key_plain, base_url, provider,
+          source_title, source_url, source, confidence, verdict, deal_status,
+          first_seen_at, post_time, created_at, updated_at)
+        VALUES (?, 'sk-AAA**********************bbbb', 'probehash',
+          'sk-PLAINPROBE0123456789wxyz',
+          ?, 'probe.example.com', ?, 'https://example.com/topic/1',
+          'post', 'high', 'valid', 'published', ?, '2026-11-05 10:00', ?, ?)
+      `).run(KEY_ID, LEAK_BASE, LEAK_TITLE, now, now, now)
+    } finally { db.close() }
+  }
+
   // ── 1. 同一张详情页的所有等价写法，缓存判定必须一致（都要 private）──
   const spellings = [
     ['规范形态', `/tokens/${DEAL_ID}.html`],
@@ -142,6 +170,40 @@ try {
   for (const p of ['/login', '/admin']) {
     const r = await get(p)
     check(`${p} 不得为 public`, !/public/i.test(r.cc), `cache-control="${r.cc}"`)
+  }
+
+  // ── 5. 密钥形态串不得经公开出口外流 ──
+  // 2026-11-05 线上实测发现：`source_title` 里混进过一把完整的 51 字符明文 key，
+  // 它随列表响应下发、并经 SSR 进入页面 HTML（页面里出现 2 处），
+  // 而同一条记录的 `key_masked` 是掩码形态 —— 即**绕过了「明文 key 不进列表响应」
+  // 这条设计控制**。旧实现只对 `base_url` 做了遮蔽，`source_title` / `source_url`
+  // 没有被覆盖（正则散在多个文件里，各自为政）。
+  console.log('\n▶ 密钥形态串脱敏（source_title / base_url 不得外流明文）')
+  {
+    const apiText = await (await fetch(`${BASE}/api/token-keys?limit=100`)).text()
+    const pageText = await (await fetch(`${BASE}/tokens/keys`)).text()
+
+    check('列表接口不含 source_title 里的明文 key', !apiText.includes(LEAK_TITLE),
+      '明文 key 出现在 /api/token-keys 响应里')
+    check('列表接口不含 base_url 里的明文 key', !apiText.includes(LEAK_BASE),
+      '明文 key 出现在 /api/token-keys 响应里')
+    check('页面 HTML 不含 source_title 里的明文 key', !pageText.includes(LEAK_TITLE),
+      '明文 key 出现在 /tokens/keys 的 SSR HTML 里')
+    check('页面 HTML 不含 base_url 里的明文 key', !pageText.includes(LEAK_BASE),
+      '明文 key 出现在 /tokens/keys 的 SSR HTML 里')
+
+    // ⚠️ 这四条是上面断言能成立的前提：**探针行确实被返回了**。
+    //    否则「响应里没有明文 key」可能只是因为这行压根没进列表 —— 假绿。
+    //    所以必须同时证明：探针行在场，且它的值是被**替换**成了掩码形态。
+    check('探针行确实出现在列表响应里（否则上一条是假绿）',
+      apiText.includes(KEY_ID) || apiText.includes('probe.example.com'),
+      '探针行未出现在 /api/token-keys 响应中，上面的「不含明文 key」不构成证据')
+    check('source_title 已被替换为掩码形态',
+      apiText.includes(REDACTED_TITLE),
+      `未找到掩码形态 ${REDACTED_TITLE}，脱敏可能没生效而只是行缺失`)
+    check('base_url 已被替换为掩码形态',
+      apiText.includes(REDACTED_BASE),
+      `未找到掩码形态 ${REDACTED_BASE}`)
   }
 } catch (err) {
   fails.push(`执行异常：${err.message}`)

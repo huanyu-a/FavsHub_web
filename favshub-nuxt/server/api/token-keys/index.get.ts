@@ -27,6 +27,7 @@
  */
 import { getRawDb } from '../../database'
 import { escapeLike } from '../../utils/token-deals'
+import { redactKeyLike } from '../../utils/key-redact'
 
 /** verdict 枚举白名单（9 值，与 crawler 侧 interfaces.VERDICTS / migrate.ts DDL 注释一致） */
 const VERDICTS = [
@@ -107,16 +108,20 @@ export default defineEventHandler((event) => {
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as any[]
 
-  // base_url 服务端统一遮蔽 key 形态片段（与前端 displayBaseUrl 同一正则规则）：
-  // 部分站点把 key 直接写进 API 地址（URL 即 key），若原样返回，完整 key 会经
-  // Nuxt payload（__NUXT_DATA__）进入页面源码。完整 URL 只经
-  // GET /api/token-keys/:id/copy 按需下发（该端点现随 key_plain 一并返回 base_url）。
-  const KEY_LIKE_RE = /\b[A-Za-z0-9_\-]*(?:sk-|gsk_|xai-|fw_|hf_|pplx-|nvapi-|csk-|r8_)[A-Za-z0-9_\-]{8,}/g
+  // 服务端统一遮蔽「密钥形态」片段 —— 覆盖 base_url / source_title / source_url 三个字段：
+  //   - base_url：部分站点把 key 直接写进 API 地址（URL 即 key）；
+  //   - source_title / source_url：原帖标题与地址里也可能夹带 key。
+  // 三者漏掉任何一个，完整 key 都会经**列表响应**与 Nuxt payload（__NUXT_DATA__）
+  // 进入页面源码，从而绕过「明文 key 不进列表/详情响应」这条设计控制。
+  // 2026-11-05 线上实测：`source_title` 里确实带出过一把 51 字符明文 key，
+  // 页面 HTML 里出现 2 处、API 响应 1 处 —— 旧实现只遮蔽了 base_url，故补全。
+  // 规则统一收敛在 utils/key-redact.ts（原先散在多个文件里，容易漂移）。
   const keys = rows.map((row) => ({
     ...row,
     models: parseModels(row.models),
-    base_url: String(row.base_url || '').replace(KEY_LIKE_RE, (m: string) =>
-      m.length <= 18 ? m : `${m.slice(0, 6)}…${m.slice(-4)}`),
+    base_url: redactKeyLike(row.base_url),
+    source_title: redactKeyLike(row.source_title),
+    source_url: redactKeyLike(row.source_url),
   }))
 
   // verdict_counts 恒为「已展示口径」全集（published、非 dead、guide 24h 内），
