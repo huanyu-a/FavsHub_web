@@ -4,7 +4,7 @@
       <div class="sidebar-shell">
         <div class="sidebar-top">
           <NuxtLink to="/" class="sidebar-brand-card" title="主页">
-            <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
+            <img src="/images/logo.svg" alt="FavsHub" class="sidebar-brand-logo">
             <div class="sidebar-brand-copy">
               <span class="sidebar-brand-title">FavsHub</span>
               <span class="sidebar-brand-subtitle">Workspace</span>

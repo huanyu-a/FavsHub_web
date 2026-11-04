@@ -4,7 +4,7 @@
       <div class="deal-page-header-inner">
         <div class="deal-page-header-left">
           <NuxtLink to="/" class="deal-page-logo" title="返回主页">
-            <img src="/images/logo.svg" alt="Logo" class="deal-page-logo-img">
+            <img src="/images/logo.svg" alt="FavsHub" class="deal-page-logo-img">
           </NuxtLink>
           <nav class="deal-breadcrumb">
             <NuxtLink to="/tokens" class="deal-crumb-link">Token 白嫖通告</NuxtLink>
@@ -197,6 +197,16 @@ const canonicalUrl = computed(() => {
   return `${siteBaseUrl}/tokens/${encodeURIComponent(dealId.value)}.html`
 })
 
+// 分享封面：/tokens 全段统一用 Token 主题封面（1200x630），覆盖 layouts/default.vue 的全站默认图
+const tokensOgImage = `${siteBaseUrl}/images/og-cover-tokens.png`
+// 图片 alt 必须描述这张图本身，不能沿用全站 siteTitle（那描述的是首页封面）
+const tokensOgImageAlt = computed(() => {
+  const deal = data.value?.deal
+  return deal
+    ? `${deal.title} — ${deal.provider} 免费额度通告：可用与失效一眼看清`
+    : 'Token 白嫖通告：哪家在发免费 Token、哪家已失效，一眼看清'
+})
+
 useHead({
   title: pageTitle,
   meta: [
@@ -205,9 +215,14 @@ useHead({
     { property: 'og:title', content: pageTitle },
     { property: 'og:description', content: computed(() => summarize(data.value?.deal)) },
     { property: 'og:url', content: canonicalUrl },
+    { property: 'og:image', content: tokensOgImage },
+    { property: 'og:image:secure_url', content: tokensOgImage },
+    { property: 'og:image:alt', content: tokensOgImageAlt },
     { name: 'twitter:card', content: 'summary' },
     { name: 'twitter:title', content: pageTitle },
     { name: 'twitter:description', content: computed(() => summarize(data.value?.deal)) },
+    { name: 'twitter:image', content: tokensOgImage },
+    { name: 'twitter:image:alt', content: tokensOgImageAlt },
   ],
   link: [{ rel: 'canonical', href: canonicalUrl }],
 })

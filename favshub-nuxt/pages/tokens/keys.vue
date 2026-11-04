@@ -4,7 +4,7 @@
       <div class="tokens-header-inner">
         <div class="tokens-header-left">
           <NuxtLink to="/" class="tokens-header-logo" title="返回主页">
-            <img src="/images/logo.svg" alt="Logo" class="tokens-header-logo-img">
+            <img src="/images/logo.svg" alt="FavsHub" class="tokens-header-logo-img">
           </NuxtLink>
           <h1 class="tokens-header-title"><i class="ri-key-2-line"></i> 福利 Key</h1>
         </div>
@@ -215,6 +215,10 @@ const keysBaseUrl = computed(() => `${_keysBase}/tokens/keys`)
 const keysTitle = '福利 Key — 免费 API Key 时效看板'
 const keysDesc = '来自第三方论坛公开帖的免费 API Key 时效看板：Key 一键复制（页面不直接显示明文）、原帖时间可溯、厂商与状态筛选、有效性探测实时更新，失效 Key 自动清理，回帖领取指引一页看全。'
 const keysKw = '免费API Key,福利Key,免费大模型API,API白嫖,Key复制,额度查询'
+// 分享封面：本页与 /tokens 同用 Token 主题封面（1200x630），覆盖 layouts/default.vue 的全站默认图
+const keysOgImage = `${_keysBase}/images/og-cover-tokens.png`
+// 图片 alt 必须描述这张图本身，不能沿用全站 siteTitle（那描述的是首页封面）
+const keysOgImageAlt = 'Token 白嫖通告 · 福利 Key：免费 API Key 时效看板，哪把还能用一眼看清'
 
 useHead({
   title: keysTitle,
@@ -227,9 +231,14 @@ useHead({
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: keysBaseUrl },
     { property: 'og:locale', content: 'zh_CN' },
+    { property: 'og:image', content: keysOgImage },
+    { property: 'og:image:secure_url', content: keysOgImage },
+    { property: 'og:image:alt', content: keysOgImageAlt },
     { name: 'twitter:card', content: 'summary' },
     { name: 'twitter:title', content: keysTitle },
     { name: 'twitter:description', content: keysDesc },
+    { name: 'twitter:image', content: keysOgImage },
+    { name: 'twitter:image:alt', content: keysOgImageAlt },
   ],
   link: [
     { rel: 'canonical', href: keysBaseUrl },

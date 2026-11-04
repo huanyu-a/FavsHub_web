@@ -5,7 +5,7 @@
       <div class="sidebar-shell">
         <div class="sidebar-top">
           <NuxtLink to="/" class="sidebar-brand-card" title="PromptPro">
-            <img src="/images/logo.svg" alt="Logo" class="sidebar-brand-logo">
+            <img src="/images/logo.svg" alt="FavsHub" class="sidebar-brand-logo">
             <div class="sidebar-brand-copy">
               <span class="sidebar-brand-title">PromptPro</span>
               <span class="sidebar-brand-subtitle">Prompt Manager</span>

@@ -4,7 +4,7 @@
       <div class="ppd-header-inner">
         <div class="ppd-header-left">
           <NuxtLink to="/" class="ppd-logo" title="返回主页">
-            <img src="/images/logo.svg" alt="Logo" class="ppd-logo-img">
+            <img src="/images/logo.svg" alt="FavsHub" class="ppd-logo-img">
           </NuxtLink>
           <nav class="ppd-breadcrumb">
             <NuxtLink to="/prompts" class="ppd-crumb-link">PromptPro 提示词库</NuxtLink>

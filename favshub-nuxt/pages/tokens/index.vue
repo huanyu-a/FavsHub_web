@@ -4,7 +4,7 @@
       <div class="tokens-header-inner">
         <div class="tokens-header-left">
           <NuxtLink to="/" class="tokens-header-logo" title="返回主页">
-            <img src="/images/logo.svg" alt="Logo" class="tokens-header-logo-img">
+            <img src="/images/logo.svg" alt="FavsHub" class="tokens-header-logo-img">
           </NuxtLink>
           <h1 class="tokens-header-title"><i class="ri-gift-2-line"></i> Token 白嫖通告</h1>
         </div>
@@ -205,6 +205,10 @@ const tokensBaseUrl = computed(() => `${_tokensBase}/tokens`)
 const tokensTitle = 'Token 白嫖通告 — 免费 AI 额度时效情报'
 const tokensDesc = '社区众包的免费 AI Token 额度通告板：实时投票标记可用与失效，五档品质分级、来源标签、一键导入书签库。'
 const tokensKw = '免费API,免费Token,AI额度白嫖,免费大模型,API中转,额度失效'
+// 分享封面：本页用自己的 Token 主题封面（1200x630），覆盖 layouts/default.vue 的全站默认图
+const tokensOgImage = `${_tokensBase}/images/og-cover-tokens.png`
+// 图片 alt 必须描述这张图本身，不能沿用全站 siteTitle（那描述的是首页封面）
+const tokensOgImageAlt = 'Token 白嫖通告：哪家在发免费 Token、哪家已失效，一眼看清'
 
 useHead({
   title: tokensTitle,
@@ -217,9 +221,14 @@ useHead({
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: tokensBaseUrl },
     { property: 'og:locale', content: 'zh_CN' },
+    { property: 'og:image', content: tokensOgImage },
+    { property: 'og:image:secure_url', content: tokensOgImage },
+    { property: 'og:image:alt', content: tokensOgImageAlt },
     { name: 'twitter:card', content: 'summary' },
     { name: 'twitter:title', content: tokensTitle },
     { name: 'twitter:description', content: tokensDesc },
+    { name: 'twitter:image', content: tokensOgImage },
+    { name: 'twitter:image:alt', content: tokensOgImageAlt },
   ],
   link: [
     { rel: 'canonical', href: tokensBaseUrl },
