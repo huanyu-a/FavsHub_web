@@ -85,6 +85,10 @@ const POST_BUILD = [
   // PATCH 白名单、退订、总闸门，以及两个限流键的 IPv6 /64 聚合（含反向对照）。
   // 独占端口 3270。
   { name: 'deal-subscriptions', script: 'deal-subscriptions.mjs' },
+  // SSR head 的注入契约：管理员 TDK 与用户可控的标题/摘要都进 head，
+  // 一处没转义就是存储型 XSS。判定器自带安全/危险样本自检（判定器写错会永远绿）。
+  // 独占端口 3272。
+  { name: 'head-injection', script: 'head-injection.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },

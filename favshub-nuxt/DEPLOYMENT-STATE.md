@@ -1,4 +1,4 @@
-**最后更新：2026-11-05（第 28 次修订：正式部署 1.0.93 —— 游客订阅的读写限流键也做 IPv6 /64 聚合，与创建端对齐；新增订阅生命周期套件（53 项），该链路此前零覆盖）**
+**最后更新：2026-11-05（第 29 次修订：正式部署 1.0.94 —— 新增 SSR head 注入契约套件（41 项）；本轮**未发现漏洞**，实测转义在全部落点都正确，套件作为回归护栏）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1797**（17 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **1838**（18 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -37,6 +37,7 @@
 | `1.0.91` | 修 `second-batch-e2e.mjs` **失败路径漏清临时库**（成功路径有清、异常路径没清 —— 残留的 4 个库全部对应失败的那几次跑）；查清 `admin/prompts/:id/versions` 与 `admin/prompts/history` 都不让管理员看他人版本历史（需产品决策，未改） |
 | `1.0.92` | **`GET /api/settings` 按值脱敏**（`scrubSecretValues`）：原先只有一张空的**名字**黑名单，等于不设防 —— 任何写进系统设置（`user_id=0`）的密钥形态值都会发给所有访客。**刻意不用名字模式匹配**：生产真实存在 `showPasswordsLink`（扩展 UI 开关），会被 `password` 模式误杀。新增 `public-secret-scan`（23 项）从整个公开面查泄露 |
 | `1.0.93` | 游客订阅 `[token].get/patch/delete` 的限流键改用 `rateKeyForIp`（IPv6 → /64），与 `index.post` 对齐 —— 此前用原始地址，同一个人在 /64 内换个地址即可重置 60 次/小时的配额。新增 `deal-subscriptions`（53 项）：该链路是**游客可写 + 发放能力令牌**，此前零行为覆盖 |
+| `1.0.94` | 新增 `head-injection`（41 项）：SSR head 注入契约。**本轮未发现漏洞** —— 实测管理员 TDK 与用户可控的通告标题/精选集名称在 `<title>` 与 meta 属性里都被正确转义；套件是回归护栏（转义由 unhead 这个依赖负责，升级可能改变行为） |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -129,6 +130,64 @@
 **产品是对的**：对拿 token 探测的人不透露「功能是否开放」，
 而且维持了本套件第 2 组那条更有价值的不变量 ——「不存在 / 过短 / 已退订」的 404 文案逐字节一致
 （否则就成了一个「这个 token 存在吗」的探测器）。已按真实行为改正断言，并把这个分工写进注释。
+
+### 🔍 查证（1.0.94，未发现漏洞）：SSR head 的注入面
+
+`<head>` 里混着两类**不受信字符串**，任一处漏转义就是存储型 XSS：
+
+| 来源 | 可控者 | 落点 |
+|---|---|---|
+| `siteTitle` / `siteDescription` / `siteKeywords` | 管理员（`system_config`） | `titleTemplate` + 一串 `meta[].content` |
+| 通告 `title` / `provider`、精选集 `name` / `meta_title` / `meta_description` | **普通用户**（建通告/建精选集） | 详情页 `<title>`、`og:title`、`description` |
+
+实测（临时库种入含 `" < > /` 的恶意载荷）**全部落点转义正确，0 处可破出**。
+所以这一轮**没有修复**，产出的是一个回归护栏套件。
+
+#### unhead 的转义是**按上下文分派**的（这是最值得记住的一点）
+
+    escapeHtml(str)        // & < > " ' / 全部转义 —— 用于 <title> 内文（RCDATA 上下文）
+    encodeAttribute(value) // **只转义 "**          —— 用于属性值
+
+属性那一侧只转义双引号，看着「不全」，实际是**充分且最小**的：
+按 HTML 规范，带引号的属性值里的 `<`、`>` 是惰性文本，分词器根本不会在那里起标签 ——
+所以我实测看到的 `content="prov&quot;><script>alert(1)</script> …"` 里那个裸 `<script>`
+**无害**。
+
+由此得到一条必须钉住的**潜伏前提**：`encodeAttribute` 只转义双引号，
+所以属性值**必须始终用双引号包裹**。一旦有人把值改成单引号或不加引号，这个转义就不够了。
+套件里有一条断言用分词器统计每个属性的引号风格来守它。
+
+#### 我在这一轮把判据写错了两次（都记下来）
+
+1. **第一版用 `html.includes('<script>alert(1)</script>')` 判「未转义」→ 3 个假阳性。**
+   「原始串是否出现」不是判据。正确判据是两条：元素文本上下文里不许有裸 `<`；
+   `content="…"` 的捕获必须**容纳整个载荷**（若引号没被转义，捕获会在那里被截断）。
+
+2. **改用正则数「真标签」→ 又把属性值里的 `<script>` 数成了标签。** 这正是第 1 条错因的翻版。
+   于是写了一个**遵守引号状态的极小分词器**，并加了一条决定性判据：
+   去掉真标签与 `<title>` 内文后剩下的文本里不许有载荷 —— 这一条能抓到注入的**裸 `<script>`**，
+   而标签白名单抓不到它（head 里本来就有合法的 `<script type="application/json">`）。
+
+3. 补「属性必须双引号」那条检查时，**我又用了正则**，于是 `content="width=device-width, initial-scale=1"`
+   里的 `initial-scale=1` 被误判成「无引号属性」。改回分词器后又发现 `<link crossorigin>`
+   是**布尔属性**（根本没有值），需要与「有值但无引号」区分开。
+
+#### 判定器自带牙齿
+
+写错的判定器会让所有断言永远绿。所以第 1 组先拿**已知安全**与**已知危险**的样本给判定器做自检
+（8 项）：危险样本必须被抓出并指出是哪个标签/属性，安全样本必须放行。判定器坏了，第 1 组立刻红。
+
+**端到端牙齿验证**：把构建产物里 unhead 的 `escapeHtml` 与 `encodeAttribute` 都改成恒等函数后 →
+
+    ✗ 通告详情页 meta[description] 的捕获容纳了整个载荷（引号已转义） — 捕获="prov"
+    ✗ 通告详情页 标签之外的文本里没有载荷残留 — 命中处="…})() alert(1) 的免费额度通告…"
+    → 28 通过 / 13 失败
+
+#### 另一个坑：空洞断言
+
+种入的值**必须真的到达 head**，否则「没有破出」是全绿但毫无意义的。实测 `/tokens` 列表页
+就是如此 —— 页面级 `useHead` 覆盖了 TDK，TDK 压根没进 head。所以每组都断言载荷确实到达，
+且全局要求到达落点数 ≥ 5。这条控制在实测中当场如实报了「断言会空洞」。
 
 ### 🔍 后台「提示词版本历史」的管理员可见性缺口（2026-11-05 查清，未改，需产品决策）
 
@@ -763,7 +822,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1797 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1838 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -776,6 +835,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `head-injection` | 41 | SSR head 注入契约：管理员 TDK 与用户可控标题/摘要进 head 的转义（含判定器自检 8 项） |
 | `deal-subscriptions` | 53 | 游客订阅生命周期：token 形态 / 404 文案一致性 / PATCH 白名单 / 退订 / 总闸门 / 限流 IPv6 按 /64 聚合 |
 | `public-secret-scan` | 23 | 公开面密钥泄露：明文只允许出现在 copy 端点；`/api/settings` 按值脱敏 + 不得误杀正常设置 |
 | `api-public-surface` | 261 | 全站 224 个端点的「未登录可达」白名单（26 个）+ 429/5xx/超时三类污染检查 |
@@ -786,7 +846,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1797** | |
+| **合计（断言）** | **1838** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——
