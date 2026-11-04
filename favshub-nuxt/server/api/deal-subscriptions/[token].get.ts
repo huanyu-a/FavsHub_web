@@ -3,11 +3,13 @@
  */
 import { getRawDb } from '../../database'
 import { checkRateLimit, getClientIP } from '../../utils/rate-limit'
-import { subscriptionView, resolveSubscription } from '../../utils/deal-subscriptions'
+import { rateKeyForIp, resolveSubscription, subscriptionView } from '../../utils/deal-subscriptions'
 
 export default defineEventHandler((event) => {
   // 60 次/小时：足够脚本自检，又挡住拿 token 当探针刷 404 的行为
-  checkRateLimit(`deal_sub_rw:${getClientIP(event)}`, 60, 60 * 60 * 1000)
+  // 限频键用**收敛后**的地址（IPv6 → /64），与 index.post 保持一致：
+  // 用原始地址的话，同一个人换一个 /64 内的地址就能重置 60 次/小时的配额。
+  checkRateLimit(`deal_sub_rw:${rateKeyForIp(getClientIP(event))}`, 60, 60 * 60 * 1000)
 
   const { token } = getRouterParams(event)
   const db = getRawDb()

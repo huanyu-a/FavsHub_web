@@ -1,4 +1,4 @@
-**最后更新：2026-11-05（第 27 次修订：正式部署 1.0.92 —— `GET /api/settings` 改为**按值**脱敏，修掉「往系统设置写密钥即公开泄露」；新增公开面密钥泄露扫描套件（23 项））**
+**最后更新：2026-11-05（第 28 次修订：正式部署 1.0.93 —— 游客订阅的读写限流键也做 IPv6 /64 聚合，与创建端对齐；新增订阅生命周期套件（53 项），该链路此前零覆盖）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1744**（16 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **1797**（17 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -36,6 +36,7 @@
 | `1.0.90` | **全站 API 公开面契约**（261 项）：224 个端点全部以未登录身份打一遍，2xx 的必须恰好是 26 个逐个读过源码的白名单项；另查 429/5xx/超时三类会污染结论的情形。顺带查证 `GET /api/settings` 的 `SENSITIVE_KEYS` 为空数组（潜伏项，生产无暴露，见下节） |
 | `1.0.91` | 修 `second-batch-e2e.mjs` **失败路径漏清临时库**（成功路径有清、异常路径没清 —— 残留的 4 个库全部对应失败的那几次跑）；查清 `admin/prompts/:id/versions` 与 `admin/prompts/history` 都不让管理员看他人版本历史（需产品决策，未改） |
 | `1.0.92` | **`GET /api/settings` 按值脱敏**（`scrubSecretValues`）：原先只有一张空的**名字**黑名单，等于不设防 —— 任何写进系统设置（`user_id=0`）的密钥形态值都会发给所有访客。**刻意不用名字模式匹配**：生产真实存在 `showPasswordsLink`（扩展 UI 开关），会被 `password` 模式误杀。新增 `public-secret-scan`（23 项）从整个公开面查泄露 |
+| `1.0.93` | 游客订阅 `[token].get/patch/delete` 的限流键改用 `rateKeyForIp`（IPv6 → /64），与 `index.post` 对齐 —— 此前用原始地址，同一个人在 /64 内换个地址即可重置 60 次/小时的配额。新增 `deal-subscriptions`（53 项）：该链路是**游客可写 + 发放能力令牌**，此前零行为覆盖 |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -101,6 +102,33 @@
 
 > 教训：我最初把这个发现的原因说成「它是唯一不自清的套件」——**理由是错的**（它成功时会清）。
 > 是看了残留文件的时间戳才发现真正原因是异常路径。**只看到「文件存在」就下结论，不算证据。**
+
+### ✅ 已修（1.0.93）：游客订阅的读写限流键没做 IPv6 /64 聚合
+
+`index.post` 一开始就用 `rateKeyForIp(ip)` 把 IPv6 收敛到 /64，注释也写明理由：
+「否则换一个地址就能重置配额」。但 `[token].get/patch/delete` 三个端点用的是
+**原始地址**（`getClientIP(event)`）—— 同一个 /64 内换地址就能重置 60 次/小时的配额。
+
+影响有限（那个限流是防「拿 token 当探针刷 404」，而 token 是 256 bit 随机、本来就暴力不出来），
+但它与同模块自己的注释自相矛盾，且方向是**更松**。改成与 `index.post` 一致。
+
+**这一处最容易搞反方向**：把 IPv6 收敛到 /64 是**收紧**（同一个 /64 的人共享配额），
+所以必须同时验证「不同的 /64 拿到独立配额」—— 否则「共享」也可能只是因为限流本来就是全局的，
+那样断言就毫无意义。套件里这两条正反断言都在（30 + 30 + 第 61 次 → 429；换 /64 → 404）。
+
+**牙齿验证**：把三处退回 `getClientIP(event)` 后 →
+
+    ✗ 同 /64 第 61 次 → 429（累计配额共享，换地址不能重置） — status=404
+    → 52 通过 / 1 失败
+
+### 📋 同区段另一次「我的断言错了，产品是对的」
+
+写总闸门断言时我原以为「闸门关闭时 4 个端点都该回『订阅功能未开放』」。
+实测：只有 `POST` 回那句；3 个 token 端点仍回统一的「订阅不存在或已退订」。
+
+**产品是对的**：对拿 token 探测的人不透露「功能是否开放」，
+而且维持了本套件第 2 组那条更有价值的不变量 ——「不存在 / 过短 / 已退订」的 404 文案逐字节一致
+（否则就成了一个「这个 token 存在吗」的探测器）。已按真实行为改正断言，并把这个分工写进注释。
 
 ### 🔍 后台「提示词版本历史」的管理员可见性缺口（2026-11-05 查清，未改，需产品决策）
 
@@ -735,7 +763,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1744 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1797 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -748,6 +776,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `deal-subscriptions` | 53 | 游客订阅生命周期：token 形态 / 404 文案一致性 / PATCH 白名单 / 退订 / 总闸门 / 限流 IPv6 按 /64 聚合 |
 | `public-secret-scan` | 23 | 公开面密钥泄露：明文只允许出现在 copy 端点；`/api/settings` 按值脱敏 + 不得误杀正常设置 |
 | `api-public-surface` | 261 | 全站 224 个端点的「未登录可达」白名单（26 个）+ 429/5xx/超时三类污染检查 |
 | `admin-auth-guard` | 221 | 管理后台 79 个端点：未登录全拒 / IDOR / 提权 / 普通用户白名单（8 个）+ 不含他人数据 |
@@ -757,7 +786,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1744** | |
+| **合计（断言）** | **1797** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

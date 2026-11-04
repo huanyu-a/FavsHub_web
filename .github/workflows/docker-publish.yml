@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1744。
+      # CI 断言总计 1797。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -216,6 +216,13 @@ jobs:
       - name: Test — 公开面密钥泄露扫描（明文出口契约，23 项）
         working-directory: favshub-nuxt
         run: node scripts/public-secret-scan.mjs
+
+      # 游客订阅生命周期。这条链路**不需要账号**就发放能力令牌（sub_token），此前零覆盖。
+      # 重点钉住：404 文案在「不存在/过短/已退订」之间必须逐字节一致（否则成了 token 存在性探针），
+      # 以及两个限流键都要把 IPv6 收敛到 /64（否则同一个人换地址就能重置配额）。
+      - name: Test — 游客订阅生命周期（能力令牌/限流 /64 聚合，53 项）
+        working-directory: favshub-nuxt
+        run: node scripts/deal-subscriptions.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：

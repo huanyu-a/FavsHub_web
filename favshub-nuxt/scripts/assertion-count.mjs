@@ -81,6 +81,10 @@ const POST_BUILD = [
   // 顺带钉住 /api/settings 的按值脱敏，并防止脱敏误杀 showPasswordsLink 这类正常设置。
   // 独占端口 3269。
   { name: 'public-secret-scan', script: 'public-secret-scan.mjs' },
+  // 游客订阅的生命周期契约（游客可写 + 能力令牌的面）：token 形态、404 文案一致性、
+  // PATCH 白名单、退订、总闸门，以及两个限流键的 IPv6 /64 聚合（含反向对照）。
+  // 独占端口 3270。
+  { name: 'deal-subscriptions', script: 'deal-subscriptions.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },
