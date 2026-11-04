@@ -154,7 +154,7 @@ jobs:
       # 断言计数（2026-10-31 实测）：
       #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
       # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 1239。
+      # CI 断言总计 1364。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -188,6 +188,16 @@ jobs:
       - name: Test — 福利 Key 复制端点可见性（明文出口契约，24 项）
         working-directory: favshub-nuxt
         run: node scripts/key-copy-visibility.mjs
+
+      # 管理后台 API 的鉴权面。`server/middleware/admin-guard.ts` 文件头自己写着
+      # 「仅拦截 /admin 页面请求（排除 /api/ 和静态资源）」—— 那 79 个 /api/admin
+      # 端点没有任何统一入口把关，全靠每个文件自己调鉴权，而它们是权限最高、
+      # 也最危险的一批（删用户、改通告状态、清空提示词、重建精选集）。
+      # 本步骤从**文件系统枚举**端点（代码增删自动跟上），逐个以未登录身份打一遍，
+      # 再单独测越权（IDOR）与提权，并核对库里确实没变。
+      - name: Test — 管理后台 API 鉴权面（未登录/越权/提权，125 项）
+        working-directory: favshub-nuxt
+        run: node scripts/admin-auth-guard.mjs
 
       # 这个套件此前**一直不在 CI 里**（147 项断言），是这轮逐个跑 scripts/ 下
       # 34 个脚本时发现的缺口。它的覆盖面与已有几个并不重叠，尤其：

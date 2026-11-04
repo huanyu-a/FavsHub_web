@@ -216,8 +216,16 @@ console.log(`node ${process.version}`)
     `实测 ${oldWay.elapsed}ms 就结束了（配置 2000ms）——那样这条对照用例本身失效`)
 
   const newWay = await runWith(pinnedRequestHard, 6000)
+  // 判据是 `err === 'timeout'`：靶标每秒吐字节，而空闲超时同为 2000ms —— 但只要还有字节
+  // 到达就永不触发（这正是上面那条对照用例要证明的），所以这里的 'timeout' 只可能来自
+  // **硬定时器**。它已经排除了「因无关原因立即失败」的假阳性。
+  //
+  // 上界为什么是 5000 而不是 3500：硬限是 2000ms，但 `req.destroy()` 之后错误事件的到达
+  // 还受响应流影响 —— 实测 40 次里有 2 次落在 3.6s 左右（err 依然是 'timeout'，即修复本身
+  // 生效），于是**旧上界 3500 会造成约 5% 的假红**。上界只需证明「远早于 6000ms 预算就被掐断」，
+  // 对齐预算才有意义，写一个机器速度相关的魔数只会让门禁随机变红。
   check('修法：硬定时器让慢速响应在配置时限内被掐断',
-    newWay.err !== '__still_running__' && newWay.elapsed < 3500,
+    newWay.err === 'timeout' && newWay.elapsed < 5000,
     `实测 ${newWay.elapsed}ms err=${newWay.err}`)
 
   srv.closeAllConnections?.()

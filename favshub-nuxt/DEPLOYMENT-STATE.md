@@ -1,10 +1,4 @@
-# 部署状态与注意事项
-
-> **读者：执行部署的人 / AI 助手。**
-> 本文件记录**当前生产环境的状态**与易踩的坑。日常部署步骤见 `README.md`；
-> 含密码的本机步骤见 `DEPLOY.md`（gitignore，不入库）。
-
-**最后更新：2026-11-05（第 22 次修订：正式部署 1.0.87 —— 1.0.85 `INVALID_REASONS` 单一真源 + 「用了没导入」静态检查、1.0.86 密钥脱敏前缀补齐 `AIza`/`ghp_`、1.0.87 福利 Key 复制端点可见性套件）**
+**最后更新：2026-11-05（第 23 次修订：正式部署 1.0.88 —— 新增管理后台 API 鉴权面套件（125 项），并修掉「门禁容忍套件失败」与「ssrf-pin-check 约 5% 假红」两个门禁自身缺陷）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
 
@@ -16,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
 | **CI run** | `41901638803`，`success` |
 | **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **1239**（13 个套件）· `ts:check` 954 个具名导入 |
+| **断言总数** | **1364**（14 个套件）· `ts:check` 954 个具名导入 |
 | **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
 | **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
 | **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
@@ -37,6 +31,7 @@
 | `1.0.85` | `INVALID_REASONS` 收敛为单一真源；**并补上「用了但没导入」的静态检查** —— 本项目的 `ts:check` 与 `build` **都不查**服务端未定义标识符 |
 | `1.0.86` | **密钥脱敏前缀补齐**：读侧比写侧闸门少 `AIza`(Google)/`ghp_`(GitHub)，即「闸门认得、脱敏不认」→ 明文下发；三份实现收敛为 `utils/key-redact.ts` |
 | `1.0.87` | **福利 Key 复制端点可见性套件**：该端点全站唯一下发明文密钥却零覆盖；新套件 24 项，并修「404 文案不一致导致存在性泄露」与一段不可达的 24h 死代码 |
+| `1.0.88` | **管理后台 API 鉴权面套件**（125 项）：`admin-guard` 中间件只管页面，79 个 `/api/admin` 端点各自为政；本套件从文件系统枚举端点逐个打，覆盖未登录/越权(IDOR)/提权，并核对库里确实没变。同时修门禁两个自身缺陷（见下节） |
 
 ### 1.0.76 → 1.0.79 这一串改了什么
 
@@ -46,6 +41,42 @@
 | `1.0.77` | 新增**状态机专项套件** `state-machine.mjs`（107 项，独占端口 3266），并修它抓出的 3 处遗漏（后台统计卡片读旧键名恒为 0、`counts` 初始化缺新档位、stats 接口算了新值却没下发） |
 | `1.0.78` | 修**两个线上级 bug**（见下节） |
 | `1.0.79` | 技能包同步 `state` 模型；CI 新增技能清单漂移检查 |
+
+### 🐞 1.0.88 修的两个「门禁自身」缺陷（比被测代码的 bug 更值得记）
+
+**① 门禁容忍套件失败 —— 而「门禁 exit 0」是全项目唯一的绿灯信号**
+
+`assertion-count.mjs` 记录了每个套件的 `exit code`，会打印 `⚠ exit N`，但**从不影响退出码**：
+末尾只有 `return checkDocs(total)`（校验文档数字）和 ABI 不匹配才 `process.exit(1)`。
+也就是说某个套件挂了，门禁照样绿 —— 唯一症状是「总数少了几项」，然后文档校验失败，
+报出来的还是「文档数字不符」而不是「某某套件挂了」。**误导方向恰好相反。**
+
+已修：任何套件 `exit !== 0` 或断言数无法解析，门禁即 `exit 1`，并打印该套件的
+`✗` 行与失败明细（各套件明细格式不统一，按「✗ 行 → 缩进的 `- 原因` → 末尾非空行」三级取）。
+**牙齿验过**：注入一条干净失败 → `✗ 1 个套件未通过：── private-ip-check（exit 1，只解析到 102 项）──`
+＋ 该失败原文，退出码 1。
+
+**② `ssrf-pin-check` 约 5% 假红（此前被我误判为「一次性网络抖动」）**
+
+它有一条基于时限的断言：`elapsed < 3500`（硬定时器配 2000ms）。实测**复现 2/40**：
+
+```
+✗ 修法：硬定时器让慢速响应在配置时限内被掐断  实测 3615ms err=timeout
+✗ 修法：硬定时器让慢速响应在配置时限内被掐断  实测 3665ms err=timeout
+```
+
+注意 `err=timeout` —— **硬定时器确实生效了（修复本身是好的）**，只是 `req.destroy()` 之后
+错误事件的到达还受响应流影响，实测会落到 3.6s 左右，超过那个 3500 的魔数上界。
+
+改判据为 `newWay.err === 'timeout' && newWay.elapsed < 5000`：
+`err === 'timeout'` 才是真正的不变量（靶标每秒吐字节，空闲超时同为 2000ms 却永不触发，
+所以这个 'timeout' 只可能来自硬定时器），上界对齐 6000ms 竞速预算才有意义。
+**修复后连跑 60 次 0 异常**（修复前 2/40）；**且牙齿仍在** —— 抽掉硬定时器即
+`实测 6002ms err=__still_running__` 报红。
+
+> 教训：**门禁自身的缺陷比被测代码的 bug 更隐蔽** —— 前者会让人以为「绿灯 = 没问题」。
+> 一条机器速度相关的魔数上界，代价是 5% 的随机红；而一个不设防的退出码，代价是
+> 真的失败被当成通过。
 
 ### 🔒 客户端真实 IP 的可信链：两条**不能碰坏**的部署事实（2026-11-05 查证）
 
@@ -576,7 +607,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
 `third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine`，共 **1239 项断言**），另加 `ts:check`
+`third-batch-server` / `state-machine`，共 **1364 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -589,13 +620,14 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
 | `key-copy-visibility` | 24 | 明文出口契约：拒绝分支 404 文案一致 / 不入缓存 / 列表遮蔽 vs copy 完整 |
+| `admin-auth-guard` | 125 | 管理后台 79 个端点：未登录全拒 / IDOR / 提权，且核对库里没变 |
 | `second-batch-e2e` | 165 | 含 URL 协议白名单回归 15 项 |
 | `third-batch-detail` | 252 | |
 | `third-batch-notify` | 161 | |
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| **合计（断言）** | **1239** | |
+| **合计（断言）** | **1364** | |
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

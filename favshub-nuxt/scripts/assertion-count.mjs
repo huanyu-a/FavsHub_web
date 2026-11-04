@@ -69,6 +69,10 @@ const POST_BUILD = [
   // 「福利 Key」复制端点的可见性契约（2026-11-05）：全站唯一下发明文密钥的接口，
   // 此前零覆盖。独占端口 3257。
   { name: 'key-copy-visibility', script: 'key-copy-visibility.mjs' },
+  // 管理后台 API 的鉴权面：admin-guard 中间件只管页面，79 个 /api/admin 端点
+  // 各自为政 —— 漏一个就是未鉴权的管理员操作（删用户/清提示词/改通告）。
+  // 独占端口 3258。
+  { name: 'admin-auth-guard', script: 'admin-auth-guard.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
   // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
   { name: 'state-machine', script: 'state-machine.mjs' },
@@ -252,6 +256,9 @@ async function main() {
 
   const rows = []
   let total = 0
+  // 失败套件：**必须**让门禁失败。此前只打印「⚠ exit N」就继续往下走，等于把套件失败
+  // 当成了通过 —— 而「门禁 exit 0」是本项目唯一的绿灯信号。
+  const failedSuites = []
 
   console.log('\n── build 前（自包含）──────────────────────')
   const preNode = pickNodeForPre()
@@ -266,6 +273,7 @@ async function main() {
     const { code, out } = await runSuite(s)
     const n = parsePass(out)
     rows.push({ ...s, n, code })
+    if (code !== 0 || n === null) failedSuites.push({ name: s.name, code, n, out })
     if (n === null) console.log(`  ? ${s.name} — 无法解析（exit ${code}）`)
     else { total += n; console.log(`  ${String(n).padStart(4)} ${s.name}${code ? `  ⚠ exit ${code}` : ''}`) }
   }
@@ -276,6 +284,7 @@ async function main() {
       const { code, out } = await runSuite(s)
       const n = parsePass(out)
       rows.push({ ...s, n, code })
+      if (code !== 0 || n === null) failedSuites.push({ name: s.name, code, n, out })
       if (n === null) console.log(`  ? ${s.name} — 无法解析（exit ${code}）：${out.trim().split('\n').slice(-2).join(' ').slice(0, 100)}`)
       else { total += n; console.log(`  ${String(n).padStart(4)} ${s.name}${code ? `  ⚠ exit ${code}` : ''}`) }
     }
@@ -286,6 +295,23 @@ async function main() {
   console.log(`\n${'─'.repeat(44)}`)
   console.log(`  断言总计：${total}`)
   console.log(`  （ts:check 的具名导入数不计入）`)
+
+  // 套件失败时把它的 ✗ 行打出来 —— 否则「少了一项」这种症状要靠猜才能定位。
+  if (failedSuites.length) {
+    console.error(`\n✗ ${failedSuites.length} 个套件未通过：`)
+    for (const f of failedSuites) {
+      console.error(`\n  ── ${f.name}（exit ${f.code}${f.n === null ? '，断言数无法解析' : `，只解析到 ${f.n} 项`}）──`)
+      // 各套件的失败明细打印格式不统一（有的是「✗」，有的是缩进后的「- 原因」），
+      // 所以按优先级凑：✗ 行 → 「- 」明细行 → 末尾非空行。
+      const outLines = String(f.out || '').split('\n')
+      const marks = outLines.filter((l) => /✗/.test(l))
+      const dashes = outLines.filter((l) => /^\s{2,}[-·]\s+\S/.test(l))
+      const tailLines = outLines.filter((l) => l.trim()).slice(-2)
+      const picked = [...new Set([...marks, ...dashes, ...tailLines])].slice(0, 12)
+      if (picked.length) for (const l of picked) console.error('     ' + l.trim().slice(0, 220))
+      else console.error('     （输出里没有可识别的失败行，可能是启动失败/超时）')
+    }
+  }
 
   // 把结果落盘，供 `--check-only`（以及 CI 的后续步骤）复用，避免重复跑套件。
   const outFile = process.env.ASSERTION_COUNT_FILE || join(ROOT, 'assertion-count.json')
@@ -303,9 +329,11 @@ async function main() {
 
   if (!CHECK) {
     console.log('\n提示：加 --check 可校验文档里写的数字是否与本次实测一致。')
-    return
+    if (failedSuites.length) process.exit(1)
   }
-  return checkDocs(total)
+  const docsOk = checkDocs(total)
+  if (failedSuites.length) process.exit(1)
+  return docsOk
 }
 
 function checkDocs(total) {
