@@ -545,10 +545,12 @@
                 <li v-for="r in reviews" :key="r.id" class="review-item">
                   <div class="review-head">
                     <span class="review-avatar" :class="{ 'has-img': r.avatar }">
+                      <!-- alt="" 而非作者名：紧邻的 `.review-author` 已经把名字念出来了，
+                           重复播报等于读两遍。装饰性头像就该空 alt（与卡片 favicon 同口径）。 -->
                       <img
                         v-if="r.avatar && !brokenAvatars.has(String(r.id))"
                         :src="r.avatar"
-                        :alt="r.author"
+                        alt=""
                         loading="lazy"
                         @error="markAvatarBroken(r.id)"
                       >
