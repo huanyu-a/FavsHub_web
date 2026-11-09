@@ -1145,7 +1145,13 @@ alpine（musl x86_64）。把本机的原生模块带进去会报 `Error loading
 # 1) 健康检查（期望 200）
 curl -s -o /dev/null -w "%{http_code}\n" https://hao.bx9y.com.cn/api/health
 
-# 2) 公开出口 × 内部字段 全矩阵探针（期望 17 通过 / 0 失败）
+# 2) 公开出口 × 内部字段 全矩阵探针（**判据是 0 失败**；通过数随数据浮动）
+#    2026-11-09 实测 18 通过 / 0 失败。别把 18 当固定期望：
+#      · `token_keys` 空表时该档记「跳过」（skipped 不计入通过，也不冒充验过）；
+#      · 「详情页 SSR」档按库里通告条数抽 3 条，条数少时档数就少。
+#    改前的 2 项失败（`token-keys` 与 `Key 页`）是**同名字段假阳性**，本轮查清并修掉：
+#    `token_deals.source_url` 是内部留痕（永不下发），`token_keys.source_url` 是原帖地址
+#    （对外契约 18 字段之一）。豁免改为**按端点**生效，不再按字段名全局生效。
 cd favshub-nuxt && node scripts/public-field-matrix.mjs
 
 # 3) 全量通告「两行可见性」审计（期望 两行都无:0 / 错误:0）
