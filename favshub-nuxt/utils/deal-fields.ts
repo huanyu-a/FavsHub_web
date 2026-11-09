@@ -93,3 +93,34 @@ export const SOURCE_OPTIONS: readonly { value: SourceTag, label: string }[]
 export function sourceLabel(value: unknown): string {
   return SOURCE_LABELS[String(value ?? '')] || SOURCE_LABELS.official!
 }
+
+// ── 发布者类型（筛选栏的 origin 维度）────────────────────────────────
+
+/**
+ * 后台筛选栏「发布者类型」这一维的取值 —— **与服务端同一个真源**。
+ *
+ * ## 为什么搬到这里（2026-11-09）
+ *
+ * 原先这个白名单是写在路由文件里的一个局部常量
+ * （`server/api/admin/token-deals/index.get.ts` 的 `const ORIGIN_FILTERS`），
+ * 而后台筛选栏的**两处**（队列侧与已失效侧）把 `guest` / `user` **手抄**在模板里。
+ * 于是有一条不会报错、只会静默失效的路径：
+ *
+ *   · 服务端将来多一个档位（例如管理员代发的 `system`）→ 下拉里根本没有这一项，
+ *     **筛不出来**，而没有任何测试或报错会提示；
+ *   · 或者模板被改成 `visitor`、服务端仍认 `guest` → `pickEnum` 认不出 →
+ *     **降级成「不筛」**，界面上表现为「选了但列表没变」，与「后端没实现」无法区分。
+ *
+ * 现在两处都 `v-for` 这张表，且服务端也从这里 import —— 单点改动，两侧自动跟上。
+ * `scripts/admin-filter-wiring.mjs` 会守住这件事（含「筛选栏里不许再出现手写的
+ * 非空 option」这条）。
+ */
+export const ORIGIN_FILTERS = ['guest', 'user'] as const
+
+export type OriginFilter = (typeof ORIGIN_FILTERS)[number]
+
+/** 发布者类型下拉选项（后台筛选栏两处共用） */
+export const ORIGIN_OPTIONS: readonly { value: OriginFilter, label: string }[] = [
+  { value: 'guest', label: '游客' },
+  { value: 'user', label: '注册用户' },
+]

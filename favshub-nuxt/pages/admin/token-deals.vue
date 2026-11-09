@@ -191,8 +191,9 @@
         </select>
         <select v-model="invalidOrigin" title="按发布者类型筛选" @change="applyInvalidFilters">
           <option value="">发布者：全部</option>
-          <option value="guest">游客</option>
-          <option value="user">注册用户</option>
+          <!-- 选项来自共享真源 utils/deal-fields.ts 的 ORIGIN_OPTIONS，与服务端白名单同一个表。
+               原先这里手抄 guest/user，而服务端的白名单又是另一份 —— 三份副本必然漂移。 -->
+          <option v-for="o in ORIGIN_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
         <button
           class="btn btn-ghost btn-sm"
@@ -337,8 +338,9 @@
         </select>
         <select v-model="dealsOrigin" title="按发布者类型筛选" @change="applyDealFilters">
           <option value="">发布者：全部</option>
-          <option value="guest">游客</option>
-          <option value="user">注册用户</option>
+          <!-- 选项来自共享真源 utils/deal-fields.ts 的 ORIGIN_OPTIONS，与服务端白名单同一个表。
+               原先这里手抄 guest/user，而服务端的白名单又是另一份 —— 三份副本必然漂移。 -->
+          <option v-for="o in ORIGIN_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
         <button
           class="btn btn-ghost btn-sm"

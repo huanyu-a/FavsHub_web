@@ -16,10 +16,10 @@ import { notifyTokenDealApproved, notifyTokenDealRejected } from './qq-notify'
 // 而同文件下方还要用到它们（上轮 `DEAL_CATEGORIES` 就是这么炸的）。
 // 保留本模块的导出面，是为了不动既有引用方（sitemap / deal-events / 各页面）。
 import {
-  QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS,
+  ORIGIN_FILTERS, QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS,
 } from '../../utils/deal-fields'
-export type { QualityLevel } from '../../utils/deal-fields'
-export { QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS }
+export type { QualityLevel, OriginFilter } from '../../utils/deal-fields'
+export { ORIGIN_FILTERS, QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS }
 
 /**
  * 通告分类 — API 额度（默认）/ 免费云服务器 / 免费域名 / 客户端额度。

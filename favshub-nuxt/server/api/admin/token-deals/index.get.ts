@@ -29,11 +29,13 @@ import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import {
   archiveExpiredDeals, DEAL_CATEGORIES, escapeLike, INVALID_REASON_LABELS, isVerifyStale,
-  QUALITY_LEVELS, REGIONS, SOURCE_TAGS, verifyAgeDays, verifyStaleDays,
+  ORIGIN_FILTERS, QUALITY_LEVELS, REGIONS, SOURCE_TAGS, verifyAgeDays, verifyStaleDays,
 } from '../../../utils/token-deals'
 
-/** 发布者类型白名单：游客通告落库 `user_id = 0`（见 CLAUDE.md「Token 白嫖通告」） */
-const ORIGIN_FILTERS = ['guest', 'user'] as const
+// 发布者类型白名单（`origin=guest|user`）原先在这里写成本地常量，2026-11-09 提到
+// `utils/deal-fields.ts` —— 因为后台筛选栏的两处下拉把这个值手抄在模板里，
+// 三份副本必然漂移（服务端加一档，界面就少一档；界面改个词，服务端就静默不筛）。
+// 游客通告落库 `user_id = 0`（见 CLAUDE.md「Token 白嫖通告」）。
 
 /**
  * 取白名单内的枚举值，白名单外一律返回空串（= 不加这个条件）。
