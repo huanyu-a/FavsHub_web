@@ -1,19 +1,54 @@
-**最后更新：2026-11-05（第 30 次修订：正式部署 1.0.95 —— 把两个「孤儿」AI 套件接进门禁与 CI，激活 253 项此前从未执行过的断言；新增编排器 `ai-api-gate`）**
+**最后更新：2026-11-09（第 31 次修订：正式部署 1.0.97 —— 后台「已失效」面板新增筛选条；CI 在这轮抓到一处夹具漏白名单，1.0.96 因此没出镜像）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.87（2026-11-05）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.97（2026-11-09）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.87` |
-| **来源提交** | `7c92c4967bdaf3dc23dbe3c6edd04f0d7fe40667` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.87`、`revision=7c92c496…` —— 部署前拿它当**闸门**：不符就不重建容器 |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:bbb55a0ec82115a3d98609320b452bc2c2b47396d0aa4aee2db4b197c0fa6255` |
-| **CI run** | `41901638803`，`success` |
-| **健康检查** | `docker ps` → `Up (healthy)`；`FailingStreak=0`（HEALTHCHECK 自 1.0.70 起已定义，见下方更正） |
-| **断言总数** | **2108**（19 个套件）· `ts:check` 954 个具名导入 |
-| **线上数据分布** | `published 72 / pending 30 / rejected 11 / invalid 10 / deleted 5`（合计 128） |
-| **技能包版本** | `1.12.0`（`site_version=1.0.87`）—— 线上 `/skills/favshub-data-ops.json` 实测同步 |
-| **回滚锚点** | 镜像 tag `rollback-1.0.86-20261105040045`、`rollback-1.0.85-20261105034229` |
+| **版本** | `1.0.97` |
+| **来源提交** | `14e1ff46d660c0b3d00b36e90454dc1972358df4` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.97`、`revision=14e1ff46…` —— 部署前拿它当**闸门**：不符就不重建容器（本次闸门实测通过后才 `up -d`） |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:e3104899678c5d2a32e95b32d56827b82c8db5c120f9daea6dd2a9980ce31848` |
+| **CI run** | `42567342652`，`success`；上游 `42566989864`（1.0.96）在「第三批服务端」步骤 `exit 1`，**推送步骤在该步之后，故 1.0.96 没有镜像** |
+| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}` |
+| **断言总数** | **2108**（19 个套件）· `ts:check` 963 个具名导入 |
+| **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 与部署前相比的变化来自**并发的人工审核**，不是本次部署（见下节） |
+| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.97`、`generated_at=2026-11-09T05:27Z`，由 CI 构建期生成） |
+| **回滚锚点** | 镜像 tag `rollback-1.0.95-20261109132351` + 库备份 `data/backups/favshub.db.pre-deploy-20261109132351`（部署前 125 行、`integrity_check=ok`） |
+
+### 1.0.96 / 1.0.97：后台「已失效」面板筛选条（2026-11-09）
+
+**功能**：后台「已失效」面板原先只有三档 chip（已过期 / 判定失效 / 已删除），无法在其中按
+关键词或属性找条目。新增一排筛选控件（关键词 / 分类 / 品级 / 地区 / 来源 / 失效原因 / 发布者），
+与三档 chip **正交叠加**。三个设计决定：① 枚举非法值退化为「不筛」而不是返回空列表；
+② 新增 `lifecycle_counts` 让 chip 数字吃当前筛选（修掉「chip 说 15、列表说 2」）；
+③ 面板关键词与审核队列的 `searchQuery` 解耦（此前在队列里搜过词再切到面板，列表会被悄悄筛掉）。
+
+**CI 这轮抓到的问题（值一记）**：`1.0.96` 的 CI 在「第三批服务端」`exit 1` ——
+`scripts/third-batch-server.mjs` 的模块改写表只覆盖 `deal-categories` / `deal-fields`，
+而这次把失效原因标签表上提到 `utils/deal-invalid-reasons.ts` 后，`token-deals.ts` 多了一条
+`../../utils/deal-invalid-reasons`，被夹具**自己留的兜底**（2026-11-05 那次同类事故后加的）
+拦下并给出可操作提示。按提示补两行 → `1.0.97` 全绿。教训：`server/utils/*.ts` 里新增
+一个向上跳目录的 import，除了 `ts:check`，还要过一遍改写表。
+
+**部署后验证**：`post-deploy-verify.mjs` → 4 通过 / 1 失败；失败项是
+`public-field-matrix`（15 通过 / 2 失败），**与本轮改动无关**（见下方既有问题）。
+另做「重启不回退」：重启后再测分布与重启前完全一致，回填日志出现 2 次而结果不变，
+人工档位 `offline=1` 未被改写 —— 幂等与守卫均成立。
+
+### ⚠️ 既有问题（非本轮引入，线上实测存在）：`/tokens/keys` 泄露内部字段 `source_url`
+
+`node scripts/public-field-matrix.mjs` 在 1.0.97 上报 2 项失败：
+
+    ✗ Key 页 SSR payload 含 source_url
+    ✗ token-keys 泄露 source_url — "https://linux.sb/topic/27933"
+
+`source_url` 在探针里属 `INTERNAL_KEYS`，且 `docs/audits/2026-11-04-baipiao-import-runbook.md`
+写明它「运营留痕，公开侧永不下发」。取证：探针自 `1.0.72`（`3379cf8`）起就是这个期望，
+token-keys 侧代码最后一次改动是 `1.0.87`（`7c92c49`），本次两笔提交只碰了
+`VERSION` / `admin/token-deals`（API + 页面）/ `server/utils/token-deals.ts`（仅 import）/
+新增 `utils/deal-invalid-reasons.ts` / `scripts/third-batch-server.mjs`（测试）—— 无路径可达该出口。
+**结论：先前就存在的泄露，需单独立项修**（与 1.0.80 修掉的 `source_title` 同一族）。
+
 
 > ⚠️ 本块此前停更在 1.0.79，且**自相矛盾**（写着 1.0.79 却带着 1.0.87 的断言数）。
 > 一个叫「部署状态」的文档写错运行版本和线上数据分布，比没有这个文档更危险 —— 已按实测值全部重写。
