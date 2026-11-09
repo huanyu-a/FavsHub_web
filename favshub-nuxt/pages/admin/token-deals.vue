@@ -294,19 +294,65 @@
       <div class="card-header">
         <h3>{{ tabTitle }}</h3>
         <div style="display: flex; align-items: center; gap: 12px;">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索服务商或标题..."
-            class="search-input"
-            @input="debouncedSearch"
-          >
           <button class="btn btn-ghost btn-sm" :disabled="loading" @click="loadDeals">刷新</button>
         </div>
       </div>
 
+      <!-- 筛选条（2026-11-09）：关键词 + 业务属性 + 发布者类型。
+           原先这条筛选条**只长在「已失效」tab 上**，而管理员最常待的是「全部 / 待审核 / 已发布」
+           这些队列 tab —— 在那里反而只能用关键词搜，分类/品级/地区/来源/发布者都得靠肉眼翻。
+           现两个视图共用同一套参数构造器（`utils/admin-deal-filters.ts`），一条筛选条处处可用。
+           注意这里**没有**「失效原因」：队列里没有这个概念，服务端也只在 `view=invalid` 时应用它。
+
+           刻意**不**做的两件事（都是决定，不是遗漏）：
+           · tab 栏上的徽标数字（待审核 / 已发布…）仍是**全局**计数，不随本行筛选变化 ——
+             那些数字是「用来切换状态的入口」，不是「点进去会看到多少条」。这与本页既有的
+             关键词搜索行为一致（搜索同样不影响徽标）。若改成吃筛选，徽标就不能用来导航了。
+           · 「重置」只清本行筛选，不动 `verifyFilter` —— 那对应 tab 栏的「待核验」，是一次导航。 -->
+      <div class="filter-bar">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="搜索服务商 / 标题"
+          maxlength="80"
+          @input="debouncedSearch"
+          @keyup.enter="applyDealFilters"
+        >
+        <select v-model="dealsCategory" title="按通告分类筛选" @change="applyDealFilters">
+          <option value="">分类：全部</option>
+          <option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
+        </select>
+        <select v-model="dealsQuality" title="按品质分级筛选" @change="applyDealFilters">
+          <option value="">品级：全部</option>
+          <option v-for="q in QUALITY_LEVELS" :key="q" :value="q">{{ q }}</option>
+        </select>
+        <select v-model="dealsRegion" title="按地区筛选" @change="applyDealFilters">
+          <option value="">地区：全部</option>
+          <option v-for="r in REGION_OPTIONS" :key="r.value" :value="r.value">{{ r.displayLabel }}</option>
+        </select>
+        <select v-model="dealsSource" title="按来源标签筛选" @change="applyDealFilters">
+          <option value="">来源：全部</option>
+          <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
+        </select>
+        <select v-model="dealsOrigin" title="按发布者类型筛选" @change="applyDealFilters">
+          <option value="">发布者：全部</option>
+          <option value="guest">游客</option>
+          <option value="user">注册用户</option>
+        </select>
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="!canResetDealsFilters"
+          title="清除本行筛选条件"
+          @click="resetDealsFilters"
+        >
+          重置
+        </button>
+        <span class="info">共 {{ total }} 条</span>
+      </div>
+
       <div v-if="loading" class="empty-state">加载中...</div>
-      <div v-else-if="deals.length === 0" class="empty-state">{{ emptyText }}</div>
+      <div v-else-if="deals.length === 0" class="empty-state">{{ dealsEmptyText }}</div>
 
       <table v-else>
         <thead>
@@ -535,6 +581,11 @@ import {
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 import { DEAL_CATEGORY_OPTIONS as CATEGORY_OPTIONS, dealCategoryMeta } from '~/utils/deal-categories'
 import { INVALID_REASON_OPTIONS } from '~/utils/deal-invalid-reasons'
+import {
+  appendAdminDealFilters,
+  hasAnyAdminDealFilter,
+  type AdminDealFilterState,
+} from '~/utils/admin-deal-filters'
 
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '白嫖通告管理' })
@@ -669,7 +720,10 @@ async function loadDeals() {
       page: String(page.value),
       limit: String(pageSize),
     })
-    if (searchQuery.value) params.append('search', searchQuery.value)
+    // 筛选条（2026-11-09）：「全部 / 待审核 / 已发布…」这些队列 tab 与「已失效」共用
+    // 同一套参数构造器（`utils/admin-deal-filters.ts`）。**不含** `invalid_reason` ——
+    // 队列里没有「失效原因」这个概念，服务端也只在 `view === 'invalid'` 时应用它。
+    appendAdminDealFilters(params, dealsFilterState.value)
     if (verifyFilter.value !== 'all') params.append('verify', verifyFilter.value)
 
     const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
@@ -685,6 +739,57 @@ async function loadDeals() {
     if (seq === dealsReqSeq) loading.value = false
   }
 }
+
+// ── 审核队列筛选条（2026-11-09）────────────────────────────
+//
+// `searchQuery` 原先直接绑在卡片头的输入框上；现在它只是这条筛选条的一个字段。
+// 与失效面板**状态不共用**（理由见失效面板那段注释），但**参数构造共用**。
+const dealsCategory = ref('')
+const dealsQuality = ref('')
+const dealsRegion = ref('')
+const dealsSource = ref('')
+const dealsOrigin = ref('')
+
+const dealsFilterState = computed<AdminDealFilterState>(() => ({
+  search: searchQuery.value,
+  category: dealsCategory.value,
+  quality: dealsQuality.value,
+  region: dealsRegion.value,
+  sourceTag: dealsSource.value,
+  origin: dealsOrigin.value,
+}))
+
+const hasDealsFilter = computed(() => hasAnyAdminDealFilter(dealsFilterState.value))
+/**
+ * 「重置」只清**本行筛选**，不动 `verifyFilter`。
+ * `verifyFilter='stale'` 对应的是 tab 栏里的「待核验」——那是一次**导航**，不是筛选条的一部分。
+ * 把它一起重置会让用户点一下「重置」就被弹到另一个 tab，反而莫名其妙。
+ */
+const canResetDealsFilters = computed(() => hasDealsFilter.value)
+
+/** 任一下拉变更 / 回车：回到第 1 页重新拉（下拉不宜做防抖，用户预期是立刻生效） */
+function applyDealFilters() {
+  page.value = 1
+  loadDeals()
+}
+
+/** 重置筛选条（停在当前 tab，回到该 tab 的默认全集） */
+function resetDealsFilters() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchQuery.value = ''
+  dealsCategory.value = ''
+  dealsQuality.value = ''
+  dealsRegion.value = ''
+  dealsSource.value = ''
+  dealsOrigin.value = ''
+  page.value = 1
+  loadDeals()
+}
+
+const dealsEmptyText = computed(() => {
+  if (hasDealsFilter.value) return '没有符合当前筛选条件的通告，可点上方「重置」清空'
+  return emptyText.value
+})
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 function debouncedSearch() {
@@ -794,8 +899,9 @@ const invalidPageSize = 20
 
 // ── 已失效面板筛选条（2026-11-09）────────────────────────────
 //
-// 与审核队列的 `searchQuery` **刻意不共用**：共用会串台 —— 在队列里搜了词再切到
-// 失效面板，列表会被悄悄筛掉一大半，而面板上又没有对应输入框可以清掉它。
+// 与审核队列的筛选条**刻意不共用状态**：共用会串台 —— 在队列里筛了条件再切到
+// 失效面板，列表会被悄悄筛掉一大半，而面板上又没有对应控件可以清掉它。
+// 但**参数的构造**是共用的（`utils/admin-deal-filters.ts`），避免两处各抄一份而漂移。
 const invalidSearch = ref('')
 const invalidCategory = ref('')
 const invalidQuality = ref('')
@@ -804,18 +910,26 @@ const invalidSource = ref('')
 const invalidReason = ref('')
 const invalidOrigin = ref('')
 
-/**
- * 失效原因选项直接取自 `utils/deal-invalid-reasons.ts` —— 与服务端的参数白名单
- * （`Object.keys(INVALID_REASON_LABELS)`）同源，加档位只改那一处。
- */
+/** 失效原因选项直接取自 `utils/deal-invalid-reasons.ts` —— 与服务端的参数白名单
+ * （`Object.keys(INVALID_REASON_LABELS)`）同源，加档位只改那一处。 */
 
 /** 面板分档计数（吃当前业务筛选，不含分档自身）；null = 尚未拿到，回落到全站计数 */
 const invalidCounts = ref<{ all: number; expired: number; invalid: number; deleted: number } | null>(null)
 
-const hasInvalidFilter = computed(() => !!(
-  invalidSearch.value.trim() || invalidCategory.value || invalidQuality.value
-  || invalidRegion.value || invalidSource.value || invalidReason.value || invalidOrigin.value
-))
+/** 失效面板的筛选状态（喂给共用参数构造器） */
+const invalidFilterState = computed<AdminDealFilterState>(() => ({
+  search: invalidSearch.value,
+  category: invalidCategory.value,
+  quality: invalidQuality.value,
+  region: invalidRegion.value,
+  sourceTag: invalidSource.value,
+  invalidReason: invalidReason.value,
+  origin: invalidOrigin.value,
+}))
+
+const hasInvalidFilter = computed(() =>
+  hasAnyAdminDealFilter(invalidFilterState.value, { includeInvalidReason: true }),
+)
 
 /** 「重置」清的是筛选条 + 上方三档，故任一项非默认就该可点 */
 const canResetInvalidFilters = computed(() => hasInvalidFilter.value || lifecycleFilter.value !== 'all')
@@ -861,15 +975,7 @@ function invalidFilterParams(): URLSearchParams {
     page: String(invalidPage.value),
     limit: String(invalidPageSize),
   })
-  const keyword = invalidSearch.value.trim()
-  if (keyword) params.append('search', keyword)
-  if (invalidCategory.value) params.append('category', invalidCategory.value)
-  if (invalidQuality.value) params.append('quality', invalidQuality.value)
-  if (invalidRegion.value) params.append('region', invalidRegion.value)
-  if (invalidSource.value) params.append('source_tag', invalidSource.value)
-  if (invalidReason.value) params.append('invalid_reason', invalidReason.value)
-  if (invalidOrigin.value) params.append('origin', invalidOrigin.value)
-  return params
+  return appendAdminDealFilters(params, invalidFilterState.value, { includeInvalidReason: true })
 }
 
 /** 任一下拉变更 / 回车：回到第 1 页重新拉（下拉不宜做防抖，用户预期是立刻生效） */
@@ -885,7 +991,9 @@ function debouncedInvalidSearch() {
   invalidSearchTimer = setTimeout(applyInvalidFilters, 300)
 }
 
-/** 重置：筛选条 + 上方三档分档一起清（「重置」就该回到全部） */
+/**
+ * 重置：筛选条 + 上方三档分档一起清（「重置」就该回到全部）
+ */
 function resetInvalidFilters() {
   if (invalidSearchTimer) clearTimeout(invalidSearchTimer)
   invalidSearch.value = ''

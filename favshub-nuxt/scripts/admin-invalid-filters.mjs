@@ -204,14 +204,22 @@ function seed() {
   // user_id = 1，于是 `origin=guest` 返回**空集**，而那条断言的判据是
   // `[].every(...)` —— **恒真**。它抓不到「origin=guest 被过滤成空」这类回归
   // （空集刚好也满足 every）。反真空守卫当时只覆盖失效面板的组合，没覆盖队列。
+  //
+  // ⚠️ 各维度（分类 / 品级 / 地区 / 来源）也必须**错开**下标，理由同上：
+  // 初版这些属性在所有在架行上是**同一个值**，队列侧一旦加筛选就全是真空用例。
+  // 2026-11-09 起「全部 / 待审核 / 已发布…」这些队列 tab 也有筛选条了，故必须铺开。
   for (let i = 0; i < LIVE_N; i++) {
     const state = i < 4 ? 'pending' : 'published'
     const userId = i === LIVE_N - 1 ? 0 : 1        // 最后一行是游客（_system），供 origin 分组非真空
+    const category = CATS[i % 4]
+    const quality = QUALITIES[Math.floor(i / 2) % 2]
+    const region = REGIONS[Math.floor(i / 4) % 2]
+    const sourceTag = i % 3 === 0 ? 'community' : 'official'
     ins.run(
-      `live_${i}`, userId, `live-vendor-${i}`, `在架通告 ${i}`, `https://example.com/l/${i}`, 'token',
+      `live_${i}`, userId, `live-vendor-${i}`, `在架通告 ${i}`, `https://example.com/l/${i}`, category,
       state, i < 4 ? 'pending' : 'approved',
       now - i * 60_000, now - i * 60_000,
-      'official', '中品', 'cn', '', null, null,
+      sourceTag, quality, region, '', null, null,
       now + 30 * 86400_000,                                  // 未到期
     )
   }
@@ -516,6 +524,50 @@ try {
 
     const qh = await api('/api/admin/token-deals?view=queue&status=all&limit=100&search=在架', { cookie })
     check('队列 search 未被破坏', qh.status === 200 && TOT(qh) > 0, `total=${TOT(qh)}`)
+
+    // ── 队列视图的**筛选条**（2026-11-09）──
+    //
+    // 筛选条原先只长在「已失效」tab 上；管理员最常待的「全部 / 待审核 / 已发布…」反而
+    // 只能用关键词搜。现在两个视图共用同一套参数构造器，故队列侧也要逐维度验证 ——
+    // 只断言「返回 200」等于没测（服务端认不出参数名时会静默不筛，照样 200）。
+    console.log('\n[队列视图筛选条]')
+    const qpred = {
+      category: (row, v) => row.category === v,
+      quality: (row, v) => row.quality === v,
+      region: (row, v) => row.region === v,
+      source_tag: (row, v) => row.source_tag === v,
+    }
+    const qCases = []
+    for (const c of CATS) qCases.push(['category', c])
+    for (const q of QUALITIES) qCases.push(['quality', q])
+    for (const rg of REGIONS) qCases.push(['region', rg])
+    for (const st of ['official', 'community']) qCases.push(['source_tag', st])
+
+    const qVacuous = qCases.filter(([k, v]) => qrows.filter(r => qpred[k](r, v)).length === 0)
+    check('队列每个筛选档位都有命中（无真空用例）', qVacuous.length === 0,
+      qVacuous.map(c => `${c[0]}=${c[1]}`).join('、'))
+
+    for (const [k, v] of qCases) {
+      const expect = qrows.filter(r => qpred[k](r, v))
+      const r = await api(`/api/admin/token-deals?view=queue&status=all&limit=100&${k}=${encodeURIComponent(v)}`, { cookie })
+      const ids = new Set(DEALS(r).map(d => d.id))
+      const expectIds = new Set(expect.map(d => d.id))
+      const same = ids.size === expectIds.size && [...ids].every(i => expectIds.has(i))
+      check(`队列 ${k}=${v}（期望 ${expect.length} 条）`, same && TOT(r) === expect.length,
+        `api=${ids.size}/${TOT(r)} expect=${expect.length}`)
+    }
+
+    // 组合：分类 × 发布者。**非真空**由上面的「档位有命中」+ 这里的显式长度共同保证。
+    const qCombo = await api('/api/admin/token-deals?view=queue&status=all&limit=100&category=cloud&origin=guest', { cookie })
+    const qComboExpect = qrows.filter(r => r.category === 'cloud' && r.user_id === 0)
+    check(`队列组合 category=cloud&origin=guest（期望 ${qComboExpect.length} 条）`,
+      qComboExpect.length > 0 && TOT(qCombo) === qComboExpect.length,
+      `api=${TOT(qCombo)} expect=${qComboExpect.length}`)
+
+    // 队列侧**不吃** invalid_reason（服务端只在 view=invalid 应用）——与失效面板侧那条对照
+    const qReason = await api('/api/admin/token-deals?view=queue&status=all&limit=100&invalid_reason=votes', { cookie })
+    check('队列视图忽略 invalid_reason（未破坏队列口径）', TOT(qReason) === qrows.length,
+      `${TOT(qReason)} vs ${qrows.length}`)
 
     const qv = await api('/api/admin/token-deals?view=queue&status=published&limit=100&verify=stale', { cookie })
     check('待核验筛选未破坏', qv.status === 200)

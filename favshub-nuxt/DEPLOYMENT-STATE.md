@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:307f82451ad7da164041a475a1f5c730498ccdeec8811c34349b43b0ecfa418d` |
 | **CI run** | `42578064759`，`success`；上游 `42567342652`（1.0.97）success；再上游 `42566989864`（1.0.96）在「第三批服务端」步骤 `exit 1`，**推送步骤在该步之后，故 1.0.96 没有镜像** |
 | **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}` |
-| **断言总数** | **2197**（20 个套件）· `ts:check` 963 个具名导入。⚠️ 该数字含**尚未发版**的门禁修正与新增套件（见「1.0.98 之后的门禁自身修正」），生产镜像的 revision 仍是 `e4aeeb4` |
+| **断言总数** | **2241**（22 个套件）· `ts:check` 963 个具名导入。⚠️ 该数字含**尚未发版**的门禁修正与新增套件（见「1.0.98 之后的门禁自身修正」），生产镜像的 revision 仍是 `e4aeeb4` |
 | **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 1.0.98 部署**前后逐项一致**；此前 1.0.97 窗口内的变化来自并发的人工审核（见下节） |
 | **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.98`、`generated_at=2026-11-09T07:15Z`，由 CI 构建期生成） |
 | **回滚锚点** | 镜像 tag `rollback-1.0.97-20261109151949` + 库备份 `data/backups/favshub.db.pre-deploy-20261109151949`；上一轮还有 `rollback-1.0.95-20261109132351` 与其库备份 |
@@ -113,7 +113,7 @@
 | **[MINOR]** `assertion-count.mjs` 的文档正则漏检本文件 `:13` 的「**断言总数**」表格行（恰恰是每轮最先被改的一处）；只改该处仍打印「✓ 一致」并 exit 0 | 加一条锚定表格竖线的正则；复现测试：改该处 → `✗ 1 处文档数字与实测不符`，exit 1 |
 | **[MINOR]** 新套件「队列也吃 origin 参数」判据是 `[].every(...)` → **恒真**（队列播种行全为 `user_id=1`，`origin=guest` 返回空集） | 播种改为**留一行游客行**，并加三条非真空断言（guest/user 各自的精确集合 + 两档相加 == 队列总数）；反向验证：注入「guest 恒返回空」→ `api=0 expect=1` 报红 |
 | **[NIT]** `second-batch-e2e` 那条断言的判据（6 条已知文案白名单）**比断言名更严**，护栏改一句文案就**假红** | 判据与名字对齐：只要求「非 5xx + 有可读错误文案」 |
-| **[NIT]** `docker-publish.yml` 注释仍写「重跑一遍上面 **8 个套件**，实测 37 秒」（实际 20 个，实测 73 秒） | 改为 20 个 / 73 秒，并去掉会过期的明细 |
+| **[NIT]** `docker-publish.yml` 注释仍写「重跑一遍上面 **8 个套件**，实测 37 秒」（实际 20 个，实测 73 秒） | 改为当时的真实套件数与耗时，并去掉会过期的明细（该数字现已再次变动，故只保留「当时如此」这一史实） |
 | **[NIT]** `ssrf-pin-check` 重写后留下死代码 `requireFromRoot` | 删除（连带未再使用的 `createRequire` 导入） |
 
 审查者**自己跑过**的关键复现（可信度高，均按字节还原并校验 md5）：三次变异注入 `.output`
@@ -1075,9 +1075,10 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 先跑 **20 个测试套件**（5 个自包含：`private-ip-check` / `sanitize-test` /
-`ssrf-pin-check` / `category-source-check` / `favicon-resolve-check`；15 个跑产物，含
-`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2197 项断言**），另加 `ts:check`
+推送后 CI 先跑 **22 个测试套件**（6 个自包含：`private-ip-check` / `sanitize-test` /
+`ssrf-pin-check` / `category-source-check` / `favicon-resolve-check` / `admin-filter-params`；
+16 个跑产物，含
+`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2241 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -1102,8 +1103,9 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| `admin-invalid-filters` | 85 | 后台「已失效」面板七个筛选 + 三档 chip 计数口径一致性；自建库自播种（含一行游客行，使队列 `origin` 分组非真空） |
-| **合计（断言）** | **2197** | |
+| `admin-filter-params` | 31 | **是**（`--experimental-strip-types`）后台筛选参数构造器：空值不发 / `search` trim / `invalid_reason` 只随已失效视图发 + **前后端参数名漂移守卫**（锚在服务端真实读取处 `query.<param>`，先剥注释） |
+| `admin-invalid-filters` | 98 | 后台通告筛选契约：「已失效」面板七个筛选 + 三档 chip 计数口径一致性 + **队列视图（全部/待审核/已发布…）每个筛选档位**；自建库自播种（含游客行 + 各维度错开下标，避免真空用例） |
+| **合计（断言）** | **2241** | |
 
 > 2026-11-09：上表的 `ts:check` 之前写 954，实测 963（早已过时，无人发现 ——
 > 因为它那一列**不参与** `assertion-count` 的总数校验，脚本明确不计入）。

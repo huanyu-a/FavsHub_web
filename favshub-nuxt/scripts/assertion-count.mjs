@@ -58,6 +58,11 @@ const PRE_BUILD = [
   // 书签图标解析守卫（2026-11-05）：import utils/favicon.ts，同样需要类型剥离。
   // 断言「合法形态放行 / 坏值回落」，覆盖生产实测到的 30 条 404 坏 icon。
   { name: 'favicon-resolve-check', script: 'favicon-resolve-check.mjs', args: ['--experimental-strip-types'] },
+  // 后台筛选参数构造守卫（2026-11-09）：import utils/admin-deal-filters.ts，同样需要类型剥离。
+  // 它守的是**前后端参数名漂移** —— 前端把 `source_tag` 写成 `source` 时后端会静默不筛、
+  // 界面表现与「后端没实现」一模一样。故判据锚在服务端真实读取处 `query.<param>`，
+  // 而不是注释（第一版就是命中了注释里的反引号而假绿）。自包含、不碰 .output，故放 build 前。
+  { name: 'admin-filter-params', script: 'admin-filter-params.mjs', args: ['--experimental-strip-types'] },
 ]
 // build 后需要 .output 的套件
 const POST_BUILD = [
