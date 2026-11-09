@@ -157,7 +157,8 @@ jobs:
       # `favshub-nuxt/scripts/assertion-count.mjs` 的套件清单，或跑一次
       # `node scripts/assertion-count.mjs` 生成的 `assertion-count.json`。
       #
-      # CI 断言总计 2241（= 本文件 `--check` 那一步实测并校验的值；改了套件就靠它报红）。
+      # CI 断言总计 2308（共 23 个套件）（= 本文件 `--check` 那一步实测并校验的值；
+      # 改了套件就靠它报红 —— 总数与「共 N 个套件」两个数字都有守卫）。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -270,6 +271,34 @@ jobs:
         working-directory: favshub-nuxt
         run: node --experimental-strip-types scripts/admin-filter-params.mjs
 
+      # 后台筛选栏的**接线守卫**（2026-11-09 新增，46 项）。
+      #
+      # 独立审查指出「UI 接线层无测试」的另一半：上一轮只补了参数构造，控件↔状态↔参数
+      # 这几条链仍裸着。它有**不报错、只静默失效**的坏法 —— `v-model` 拼错一个字母，
+      # Vue 会把它当新变量，下拉照样能选但列表永远不动，表现与「后端没实现」无法区分。
+      #
+      # 它把四条链一起对账（模板控件 → 脚本状态 → 视图 filterState → 参数字段表 →
+      # 服务端 `query.<param>`），并断言「筛选栏里不许出现手写的非空 option」——
+      # 发布者白名单原先就是三份副本（路由里的常量 + 模板两处手抄），已收敛到
+      # `utils/deal-fields.ts`。变异测试验过：`v-model` 拼错会**两路独立报红**。
+      - name: Test — 后台筛选栏接线守卫（46 项）
+        working-directory: favshub-nuxt
+        run: node --experimental-strip-types scripts/admin-filter-wiring.mjs
+
+      # 空闲端口工具的单测（2026-11-09 新增，19 项）。
+      #
+      # 背景：门禁里 17 个套件曾把端口写死，本机残留实例一占上，报出来的是
+      # 「断言数回归 / 文档数字不符」——指向的都不是真因。现全部改为运行时挑端口 +
+      # 冲突换端口重试（`scripts/lib/free-port.mjs`）。
+      #
+      # 这一步守的是那个判据本身：**只有「端口被占」的证据才允许换端口重试**，
+      # ABI 不匹配 / 未就绪 / ECONNREFUSED / EACCES 都必须立刻抛出 —— 否则真正的故障
+      # 会被 5 次重试拖成 5 倍超时，病因被埋进重试日志（那正是最难查的一类假绿）。
+      # 含 4 条反例断言；自包含、不依赖 .output。
+      - name: Test — 空闲端口重试判据（19 项）
+        working-directory: favshub-nuxt
+        run: node scripts/lib/free-port.test.mjs
+
       # 后台通告列表的筛选契约（2026-11-09 新增，98 项）。
       #
       # 为什么必须进 CI：这份验证原先**只活在 /tmp 的手工脚本**里，且依赖本机
@@ -293,7 +322,7 @@ jobs:
       # 它**不影响任何测试**，所以 CI 从来不会因此报警 —— 结果是同类修正
       # 在本仓库已做过 6 次（638→672→677→803→808，每次都靠人肉搜替换）。
       #
-      # 这一步会**重跑一遍上面全部套件**。实测约 **1 分钟**（2026-11-09，22 个套件）：
+      # 这一步会**重跑一遍上面全部套件**。实测约 **1 分钟**（2026-11-09 实测，共 23 个套件）：
       # 这份注释原先写「8 个套件 / 37 秒」—— 套件数早已翻倍到 20，数字没人维护。
       # 与上面那份「手抄分解」是同一类问题，故只留数量与量级，别再写死明细。
       # 明知重复，为什么仍这么做：

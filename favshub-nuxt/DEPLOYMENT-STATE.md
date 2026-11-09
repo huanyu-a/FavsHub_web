@@ -1,4 +1,4 @@
-**最后更新：2026-11-09（第 34 次修订：把后台筛选条从「已失效」单页挪到「全部 / 待审核 / 已发布…」等队列 tab —— 用户反馈「位置不对，不应该在全部那里么」，属实；顺带把上一轮遗留的 UI 参数层零测试补上（新套件 31 项 + 队列侧 13 项）。**已发版 1.0.99 并部署**）**
+**最后更新：2026-11-09（第 35 次修订：清掉门禁自身的三个尾巴 —— ①16 个套件硬编码端口（残留实例会伪装成「断言数回归」）+ 空闲端口自身的竞态；②`ssrf-pin-check` 的 TLS 靶标依赖 openssl（那条「缺 openssl」分支在装了 openssl 的机器上永远没人验证）；③UI 接线层零测试（`v-model` 拼错一个字母会让下拉静默失效）。上一轮第 34 次修订：把后台筛选条从「已失效」单页挪到「全部 / 待审核 / 已发布…」等队列 tab —— 用户反馈「位置不对，不应该在全部那里么」，属实；顺带把上一轮遗留的 UI 参数层零测试补上（新套件 31 项 + 队列侧 13 项）。**已发版 1.0.99 并部署**）**
 
 ## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.99（2026-11-09）
 
@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:642b5b8d256cf18840d44ab5f5e1ef1f40b3f58f11086c4331e12fdc64450cc8` |
 | **CI run** | `42598099976`，`success`（**首次**跑到新增的两步：「后台筛选参数构造（31 项）」「后台通告列表筛选契约（98 项）」）；上游 `42578064759`（1.0.98）success |
 | **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.99`**、`generated_at=2026-11-09T10:04Z` |
-| **断言总数** | **2241**（22 个套件）· `ts:check` 963 个具名导入。该数字已随 1.0.99 发版，CI 实测校验通过 |
+| **断言总数** | **2308**（共 23 个套件）· `ts:check` 965 个具名导入。该数字由 `assertion-count.mjs --check` 实测校验（含新加的「共 N 个套件」守卫） |
 | **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 1.0.99 部署**前后逐项一致**（部署后由容器内只读查询复核） |
 | **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.99`，由 CI 构建期生成） |
 | **回滚锚点** | 镜像 tag `rollback-1.0.98-20261109181439` + 库备份 `data/backups/favshub.db.pre-1.0.99-20261109181439`（4,775,936 字节）；更早还有 `rollback-1.0.97-…` / `rollback-1.0.95-…` 与各自库备份 |
@@ -62,6 +62,90 @@
 - `admin-invalid-filters.mjs` 补队列侧逐维度验证（85 → **98 项**）；并把在架行的种子
   按维度**错开下标**（初版这些属性在所有在架行上是同一个值，队列一加筛选全是真空用例）。
 
+### 1.0.100：清掉门禁自身的三个尾巴（端口 / openssl / UI 接线）（2026-11-09）
+
+用户明确要求「不要给我留这些奇奇怪怪的问题，我只要结果」，于是把上一轮结尾列出的
+三条「接受现状」**全部做掉**。它们都不是运行时功能，而是**门禁自身的可靠性**问题 ——
+共同特征是：出问题时**报出来的错指向别处**，让人照着错误提示去改反而更糟。
+
+**① 17 个套件的硬编码端口 → 运行时挑端口 + 冲突即换端口重试**
+
+`assertion-count` 里 **17 个**套件把监听端口写死（3210 / 3211 / 3212 / 3218 / 3255 / 3257 /
+3258 / 3261 / 3262 / 3264 / 3265 / 3266 / 3267 / 3269 / 3270 / 3272 及一个 mock 端口）。
+本机只要有**残留实例**占着那个端口，新起的应用立刻 `EADDRINUSE` 死掉，而报出来的是
+「断言数回归」或「文档数字不符」—— 指向的都不是真因（上一轮我就因此误判过一次）。
+更隐蔽的是：先前那版 `pickFreePort()`（绑 `:0` → 拿号 → 立即释放）**自身有竞态**，
+释放到应用真正 `listen` 之间可能被别的进程抢走。
+
+新增 `scripts/lib/free-port.mjs`：`pickFreePort()` / `isPortConflictError(...evidence)` /
+`startWithFreePort(start, { attempts, onRetry })`。判据**只认端口冲突的证据**
+（`EADDRINUSE` / `address already in use` / Windows 同义文案 / 本仓库 `端口 N 仍被占用`），
+其它错误**立刻抛出** —— 否则真正的故障会被重试拖成 5 倍超时、病因也被埋进重试日志。
+配套单测 `scripts/lib/free-port.test.mjs`（**19 项**，含 4 条**反例**：ABI 不匹配 / 未就绪 /
+`ECONNREFUSED` / `EACCES` 都必须**不**判为端口冲突）。
+
+顺带修掉两处「不修则重试永远不会触发」的问题：就绪探测补 3s 超时（遇到「接受连接但
+不回响应」的占位者，原来的 `fetch` 会**永挂**，30s / 40s 上限根本到不了）；
+4 个套件补 early-exit 检测并把子进程 stderr 带进抛出的错误（端口冲突的证据只在 stderr 里）。
+
+**竞态是真验过的，不是「应该没问题」**：后台真起一个进程占住端口 → 判据拿到真实 OS 错误
+→ 换到内核新分配的端口并真的 `listen` 成功；再用真实套件的副本做端到端（注入「第一次
+选到被占端口」），日志为 `↻ 第 1 次起应用失败（端口 34570 被占），换端口重试 → 42491`
+→ `15 通过 / 0 失败`、exit 0。
+
+另外把两处**恒真断言**（`护栏1 端口空闲`，判据是字面 `true` —— 等于没测）改成能证伪的
+「答话的是我们自己起的进程」（依据：同一时刻一个端口只能被一个进程绑定；若是残留实例，
+我们的子进程早就 `EADDRINUSE` 退出了）。变异验证：把子进程句柄置空 → 如实报红并打印
+`pid=undefined exitCode=undefined`。
+
+**② `ssrf-pin-check` 的 TLS 靶标不再依赖 `openssl`**
+
+原先运行时用 `openssl` 现场签一张自签证书。当时的处理是「缺 openssl 就报红、拒绝静默跳过」
+（那是对的），但留下一个更隐蔽的问题：**「没有 openssl 时那条分支到底对不对」在装了
+openssl 的机器上永远没人验证**。现改为仓库内固定 fixture
+（`scripts/fixtures/tls-pinned-test.{crt,key}.pem` + README），那条分支**被整个删掉**：
+任何有 Node 的环境行为完全一致。自证：
+`env -i PATH=/tmp/emptybin node scripts/ssrf-pin-check.mjs` → **18 通过 / 0 失败**。
+
+同时补一条**证书过期即报红**的断言（读 `notAfter`）—— 否则 2036 年那天会以
+「TLS 校验失败」的形式莫名报红，与要验的机制毫无关系。变异验证：换成 1 天期证书 →
+`✗ 固定 TLS fixture 尚未过期 … notAfter=Nov 10 10:31:31 2026 GMT`。
+
+**③ UI 接线层补上守卫（独立审查指出的「另一半」）**
+
+上一轮只补了「参数构造」那一半。剩下这半截（控件 ↔ 状态 ↔ 参数 ↔ 白名单）有一类
+**不报错、只静默失效**的坏法：`v-model="dealsCatgory"` 拼错一个字母，Vue 会把它当成一个
+**新变量** —— 下拉照样能选、界面毫无异常，但它根本没进筛选状态，列表永远不动，
+表现与「后端没实现这个筛选」一模一样。新增 `scripts/admin-filter-wiring.mjs`（**46 项**）
+把四条链一起对账：
+
+```
+模板控件 ──v-model──▶ 脚本状态 ──▶ 该视图的 filterState ──▶ ADMIN_DEAL_FILTER_FIELDS
+                                                                    │
+                                                  服务端 query.<param> + pickEnum 白名单
+```
+
+并顺带清掉一处真隐患：**发布者白名单原本有三份副本** —— 服务端写在路由文件里的局部常量
+`const ORIGIN_FILTERS`，加上模板**两处**手抄的 `<option value="guest">`。服务端将来加一档，
+界面就筛不出来；界面改个词，`pickEnum` 认不出 → 降级成「不筛」，同样是静默。
+现已收敛到 `utils/deal-fields.ts`（`ORIGIN_FILTERS` / `ORIGIN_OPTIONS`），服务端与两处下拉
+共用同一张表；并加断言「筛选栏里不许再出现手写的非空 option」。
+浏览器复验：两处「发布者」下拉仍渲染 全部 / 游客 / 注册用户，选「游客」→ **5 条**
+（与种子算术一致）。
+
+判据本身修过两次，都是**自己踩的坑**，已写进注释：① 模板里有嵌套 `<template v-if>`，
+用 `indexOf('</template>')` 会把模板在第 237 行截断，「全部」卡片根本没进解析范围；
+② 「修改建议」那张卡片用的是 `v-if` 而非 `v-else-if`，只匹配后者会漏掉它。
+变异验证：`v-model` 拼错 → **两路独立断言**同时报红；把共享表 option 改回手写 →
+`✗ 筛选栏里没有任何手写的非空 option … value="visitor"`。
+
+**④ 顺手给「N 个套件」也加上守卫**
+
+`断言总计` 一直被 `--check` 守着，但**「N 个套件」从来没人守** —— 这次核对发现文档写 22、
+实际 **23**。现按规范写法「共 N 个套件」纳入校验，且**找不到该句就报错**（而不是静默跳过：
+那样这个数字漂了也不会有人知道）。历史叙述（「原先写『8 个套件 / 37 秒』」这类）刻意不匹配，
+拿去和今天的实测比就是假红。
+
 ### 1.0.98 之后的门禁自身修正（2026-11-09，随 1.0.99 一并发版）
 
 以下都是**门禁自己的缺陷**，不改任何运行时行为 —— 因此当时刻意**没有**为它们单独
@@ -80,7 +164,7 @@ bump `VERSION`、也没有单独重发镜像（那些修正最终随 1.0.99 这�
   （`rejectUnauthorized: false`），原测试**同样会通过** —— 而它自称防的就是
   「用一个漏洞换另一个漏洞」。
 
-改为**本地自签证书靶标 + 正负两例**（`openssl` 现生成，全程离线确定性）：
+改为**本地自签证书靶标 + 正负两例**（当时是运行时 `openssl` 现生成；2026-11-09 已改为仓库内固定 fixture，见「1.0.100」一节，全程离线确定性）：
 正例证明 pin 之下 SNI/主机名校验照常工作；**负例**（主机名与证书不符必须被拒）
 才真正证明校验没被关掉。断言数 12 → 13，连跑五次稳定 13/0。
 反向验证：把校验改成 `rejectUnauthorized: false` 后，正例仍绿、负例如实报红。
@@ -1122,18 +1206,19 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 先跑 **22 个测试套件**（6 个自包含：`private-ip-check` / `sanitize-test` /
-`ssrf-pin-check` / `category-source-check` / `favicon-resolve-check` / `admin-filter-params`；
-16 个跑产物，含
-`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2241 项断言**），另加 `ts:check`
+推送后 CI 先跑 **共 23 个套件**（8 个自包含：`private-ip-check` / `sanitize-test` /
+`ssrf-pin-check` / `category-source-check` / `favicon-resolve-check` / `admin-filter-params` /
+`admin-filter-wiring` / `lib/free-port.test`；
+15 个跑产物，含
+`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2308 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
-| `ts:check`（具名导入） | 963 | |
+| `ts:check`（具名导入） | 965 | |
 | `private-ip-check` | 102 | **是** |
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
-| `ssrf-pin-check` | 16 | 含本地自签 TLS 靶标的正/负例；另有 3 条**生产源码**漂移断言（禁 `rejectUnauthorized: false` / 禁空 SNI / 必须走 lookup 钉地址） |
+| `ssrf-pin-check` | 18 | 含**仓库内固定 fixture** TLS 靶标的正/负例（不再依赖 openssl）+ 证书过期与 SAN 守卫；另有 3 条**生产源码**漂移断言（禁 `rejectUnauthorized: false` / 禁空 SNI / 必须走 lookup 钉地址） |
 | `category-source-check` | 86 | **是**（`--experimental-strip-types`） |
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
@@ -1152,7 +1237,9 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `state-machine` | 107 | |
 | `admin-filter-params` | 31 | **是**（`--experimental-strip-types`）后台筛选参数构造器：空值不发 / `search` trim / `invalid_reason` 只随已失效视图发 + **前后端参数名漂移守卫**（锚在服务端真实读取处 `query.<param>`，先剥注释） |
 | `admin-invalid-filters` | 98 | 后台通告筛选契约：「已失效」面板七个筛选 + 三档 chip 计数口径一致性 + **队列视图（全部/待审核/已发布…）每个筛选档位**；自建库自播种（含游客行 + 各维度错开下标，避免真空用例） |
-| **合计（断言）** | **2241** | |
+| `admin-filter-wiring` | 46 | **是**（`--experimental-strip-types`）后台筛选栏**接线守卫**：模板控件 ↔ 脚本状态 ↔ 视图 filterState ↔ `ADMIN_DEAL_FILTER_FIELDS` 四条链对账；下拉选项只许来自共享表（禁手写非空 option）；六张选项表与服务端白名单值集**双向相等** |
+| `free-port` | 19 | 空闲端口工具单测：4 条**反例**（ABI 不匹配 / 未就绪 / `ECONNREFUSED` / `EACCES` 必须**不**判为端口冲突）+ 换端口重试行为 + 真子进程竞态 |
+| **合计（断言）** | **2308** | |
 
 > 2026-11-09：上表的 `ts:check` 之前写 954，实测 963（早已过时，无人发现 ——
 > 因为它那一列**不参与** `assertion-count` 的总数校验，脚本明确不计入）。
