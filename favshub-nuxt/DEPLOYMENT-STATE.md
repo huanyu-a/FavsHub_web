@@ -1,19 +1,39 @@
-**最后更新：2026-11-09（第 31 次修订：正式部署 1.0.97 —— 后台「已失效」面板新增筛选条；CI 在这轮抓到一处夹具漏白名单，1.0.96 因此没出镜像）**
+**最后更新：2026-11-09（第 32 次修订：部署 1.0.98 —— 审核队列换请求序号守卫；并更正上一版我写进本文档的一处**误判**（`source_url`「泄露」实为探针假阳性））**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.97（2026-11-09）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.98（2026-11-09）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.97` |
-| **来源提交** | `14e1ff46d660c0b3d00b36e90454dc1972358df4` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.97`、`revision=14e1ff46…` —— 部署前拿它当**闸门**：不符就不重建容器（本次闸门实测通过后才 `up -d`） |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:e3104899678c5d2a32e95b32d56827b82c8db5c120f9daea6dd2a9980ce31848` |
-| **CI run** | `42567342652`，`success`；上游 `42566989864`（1.0.96）在「第三批服务端」步骤 `exit 1`，**推送步骤在该步之后，故 1.0.96 没有镜像** |
+| **版本** | `1.0.98` |
+| **来源提交** | `e4aeeb4f3916b60e1b20334d9adfd375d3a4448d` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.98`、`revision=e4aeeb4f…` —— 部署前拿它当**闸门**：不符就不重建容器（1.0.97/1.0.98 两轮都实测通过后才 `up -d`） |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:307f82451ad7da164041a475a1f5c730498ccdeec8811c34349b43b0ecfa418d` |
+| **CI run** | `42578064759`，`success`；上游 `42567342652`（1.0.97）success；再上游 `42566989864`（1.0.96）在「第三批服务端」步骤 `exit 1`，**推送步骤在该步之后，故 1.0.96 没有镜像** |
 | **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}` |
 | **断言总数** | **2108**（19 个套件）· `ts:check` 963 个具名导入 |
-| **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 与部署前相比的变化来自**并发的人工审核**，不是本次部署（见下节） |
-| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.97`、`generated_at=2026-11-09T05:27Z`，由 CI 构建期生成） |
-| **回滚锚点** | 镜像 tag `rollback-1.0.95-20261109132351` + 库备份 `data/backups/favshub.db.pre-deploy-20261109132351`（部署前 125 行、`integrity_check=ok`） |
+| **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 1.0.98 部署**前后逐项一致**；此前 1.0.97 窗口内的变化来自并发的人工审核（见下节） |
+| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.98`、`generated_at=2026-11-09T07:15Z`，由 CI 构建期生成） |
+| **回滚锚点** | 镜像 tag `rollback-1.0.97-20261109151949` + 库备份 `data/backups/favshub.db.pre-deploy-20261109151949`；上一轮还有 `rollback-1.0.95-20261109132351` 与其库备份 |
+| **部署后校验** | `post-deploy-verify.mjs` → **5 通过 / 0 失败**（`public-field-matrix` 由改前的 15/2 转为 **18/0**） |
+
+### 1.0.98：审核队列换「请求序号守卫」（2026-11-09）
+
+`loadDeals()` 原先是 `loadingGuard`：**有请求在飞时后来的直接 return**。它挡住了竞态，
+代价是更隐蔽的一种错 —— 新筛选条件被**静默丢弃**（翻页按钮与 `page` 的 `watch` 是两处触发，
+连点两次「下一页」时第二次请求根本不发；筛选条显示新值、数据是旧值，看起来像「筛选没生效」）。
+改为与 `loadInvalid()` 同一口径：请求照发，只让**最新一次**的响应落地。
+
+取证（真实浏览器 + 人为时延，非推演）：
+
+| 探针 | 结果 |
+|---|---|
+| 连点两次「下一页」（各 +400ms 时延） | 页码 3、列表随之翻页 ✓（旧实现下第二次点击被吞） |
+| 强制反序：`invalid_reason=votes` 前置 500ms、重置前置 60ms | 实测 **B@100ms 先到、A@523ms 后到**（反序成立），界面保持「共 15 条 / 15 行」✓ |
+| 证明上面不是空转：单独取回那个迟到的 A 响应 | 它确实 `total=2` —— 无守卫时界面会变成「chip 与筛选条说全部 15、列表只有 2 行」 |
+
+> 我第一版时延注入写错了（把 `sleep` 放在响应**之后**，等于没制造反序），
+> 那次跑出的「守卫有效」是**空转结论**；改到请求**之前**并核对完成时刻后才算数。
+> 第三处 `loadEdits()` 未动：它参数恒定（`limit=100`，仅切标签时调用），不存在「旧筛选覆盖新筛选」。
 
 ### 1.0.96 / 1.0.97：后台「已失效」面板筛选条（2026-11-09）
 
@@ -31,23 +51,54 @@
 一个向上跳目录的 import，除了 `ts:check`，还要过一遍改写表。
 
 **部署后验证**：`post-deploy-verify.mjs` → 4 通过 / 1 失败；失败项是
-`public-field-matrix`（15 通过 / 2 失败），**与本轮改动无关**（见下方既有问题）。
+`public-field-matrix`（15 通过 / 2 失败），**与本轮改动无关**，且本轮查明它是**探针自身的
+假阳性**（不是线上泄露）—— 见下一节「更正」。
 另做「重启不回退」：重启后再测分布与重启前完全一致，回填日志出现 2 次而结果不变，
 人工档位 `offline=1` 未被改写 —— 幂等与守卫均成立。
 
-### ⚠️ 既有问题（非本轮引入，线上实测存在）：`/tokens/keys` 泄露内部字段 `source_url`
+### ⚠️ 更正：上一版我把它记成「线上泄露」，其实是**探针假阳性**（本轮查清）
 
-`node scripts/public-field-matrix.mjs` 在 1.0.97 上报 2 项失败：
+1.0.97 部署后 `post-deploy-verify` 报 `public-field-matrix` 2 项失败，我当时的结论是
+「`/tokens/keys` 泄露内部字段 `source_url`，先前就存在」。**那个结论是错的**，
+错在没先看对外契约就按字段名定罪。本轮取证：
 
-    ✗ Key 页 SSR payload 含 source_url
-    ✗ token-keys 泄露 source_url — "https://linux.sb/topic/27933"
+| 证据 | 结论 |
+|---|---|
+| `favshub-data-ops/SKILL.md` 的 `GET /api/token-keys` 18 字段白名单 | **明确包含 `source_url`** —— 它是对外契约字段，不是内部列 |
+| `git log -S` 该端点字段清单 | 自 `42e302b`（1.0.15 上线）就在下发；`33939ca`（1.0.80）修的是**遮蔽值里的 key 形态串**，不是删字段 |
+| 线上 29 行逐值 `containsKeyLike` | **0 行值含密钥形态**（真泄露会是这个形状） |
+| Key 页可见文本 / 整页 HTML | 零命中密钥形态；`source_url` 连**渲染**都没渲染（只在 `interface` 里声明） |
+| 语义 | `token_deals.source_url` = 情报来源留痕（公开侧永不下发）；`token_keys.source_url` = 原帖地址（对外归因）。**两张表的同名字段，语义相反** |
 
-`source_url` 在探针里属 `INTERNAL_KEYS`，且 `docs/audits/2026-11-04-baipiao-import-runbook.md`
-写明它「运营留痕，公开侧永不下发」。取证：探针自 `1.0.72`（`3379cf8`）起就是这个期望，
-token-keys 侧代码最后一次改动是 `1.0.87`（`7c92c49`），本次两笔提交只碰了
-`VERSION` / `admin/token-deals`（API + 页面）/ `server/utils/token-deals.ts`（仅 import）/
-新增 `utils/deal-invalid-reasons.ts` / `scripts/third-batch-server.mjs`（测试）—— 无路径可达该出口。
-**结论：先前就存在的泄露，需单独立项修**（与 1.0.80 修掉的 `source_title` 同一族）。
+所以：自 `3379cf8`（1.0.72）把 `source_url` 列进 `INTERNAL_KEYS` 起，`token-keys` 端点与
+Key 页这两档**恒为失败** —— 一条长期挂红的假断言，正在本文件自己警告过的
+「训练人忽略脚本输出」那种坏味道。
+
+**修法（`scripts/public-field-matrix.mjs`，纯测试改动，不发版）**：不是删字段、也不是加
+全局 `allowKeys` —— 那两招会顺手把 `token_deals` 那条**真**探测器弄瞎（它防的正是
+`...row` 展开全列重新漏出这一列）。改为**按端点豁免** `opts.publicFields`：
+
+- 只有 `/api/token-keys` 与 `Key 页` 传它；`/api/token-deals` 那三档与列表页**照旧严格**；
+- 豁免的只是「键名不得出现」；这些端点**仍逐值**查密钥形态，且**键缺席要报**
+  「出口白名单被删？归因链会断」—— 双向都守住，不是单向放宽；
+- 命中时打印**先脱敏再截窗**（`maskedPeek`），绝不把明文 Key 打进控制台/CI 日志；
+- 判定函数直接 `import` 真源 `utils/key-redact.ts`（与 `category-source-check.mjs` 同法），
+  避免「拦的规则」与「脱敏的规则」再次漂移 —— 那是 1.0.86 记过的同一类事故。
+
+**反向验证**（只看到 18/0 不能证明没弄瞎，必须人为造一次泄露看它咬不咬）：
+临时假服务端三种模式，跑**同一个探针** ——
+
+| 模式 | 注入 | 探针反应 |
+|---|---|---|
+| `deals` | `/api/token-deals` 与 `/tokens` 页漏出 `source_url` | 4 档全部如实报红「泄露 source_url」✓ 没瞎 |
+| `keys` | `token-keys` 的**公开** `source_url` 值里夹带 `sk-`+40 字符 | `Key 页` 与 `token-keys` 两档报红，预览为**脱敏后**的 `sk-aaa…aaaa` ✓ |
+| `clean` | 与生产同形 | 0 泄露类失败 ✓ |
+
+生产复跑：**18 通过 / 0 失败**（改前 15/2）。
+
+> 顺带：我第一版修法把它做成**全局** `PUBLIC_FIELDS` 豁免，结果给 collections / prompts /
+> tags 等 8 档凭空加了「缺公开字段」—— 又一轮自己造的假阳性。教训与 1.0.72 那条同源：
+> **豁免必须钉在具体的端点上，不能按字段名全局生效。**
 
 
 > ⚠️ 本块此前停更在 1.0.79，且**自相矛盾**（写着 1.0.79 却带着 1.0.87 的断言数）。
