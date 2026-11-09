@@ -634,10 +634,22 @@ function showMessage(msg: string, type: 'success' | 'error' = 'success') {
   messageTimer = setTimeout(() => { message.value = '' }, 3000)
 }
 
-let loadingGuard = false
+/**
+ * 请求序号守卫（与 `loadInvalid()` 同一口径）。
+ *
+ * 原先这里是 `loadingGuard`：**在飞时后来的请求直接 return**。那防住了竞态，
+ * 却换来一个更隐蔽的问题 —— 新筛选条件被**静默丢弃**：改了状态下拉、紧接着翻页，
+ * 第二次请求不发，列表停在上一页/上一个状态的结果上，而筛选条显示的是新值
+ * （看起来像「筛选没生效」）。而且 `watch(page)` + 手动改状态会同时触发两次，
+ * 被丢掉的恰好是**后者**（更新的那次）。
+ *
+ * 序号守卫的做法相反：请求照发，只让**最新一次**的响应落地。旧响应到达时丢弃
+ * （只读 GET，丢弃无副作用），于是既不会「后发先至覆盖新结果」，也不会丢请求。
+ * `finally` 同样要判序号：先返回的旧请求不能替最新请求关掉「加载中」。
+ */
+let dealsReqSeq = 0
 async function loadDeals() {
-  if (loadingGuard) return
-  loadingGuard = true
+  const seq = ++dealsReqSeq
   loading.value = true
   try {
     const params = new URLSearchParams({
@@ -649,15 +661,16 @@ async function loadDeals() {
     if (verifyFilter.value !== 'all') params.append('verify', verifyFilter.value)
 
     const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
+    if (seq !== dealsReqSeq) return
     deals.value = r.deals || []
     total.value = r.pagination?.total || 0
     if (r.counts) Object.assign(counts, r.counts)
   } catch (e: any) {
+    if (seq !== dealsReqSeq) return
     showMessage('加载失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
     deals.value = []
   } finally {
-    loading.value = false
-    loadingGuard = false
+    if (seq === dealsReqSeq) loading.value = false
   }
 }
 
