@@ -42,11 +42,18 @@ import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// 独占端口 3210（这两个烟测脚本的默认端口；门禁其余套件都不用 3210）
-const APP_PORT = 3210
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3210（这两个烟测脚本的默认端口，门禁其余套件都不用 3210）：
+ * 「别的套件不用」是靠人工错开维持的，本机残留实例照样能占住它。
+ * 2026-11-09 改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ * ⚠️ 注意：本编排器把 BASE 作为 argv 传给两个烟测子脚本，所以 BASE 必须随重试一起更新。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const ADMIN_USER = 'smokeadmin'
 const JWT_SECRET = 'smoke-secret-key'
 
@@ -62,6 +69,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 const req = () => createRequire(join(ROOT, 'package.json'))
 const tempDbs = []
 let appProcess = null
+/**
+ * 本次启动的子进程 stderr（最近一次尝试）—— 关键：本编排器的 `startApp` **返回布尔而不是抛异常**，
+ * 没有异常 message 可判。把子进程日志留在这里，失败时以 `{ ok:false, evidence }` 交给
+ * `startWithFreePort`，由它按 EADDRINUSE 判据决定「换端口重试」还是「立刻抛」。
+ */
+let lastStartupEvidence = ''
 
 /** 完整读一遍子进程输出，避免大输出把管道堵住 */
 function runScript(script, args, extraEnv = {}) {
@@ -80,7 +93,23 @@ function runScript(script, args, extraEnv = {}) {
 
 const countOf = (out, tag) => (out.match(new RegExp(`\\[${tag}\\]`, 'g')) || []).length
 
-async function startApp(dbPath, env) {
+/**
+ * 起一次应用（端口由 `startWithFreePort` 传入）。
+ * 就绪探测（60s / /api/health）/ 日志捕获 / 环境变量与原实现一致，只有两处必要改动：
+ *   1. 护栏1 从「启动前一次性 process.exit(1)」挪进来，改成**抛「端口被占」**——
+ *      端口是刚由内核分配的，撞上说明它在「释放 → listen」窗口里被抢走，该换端口重试；
+ *   2. 子进程已退出时**立即**返回 false，而不是把 60s 等满：进程死了 /api/health
+ *      永远不会 ok，等满只会让每一次重试都白等 60s（原实现没有重试，所以没暴露这个问题）。
+ */
+async function startOnce(port, dbPath, env) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  lastStartupEvidence = ''
+  console.log(`  · 试用端口 ${port}`)
+  // 护栏1：端口必须先空闲（否则测的是残留实例的旧库/旧进程）
+  let busy = false
+  try { const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2000) }); busy = r.ok } catch { /* 空闲 */ }
+  if (busy) throw new Error(`端口 ${port} 仍被占用（EADDRINUSE：残留实例）`)
   appProcess = spawn(process.execPath, [join(ROOT, '.output', 'server', 'index.mjs')], {
     cwd: ROOT,
     env: {
@@ -90,7 +119,7 @@ async function startApp(dbPath, env) {
       NUXT_JWT_SECRET: JWT_SECRET,
       NUXT_ADMIN_USERS: ADMIN_USER,
       NUXT_TRUST_PROXY: 'true',   // --limit 模式靠 X-Forwarded-For 把限频压测隔离到专用 IP
-      PORT: String(APP_PORT),
+      PORT: String(port),
       HOST: '127.0.0.1',
       ...env,
     },
@@ -99,10 +128,15 @@ async function startApp(dbPath, env) {
   appProcess.stdout.on('data', () => {})
   appProcess.stderr.on('data', (d) => {
     const s = String(d).trim()
-    if (s && !s.includes('statusMessage')) console.error(`  [app] ${s.slice(0, 170)}`)
+    if (!s) return
+    lastStartupEvidence += `${s}\n`
+    if (!s.includes('statusMessage')) console.error(`  [app] ${s.slice(0, 170)}`)
   })
+  let exited = false
+  appProcess.on('exit', () => { exited = true })
   const t0 = Date.now()
   while (Date.now() - t0 < 60_000) {
+    if (exited) return false
     try { const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return true } catch { /* 等 */ }
     await sleep(500)
   }
@@ -111,6 +145,44 @@ async function startApp(dbPath, env) {
 
 function stopApp() {
   if (appProcess) { try { appProcess.kill('SIGTERM') } catch { /* ignore */ } appProcess = null }
+}
+
+/** 护栏1 的断言只记一次（原实现也是整个编排器只记一次），但真正的探测在每次尝试前都跑 */
+let guardAsserted = false
+
+/**
+ * 对外入口：挑空闲端口 → 起应用；只有证据是「端口被占」时才换端口重试（其它错误立刻抛）。
+ * `start` 返回布尔，所以失败时把子进程日志作为 evidence 交给判据。
+ */
+async function startApp(dbPath, env) {
+  const up = await startWithFreePort(async (port) => {
+    let ok = false
+    try {
+      ok = await startOnce(port, dbPath, env)
+    } catch (e) {
+      stopApp()
+      throw e
+    }
+    if (ok) return true
+    stopApp()
+    return { ok: false, evidence: lastStartupEvidence }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
+  if (!guardAsserted) {
+    guardAsserted = true
+    // 判据原先也是字面 `true`（恒真断言）。同 deal-subscriptions.mjs 的理由，改成能证伪的：
+    // 答话的必须是我们自己起的进程 —— 若有残留实例占着该端口，我们的子进程 listen 时
+    // 就会 EADDRINUSE 退出（`up === false`），根本走不到这里。
+    check('护栏1 起到的实例是我们自己的进程（避免测到残留实例）',
+      !!appProcess && appProcess.exitCode === null && appProcess.signalCode === null,
+      `pid=${appProcess?.pid} exitCode=${appProcess?.exitCode} signal=${appProcess?.signalCode}`)
+  }
+  return up
 }
 
 /** 等迁移建表后放开注册并关掉注册人机校验（两处配置都从库里实时读，无缓存） */
@@ -163,15 +235,8 @@ try {
     console.error('  ✗ 未找到 .output/server/index.mjs —— 请先 pnpm build'); process.exit(1)
   }
 
-  // 护栏1：端口必须先空闲
-  try {
-    const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2000) })
-    if (r.ok) {
-      console.error(`  ✗ 护栏1 端口 ${APP_PORT} 已被占用（残留实例）。拒绝在旧库/旧进程上得出结论。`)
-      process.exit(1)
-    }
-  } catch { /* 空闲 */ }
-  check('护栏1 端口空闲（避免测到残留实例）', true)
+  // 护栏1（端口空闲）现在由 startApp → startOnce 在**每次**尝试前探测：
+  // 撞上占用就换端口重试，不再 process.exit(1)。断言在 startApp 成功返回后记一次。
 
   mkdirSync(join(ROOT, 'data'), { recursive: true })
 

@@ -20,12 +20,18 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 import { createRequire } from 'node:module'
 import { rmSync } from 'node:fs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3277
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3277：本机任何残留实例占住它，应用就 EADDRINUSE 直接死。
+ * 2026-11-09 改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const STAMP = Date.now()
 const DB_PATH = join(ROOT, 'data', `e2e-qq-official-${STAMP}.db`)
 
@@ -72,36 +78,73 @@ function disableRegisterChallenge(dbPath) {
 
 let appProcess = null
 
-async function startApp() {
+/**
+ * 起一次应用（端口由 `startWithFreePort` 传入）。就绪探测 / 30s 超时 / 日志捕获（含
+ * ExperimentalWarning 过滤）/ 环境变量与原实现一致，另有三处**必要**改动
+ * （都是让「换端口重试」真的能触发）：
+ *   ① 子进程 stderr 另存一份并带进抛出的错误 —— 端口被占的证据（EADDRINUSE）只在 stderr 里；
+ *   ② 子进程已退出时立刻抛错，而不是把 30s 等满；
+ *   ③ 探测加 3s 超时：对端「接而不答」时原来的 fetch 会永挂，连 30s 上限都到不了。
+ */
+async function startOnce(port) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   appProcess = spawn('node', [entry], {
     cwd: ROOT,
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(APP_PORT),
+      PORT: String(port),
       NUXT_DB_PATH: DB_PATH,
       NUXT_ADMIN_USERS: 'qqofficialadmin',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  const appLogs = []
   appProcess.stderr.on('data', d => {
     const s = String(d).trim()
+    if (s) appLogs.push(s)
     if (s && !s.includes('ExperimentalWarning')) {
       console.error(`  [app-err] ${s.slice(0, 300)}`)
     }
   })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal } })
 
   const start = Date.now()
   while (Date.now() - start < 30_000) {
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
     try {
-      const res = await fetch(`${BASE}/api/health`)
-      if (res.ok) return
+      const res = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3000) })
+      if (res.ok) return true
     } catch {}
     await sleep(500)
   }
-  throw new Error('应用在 30 秒内未能正常启动')
+  throw new Error(`应用在 30 秒内未能正常启动：\n${appLogs.join('').slice(-800)}`)
+}
+
+/**
+ * 对外入口：挑空闲端口 → 起应用；**只有证据是「端口被占」时才换端口重试**
+ * （其它错误立刻抛，不空转 attempts 次）。
+ */
+async function startApp() {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port)
+    } catch (e) {
+      await stopApp()   // 失败那次若还活着（就绪超时路径）先收掉，免得占着旧端口干扰下一次
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 
 async function stopApp() {
@@ -132,7 +175,7 @@ async function api(path, { method = 'GET', cookie, body, headers: customHeaders 
 }
 
 async function main() {
-  console.log(`▶ [1/5] 启动生产产物应用（PORT=${APP_PORT}）`)
+  console.log('▶ [1/5] 启动生产产物应用（运行时选空闲端口）')
   cleanupDb(DB_PATH)
   await startApp()
   disableRegisterChallenge(DB_PATH)

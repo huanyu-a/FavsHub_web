@@ -41,11 +41,17 @@ import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// 独占端口 3270（3210-3277 里未被其他套件占用）
-const APP_PORT = 3270
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3270（3210-3277 里未被其他套件占用的号）：「未被占用」是靠人工错开维持的，
+ * 本机一旦有残留实例就崩。2026-11-09 统一改成运行时挑空闲端口 + 冲突换端口重试
+ * （见 scripts/lib/free-port.mjs）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 
 let pass = 0
 const fails = []
@@ -85,26 +91,28 @@ const setConfig = (k, v) => {
   try { db.prepare('INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)').run(k, v) } finally { db.close() }
 }
 
-try {
-  mkdirSync(join(ROOT, 'data'), { recursive: true })
-  dbPath = join(ROOT, 'data', `deal-sub-${Date.now()}.db`)
-
-  // 护栏1：端口必须先空闲
-  try {
-    const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2000) })
-    if (r.ok) {
-      console.error(`  ✗ 护栏1 端口 ${APP_PORT} 已被占用（残留实例）。拒绝在旧库上得出结论。`)
-      process.exit(1)
-    }
-  } catch { /* 空闲 */ }
-  check('护栏1 端口空闲（避免测到残留实例的旧库）', true)
+/**
+ * 起一次应用：端口由 `startWithFreePort` 传入。
+ * 护栏1（端口空闲探测）/ 就绪探测 / 30s 超时 / users 表等待 / 日志捕获与原实现一致。
+ *
+ * 与原实现唯一的差别：护栏1 撞上占用时**抛「端口被占」**而不是 `process.exit(1)` ——
+ * 端口是刚由内核分配的，撞上说明它在「释放 → 我们 listen」的窗口里被别人抢走了，
+ * 该由 startWithFreePort 换端口重试，而不是让整套件死掉。
+ */
+async function startOnce(port) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
+  let busy = false
+  try { const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2000) }); busy = r.ok } catch { /* 空闲 */ }
+  if (busy) throw new Error(`端口 ${port} 仍被占用（EADDRINUSE：残留实例，或选到的端口在 listen 前被抢走）`)
 
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 pnpm build'); process.exit(1) }
   appProcess = spawn('node', [entry], {
     cwd: ROOT,
     env: {
-      ...process.env, NODE_ENV: 'production', PORT: String(APP_PORT), NUXT_DB_PATH: dbPath,
+      ...process.env, NODE_ENV: 'production', PORT: String(port), NUXT_DB_PATH: dbPath,
       // 抬高**站点层**限流以便专测本模块自己的限流（否则 429 到底是谁发的不清楚）
       FAVSHUB_RL_SITE_READ_PER_MIN: '100000',
       FAVSHUB_RL_SITE_WRITE_PER_MIN: '100000',
@@ -113,15 +121,21 @@ try {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
-  appProcess.stderr.on('data', (d) => console.error(`  [app] ${String(d).trim().slice(0, 200)}`))
+  // 日志捕获：控制台输出保持原样，另外**留一份**给下面抛错用 ——
+  // 端口被占时子进程的 EADDRINUSE 只在 stderr 里，不带上就判不出「该换端口重试」。
+  const appLogs = []
+  appProcess.stderr.on('data', (d) => { const s = String(d); appLogs.push(s); console.error(`  [app] ${s.trim().slice(0, 200)}`) })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal } })
   {
     const start = Date.now()
     let up = false
     while (Date.now() - start < 30_000) {
-      try { const r = await fetch(`${BASE}/api/announcements`); if (r.ok) { up = true; break } } catch { /* 等 */ }
+      if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
+      try { const r = await fetch(`${BASE}/api/announcements`, { signal: AbortSignal.timeout(3000) }); if (r.ok) { up = true; break } } catch { /* 等（含探测超时：对端接而不答） */ }
       await sleep(500)
     }
-    if (!up) throw new Error('应用 30s 内未就绪')
+    if (!up) throw new Error(`应用 30s 内未就绪：\n${appLogs.join('').slice(-800)}`)
   }
   {
     const Database = req()('better-sqlite3')
@@ -136,6 +150,53 @@ try {
     }
     if (!ready) throw new Error('30s 内未见 users 表，迁移可能失败')
   }
+}
+/** 失败重试前收掉这一次的子进程（原 finally 的清理逻辑不变，这里只是让重试路径也能复用） */
+async function stopApp() {
+  if (!appProcess) return
+  const proc = appProcess
+  appProcess = null
+  try { proc.kill('SIGTERM') } catch { /* ignore */ }
+  await sleep(500)
+  if (!proc.killed) { try { proc.kill('SIGKILL') } catch { /* ignore */ } }
+}
+/**
+ * 对外入口：挑空闲端口 → 起应用；只有证据是「端口被占」时才换端口重试（其它错误立刻抛）。
+ */
+async function startApp() {
+  const up = await startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port)
+    } catch (e) {
+      await stopApp()
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
+  // 护栏1 的断言。原实现里它写死在启动**前**、判据是字面 `true` —— 那是**恒真断言**，
+  // 等于没测（撞上占用时直接 process.exit(1)，根本走不到它）。现在端口先由内核分配、
+  // 再在 startOnce 里探测是否被占，撞上就换端口重试，于是这条断言挪到「起成功之后」，
+  // 并改成**真的能被证伪**的判据：答话的必须是我们自己起的进程。
+  //
+  // 依据：同一时刻一个端口只能被一个进程绑定。若那个端口上是残留实例，我们的子进程
+  // 会在 listen 时 EADDRINUSE 立刻退出（startOnce 的 early-exit 检测会先抛错）；
+  // 反过来，子进程活着 + health 可答 ⇒ 答话的就是它，不是别人的旧库。
+  check('护栏1 起到的实例是我们自己的进程（避免测到残留实例的旧库）',
+    !!appProcess && appProcess.exitCode === null && appProcess.signalCode === null,
+    `pid=${appProcess?.pid} exitCode=${appProcess?.exitCode} signal=${appProcess?.signalCode}`)
+  return up
+}
+
+try {
+  mkdirSync(join(ROOT, 'data'), { recursive: true })
+  dbPath = join(ROOT, 'data', `deal-sub-${Date.now()}.db`)
+
+  await startApp()
 
   // ══════════════════════════════════════════════════════════════
   console.log('\n▶ 第1组：创建订阅的对外契约')

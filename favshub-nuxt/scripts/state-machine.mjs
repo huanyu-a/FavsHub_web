@@ -28,10 +28,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 /**
- * 端口改为**运行时选空闲端口**（2026-11-09）。
+ * 端口改为**运行时选空闲端口 + 端口冲突换端口重试**（2026-11-09；逻辑收敛到
+ * `scripts/lib/free-port.mjs`，本文件不再自带 pickFreePort）。
  *
  * 原先是硬编码 `3266`，注释里叫「独占端口」—— 当时假设「没有别的东西会用这个端口」。
  * 这个假设在本仓库里不成立：本机任何残留进程、另一个套件的手工调试实例，都能占住它。
@@ -39,24 +41,13 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
  * 于是 `assertion-count --check` 会把「某个套件起不来」报成「文档数字不符，请更新文档」——
  * 照着那个提示去改文档，恰好会把真实覆盖丢掉（这个坑我踩过一次，见 assertion-count.mjs 里同日的注释）。
  *
- * 现在先绑 `:0` 拿一个内核分配的空闲端口再释放，立刻用它起应用。
- * `waitPortFree` 保留：选到端口与真正 listen 之间有极小的竞争窗口，且它能给出更清楚的病因。
+ * 现在先绑 `:0` 拿一个内核分配的空闲端口再释放，立刻用它起应用；**若起不来且证据是
+ * 「端口被占」，就换一个端口重试**（释放到真正 listen 之间仍有竞争窗口，光靠挑端口不够）。
+ * `waitPortFree` 保留：它给出更清楚的病因，而且它抛出的「端口 N 仍被占用」正好是重试的判据之一。
  */
-const APP_PORT = await pickFreePort()
-const BASE = `http://127.0.0.1:${APP_PORT}`
-
-/** 绑 :0 让内核挑一个空闲端口，拿到号后立刻释放（不占用它，交给真正的应用去 listen） */
-async function pickFreePort() {
-  const { createServer } = await import('node:net')
-  return await new Promise((resolve, reject) => {
-    const srv = createServer()
-    srv.on('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
-      const { port } = srv.address()
-      srv.close(() => resolve(port))
-    })
-  })
-}
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const WORK = mkdtempSync(join(tmpdir(), 'favshub-state-'))
 const DB_PATH = join(WORK, 'state.db')
 /** 临时库的一次性口令，非机密（库随进程结束即删） */
@@ -159,7 +150,14 @@ async function waitPortFree(timeoutMs = 15_000) {
   }
   throw new Error(`端口 ${APP_PORT} 仍被占用（上一次启动的实例没退干净）`)
 }
-async function startApp() {
+/**
+ * 起一次应用：端口由 `startWithFreePort` 传入，并写进模块级 `APP_PORT` / `BASE`。
+ * 就绪探测 / 40s 超时 / 日志捕获 / early-exit 逻辑与原实现逐字一致。
+ */
+async function startOnce(port) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 `pnpm build`'); process.exit(1) }
   ensureNativeModule()
@@ -183,10 +181,32 @@ async function startApp() {
   const start = Date.now()
   while (Date.now() < start + 40_000) {
     if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code}）：\n${logs.join('').slice(-800)}`)
-    try { const r = await fetch(`${BASE}/api/announcements`); if (r.ok) return logs } catch { /* 还没起来 */ }
+    try { const r = await fetch(`${BASE}/api/announcements`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return logs } catch { /* 还没起来（含探测超时：对端接而不答） */ }
     await sleep(400)
   }
   throw new Error('应用 40s 内未就绪')
+}
+/**
+ * 对外入口：挑空闲端口 → 起应用；**只有证据是「端口被占」时才换端口重试**。
+ * 其它错误（ABI 不匹配、迁移失败…）由 startWithFreePort 立刻抛出，不空转 5 次。
+ */
+async function startApp() {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port)
+    } catch (e) {
+      // 失败的那次子进程若还活着（只有「就绪超时」这条路径会这样），先收掉再换端口，
+      // 否则重试会留下一个占着旧端口的孤儿进程。
+      await stopApp()
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 async function stopApp() {
   if (!appProcess) return
@@ -220,7 +240,7 @@ function dealBody(n, extra = {}) {
 
 // ════════════════════════════════════════════════════════════
 async function main() {
-  console.log(`▶ 起应用（PORT=${APP_PORT}），临时库 ${DB_PATH}`)
+  console.log(`▶ 起应用（运行时选空闲端口），临时库 ${DB_PATH}`)
   await startApp()
   disableRegisterChallenge()
 

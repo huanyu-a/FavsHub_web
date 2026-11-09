@@ -34,11 +34,17 @@ import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// 独占端口 3267（与其他套件错开 —— 3261 已被 third-batch-detail 占用）
-const APP_PORT = 3267
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3267（注释里叫「独占端口」）：本机任何残留实例占住它，应用就
+ * EADDRINUSE 直接死，而症状会被 assertion-count 报成「文档数字不符」。
+ * 2026-11-09 统一改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const ABSENT = '__probe_absent__'
 // 探针账号的密码：**自己定义的字面量**，本文件不读任何外部密钥 ——
 // 之前写成 {{...}} 形式会被替换成一个不透明的值，读代码的人无从判断它是什么，
@@ -137,7 +143,14 @@ function ensureNativeModule() {
   }
 }
 
-async function startApp() {
+/**
+ * 起一次应用：端口由 `startWithFreePort` 传入。就绪探测 / 30s 超时 / 日志捕获 /
+ * 限流放宽环境变量都与原实现一致。
+ */
+async function startOnce(port) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 pnpm build'); process.exit(1) }
   ensureNativeModule()
@@ -146,7 +159,7 @@ async function startApp() {
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(APP_PORT),
+      PORT: String(port),
       NUXT_DB_PATH: dbPath,
       // 本套件要测的是**鉴权**行为，而一次扫 224 个端点会撞上站点自己的写层限流
       // （默认 120 次/分钟）—— 那样「非 2xx」里会混进 429，可能**掩盖一个真正公开的端点**。
@@ -160,13 +173,45 @@ async function startApp() {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
-  appProcess.stderr.on('data', (d) => console.error(`  [app] ${String(d).trim().slice(0, 200)}`))
+  // 日志捕获：控制台输出保持原样，另外**留一份**给下面抛错用 ——
+  // 端口被占时子进程的 EADDRINUSE 只在 stderr 里，不带上就判不出「该换端口重试」。
+  const appLogs = []
+  appProcess.stderr.on('data', (d) => { const s = String(d); appLogs.push(s); console.error(`  [app] ${s.trim().slice(0, 200)}`) })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal } })
   const start = Date.now()
   while (Date.now() - start < 30_000) {
-    try { const r = await fetch(`${BASE}/api/announcements`); if (r.ok) return } catch { /* 等就绪 */ }
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
+    try { const r = await fetch(`${BASE}/api/announcements`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return } catch { /* 等就绪（含探测超时：对端接而不答） */ }
     await sleep(500)
   }
-  throw new Error('应用 30s 内未就绪')
+  throw new Error(`应用 30s 内未就绪：\n${appLogs.join('').slice(-800)}`)
+}
+/** 失败重试前收掉这一次的子进程（原 finally 的清理逻辑不变，这里只是让重试路径也能复用） */
+async function stopApp() {
+  if (!appProcess) return
+  const proc = appProcess
+  appProcess = null
+  try { proc.kill('SIGTERM') } catch { /* ignore */ }
+  await sleep(400)
+  if (!proc.killed) { try { proc.kill('SIGKILL') } catch { /* ignore */ } }
+}
+/** 对外入口：挑空闲端口 → 起应用；只有证据是「端口被占」时才换端口重试（其它错误立刻抛） */
+async function startApp() {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port)
+    } catch (e) {
+      await stopApp()
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 
 /** 未登录探测；带 6s 超时以免被出站调用类端点拖死 */
@@ -195,7 +240,7 @@ try {
   mkdirSync(join(ROOT, 'data'), { recursive: true })
   dbPath = join(ROOT, 'data', `api-public-${Date.now()}.db`)
   const endpoints = enumerateApiEndpoints()
-  console.log(`▶ 启动应用（PORT=${APP_PORT}）｜枚举到 ${endpoints.length} 个 /api 端点`)
+  console.log(`▶ 启动应用（运行时选空闲端口）｜枚举到 ${endpoints.length} 个 /api 端点`)
   await startApp()
 
   // 种一条已发布通告 + 一条待审通告，用于第 7 组（参数化路由）

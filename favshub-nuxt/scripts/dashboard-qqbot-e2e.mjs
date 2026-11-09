@@ -19,13 +19,24 @@ import { spawn, spawnSync } from 'node:child_process'
 import { createServer } from 'node:http'
 import { copyFileSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort, pickFreePort, isPortConflictError } from './lib/free-port.mjs'
 import { createRequire } from 'node:module'
 import { resolve, join } from 'node:path'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3211
-const BASE = `http://127.0.0.1:${APP_PORT}`
-const MOCK_PORT = 5701
+/**
+ * 端口原先硬编码：应用 3211、mock 5701。硬编码在本机有残留实例时会让应用 EADDRINUSE
+ * 直接死（症状还会被读成「断言数回归」）。2026-11-09 两个都改成运行时挑空闲端口。
+ *
+ * 应用端口走 `startWithFreePort`（冲突换端口重试）；mock 端口也改挑：
+ * 它在**本进程内**只 listen 一次，被占（上一次跑崩留下的进程、或本机真有一个 OneBot）
+ * 时 startMock 会 EADDRINUSE 且报错指向 mock 很难查；挑到后注入应用 env，
+ * 应用重启（换 APP_PORT）时 mock URL 不变。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
+let MOCK_PORT = 0
 const BOT_TOKEN = 'e2e-token'
 const GROUP_ID = '123456'
 const ADMIN_CONFIG_QQ = '88888' // 步骤 c 设置的 qq_admin_qq（步骤 d 断言 @ 它）
@@ -108,7 +119,7 @@ const mockMessages = []
 let mockServer = null
 
 function startMock() {
-  return new Promise((resolvePromise) => {
+  return new Promise((resolvePromise, rejectPromise) => {
     mockServer = createServer(async (req, res) => {
       const url = new URL(req.url, `http://127.0.0.1:${MOCK_PORT}`)
       if (req.method === 'POST' && (url.pathname === '/send_group_msg' || url.pathname === '/send_private_msg')) {
@@ -132,6 +143,19 @@ function startMock() {
       res.end(JSON.stringify({ status: 'failed', retcode: 404 }))
     })
     mockServer.listen(MOCK_PORT, '127.0.0.1', resolvePromise)
+    // 端口在「挑到 → listen」之间被抢走的概率极低，但既然要挑就做对：撞上就换一个再 listen
+    // （同一个 server 对象在 listen 失败后可以再 listen；请求处理器不动）。
+    let mockAttempt = 0
+    mockServer.on('error', async (e) => {
+      if (mockAttempt < 4 && isPortConflictError(e)) {
+        mockAttempt++
+        MOCK_PORT = await pickFreePort()
+        console.error(`  ↻ mock 端口被占，换端口重试 → ${MOCK_PORT}`)
+        mockServer.listen(MOCK_PORT, '127.0.0.1', resolvePromise)
+        return
+      }
+      rejectPromise(e)
+    })
   })
 }
 
@@ -230,7 +254,17 @@ function ensureNativeModule() {
   } catch { /* 同步失败不阻断（应用大概率仍能启动） */ }
 }
 
-async function startApp(dbPath) {
+/**
+ * 起一次应用（端口由 `startWithFreePort` 传入）。就绪探测 / 30s 超时 / 日志捕获 / env 与原实现一致，
+ * 另有三处**必要**改动（让「换端口重试」真的能触发）：
+ *   ① 子进程 stderr 另存一份并带进抛出的错误 —— 端口被占的证据（EADDRINUSE）只在 stderr 里；
+ *   ② 子进程已退出时立刻抛错，而不是把 30s 等满；
+ *   ③ 探测加 3s 超时：对端「接而不答」时原来的 fetch 会永挂，连 30s 上限都到不了。
+ */
+async function startOnce(port, dbPath) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) {
     console.error('未找到 .output/server/index.mjs —— 请先执行 `pnpm build` 再运行本脚本')
@@ -242,7 +276,7 @@ async function startApp(dbPath) {
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(APP_PORT),
+      PORT: String(port),
       NUXT_DB_PATH: dbPath,
       NUXT_ADMIN_USERS: 'e2eadmin',
       NUXT_QQ_BOT_HTTP_URL: `http://127.0.0.1:${MOCK_PORT}`,
@@ -251,19 +285,47 @@ async function startApp(dbPath) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
-  appProcess.stderr.on('data', (d) => { console.error(`  [app] ${String(d).trim().slice(0, 500)}`) })
-  appProcess.on('exit', () => { appProcess = null })
+  const appLogs = []
+  appProcess.stderr.on('data', (d) => { const s = String(d); appLogs.push(s); console.error(`  [app] ${s.trim().slice(0, 500)}`) })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal }; appProcess = null })
 
   // 轮询 30s 等 ready（公共只读接口探活）
   const start = Date.now()
   while (Date.now() - start < 30_000) {
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
     try {
-      const res = await fetch(`${BASE}/api/search-engines`)
-      if (res.ok) return
+      const res = await fetch(`${BASE}/api/search-engines`, { signal: AbortSignal.timeout(3000) })
+      if (res.ok) return true
     } catch { /* 未就绪继续等 */ }
     await sleep(500)
   }
+  const detail = appLogs.join('').slice(-800)
+  // 端口被占 ⇒ 抛带证据的错误，交给 startWithFreePort 换端口重试；
+  // 其它原因起不来（DB/迁移/业务抛错）⇒ 保持原样用 fail() 打印「期望/实际」，不重试。
+  if (isPortConflictError(detail)) throw new Error(`应用 30s 内未就绪（端口被占）：\n${detail}`)
   fail('应用在 30s 内就绪', 'HTTP 200', '超时未就绪')
+}
+
+/**
+ * 对外入口：挑空闲端口 → 起应用；**只有证据是「端口被占」时才换端口重试**
+ * （其它错误立刻抛，不空转 attempts 次）。
+ */
+async function startApp(dbPath) {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port, dbPath)
+    } catch (e) {
+      await stopApp()   // 失败那次若还活着（就绪超时路径）先收掉，免得占着旧端口干扰下一次
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 
 async function stopApp() {
@@ -284,14 +346,15 @@ function cleanupDb(dbPath) {
 // ── 断言序列 ────────────────────────────────────────────────
 
 async function main() {
-  log('▶ 启动迷你 OneBot mock（127.0.0.1:5701）')
+  MOCK_PORT = await pickFreePort()
+  log(`▶ 启动迷你 OneBot mock（127.0.0.1:${MOCK_PORT}）`)
   await startMock()
-  ok('mock 已监听 5701')
+  ok(`mock 已监听 ${MOCK_PORT}`)
 
   const dbPath = join(ROOT, 'data', `e2e-qqbot-${Date.now()}.db`)
   cleanupDb(dbPath) // 启动前删除旧文件（含残留 wal/shm）
 
-  log('▶ 启动应用（PORT=3211，临时库 data/e2e-qqbot-<时间戳>.db）')
+  log('▶ 启动应用（运行时选空闲端口，临时库 data/e2e-qqbot-<时间戳>.db）')
   await startApp(dbPath)
   ok('应用已就绪')
   disableRegisterChallenge(dbPath)
@@ -317,12 +380,21 @@ async function main() {
   }
 
   // c. 管理员配置机器人热配置
-  log('▶ c. PUT /api/admin/config 设置 qq_bot_enabled / 群号 / 管理员QQ')
+  log('▶ c. PUT /api/admin/config 设置 qq_bot_enabled / transport / 群号 / 管理员QQ')
   {
+    // ⚠️ 2026-11-09 补 `qq_bot_transport: 'onebot'`。
+    //
+    // 这个套件测的是 **OneBot 11 HTTP** 通道（靠 `NUXT_QQ_BOT_HTTP_URL` 指到本地 mock）。
+    // 但 `server/utils/constants.ts` 里 `qq_bot_transport` 的默认值已经是 `'official'`,
+    // 而 `transportAvailable()` 对 official 要求 `isOfficialConfigured()`（需要 appid/secret）；
+    // 套件原先没写 transport，靠的是**旧的默认值 onebot** —— 默认值一改，通道就不可用，
+    // 于是 step d 的 mock 一条消息也收不到（表现为「5s 轮询超时」，真因却在默认值上）。
+    //
+    // 显式声明本套件要测的通道，才不会被默认值的变动再次牵连。
     const { res, json } = await api('/api/admin/config', {
       method: 'PUT',
       cookie: adminCookie,
-      body: { data: { qq_bot_enabled: true, qq_bot_group_id: GROUP_ID, qq_admin_qq: ADMIN_CONFIG_QQ } },
+      body: { data: { qq_bot_enabled: true, qq_bot_transport: 'onebot', qq_bot_group_id: GROUP_ID, qq_admin_qq: ADMIN_CONFIG_QQ } },
     })
     if (res.status !== 200) fail('PUT /api/admin/config', 200, { status: res.status, body: json })
     ok(`已设置 qq_bot_enabled=true、群号 ${GROUP_ID}、管理员QQ ${ADMIN_CONFIG_QQ}`)
@@ -373,6 +445,21 @@ async function main() {
     const { json } = await api('/api/admin/stats', { cookie: adminCookie })
     if (json?.tokenDeals?.pending !== 0) fail('stats tokenDeals.pending', 0, json?.tokenDeals?.pending)
     ok('stats tokenDeals.pending=0')
+  }
+
+  // e0. 审核通过 ≠ 已发布（2026-11-04 的语义拆分）→ step h 的「最新通告」查的是**已发布**
+  //
+  // 2026-11-09 补：`reviewDealById('approve')` 置的是 `state='verified'`（已审核），
+  // 公开可见（含机器人「最新通告」）只认 `state='published'`。套件原先假定「审核通过即
+  // 已发布」，于是 step h 永远等不到含标题的「最新通告」回执 —— 而 step e 反而是绿的
+  // （那条广播通知的文案确实写着「已发布」），**失败点跑到几步之后**，很难看出真因。
+  //
+  // 拆两档是刻意的（避免「一点通过就对外可见」），所以补一次显式发布。
+  log('▶ e0. admin 显式发布 → 后续「最新通告」才会包含它')
+  {
+    const { res, json } = await api(`/api/admin/token-deals/${dealId}/state`, { method: 'PUT', cookie: adminCookie, body: { state: 'published' } })
+    if (res.status !== 200) fail('admin 发布（state=published）', 200, { status: res.status, body: json })
+    ok('已显式发布（state=published）—— 审核通过后需此步才对外可见 ✓')
   }
 
   // f. bob 绑定流程 + 入站鉴权

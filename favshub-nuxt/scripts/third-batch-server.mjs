@@ -3,7 +3,7 @@
  * third-batch-server.mjs — 第三批服务端改动 端到端 + 单元冒烟（自包含，node 直跑）
  *
  * 先决条件：`pnpm build` 已产出 `.output/`（本脚本只起产物，不编译）。
- * 端口固定 3262；临时库全部落在 /tmp（跑完自动清），不碰 data/。
+ * 端口运行时挑选（原先固定 3262，2026-11-09 改为挑空闲端口 + 冲突换端口重试）；临时库全部落在 /tmp（跑完自动清），不碰 data/。
  *
  * ## ⚠️ Node 版本必须与 `.output` 的构建版本一致，且该版本需 ≥22.6
  *
@@ -57,10 +57,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3262
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先固定 3262。固定端口在「本机有残留实例」时会撞 EADDRINUSE，而
+ * `/api/announcements` 探测会被**旧进程**应答 → 误判「起来了」，后面的 HTTP 断言
+ * 全打在旧库上（现象：迁移日志全空、数据"没变"，极具误导性）。
+ * 2026-11-09 改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ * `waitPortFree` 保留（它给出更清楚的病因，且它的报错正是「端口被占」的证据之一）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const PASSWORD = 'E2e#Pass2026'
 /** 临时工作目录：库、模块副本、桩都放这里，跑完删掉 */
 const WORK = mkdtempSync(join(tmpdir(), 'favshub-third-'))
@@ -175,16 +184,21 @@ function ensureNativeModule() {
   }
 }
 /**
- * 起服务并**收集 stdout**（迁移日志断言要用）。
+ * 起一次服务并**收集 stdout**（迁移日志断言要用）。端口由 `startWithFreePort` 传入。
  * 返回的 logs 数组是持续追加的引用，stopApp() 后仍是本次启动的完整日志。
  *
  * 两道保险，缺一不可（这里踩过坑，写清楚免得后人再踩）：
- *   1. 起之前先**探端口**：上一个实例若还占着 3262，新进程会 EADDRINUSE 直接死，
- *      而 `/api/announcements` 探测会被**旧进程**应答 → 误判"起来了"，
- *      于是后面的 HTTP 断言全打在旧库上（现象：迁移日志全空、数据"没变"，极具误导性）。
+ *   1. 起之前先**探端口**：选到的端口上若已有实例（残留进程、或它在「释放 → listen」
+ *      窗口里被抢走），新进程会 EADDRINUSE 直接死，而 `/api/announcements` 探测会被
+ *      **旧进程**应答 → 误判"起来了"，于是后面的 HTTP 断言全打在旧库上
+ *      （现象：迁移日志全空、数据"没变"，极具误导性）。`waitPortFree` 抛出的
+ *      「端口 N 仍被占用」正好是判据认得的证据 → 换端口重试。
  *   2. 起之后监听 child 的 early-exit：一旦退出立刻带着它的日志抛错，而不是干等 40s。
  */
-async function startApp(dbPath) {
+async function startOnce(port, dbPath) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 `pnpm build`'); process.exit(1) }
   ensureNativeModule()
@@ -192,7 +206,7 @@ async function startApp(dbPath) {
   const logs = []
   appProcess = spawn('node', [entry], {
     cwd: ROOT,
-    env: { ...process.env, NODE_ENV: 'production', PORT: String(APP_PORT), NUXT_DB_PATH: dbPath, NUXT_ADMIN_USERS: 'e2eadmin' },
+    env: { ...process.env, NODE_ENV: 'production', PORT: String(port), NUXT_DB_PATH: dbPath, NUXT_ADMIN_USERS: 'e2eadmin' },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', (d) => { logs.push(String(d)) })
@@ -207,12 +221,12 @@ async function startApp(dbPath) {
   const start = Date.now()
   while (Date.now() < start + 40_000) {
     if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${logs.join('').slice(-800)}`)
-    try { const r = await fetch(`${BASE}/api/announcements`); if (r.ok) return logs } catch { /* 还没起来 */ }
+    try { const r = await fetch(`${BASE}/api/announcements`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return logs } catch { /* 还没起来（含探测超时：对端接而不答） */ }
     await sleep(400)
   }
   throw new Error('应用 40s 内未就绪')
 }
-/** 端口占用检测：能连上就说明还有别的进程在听 3262 */
+/** 端口占用检测：能连上就说明还有别的进程在听选到的端口 */
 async function waitPortFree(timeoutMs = 15_000) {
   const start = Date.now()
   while (Date.now() < start + timeoutMs) {
@@ -222,6 +236,28 @@ async function waitPortFree(timeoutMs = 15_000) {
     await sleep(300)
   }
   throw new Error(`端口 ${APP_PORT} 仍被占用（上一次启动的实例没退干净）`)
+}
+/**
+ * 对外入口：挑空闲端口 → 起服务；**只有证据是「端口被占」时才换端口重试**
+ * （其它错误立刻抛，不空转 5 次）。`startOnce` 返回的 logs 原样透传。
+ */
+async function startApp(dbPath) {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port, dbPath)
+    } catch (e) {
+      // 失败的那次子进程若还活着（只有「就绪超时」这条路径会这样），先收掉再换端口，
+      // 否则重试会留下一个占着旧端口的孤儿进程，还会污染下一次的 waitPortFree。
+      await stopApp()
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起服务失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 async function stopApp() {
   if (!appProcess) return
@@ -1157,7 +1193,7 @@ function setTestPasswordOnCopy(dbPath, username, password) {
 // ════════════════════════════════════════════════════════════
 async function main() {
   console.log(`▶ 工作目录 ${WORK}`)
-  console.log(`▶ 起应用（PORT=${APP_PORT}），临时库全部在 /tmp`)
+  console.log(`▶ 起应用（运行时选空闲端口），临时库全部在 /tmp`)
   const freshDb = join(WORK, 'fresh.db')
   await startApp(freshDb)
   ok('应用已就绪')

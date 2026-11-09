@@ -20,10 +20,16 @@ import { existsSync, readdirSync, readFileSync, rmSync, mkdirSync, appendFileSyn
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort, pickFreePort, isPortConflictError } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3212
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3212：本机任何残留实例占住它，应用就 EADDRINUSE 直接死。
+ * 2026-11-09 改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const SPOOL = join(ROOT, 'data', `e2e-spool-${Date.now()}`, 'qq-outbox')
 // 占位 fixture（测试只用其形状断言前缀归一化/原样透传，不涉及真实通道；真实 ID 只存线上热配置）
 const GROUP_QQBOT = 'F00DCAFE0123456789ABCDEF01234567' // 裸 id（无平台前缀），断言归一化
@@ -119,7 +125,17 @@ function disableRegisterChallenge(dbPath) {
 }
 
 let appProcess = null
-async function startApp(dbPath) {
+/**
+ * 起一次应用（端口由 `startWithFreePort` 传入）。就绪探测 / 30s 超时 / 日志捕获与原实现一致，
+ * 另有三处**必要**改动（让「换端口重试」真的能触发）：
+ *   ① 子进程 stderr 另存一份并带进抛出的错误 —— 端口被占的证据（EADDRINUSE）只在 stderr 里；
+ *   ② 子进程已退出时立刻抛错，而不是把 30s 等满；
+ *   ③ 探测加 3s 超时：对端「接而不答」时原来的 fetch 会永挂，连 30s 上限都到不了。
+ */
+async function startOnce(port, dbPath) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 `pnpm build`'); process.exit(1) }
   ensureNativeModule()
@@ -128,7 +144,7 @@ async function startApp(dbPath) {
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(APP_PORT),
+      PORT: String(port),
       NUXT_DB_PATH: dbPath,
       NUXT_ADMIN_USERS: 'e2eadmin',
       NUXT_QQ_BOT_ACCESS_TOKEN: BOT_TOKEN,
@@ -136,14 +152,42 @@ async function startApp(dbPath) {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
-  appProcess.stderr.on('data', (d) => { console.error(`  [app] ${String(d).trim().slice(0, 500)}`) })
-  appProcess.on('exit', () => { appProcess = null })
+  const appLogs = []
+  appProcess.stderr.on('data', (d) => { const s = String(d); appLogs.push(s); console.error(`  [app] ${s.trim().slice(0, 500)}`) })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal }; appProcess = null })
   const start = Date.now()
   while (Date.now() - start < 30_000) {
-    try { const res = await fetch(`${BASE}/api/search-engines`); if (res.ok) return } catch {}
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
+    try { const res = await fetch(`${BASE}/api/search-engines`, { signal: AbortSignal.timeout(3000) }); if (res.ok) return true } catch {}
     await sleep(500)
   }
+  const detail = appLogs.join('').slice(-800)
+  // 端口被占 ⇒ 抛带证据的错误，交给 startWithFreePort 换端口重试；
+  // 其它原因起不来（DB/迁移/业务抛错）⇒ 保持原样用 fail() 打印「期望/实际」，不重试。
+  if (isPortConflictError(detail)) throw new Error(`应用 30s 内未就绪（端口被占）：\n${detail}`)
   fail('应用在 30s 内就绪', 'HTTP 200', '超时未就绪')
+}
+
+/**
+ * 对外入口：挑空闲端口 → 起应用；**只有证据是「端口被占」时才换端口重试**
+ * （其它错误立刻抛，不空转 attempts 次）。
+ */
+async function startApp(dbPath) {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port, dbPath)
+    } catch (e) {
+      await stopApp()   // 失败那次若还活着（就绪超时路径）先收掉，免得占着旧端口干扰下一次
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 async function stopApp() {
   if (!appProcess) return
@@ -156,7 +200,7 @@ async function stopApp() {
 async function main() {
   mkdirSync(SPOOL, { recursive: true })
   const dbPath = join(ROOT, 'data', `e2e-qqbot-outbox-${Date.now()}.db`)
-  console.log(`▶ 启动应用（PORT=${APP_PORT}，spool=${SPOOL}）`)
+  console.log(`▶ 启动应用（运行时选空闲端口，spool=${SPOOL}）`)
   await startApp(dbPath)
   ok('应用已就绪')
   disableRegisterChallenge(dbPath)
@@ -261,6 +305,26 @@ async function main() {
       if (!md.includes(expectedLink)) fail('发布通知 markdown 含可点详情链接（伪静态地址）', expectedLink, md)
     }
     ok('审核通过群广播 ×2（qqbot + dingtalk），未绑定用户无私聊 ✓')
+  }
+
+  // d0. 审核通过 ≠ 已发布（2026-11-04 的语义拆分）→ 要让公开列表出现它，得管理员再发布一次
+  //
+  // 2026-11-09 补：`reviewDealById('approve')` 置的是 `state='verified'`（已审核），
+  // 而公开列表 `/api/token-deals` **只认 `state='published'`**（见该端点内注释）。
+  // 套件原先假定「审核通过即对外可见」，于是 d1 的「category=cloud 命中投稿」在
+  // 自建临时库上必然失败 —— 旧库里恰好有 cloud 行时才蒙混过关。
+  //
+  // 拆成两档是**刻意的**（`server/utils/token-deals.ts` 的注释写明：避免「一点通过就
+  // 对外可见」，那正是此前 10 条域名被误上线的成因），所以要改的是套件而不是产品：
+  // 这里补一次显式发布，才能继续验证公开接口。
+  console.log('▶ d0. admin 显式发布 → 公开列表可见')
+  {
+    const { res } = await api(`/api/admin/token-deals/${dealId}/state`, { method: 'PUT', cookie: adminCookie, body: { state: 'published' } })
+    if (res.status !== 200) fail('admin 发布（state=published）', 200, res.status)
+    const { json } = await api('/api/token-deals?category=cloud&limit=20')
+    const ids = (json?.deals || []).map(d => d.id)
+    if (!ids.includes(dealId)) fail('发布后公开列表可见该投稿', dealId, ids.slice(0, 5))
+    ok('审核通过后需显式发布才对外可见（2026-11-04 语义）✓')
   }
 
   // d1. 公开接口不泄露账号名；事件富文本不带品级/地区

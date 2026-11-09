@@ -44,10 +44,17 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from
 import { createRequire } from 'node:module'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3258
-const BASE = `http://127.0.0.1:${APP_PORT}`
+/**
+ * 端口原先硬编码 3258：本机任何残留实例占住它，应用就 EADDRINUSE 直接死，
+ * 而症状会被 assertion-count 报成「文档数字不符」（2026-11-09 统一改成运行时挑端口，
+ * 见 scripts/lib/free-port.mjs；冲突则换端口重试）。
+ */
+let APP_PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 
 let pass = 0
 const fails = []
@@ -103,23 +110,61 @@ function ensureNativeModule() {
   }
 }
 
-async function startApp(dbPath) {
+/**
+ * 起一次应用：端口由 `startWithFreePort` 传入。就绪探测 / 30s 超时 / 日志捕获与原实现一致。
+ */
+async function startOnce(port, dbPath) {
+  APP_PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) { console.error('未找到 .output/server/index.mjs —— 请先 pnpm build'); process.exit(1) }
   ensureNativeModule()
   appProcess = spawn('node', [entry], {
     cwd: ROOT,
-    env: { ...process.env, NODE_ENV: 'production', PORT: String(APP_PORT), NUXT_DB_PATH: dbPath },
+    env: { ...process.env, NODE_ENV: 'production', PORT: String(port), NUXT_DB_PATH: dbPath },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   appProcess.stdout.on('data', () => {})
-  appProcess.stderr.on('data', (d) => console.error(`  [app] ${String(d).trim().slice(0, 300)}`))
+  // 日志捕获：控制台输出保持原样，另外**留一份**给下面抛错用 ——
+  // 端口被占时子进程的 EADDRINUSE 只在 stderr 里，不带上就判不出「该换端口重试」。
+  const appLogs = []
+  appProcess.stderr.on('data', (d) => { const s = String(d); appLogs.push(s); console.error(`  [app] ${s.trim().slice(0, 300)}`) })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal } })
   const start = Date.now()
   while (Date.now() - start < 30_000) {
-    try { const r = await fetch(`${BASE}/api/announcements`); if (r.ok) return } catch { /* 等就绪 */ }
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLogs.join('').slice(-800)}`)
+    try { const r = await fetch(`${BASE}/api/announcements`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return } catch { /* 等就绪（含探测超时：对端接而不答） */ }
     await sleep(500)
   }
-  throw new Error('应用 30s 内未就绪')
+  throw new Error(`应用 30s 内未就绪：\n${appLogs.join('').slice(-800)}`)
+}
+/** 失败重试前收掉这一次的子进程（原 finally 的清理逻辑不变，这里只是让重试路径也能复用） */
+async function stopApp() {
+  if (!appProcess) return
+  const proc = appProcess
+  appProcess = null
+  try { proc.kill('SIGTERM') } catch { /* ignore */ }
+  await sleep(300)
+  if (!proc.killed) { try { proc.kill('SIGKILL') } catch { /* ignore */ } }
+}
+/** 对外入口：挑空闲端口 → 起应用；只有证据是「端口被占」时才换端口重试（其它错误立刻抛） */
+async function startApp(dbPath) {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port, dbPath)
+    } catch (e) {
+      await stopApp()
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 
 /** 发一个请求，返回状态码与解析后的 JSON */
@@ -161,7 +206,7 @@ try {
   mkdirSync(join(ROOT, 'data'), { recursive: true })
   dbPath = join(ROOT, 'data', `admin-auth-${Date.now()}.db`)
   const endpoints = enumerateAdminEndpoints()
-  console.log(`▶ 启动应用（PORT=${APP_PORT}）｜枚举到 ${endpoints.length} 个 /api/admin 端点`)
+  console.log(`▶ 启动应用（运行时选空闲端口）｜枚举到 ${endpoints.length} 个 /api/admin 端点`)
   await startApp(dbPath)
 
   // ── 种数据：普通用户、管理员、以及「受害者」（他的资源用于越权测试）──

@@ -63,6 +63,17 @@ const PRE_BUILD = [
   // 界面表现与「后端没实现」一模一样。故判据锚在服务端真实读取处 `query.<param>`，
   // 而不是注释（第一版就是命中了注释里的反引号而假绿）。自包含、不碰 .output，故放 build 前。
   { name: 'admin-filter-params', script: 'admin-filter-params.mjs', args: ['--experimental-strip-types'] },
+  // 后台筛选栏「模板 ↔ 状态 ↔ 请求参数 ↔ 服务端白名单」接线守卫（2026-11-09）。
+  // 补掉独立审查指出的「UI 接线层无测试」的另一半：`v-model` 拼错一个字母会让下拉
+  // 照样能选、但列表永远不动（与「后端没实现」无法区分）；下拉选项手抄在模板里则会与
+  // 服务端白名单各存一份。它把四条链一起对账，并断言「筛选栏里不许有手写的非空 option」。
+  { name: 'admin-filter-wiring', script: 'admin-filter-wiring.mjs', args: ['--experimental-strip-types'] },
+  // 空闲端口工具的单测与「换端口重试」行为验证（2026-11-09，随端口扫除一起入库）。
+  // 它守的是一个**很容易写错、却很难在真实套件里复现**的判据：只有「端口被占」的证据
+  // 才允许换端口重试；ABI 不匹配 / 未就绪 / ECONNREFUSED / EACCES 都必须立刻抛出 ——
+  // 否则真正的故障会被 5 次重试拖成 5 倍超时，病因也被埋掉。
+  // 自包含、不依赖 .output，故放 build 前。
+  { name: 'free-port', script: 'lib/free-port.test.mjs' },
 ]
 // build 后需要 .output 的套件
 const POST_BUILD = [
@@ -268,7 +279,7 @@ async function main() {
       process.exit(1)
     }
     console.log(`\n${'─'.repeat(44)}\n  断言总计：${total}`)
-    return checkDocs(total)
+    return checkDocs(total, [...PRE_BUILD, ...POST_BUILD])
   }
 
   console.log(`断言数统计 —— ${ROOT}\n`)
@@ -380,11 +391,11 @@ async function main() {
     )
     process.exit(1)
   }
-  const docsOk = checkDocs(total)
+  const docsOk = checkDocs(total, [...PRE_BUILD, ...POST_BUILD])
   return docsOk
 }
 
-function checkDocs(total) {
+function checkDocs(total, suites) {
   console.log('\n── 校验文档里的数字 ───────────────────────')
   const docs = [
     { path: join(ROOT, 'DEPLOYMENT-STATE.md'), label: 'DEPLOYMENT-STATE.md' },
@@ -419,6 +430,27 @@ function checkDocs(total) {
       const cnt = found.filter((f) => f.v === t).length
       if (t === total) console.log(`  ✓ ${d.label} 写的 ${t} = 实测 ${total}（${cnt} 处）`)
       else { bad += cnt; console.log(`  ✗ ${d.label} 有一处写 ${t}，实测 ${total}（${cnt} 处不符）`) }
+    }
+
+    // ── 套件数也有守卫（2026-11-09 追加）────────────────────────────
+    // 「断言总计」一直被守，但**「N 个套件」从来没人守** —— 于是它一样会漂：
+    // 这次核对时文档写 22、`SUITES` 里实际 23。同类问题（手抄数字无守卫）在本仓库
+    // 已经反复出现，所以顺手把第二个最常被改的数字也纳入校验。
+    //
+    // 只认**带「共」的规范写法** `共 N 个套件`，刻意避开历史叙述
+    // （「这份注释原先写『8 个套件 / 37 秒』」「套件数早已翻倍到 20」——那些讲的是过去，
+    //  拿去和今天的实测比就是假红）。要表达**当前**套件数就用这个写法。
+    const suiteRe = /共\s*\*{0,2}(\d{1,3})\s*个套件/g
+    const suiteFound = [...text.matchAll(suiteRe)].map((m) => ({ v: Number(m[1]), at: m.index }))
+    if (!suiteFound.length) {
+      // 刻意报错而不是静默跳过：没有这一句时，数字漂了也不会有人知道。
+      bad += 1
+      console.log(`  ✗ ${d.label} 没有「共 N 个套件」这一句（当前应为 共 ${suites.length} 个套件）—— 缺了它这个数字就没人守`)
+    } else if (!suiteFound.some((f) => f.v === suites.length)) {
+      bad += suiteFound.length
+      console.log(`  ✗ ${d.label} 有一处写 ${suiteFound.map((f) => f.v).join('/')} 个套件，实测 ${suites.length}`)
+    } else {
+      console.log(`  ✓ ${d.label} 写的套件数 ${suites.length} = 实测`)
     }
   }
   if (bad) {

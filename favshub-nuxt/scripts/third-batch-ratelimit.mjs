@@ -27,10 +27,18 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import http from 'node:http'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const PORT = 3265
-const BASE = `http://127.0.0.1:${PORT}`
+/**
+ * 端口原先硬编码 3265：本机任何残留实例占住它，应用就 EADDRINUSE 直接死。
+ * 2026-11-09 改成运行时挑空闲端口 + 冲突换端口重试（见 scripts/lib/free-port.mjs）。
+ * 本套件按 phase 反复 stopApp/startApp（约 8 次），每次重启都重新挑端口，PORT/BASE 同步更新；
+ * openHanging() 用的也是这个 PORT，所以它永远是「当前那次」的端口。
+ */
+let PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试/重启都会换端口，所以不能是常量 */
+let BASE = ''
 const DB_PATH = `/tmp/favshub-rl-${process.pid}-${Date.now()}.db`
 /**
  * `.output` 快照目录。
@@ -113,7 +121,17 @@ function ensureNativeModule() {
   }
 }
 
-async function startApp(extraEnv = {}, label = '') {
+/**
+ * 起一次应用（端口由 `startWithFreePort` 传入）。就绪探测 / 30s 超时 / 日志捕获 / phase 环境变量
+ * 与原实现一致，另加两处**必要**改动（让「换端口重试」真的能触发）：
+ *   ① 子进程已退出时立刻抛错（带日志），而不是把 30s 等满；
+ *   ② 探测加 3s 超时：对端「接而不答」时原来的 fetch 会永挂，连 30s 上限都到不了。
+ * （原实现已经把子进程日志拼进了未就绪错误里，这点保持。）
+ */
+async function startOnce(port, extraEnv = {}, label = '') {
+  PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}${label ? `（${label}）` : ''}`)
   const entry = join(SNAP, 'server', 'index.mjs')
   ensureNativeModule()
   appProcess = spawn('node', [entry], {
@@ -121,7 +139,7 @@ async function startApp(extraEnv = {}, label = '') {
     env: {
       ...process.env,
       NODE_ENV: 'production',
-      PORT: String(PORT),
+      PORT: String(port),
       HOST: '127.0.0.1',
       NUXT_DB_PATH: DB_PATH,
       // 固定密钥：不落 data/.jwt-secret，避免污染共享工作区
@@ -133,12 +151,14 @@ async function startApp(extraEnv = {}, label = '') {
   const appLog = []
   appProcess.stdout.on('data', d => appLog.push(String(d)))
   appProcess.stderr.on('data', d => appLog.push(String(d)))
-  appProcess.on('exit', () => { appProcess = null })
+  let earlyExit = null
+  appProcess.on('exit', (code, signal) => { earlyExit = { code, signal }; appProcess = null })
 
   const start = Date.now()
   while (Date.now() - start < 30_000) {
+    if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code} signal=${earlyExit.signal}）：\n${appLog.join('').slice(-800)}`)
     try {
-      const r = await fetch(`${BASE}/api/health`)
+      const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3000) })
       if (r.ok) {
         if (label) console.log(`  [phase] ${label} 已就绪`)
         return
@@ -147,6 +167,27 @@ async function startApp(extraEnv = {}, label = '') {
     await sleep(200)
   }
   throw new Error(`应用 30s 内未就绪${label ? `（${label}）` : ''}\n` + appLog.join('').slice(-2000))
+}
+
+/**
+ * 对外入口：挑空闲端口 → 起应用；**只有证据是「端口被占」时才换端口重试**
+ * （其它错误立刻抛，不空转 attempts 次）。每个 phase 重启都会挑一个新的空闲端口。
+ */
+async function startApp(extraEnv = {}, label = '') {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port, extraEnv, label)
+    } catch (e) {
+      await stopApp()   // 失败那次若还活着（就绪超时路径）先收掉，免得占着旧端口干扰下一次
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 
 async function stopApp() {
@@ -243,7 +284,7 @@ function assert429(desc, r, mustInclude) {
 
 async function main() {
   console.log(`▶ 临时库：${DB_PATH}`)
-  console.log(`▶ 端口：${PORT}`)
+  console.log('▶ 端口：运行时挑（每个 phase 重启都换一个空闲端口）')
   if (!existsSync(join(ROOT, '.output', 'server', 'index.mjs'))) {
     console.error('未找到 .output/server/index.mjs —— 请先 `bash scripts/with-build-lock.sh`')
     process.exit(1)

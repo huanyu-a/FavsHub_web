@@ -24,27 +24,18 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { startWithFreePort } from './lib/free-port.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /**
- * 端口运行时选空闲端口（与 state-machine.mjs 同日同因）。
+ * 端口运行时选空闲端口 + 端口冲突换端口重试（与 state-machine.mjs 同日同因，
+ * 逻辑收敛到 scripts/lib/free-port.mjs）。
  * 硬编码端口在「本机有残留实例」时会失败，且失败会伪装成「断言数回归」。
  */
-async function pickFreePort() {
-  const { createServer } = await import('node:net')
-  return await new Promise((resolve, reject) => {
-    const srv = createServer()
-    srv.on('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
-      const { port } = srv.address()
-      srv.close(() => resolve(port))
-    })
-  })
-}
-
-const PORT = await pickFreePort()
-const BASE = `http://127.0.0.1:${PORT}`
+let PORT = 0
+/** 由每次尝试开始时按**当次**端口重算 —— 重试会换端口，所以不能是常量 */
+let BASE = ''
 const WORK = mkdtempSync(join(tmpdir(), 'favshub-invfilter-'))
 const DB = join(WORK, 'invfilter.db')
 const ADMIN_USER = 'invfilter_admin'
@@ -103,7 +94,14 @@ function disableRegisterChallenge() {
   ).run()
   db.close()
 }
-async function startApp() {
+/**
+ * 起一次应用：端口由 `startWithFreePort` 传入。就绪探测 / 40s 超时 / 日志捕获 /
+ * early-exit 逻辑与原实现逐字一致。
+ */
+async function startOnce(port) {
+  PORT = port
+  BASE = `http://127.0.0.1:${port}`
+  console.log(`  · 试用端口 ${port}`)
   const entry = join(ROOT, '.output', 'server', 'index.mjs')
   if (!existsSync(entry)) {
     console.error('未找到 .output/server/index.mjs —— 请先 `pnpm build`')
@@ -128,10 +126,27 @@ async function startApp() {
   const start = Date.now()
   while (Date.now() < start + 40_000) {
     if (earlyExit) throw new Error(`应用启动即退出（code=${earlyExit.code}）：\n${logs.join('').slice(-800)}`)
-    try { const r = await fetch(`${BASE}/api/health`); if (r.ok) return logs } catch { /* 还没起来 */ }
+    try { const r = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3000) }); if (r.ok) return logs } catch { /* 还没起来（含探测超时：对端接而不答） */ }
     await sleep(400)
   }
   throw new Error('应用 40s 内未就绪')
+}
+/** 对外入口：挑空闲端口 → 起应用；只有证据是「端口被占」时才换端口重试（其它错误立刻抛） */
+async function startApp() {
+  return startWithFreePort(async (port) => {
+    try {
+      return await startOnce(port)
+    } catch (e) {
+      await stopApp()   // 失败的那次子进程若还活着，先收掉，免得重试留下占着旧端口的孤儿
+      throw e
+    }
+  }, {
+    attempts: 5,
+    onRetry: ({ attempt, port, nextPort, error }) => {
+      console.error(`  ↻ 第 ${attempt} 次起应用失败（端口 ${port} 被占），换端口重试 → ${nextPort}`)
+      console.error(`     ${String(error?.message || error).split('\n')[0].slice(0, 160)}`)
+    },
+  })
 }
 async function stopApp() {
   if (!appProcess) return

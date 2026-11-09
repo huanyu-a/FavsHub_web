@@ -23,13 +23,13 @@
  */
 import http from 'node:http'
 import https from 'node:https'
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
+import { X509Certificate } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 let pass = 0
 let fail = 0
@@ -166,64 +166,65 @@ console.log(`node ${process.version}`)
 // 改为本地自签证书靶标 + **正负两例**：正例证明 pin 之后 SNI/主机名校验照常工作，
 // 负例（主机名与证书不匹配必须被拒）才真正证明校验**没有被关掉**。全程离线、确定性。
 {
-  const dir = mkdtempSync(join(tmpdir(), 'ssrf-pin-tls-'))
-  const keyPath = join(dir, 'key.pem')
-  const crtPath = join(dir, 'crt.pem')
-  let tlsReady = true
+  // 证书是**仓库内的固定 fixture**（`scripts/fixtures/tls-pinned-test.*.pem`），
+  // 不再在运行时调 openssl 现场签一张。
+  //
+  // 为什么不再用 openssl：原先 `execFileSync('openssl', …)` 让这条断言多了一个与测试
+  // 目标**无关的外部依赖** —— 缺 openssl 就报红（我当时的处理是如实报红、拒绝静默跳过，
+  // 那是对的），但随之而来一个更隐蔽的问题：**「没有 openssl 时那条分支到底对不对」
+  // 在我这台装了 openssl 的机器上永远没被验证过**。固定 fixture 把这条分支**整个删掉**：
+  // 任何有 Node 的环境行为完全一致，离线、确定性、零外部二进制。
+  //
+  // 代价是证书会过期，故加一条「过期即报红」的断言 —— 否则 2036 年那天会以
+  // 「TLS 校验失败」的形式莫名其妙地红，而那与本次要验的机制毫无关系。
+  const ca = readFileSync(join(HERE, 'fixtures', 'tls-pinned-test.crt.pem'))
+  const key = readFileSync(join(HERE, 'fixtures', 'tls-pinned-test.key.pem'))
+
+  const x509 = new X509Certificate(ca)
+  const notAfter = Date.parse(x509.validTo)
+  check('固定 TLS fixture 尚未过期（过期时会以「证书校验失败」的形式莫名报红）',
+    Number.isFinite(notAfter) && notAfter > Date.now() + 86_400_000,
+    `notAfter=${x509.validTo}`)
+  check('fixture 证书的 SAN 覆盖用例里的主机名 pinned-test.local',
+    String(x509.subjectAltName || '').includes('pinned-test.local'),
+    `SAN=${x509.subjectAltName}`)
+
+  const srv = https.createServer({ key, cert: ca },
+    (_q, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}') })
+  await new Promise(r => srv.listen(0, '127.0.0.1', r))
+  const port = srv.address().port
+
+  // 正例：主机名与证书一致 → 应连上（说明 SNI 与主机名校验在 pin 之下照常工作）
+  let okStatus = null
   try {
-    execFileSync('openssl', [
-      'req', '-x509', '-newkey', 'rsa:2048', '-keyout', keyPath, '-out', crtPath,
-      '-days', '2', '-nodes', '-subj', '/CN=pinned-test.local',
-      '-addext', 'subjectAltName=DNS:pinned-test.local',
-    ], { stdio: 'ignore' })
-  } catch {
-    tlsReady = false
+    const r = await pinnedRequest({
+      url: new URL(`https://pinned-test.local:${port}/v1/models`),
+      address: '127.0.0.1', family: 4, ca,
+    })
+    okStatus = r.status
+  } catch (err) {
+    okStatus = `err:${err.code || err.message}`
   }
+  check('pin 之后 https 仍能按主机名校验并连上（SNI 未受钉地址影响）',
+    okStatus === 200, `实测 ${okStatus}`)
 
-  if (!tlsReady) {
-    // 刻意**报红**而不是跳过：静默跳过正是上面记的那个坑。
-    // openssl 在 CI（ubuntu-latest）与常见开发机上都自带，缺了就是环境不完整。
-    check('本机有 openssl（生成 TLS 靶标证书需要）', false,
-      '未找到 openssl —— 请安装后重跑；不要把它降级为「跳过」，那会让本条覆盖悄悄消失')
-  } else {
-    const ca = readFileSync(crtPath)
-    const srv = https.createServer({ key: readFileSync(keyPath), cert: ca },
-      (_q, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}') })
-    await new Promise(r => srv.listen(0, '127.0.0.1', r))
-    const port = srv.address().port
-
-    // 正例：主机名与证书一致 → 应连上（说明 SNI 与主机名校验在 pin 之下照常工作）
-    let okStatus = null
-    try {
-      const r = await pinnedRequest({
-        url: new URL(`https://pinned-test.local:${port}/v1/models`),
-        address: '127.0.0.1', family: 4, ca,
-      })
-      okStatus = r.status
-    } catch (err) {
-      okStatus = `err:${err.code || err.message}`
-    }
-    check('pin 之后 https 仍能按主机名校验并连上（SNI 未受钉地址影响）',
-      okStatus === 200, `实测 ${okStatus}`)
-
-    // 负例：主机名与证书不符 → 必须因证书不匹配而失败。
-    // 这一条才证明「校验没被关掉」；只测正例的话，rejectUnauthorized:false 也能绿。
-    let mismatchErr = ''
-    try {
-      await pinnedRequest({
-        url: new URL(`https://wrong-name.local:${port}/v1/models`),
-        address: '127.0.0.1', family: 4, ca,
-      })
-      mismatchErr = '(居然成功了)'
-    } catch (err) {
-      mismatchErr = err.code || err.message
-    }
-    check('主机名与证书不符时必须被拒（证明证书校验仍开着，不是「连上就算过」）',
-      /ERR_TLS_CERT_ALTNAME_INVALID|altnames/i.test(mismatchErr), `实测 ${mismatchErr}`)
-
-    srv.closeAllConnections?.()
-    srv.close()
+  // 负例：主机名与证书不符 → 必须因证书不匹配而失败。
+  // 这一条才证明「校验没被关掉」；只测正例的话，rejectUnauthorized:false 也能绿。
+  let mismatchErr = ''
+  try {
+    await pinnedRequest({
+      url: new URL(`https://wrong-name.local:${port}/v1/models`),
+      address: '127.0.0.1', family: 4, ca,
+    })
+    mismatchErr = '(居然成功了)'
+  } catch (err) {
+    mismatchErr = err.code || err.message
   }
+  check('主机名与证书不符时必须被拒（证明证书校验仍开着，不是「连上就算过」）',
+    /ERR_TLS_CERT_ALTNAME_INVALID|altnames/i.test(mismatchErr), `实测 ${mismatchErr}`)
+
+  srv.closeAllConnections?.()
+  srv.close()
 }
 
 // ── 4. 负例：pin 到错误端口必须失败（证明不是「随便连都通」的假阳性）──
