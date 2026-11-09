@@ -1,19 +1,19 @@
-**最后更新：2026-11-09（第 35 次修订：清掉门禁自身的三个尾巴 —— ①16 个套件硬编码端口（残留实例会伪装成「断言数回归」）+ 空闲端口自身的竞态；②`ssrf-pin-check` 的 TLS 靶标依赖 openssl（那条「缺 openssl」分支在装了 openssl 的机器上永远没人验证）；③UI 接线层零测试（`v-model` 拼错一个字母会让下拉静默失效）。上一轮第 34 次修订：把后台筛选条从「已失效」单页挪到「全部 / 待审核 / 已发布…」等队列 tab —— 用户反馈「位置不对，不应该在全部那里么」，属实；顺带把上一轮遗留的 UI 参数层零测试补上（新套件 31 项 + 队列侧 13 项）。**已发版 1.0.99 并部署**）**
+**最后更新：2026-11-09（第 35 次修订：清掉门禁自身的三个尾巴 —— ①16 个套件硬编码端口（残留实例会伪装成「断言数回归」）+ 空闲端口自身的竞态；②`ssrf-pin-check` 的 TLS 靶标依赖 openssl（那条「缺 openssl」分支在装了 openssl 的机器上永远没人验证）；③UI 接线层零测试（`v-model` 拼错一个字母会让下拉静默失效）。上一轮第 34 次修订：把后台筛选条从「已失效」单页挪到「全部 / 待审核 / 已发布…」等队列 tab —— 用户反馈「位置不对，不应该在全部那里么」，属实；顺带把上一轮遗留的 UI 参数层零测试补上（新套件 31 项 + 队列侧 13 项）。**已发版 1.0.100 并部署**）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.99（2026-11-09）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.100（2026-11-09）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.99` |
-| **来源提交** | `e62647d4700699488626c0d5171b3ecc79b1b04a` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.99`、`revision=e62647d4…` —— 部署前拿它当**闸门**：不符就不重建容器（1.0.97/1.0.98/1.0.99 三轮都实测通过后才 `up -d`） |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:642b5b8d256cf18840d44ab5f5e1ef1f40b3f58f11086c4331e12fdc64450cc8` |
-| **CI run** | `42598099976`，`success`（**首次**跑到新增的两步：「后台筛选参数构造（31 项）」「后台通告列表筛选契约（98 项）」）；上游 `42578064759`（1.0.98）success |
-| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.99`**、`generated_at=2026-11-09T10:04Z` |
+| **版本** | `1.0.100` |
+| **来源提交** | `d0648c54a1ede28e20de74f161046e13e476ad85` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.100`、`revision=d0648c54…` —— 部署前拿它当**闸门**：不符就不重建容器（1.0.97 → 1.0.100 四轮都实测通过后才 `up -d`） |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:882be73473cd9bf390009c65c42adb44a710818e59ec2e5b0018294e5ce18ff7` |
+| **CI run** | `42606744843`，`success`（**首次**跑到新增的两步：「后台筛选栏接线守卫（46 项）」「空闲端口重试判据（19 项）」，文档一致性检查同步为 2308 / 23 个套件）；上游 `42598099976`（1.0.99）success |
+| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.100`**、`generated_at=2026-11-09T11:10Z` |
 | **断言总数** | **2308**（共 23 个套件）· `ts:check` 965 个具名导入。该数字由 `assertion-count.mjs --check` 实测校验（含新加的「共 N 个套件」守卫） |
-| **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 1.0.99 部署**前后逐项一致**（部署后由容器内只读查询复核） |
-| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.99`，由 CI 构建期生成） |
-| **回滚锚点** | 镜像 tag `rollback-1.0.98-20261109181439` + 库备份 `data/backups/favshub.db.pre-1.0.99-20261109181439`（4,775,936 字节）；更早还有 `rollback-1.0.97-…` / `rollback-1.0.95-…` 与各自库备份 |
+| **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125，软删 5）—— 1.0.100 部署**前后逐项一致**（部署后由容器内只读查询复核） |
+| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.100`，由 CI 构建期生成；仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成，与线上**除 `generated_at` 外逐字段一致**） |
+| **回滚锚点** | 镜像 tag `rollback-1.0.99-20261109191428` ← `sha256:1ccf4e0a69ce`（1.0.99 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-1.0.100-20261109191428`（4,775,936 字节，sha256 `995598cd…`）；更早还有 `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` 与各自库备份 |
 | **部署后校验** | `post-deploy-verify.mjs --base https://hao.bx9y.com.cn` → **5 通过 / 0 失败**（含 `public-field-matrix` 18/0） |
 
 ### 1.0.99：筛选条挪到「全部」等队列 tab（2026-11-09）
