@@ -18,20 +18,48 @@ const BASE = (process.argv[2] || 'https://hao.bx9y.com.cn').replace(/\/+$/, '')
 // 「值里是否夹带密钥形态」必须用**真源**判定，不能在这儿另写一份正则：
 // 1.0.80 的线上事故正是「拦的规则」和「脱敏的规则」漂移。与
 // `category-source-check.mjs` 同一做法（Node 24 原生剥类型，直接 import .ts）。
-const { containsKeyLike, redactKeyLike } = await import('../utils/key-redact.ts')
+const { containsKeyLike, redactKeyLike, KEY_PREFIXES } = await import('../utils/key-redact.ts')
+
+/** 按字面量匹配前缀（`sk-` / `ghp_` …），用于把窗口对齐到 Key 的真正开头 */
+const prefixAt = (s, i) => KEY_PREFIXES.find(p => s.startsWith(p, i)) || ''
+/** 前缀转义后的一次性「去前缀」正则：防止窗口右侧再夹带第二把 Key 的前缀体 */
+const PREFIX_STRIP = new RegExp(KEY_PREFIXES.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
 
 /**
- * 命中密钥形态时该打印什么：**先脱敏再截窗**，绝不把明文 Key 打进控制台/CI 日志
+ * 命中密钥形态时该打印什么：**只留前缀、其余全遮**，绝不把明文 Key 打进控制台/CI 日志
  * （`favshub-data-ops` 协议里「取到后不要写入日志」是同一条纪律）。
- * 用「原文与脱敏文第一处差异」定位命中位置，再取一个以掩码为中心的窗口。
+ *
+ * ⚠️ 三条必须守住的坑（都实测踩过）：
+ * 1. **不要**用 `redactKeyLike()` 的输出直接截窗 —— 那个掩码为「便于人工比对是哪把」
+ *    保留前 6 位 + 后 4 位，对**最短命中形态**（`sk-` + 8 字符 = 11 字符）等于露出 10/11
+ *    个字符，只剩 1 个被遮住。掩码是给**人眼认 Key**用的；日志只该给到「够定位、不够还原」。
+ * 2. **不要**用「首个差异点往回退 6」猜 Key 起点 —— 差异点落在命中段第 7 字符，
+ *    一旦把「命中段之后」当上下文原样截出，主体字符就全泄了（实测 8/8 例如此）。
+ * 3. **不要**用「掩码比原文短的量」反推命中段长度 —— 那个量只对应**首处**命中，
+ *    两把等长 Key 时反推出的长度只够盖住第一把，第二把主体照样打出（实测 2/9 例）。
+ *
+ * 做法：用真源正则扫出**所有**命中段，逐段替换成 `前缀 + ••••`，再统一截窗。
+ * 窗口起点取首个命中起点向左 10，窗口长度按替换后的字符串算 —— 窗口内不可能再出现主体。
  */
 function maskedPeek(text, radius = 44) {
   const s = String(text ?? '')
-  const masked = redactKeyLike(s)
+  if (!containsKeyLike(s)) return ''
+  // 用真源的前缀池 + 真源的「前缀后至少 8 字符」规则拼出一个全局正则，
+  // 与 `KEY_LIKE_SOURCE` 同构（前缀池从 key-redact 导入，不在这儿另抄一份）
+  const re = new RegExp(
+    `[A-Za-z0-9_-]*(?:${KEY_PREFIXES.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})[A-Za-z0-9_-]{8,}`,
+    'g',
+  )
+  const masked = s.replace(re, (hit) => {
+    const prefix = KEY_PREFIXES.find(p => hit.startsWith(p))
+      || KEY_PREFIXES.find(p => hit.includes(p)) || ''
+    return `${prefix}••••`
+  })
   if (masked === s) return ''
-  let i = 0
-  while (i < s.length && s[i] === masked[i]) i++
-  return masked.slice(Math.max(0, i - 10), i + radius)
+  // 窗口：从首个命中的起点向左 10；长度按替换后字符串计，保证覆盖全部命中段
+  const firstHit = s.search(re)
+  const from = Math.max(0, firstHit - 10)
+  return masked.slice(from, from + 10 + radius)
 }
 
 // 绝不能出现在公开响应里的键（键不出现，或值必须为空）
@@ -55,6 +83,14 @@ function maskedPeek(text, radius = 44) {
 // 而且豁免的只是「键名不得出现」这一条；这些端点仍逐值检查密钥形态，并要求键必须在
 // （谁把字段从出口白名单删掉，归因链会断，这里立刻报）。
 const PUBLIC_FIELDS = ['source_url']
+/**
+ * 公开字段的「同现标记」：某个公开字段只有在**同对象**带这个标记时才算真契约。
+ *
+ * `source_url` 的标记是 `key_masked` —— 它是 `token_keys` 独有的列（`token_deals` 没有），
+ * 因此能在页面级豁免的前提下，把豁免**收窄到 token_keys 那一类对象**。
+ * 没有标记的公开字段，按页面级豁免处理（今天只有这一项，故必须给标记）。
+ */
+const PUBLIC_FIELD_MARKERS = { source_url: 'key_masked' }
 const INTERNAL_KEYS = ['deleted_at', 'invalid_reason', 'deleted_by', 'user_id', 'guest_fingerprint', 'source_url']
 // 键保留但值必须为空串的例外
 const EMPTY_ONLY = ['verified_by']
@@ -112,8 +148,8 @@ async function probe(label, path, opts = {}) {
     if (keys.has(k)) bad(`${label} 泄露 ${k}`, redactKeyLike(JSON.stringify(rows[0][k])))
   }
   // 本端点的公开契约字段：键**必须在**（删了就断归因链），值里**绝不得有**密钥形态。
+  // 白名单校验已在 `internalKeyNames()` 里统一做过（那里是唯一入口，且会抛错）。
   for (const k of (opts.publicFields || [])) {
-    if (!PUBLIC_FIELDS.includes(k)) bad(`${label} publicFields 写了清单外的 ${k}（先确认它真是对外契约字段）`)
     if (!keys.has(k)) { bad(`${label} 缺公开字段 ${k}（出口白名单被删？前端归因链会断）`); continue }
     const hits = rows.filter(r => containsKeyLike(r?.[k]))
     if (hits.length) bad(`${label} 公开字段 ${k} 值含密钥形态`, maskedPeek(hits[0][k]))
@@ -151,9 +187,26 @@ async function probe(label, path, opts = {}) {
  * 对 `/api/token-deals` 仍是「公开侧永不下发」的内部列。全局豁免会让后者变瞎 ——
  * 那正是 1.0.72 立这条断言要防的「`...row` 展开全列把它重新漏出去」。
  * 值的风险与键名无关，由 `containsKeyLike` 逐值兜住，不受这里影响。
+ *
+ * ⚠️ **白名单校验放在这里，而不是只在 `probe()` 里**：本函数是唯一的扣减入口
+ * （`probe()` 与 `probeHtml()` 的 4 处分支都过它）。若只在 `probe()` 校验，
+ * 将来在**页面档**写 `{ publicFields: ['deleted_at'] }` 就能静默把真断言弄瞎、且无告警。
+ * 校验放在唯一入口，任何调用方都绕不过去。
  */
-const internalKeyNames = (opts = {}) =>
-  INTERNAL_KEYS.filter(k => !opts.publicFields?.includes(k) && !opts.allowKeys?.includes(k))
+const internalKeyNames = (opts = {}) => {
+  const declared = opts.publicFields || []
+  const stray = declared.filter(k => !PUBLIC_FIELDS.includes(k))
+  if (stray.length) {
+    // 抛错而不是报 fail：这是**探针自身的误用**，不是被测目标的缺陷。
+    // 静默降级会让「探针配错了」伪装成「目标干净了」，比红一条更危险。
+    throw new Error(
+      `探针配置错误：publicFields 声明了清单外的 ${stray.join(',')}。`
+      + `公开契约字段只有 ${PUBLIC_FIELDS.join(',')}；`
+      + `要把别的字段列为公开，先确认它真是对外契约（见 favshub-data-ops/SKILL.md），再改 PUBLIC_FIELDS。`,
+    )
+  }
+  return INTERNAL_KEYS.filter(k => !declared.includes(k) && !opts.allowKeys?.includes(k))
+}
 
 async function probeHtml(label, path, opts = {}) {
   const res = await fetch(BASE + path)
@@ -191,11 +244,13 @@ async function probeHtml(label, path, opts = {}) {
       }
       // 遍历还原后的每个对象，收集其键名；顺带对「公开字段」的**值**做密钥形态检查
       const keys = new Set()
+      const objects = []          // 每个对象的键集合 —— 供「对象级豁免」判定
       const publicHits = []
       const walk = (node, depth = 0) => {
         if (!node || depth > 12) return
         if (Array.isArray(node)) { node.forEach(n => walk(n, depth + 1)); return }
         if (typeof node === 'object') {
+          objects.push(new Set(Object.keys(node)))
           for (const [k, v] of Object.entries(node)) {
             keys.add(k)
             if (opts.publicFields?.includes(k) && typeof v === 'string' && containsKeyLike(v)) {
@@ -207,7 +262,24 @@ async function probeHtml(label, path, opts = {}) {
       }
       walk(resolve(0))
       walk(table.map((_, i) => resolve(i)))
-      for (const k of internalKeyNames(opts)) { if (keys.has(k)) payloadHits.push(k) }
+      // ⚠️ 这里遍历 **INTERNAL_KEYS 全集**，不能用 `internalKeyNames(opts)`：
+      // 后者已经把 `opts.publicFields` 扣掉了，marker 分支会变成**永不执行的死代码**
+      // （实测：MODE=page 注入「无 key_masked 的 source_url」时探针仍报 ✓，是假绿灯）。
+      // 页面档的豁免语义是**对象级**：键在、但只允许出现在带 marker 的对象里。
+      for (const k of INTERNAL_KEYS) {
+        if (opts.allowKeys?.includes(k)) continue
+        if (!keys.has(k)) continue
+        const marker = PUBLIC_FIELD_MARKERS[k]
+        if (marker) {
+          // 只有「同对象带 marker」才算契约字段；没 marker 的对象里出现即泄露
+          const orphan = objects.filter(o => o.has(k) && !o.has(marker)).length
+          if (orphan) payloadHits.push(`${k}（${orphan} 个对象无 ${marker} 同现）`)
+          continue
+        }
+        // 无 marker 的内部键：只要不是本档声明的公开字段，出现即泄露
+        if (opts.publicFields?.includes(k)) continue
+        payloadHits.push(k)
+      }
       if (publicHits.length) bad(`${label} SSR payload 的公开字段值含密钥形态`, publicHits[0])
     } else {
       // 没有 payload（非 SSR 页或格式变了）—— 退回字符串探测，并标注方法

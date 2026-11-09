@@ -638,14 +638,26 @@ function showMessage(msg: string, type: 'success' | 'error' = 'success') {
  * 请求序号守卫（与 `loadInvalid()` 同一口径）。
  *
  * 原先这里是 `loadingGuard`：**在飞时后来的请求直接 return**。那防住了竞态，
- * 却换来一个更隐蔽的问题 —— 新筛选条件被**静默丢弃**：改了状态下拉、紧接着翻页，
- * 第二次请求不发，列表停在上一页/上一个状态的结果上，而筛选条显示的是新值
- * （看起来像「筛选没生效」）。而且 `watch(page)` + 手动改状态会同时触发两次，
- * 被丢掉的恰好是**后者**（更新的那次）。
+ * 却换来一个更隐蔽的问题 —— 后来的请求被**静默丢弃**。这里没有 `watch`，
+ * 真实触发面是分页按钮：
  *
- * 序号守卫的做法相反：请求照发，只让**最新一次**的响应落地。旧响应到达时丢弃
+ *     <button :disabled="page <= 1" @click="page--; loadDeals()">上一页</button>
+ *     <button v-for="n in pageList" @click="page = n; loadDeals()">{{ n }}</button>
+ *     <button :disabled="page >= totalPages" @click="page++; loadDeals()">下一页</button>
+ *
+ * 三个按钮的 `:disabled` 只按**页码边界**判断（`page <= 1` / `page >= totalPages`），
+ * 不看 `loading` —— 于是请求在飞时它们仍可点。连点两次「下一页」：`page` 变成 3，
+ * 第二次 `loadDeals()` 被 `loadingGuard` 吞掉，列表停在**第 2 页**，而页码高亮已经是 3。
+ * （面板上的「刷新」按钮反而有 `:disabled="loading"`，所以它不会撞上。）
+ *
+ * 另一处旧实现的真危害在**写操作之后**：`removeDeal()` 里的 `await loadDeals()`
+ * 若正好撞上在飞的旧请求，会被压制；旧响应（**仍含已删除行**）随后落地覆盖列表 ——
+ * 操作成功了，界面上那行却还在。序号守卫反过来丢弃旧响应，正好治这个。
+ *
+ * 序号守卫的做法：请求照发，只让**最新一次**的响应落地。旧响应到达时丢弃
  * （只读 GET，丢弃无副作用），于是既不会「后发先至覆盖新结果」，也不会丢请求。
  * `finally` 同样要判序号：先返回的旧请求不能替最新请求关掉「加载中」。
+ * 代价是同参数可能多打一次只读 GET（幂等，UI 一致）。
  */
 let dealsReqSeq = 0
 async function loadDeals() {
