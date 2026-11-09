@@ -810,10 +810,15 @@ async function guestModuleSuite(dbPath) {
       // 品级 / 地区 / 来源三组枚举真源（2026-11-05 第二轮收敛）：同样原样复制，
       // 因为被测的 `QUALITY_LEVELS` / `SOURCE_TAGS` 校验就在 token-deals.ts 里。
       ["from '../../utils/deal-fields'", "from './deal-fields.ts'"],
+      // 失效原因标签表真源（2026-11-09 上提到 utils/，token-deals.ts 改成重导出它）。
+      // 与上面两条同理必须进改写表 —— 漏了会被下面的兜底拦住（CI 实测过一次），
+      // 而它本身没有枚举校验逻辑，原样复制即可。
+      ["from '../../utils/deal-invalid-reasons'", "from './deal-invalid-reasons.ts'"],
     ],
   ))
   write('deal-categories.ts', readFileSync(join(ROOT, 'utils', 'deal-categories.ts'), 'utf8'))
   write('deal-fields.ts', readFileSync(join(ROOT, 'utils', 'deal-fields.ts'), 'utf8'))
+  write('deal-invalid-reasons.ts', readFileSync(join(ROOT, 'utils', 'deal-invalid-reasons.ts'), 'utf8'))
   write('guest-deals.ts', rewrite(
     readFileSync(join(ROOT, 'server', 'utils', 'guest-deals.ts'), 'utf8'),
     [
