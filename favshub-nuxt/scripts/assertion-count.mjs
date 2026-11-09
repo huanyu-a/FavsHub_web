@@ -95,8 +95,15 @@ const POST_BUILD = [
   // 编排器自带两次启服务（常规模式要放宽 AI 配额，--limit 模式要默认配额），独占端口 3210。
   { name: 'ai-api-gate', script: 'ai-api-gate.mjs' },
   { name: 'third-batch-server', script: 'third-batch-server.mjs' },
-  // 统一状态机（2026-11-04）：独占端口 3266，与上面各套件的库/端口互不干扰
+  // 统一状态机（2026-11-04）。端口原先硬编码 3266，2026-11-09 改为运行时选空闲端口：
+  // 硬编码端口一旦被本机残留进程占住，套件起不来、断言数无法解析，
+  // 而 assertion-count 会把它报成「文档数字不符」—— 误导修文档而不是修套件。
   { name: 'state-machine', script: 'state-machine.mjs' },
+  // 后台「已失效」面板的筛选契约（2026-11-09）：分类/品质/地区/来源/发布者/失效原因/关键词
+  // 七个筛选 + 三档 chip 计数。此前只有一份活在 /tmp 的手工验证脚本（依赖本机 dev 库，
+  // CI 跑不了 = 等于没有回归保护）；现改为自建库 + 自播种数据。
+  // 关键不变式：**chip 数字与列表口径必须同源**，否则出现「chip 说 15、点进去 2 条」。
+  { name: 'admin-invalid-filters', script: 'admin-invalid-filters.mjs' },
 ]
 
 /**
@@ -352,8 +359,23 @@ async function main() {
     console.log('\n提示：加 --check 可校验文档里写的数字是否与本次实测一致。')
     if (failedSuites.length) process.exit(1)
   }
+
+  // ⚠️ 有套件未通过时**不要**去校验文档数字（2026-11-09 修）。
+  //
+  // 原实现无条件调 checkDocs(total)。于是「某个套件挂了」会先让 total 变小，
+  // 接着打印「文档写的 2108，实测 2107 —— 请更新后再提交」——把**门禁自己坏了**
+  // 说成**文档写错了**，而照着提示去改文档恰好会把真实覆盖丢掉。
+  // 实测踩过：本机一个临时实例占了 3266，state-machine 起不来，
+  // 报出的就是这条误导信息，我一度当成断言数回归。
+  if (failedSuites.length) {
+    console.error(
+      `\n⚠ 本次总数 ${total} **不可用于校验文档**：有 ${failedSuites.length} 个套件未通过（见上），\n` +
+      `  它们的断言数缺失或被截断，总数天然偏小。\n` +
+      `  请先修好套件再跑 --check —— 不要按「文档数字不符」去改文档，那会把覆盖一起丢掉。`,
+    )
+    process.exit(1)
+  }
   const docsOk = checkDocs(total)
-  if (failedSuites.length) process.exit(1)
   return docsOk
 }
 

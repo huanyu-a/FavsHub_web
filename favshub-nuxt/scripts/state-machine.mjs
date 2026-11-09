@@ -30,8 +30,33 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const APP_PORT = 3266
+/**
+ * 端口改为**运行时选空闲端口**（2026-11-09）。
+ *
+ * 原先是硬编码 `3266`，注释里叫「独占端口」—— 当时假设「没有别的东西会用这个端口」。
+ * 这个假设在本仓库里不成立：本机任何残留进程、另一个套件的手工调试实例，都能占住它。
+ * 一旦被占，症状是 `startApp` 抛「端口 3266 仍被占用」，而**断言数随之中断解析**，
+ * 于是 `assertion-count --check` 会把「某个套件起不来」报成「文档数字不符，请更新文档」——
+ * 照着那个提示去改文档，恰好会把真实覆盖丢掉（这个坑我踩过一次，见 assertion-count.mjs 里同日的注释）。
+ *
+ * 现在先绑 `:0` 拿一个内核分配的空闲端口再释放，立刻用它起应用。
+ * `waitPortFree` 保留：选到端口与真正 listen 之间有极小的竞争窗口，且它能给出更清楚的病因。
+ */
+const APP_PORT = await pickFreePort()
 const BASE = `http://127.0.0.1:${APP_PORT}`
+
+/** 绑 :0 让内核挑一个空闲端口，拿到号后立刻释放（不占用它，交给真正的应用去 listen） */
+async function pickFreePort() {
+  const { createServer } = await import('node:net')
+  return await new Promise((resolve, reject) => {
+    const srv = createServer()
+    srv.on('error', reject)
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address()
+      srv.close(() => resolve(port))
+    })
+  })
+}
 const WORK = mkdtempSync(join(tmpdir(), 'favshub-state-'))
 const DB_PATH = join(WORK, 'state.db')
 /** 临时库的一次性口令，非机密（库随进程结束即删） */

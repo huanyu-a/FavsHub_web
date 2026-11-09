@@ -103,7 +103,7 @@ jobs:
       #
       # 只挑自包含的：end-to-end 套件（third-batch-*、second-batch-e2e、ai-api-smoke-*）
       # 要起本地服务 + 真实 SQLite，CI 里没有该环境，故不纳入。
-      # 计入断言数：102 + 17 + 12 + 86 + 36 = 253 项。
+      # 计入断言数：102 + 17 + 13 + 86 + 36 = 254 项。
       - name: Type check (named imports)
         working-directory: favshub-nuxt
         run: pnpm ts:check
@@ -139,22 +139,25 @@ jobs:
         working-directory: favshub-nuxt
         run: pnpm build
 
-      # ── 端到端套件（672 项断言）─────────────────────────────────
-      # 这五个套件需要 `.output/`（自起服务 + 临时库），所以排在 build 之后。
+      # ── 端到端套件 ──────────────────────────────────────────────
+      # 这些套件需要 `.output/`（自起服务 + 临时库），所以排在 build 之后。
       # 它们**在此前从未进过 CI**，只在本地手工跑过 —— 意味着「线上那条流水线
-      # 从没验证过这 672 项」，只有维护者想起来才会跑。补上这一环。
+      # 从没验证过这些断言」，只有维护者想起来才会跑。补上这一环。
       #
       # 关于 Node 版本：套件内部用 `spawn('node', ...)` 起服务（拿 PATH 上的 node），
       # 而 better-sqlite3 是原生模块、ABI 与 Node 大版本绑定。CI 全程 node 22
       # （install 与 run 同版本），所以一致；本地则要注意别用「装依赖的 node」
       # 之外的版本去跑，否则会得到「应用 30s 内未就绪」这种误导性报错。
       #
-      # 六个套件实测合计约 15–20 秒（150 / 161 / 247 / 106 / 20 / 147），成本可忽略。
+      # ⚠️ 这里不再手抄「每个套件多少项」的分解。2026-11-09 核对时发现那份手抄分解
+      # 已全线过时（写着 second-batch-e2e 150 / detail 247 / cache-privacy 20，
+      # 实测 165 / 252 / 15），还把它数成「五个套件」而列表里有六个。
+      # 原因是：**分解数字没有任何东西在守**，只有「断言总计」被 `assertion-count --check`
+      # 校验（它扫的就是本文件里的那个总数）。要逐项明细请看
+      # `favshub-nuxt/scripts/assertion-count.mjs` 的套件清单，或跑一次
+      # `node scripts/assertion-count.mjs` 生成的 `assertion-count.json`。
       #
-      # 断言计数（2026-10-31 实测）：
-      #   second-batch-e2e 150 · notify 161 · detail 247 · ratelimit 106 · cache-privacy 20 · server 147 = 831
-      # 加上 build 前的 ts:check(954 导入) / private-ip 102 / sanitize 17 / ssrf-pin 12 / category-source 47，
-      # CI 断言总计 2108。
+      # CI 断言总计 2192（= 本文件 `--check` 那一步实测并校验的值；改了套件就靠它报红）。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
         run: node scripts/second-batch-e2e.mjs
@@ -251,6 +254,19 @@ jobs:
       - name: Test — 第三批服务端（迁移/占位符/游客通道，147 项）
         working-directory: favshub-nuxt
         run: node scripts/third-batch-server.mjs
+
+      # 后台「已失效」面板的筛选契约（2026-11-09 新增，83 项）。
+      #
+      # 为什么必须进 CI：这份验证原先**只活在 /tmp 的手工脚本**里，且依赖本机
+      # `data/favshub.db` 的副本 —— CI 里根本没有那个库，等于这个功能上线后
+      # **零回归保护**。现改为自建临时库 + 自播种 30 行（覆盖每个筛选档位）。
+      #
+      # 它守的不变式是「chip 数字与列表口径同源」：曾经出现过
+      # 「chip 说 15 条、点进去只有 2 条」，管理员无从判断哪边错。
+      # 期望值**不来自后端**（先取全量、在客户端自己重算），否则就是「用实现验证实现」。
+      - name: Test — 后台「已失效」面板筛选（83 项）
+        working-directory: favshub-nuxt
+        run: node scripts/admin-invalid-filters.mjs
 
       # ── 文档里的「断言总数」是否与实际一致 ────────────────────
       #

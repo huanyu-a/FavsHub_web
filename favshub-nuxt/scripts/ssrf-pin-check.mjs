@@ -23,8 +23,10 @@
  */
 import http from 'node:http'
 import https from 'node:https'
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
@@ -38,7 +40,7 @@ const check = (name, cond, detail = '') => {
 }
 
 /** 与 server/api/token-deals/fetch-models.post.ts 的 pinnedGet 同一接线 */
-function pinnedRequest({ url, address, family }, timeoutMs = 8000) {
+function pinnedRequest({ url, address, family, ca }, timeoutMs = 8000) {
   const mod = url.protocol === 'https:' ? https : http
   const port = url.port || (url.protocol === 'https:' ? 443 : 80)
   return new Promise((resolve, reject) => {
@@ -49,6 +51,8 @@ function pinnedRequest({ url, address, family }, timeoutMs = 8000) {
       path: url.pathname + url.search,
       method: 'GET',
       headers: { Accept: 'application/json' },
+      // 只给本地自签靶标用；生产接线不传 ca（走系统信任库）
+      ...(ca ? { ca } : {}),
       lookup: (_hostname, options, cb) => {
         if (options && options.all) cb(null, [{ address, family }])
         else cb(null, address, family)
@@ -148,23 +152,81 @@ console.log(`node ${process.version}`)
   srv.close()
 }
 
-// ── 3. https + SNI：证书仍按主机名校验 ──
+// ── 3. https + SNI：证书仍按**主机名**校验（本地自签靶标，不依赖公网）──
+//
+// 2026-11-09 重写。原实现连真实公网（`https://one.one.one.one/` 钉 1.1.1.1），有两个问题：
+//
+//   1. **依赖公网连通**：断网/抖动时那条断言走 `else` 分支只打印一句 ⚠ 就过去了 ——
+//      断言数在 12 与 11 之间浮动（实测连续三次跑：2108 / 2107 / 2108），
+//      既让 `assertion-count --check` 报出误导性的「文档数字不符」，也让
+//      **「TLS 校验仍按主机名进行」这条覆盖悄悄消失**，而门禁照样绿。
+//   2. **判据太弱**：`status < 500` 只能证明「连上了」。若有人把校验关掉
+//      （`rejectUnauthorized: false`），原测试**同样会通过** —— 而它自称在防的
+//      恰恰就是「用一个漏洞换另一个漏洞」。
+//
+// 改为本地自签证书靶标 + **正负两例**：正例证明 pin 之后 SNI/主机名校验照常工作，
+// 负例（主机名与证书不匹配必须被拒）才真正证明校验**没有被关掉**。全程离线、确定性。
 {
   const requireFromRoot = createRequire(join(ROOT, 'package.json'))
-  let pinnedHttps = null
-  try {
-    // 用一个自建 TLS 靶标不现实（需要真证书），改为对真实公网验证：
-    // 连 1.1.1.1，但证书必须是 one.one.one.one 的 —— 能通过就说明 SNI 没被 pin 影响
-    const r = await pinnedRequest({ url: new URL('https://one.one.one.one/'), address: '1.1.1.1', family: 4 })
-    pinnedHttps = r.status
-  } catch (err) {
-    pinnedHttps = `err:${err.message}`
-  }
   void requireFromRoot
-  if (typeof pinnedHttps === 'number') {
-    check('https pin 成功（TLS 按 hostname 校验通过，SNI 未受影响）', pinnedHttps < 500, `status=${pinnedHttps}`)
+
+  const dir = mkdtempSync(join(tmpdir(), 'ssrf-pin-tls-'))
+  const keyPath = join(dir, 'key.pem')
+  const crtPath = join(dir, 'crt.pem')
+  let tlsReady = true
+  try {
+    execFileSync('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048', '-keyout', keyPath, '-out', crtPath,
+      '-days', '2', '-nodes', '-subj', '/CN=pinned-test.local',
+      '-addext', 'subjectAltName=DNS:pinned-test.local',
+    ], { stdio: 'ignore' })
+  } catch {
+    tlsReady = false
+  }
+
+  if (!tlsReady) {
+    // 刻意**报红**而不是跳过：静默跳过正是上面记的那个坑。
+    // openssl 在 CI（ubuntu-latest）与常见开发机上都自带，缺了就是环境不完整。
+    check('本机有 openssl（生成 TLS 靶标证书需要）', false,
+      '未找到 openssl —— 请安装后重跑；不要把它降级为「跳过」，那会让本条覆盖悄悄消失')
   } else {
-    console.log(`  ⚠ https pin 未验证（本机无公网直连？）：${pinnedHttps}`)
+    const ca = readFileSync(crtPath)
+    const srv = https.createServer({ key: readFileSync(keyPath), cert: ca },
+      (_q, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}') })
+    await new Promise(r => srv.listen(0, '127.0.0.1', r))
+    const port = srv.address().port
+
+    // 正例：主机名与证书一致 → 应连上（说明 SNI 与主机名校验在 pin 之下照常工作）
+    let okStatus = null
+    try {
+      const r = await pinnedRequest({
+        url: new URL(`https://pinned-test.local:${port}/v1/models`),
+        address: '127.0.0.1', family: 4, ca,
+      })
+      okStatus = r.status
+    } catch (err) {
+      okStatus = `err:${err.code || err.message}`
+    }
+    check('pin 之后 https 仍能按主机名校验并连上（SNI 未受钉地址影响）',
+      okStatus === 200, `实测 ${okStatus}`)
+
+    // 负例：主机名与证书不符 → 必须因证书不匹配而失败。
+    // 这一条才证明「校验没被关掉」；只测正例的话，rejectUnauthorized:false 也能绿。
+    let mismatchErr = ''
+    try {
+      await pinnedRequest({
+        url: new URL(`https://wrong-name.local:${port}/v1/models`),
+        address: '127.0.0.1', family: 4, ca,
+      })
+      mismatchErr = '(居然成功了)'
+    } catch (err) {
+      mismatchErr = err.code || err.message
+    }
+    check('主机名与证书不符时必须被拒（证明证书校验仍开着，不是「连上就算过」）',
+      /ERR_TLS_CERT_ALTNAME_INVALID|altnames/i.test(mismatchErr), `实测 ${mismatchErr}`)
+
+    srv.closeAllConnections?.()
+    srv.close()
   }
 }
 
