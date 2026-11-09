@@ -39,12 +39,15 @@ export { QUALITY_LEVELS, REGIONS, REGION_LABELS, SOURCE_TAGS, SOURCE_LABELS }
  * 迁移里 `category` 列的默认值恒为 `'token'`，新增分类**不需要**改默认值。
  */
 import { DEAL_CATEGORIES, DEAL_CATEGORY_LABELS } from '../../utils/deal-categories'
+// 失效原因标签表同样上提到 `utils/`：后台「已失效」面板的筛选条也要用它，
+// 而本文件依赖 better-sqlite3，前端 import 不到（详见该文件注释）。
+import { INVALID_REASON_LABELS } from '../../utils/deal-invalid-reasons'
 
 // ⚠️ 必须「先 import 再 export」，不能只写 `export { ... } from '...'`：
 // 后者是**纯重导出**，不会在本模块内建立本地绑定，而同文件下方的校验逻辑
 // （`DEAL_CATEGORIES.includes(...)`）要用到它 —— 只写重导出会运行时报
 // 「DEAL_CATEGORIES is not defined」（2026-11-05 就是这么被 e2e 套件抓住的）。
-export { DEAL_CATEGORIES, DEAL_CATEGORY_LABELS }
+export { DEAL_CATEGORIES, DEAL_CATEGORY_LABELS, INVALID_REASON_LABELS }
 
 /** 通告状态 — 发布后进入 pending，管理员审核通过才公开 */
 export const DEAL_STATUS = ['pending', 'approved', 'rejected'] as const
@@ -814,13 +817,6 @@ export function isStatePubliclyVisible(
   if (!state || !(PUBLIC_VISIBLE_STATES as readonly string[]).includes(state)) return false
   if (expires_at && expires_at <= now) return false
   return true
-}
-
-/** 失效原因中文标签（后台展示） */
-export const INVALID_REASON_LABELS: Record<string, string> = {
-  expired: '已过期',
-  votes: '社区判定失效',
-  manual: '管理员判定失效',
 }
 
 /**

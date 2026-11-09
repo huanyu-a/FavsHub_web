@@ -156,15 +156,62 @@
         </div>
       </div>
 
+      <!-- 筛选条（2026-11-09）：关键词 + 业务属性 + 失效原因 / 发布者类型。
+           与上方三档 chip **正交**：chip 决定「看哪一类失效」，
+           这一排决定「在这些条目里挑哪些」—— 两处叠加生效。 -->
+      <div class="filter-bar invalid-filters">
+        <input
+          v-model="invalidSearch"
+          type="text"
+          class="search-input"
+          placeholder="搜索服务商 / 标题"
+          maxlength="80"
+          @input="debouncedInvalidSearch"
+          @keyup.enter="applyInvalidFilters"
+        >
+        <select v-model="invalidCategory" title="按通告分类筛选" @change="applyInvalidFilters">
+          <option value="">分类：全部</option>
+          <option v-for="c in CATEGORY_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
+        </select>
+        <select v-model="invalidQuality" title="按品质分级筛选" @change="applyInvalidFilters">
+          <option value="">品级：全部</option>
+          <option v-for="q in QUALITY_LEVELS" :key="q" :value="q">{{ q }}</option>
+        </select>
+        <select v-model="invalidRegion" title="按地区筛选" @change="applyInvalidFilters">
+          <option value="">地区：全部</option>
+          <option v-for="r in REGION_OPTIONS" :key="r.value" :value="r.value">{{ r.displayLabel }}</option>
+        </select>
+        <select v-model="invalidSource" title="按来源标签筛选" @change="applyInvalidFilters">
+          <option value="">来源：全部</option>
+          <option v-for="s in SOURCE_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
+        </select>
+        <select v-model="invalidReason" title="按失效原因筛选：到期 / 社区投票判定 / 管理员判定" @change="applyInvalidFilters">
+          <option value="">失效原因：全部</option>
+          <option v-for="r in INVALID_REASON_OPTIONS" :key="r.value" :value="r.value">{{ r.label }}</option>
+        </select>
+        <select v-model="invalidOrigin" title="按发布者类型筛选" @change="applyInvalidFilters">
+          <option value="">发布者：全部</option>
+          <option value="guest">游客</option>
+          <option value="user">注册用户</option>
+        </select>
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="!canResetInvalidFilters"
+          title="清除下方筛选条与上方三档分档"
+          @click="resetInvalidFilters"
+        >
+          重置
+        </button>
+        <span class="info">共 {{ invalidTotal }} 条</span>
+      </div>
+
       <p class="card-hint">
         此处条目对前台列表、详情直达链接、AI 通道与分享卡片一律不可见。
         「恢复」后按原审核状态重新上架；「彻底删除」不可恢复，仅在数据长期无人认领时使用。
       </p>
 
       <div v-if="invalidLoading" class="empty-state">加载中...</div>
-      <div v-else-if="invalidDeals.length === 0" class="empty-state">
-        {{ lifecycleFilter === 'all' ? '暂无已失效通告' : '该分类下暂无条目' }}
-      </div>
+      <div v-else-if="invalidDeals.length === 0" class="empty-state">{{ invalidEmptyText }}</div>
 
       <table v-else>
         <thead>
@@ -478,9 +525,16 @@
 </template>
 
 <script setup lang="ts">
-import { REGION_LABELS as DEAL_REGION_LABELS, SOURCE_LABELS as DEAL_SOURCE_LABELS } from '~/utils/deal-fields'
+import {
+  QUALITY_LEVELS,
+  REGION_LABELS as DEAL_REGION_LABELS,
+  REGION_OPTIONS,
+  SOURCE_LABELS as DEAL_SOURCE_LABELS,
+  SOURCE_OPTIONS,
+} from '~/utils/deal-fields'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
-import { dealCategoryMeta } from '~/utils/deal-categories'
+import { DEAL_CATEGORY_OPTIONS as CATEGORY_OPTIONS, dealCategoryMeta } from '~/utils/deal-categories'
+import { INVALID_REASON_OPTIONS } from '~/utils/deal-invalid-reasons'
 
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '白嫖通告管理' })
@@ -713,9 +767,55 @@ const lifecycleFilter = ref<LifecycleFilter>('all')
 const lifecycleBusy = ref(false)
 const invalidPageSize = 20
 
+// ── 已失效面板筛选条（2026-11-09）────────────────────────────
+//
+// 与审核队列的 `searchQuery` **刻意不共用**：共用会串台 —— 在队列里搜了词再切到
+// 失效面板，列表会被悄悄筛掉一大半，而面板上又没有对应输入框可以清掉它。
+const invalidSearch = ref('')
+const invalidCategory = ref('')
+const invalidQuality = ref('')
+const invalidRegion = ref('')
+const invalidSource = ref('')
+const invalidReason = ref('')
+const invalidOrigin = ref('')
+
+/**
+ * 失效原因选项直接取自 `utils/deal-invalid-reasons.ts` —— 与服务端的参数白名单
+ * （`Object.keys(INVALID_REASON_LABELS)`）同源，加档位只改那一处。
+ */
+
+/** 面板分档计数（吃当前业务筛选，不含分档自身）；null = 尚未拿到，回落到全站计数 */
+const invalidCounts = ref<{ all: number; expired: number; invalid: number; deleted: number } | null>(null)
+
+const hasInvalidFilter = computed(() => !!(
+  invalidSearch.value.trim() || invalidCategory.value || invalidQuality.value
+  || invalidRegion.value || invalidSource.value || invalidReason.value || invalidOrigin.value
+))
+
+/** 「重置」清的是筛选条 + 上方三档，故任一项非默认就该可点 */
+const canResetInvalidFilters = computed(() => hasInvalidFilter.value || lifecycleFilter.value !== 'all')
+
+const invalidEmptyText = computed(() => {
+  if (hasInvalidFilter.value) return '没有符合当前筛选条件的条目，可点上方「重置」清空'
+  return lifecycleFilter.value === 'all' ? '暂无已失效通告' : '该分档下暂无条目'
+})
+
 const invalidTotalPages = computed(() => Math.max(1, Math.ceil(invalidTotal.value / invalidPageSize)))
 
+/**
+ * 分档 chip 的数字口径。
+ *
+ * 面板拿得到「吃当前筛选」的那份（`lifecycle_counts`）就用它 —— 否则 chip 会一直显示
+ * 全站总数，筛完之后与点进去的条数对不上。首屏未请求过 / 请求失败时回落到全站计数。
+ */
 function lifecycleCount(v: LifecycleFilter): number {
+  const c = invalidCounts.value
+  if (c) {
+    if (v === 'all') return c.all
+    if (v === 'expired') return c.expired
+    if (v === 'invalid') return c.invalid
+    return c.deleted
+  }
   if (v === 'all') return counts.invalid_total
   if (v === 'expired') return counts.expired
   if (v === 'invalid') return counts.invalid
@@ -728,27 +828,80 @@ function setLifecycleFilter(v: LifecycleFilter) {
   loadInvalid()
 }
 
+/** 收集筛选条的查询参数（空值一律不带，保持 URL 干净、后端也少一层判断） */
+function invalidFilterParams(): URLSearchParams {
+  const params = new URLSearchParams({
+    view: 'invalid',
+    lifecycle: lifecycleFilter.value,
+    page: String(invalidPage.value),
+    limit: String(invalidPageSize),
+  })
+  const keyword = invalidSearch.value.trim()
+  if (keyword) params.append('search', keyword)
+  if (invalidCategory.value) params.append('category', invalidCategory.value)
+  if (invalidQuality.value) params.append('quality', invalidQuality.value)
+  if (invalidRegion.value) params.append('region', invalidRegion.value)
+  if (invalidSource.value) params.append('source_tag', invalidSource.value)
+  if (invalidReason.value) params.append('invalid_reason', invalidReason.value)
+  if (invalidOrigin.value) params.append('origin', invalidOrigin.value)
+  return params
+}
+
+/** 任一下拉变更 / 回车：回到第 1 页重新拉（下拉不宜做防抖，用户预期是立刻生效） */
+function applyInvalidFilters() {
+  invalidPage.value = 1
+  loadInvalid()
+}
+
+let invalidSearchTimer: ReturnType<typeof setTimeout> | null = null
+/** 关键词输入：防抖，避免每敲一个字母打一次库 */
+function debouncedInvalidSearch() {
+  if (invalidSearchTimer) clearTimeout(invalidSearchTimer)
+  invalidSearchTimer = setTimeout(applyInvalidFilters, 300)
+}
+
+/** 重置：筛选条 + 上方三档分档一起清（「重置」就该回到全部） */
+function resetInvalidFilters() {
+  if (invalidSearchTimer) clearTimeout(invalidSearchTimer)
+  invalidSearch.value = ''
+  invalidCategory.value = ''
+  invalidQuality.value = ''
+  invalidRegion.value = ''
+  invalidSource.value = ''
+  invalidReason.value = ''
+  invalidOrigin.value = ''
+  lifecycleFilter.value = 'all'
+  invalidPage.value = 1
+  loadInvalid()
+}
+
+/**
+ * 请求序号：筛选条有 7 个控件 + 三档 chip + 分页，都能并发触发 `loadInvalid()`，
+ * 而响应到达顺序不保证（实测本机约 9% 的反序率）。没有守卫时，**旧筛选的结果会覆盖新的**
+ * —— 界面会出现「筛选条写着全部、列表却是上一次筛选的 2 条」且 chip 数字一起被污染。
+ * 只让「最新一次请求」落地，旧的直接丢弃（只读 GET，丢弃无副作用）。
+ */
+let invalidReqSeq = 0
+
 async function loadInvalid() {
+  const seq = ++invalidReqSeq
   invalidLoading.value = true
   try {
-    const params = new URLSearchParams({
-      view: 'invalid',
-      lifecycle: lifecycleFilter.value,
-      page: String(invalidPage.value),
-      limit: String(invalidPageSize),
-    })
-    if (searchQuery.value) params.append('search', searchQuery.value)
-
-    const r = await $fetch<any>(`/api/admin/token-deals?${params}`, getAuthOpts())
+    const r = await $fetch<any>(`/api/admin/token-deals?${invalidFilterParams()}`, getAuthOpts())
+    if (seq !== invalidReqSeq) return
     invalidDeals.value = r.deals || []
     invalidTotal.value = r.pagination?.total || 0
+    invalidCounts.value = r.lifecycle_counts || null
     if (r.counts) Object.assign(counts, r.counts)
   } catch (e: any) {
+    if (seq !== invalidReqSeq) return
     showMessage('加载已失效通告失败：' + (e?.data?.error || e?.message || '未知错误'), 'error')
     invalidDeals.value = []
     invalidTotal.value = 0
+    invalidCounts.value = null
   } finally {
-    invalidLoading.value = false
+    // 同样要判序号：先返回的旧请求不能替最新请求关掉「加载中」
+    if (seq === invalidReqSeq) invalidLoading.value = false
   }
 }
 
@@ -1086,11 +1239,28 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (messageTimer) clearTimeout(messageTimer)
   if (searchTimer) clearTimeout(searchTimer)
+  if (invalidSearchTimer) clearTimeout(invalidSearchTimer)
 })
 </script>
 
 <style scoped>
 /* ── 已失效面板 ───────────────────────────────────── */
+/* 面板内的筛选条复用了全局 .filter-bar 的排版与控件样式，
+   但它嵌在 .card 里，卡片本身已是 surface-raised —— 这里去掉重复的底色与投影，
+   横向留白对齐 .card-header，避免出现「卡片里再套一张卡片」的观感。
+   特异度 0,2,0（含 data-v）高于全局 .filter-bar 的 0,1,0，不依赖加载顺序。 */
+.invalid-filters {
+  background: transparent;
+  box-shadow: none;
+  padding: 12px 20px;
+  margin-bottom: 0;
+}
+/* 移动端：7 个控件挤一行会参差换行，让下拉两两占半行、关键词独占整行 */
+@media (max-width: 768px) {
+  .invalid-filters { padding: 12px; }
+  .invalid-filters select { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  .invalid-filters .search-input { flex: 1 1 100%; }
+}
 .lifecycle-filter {
   display: inline-flex;
   gap: 4px;
