@@ -199,10 +199,16 @@ function seed() {
     panel.push({ id: `panel_${i}` })
   }
   // 在架行：不得出现在失效面板里；供队列视图回归
+  //
+  // ⚠️ **必须留一行游客行**（user_id = 0）。2026-11-09 独立审查发现：初版在架行全是
+  // user_id = 1，于是 `origin=guest` 返回**空集**，而那条断言的判据是
+  // `[].every(...)` —— **恒真**。它抓不到「origin=guest 被过滤成空」这类回归
+  // （空集刚好也满足 every）。反真空守卫当时只覆盖失效面板的组合，没覆盖队列。
   for (let i = 0; i < LIVE_N; i++) {
     const state = i < 4 ? 'pending' : 'published'
+    const userId = i === LIVE_N - 1 ? 0 : 1        // 最后一行是游客（_system），供 origin 分组非真空
     ins.run(
-      `live_${i}`, 1, `live-vendor-${i}`, `在架通告 ${i}`, `https://example.com/l/${i}`, 'token',
+      `live_${i}`, userId, `live-vendor-${i}`, `在架通告 ${i}`, `https://example.com/l/${i}`, 'token',
       state, i < 4 ? 'pending' : 'approved',
       now - i * 60_000, now - i * 60_000,
       'official', '中品', 'cn', '', null, null,
@@ -494,8 +500,19 @@ try {
     }
 
     const qg = await api('/api/admin/token-deals?view=queue&status=all&limit=100&origin=guest', { cookie })
-    check('队列也吃 origin 参数（通用筛选）', qg.status === 200 && DEALS(qg).every(r => r.user_id === 0),
-      `total=${TOT(qg)}`)
+    const qu = await api('/api/admin/token-deals?view=queue&status=all&limit=100&origin=user', { cookie })
+    // ⚠️ 判据里必须同时锁「客户端独立算出的期望数」与 `expect > 0`，
+    // 否则又退回成 `[].every()` 恒真（独立审查 2026-11-09 抓到的真空用例）。
+    const WG = qrows.filter(r => r.user_id === 0).length
+    const WU = qrows.filter(r => r.user_id > 0).length
+    check('队列 origin=guest 命中的正是游客行（且队列里确有游客行，非真空）',
+      WG > 0 && TOT(qg) === WG && DEALS(qg).every(r => r.user_id === 0),
+      `api=${TOT(qg)} expect=${WG}（队列共 ${qrows.length} 行）`)
+    check('队列 origin=user 命中的正是注册用户行',
+      WU > 0 && TOT(qu) === WU && DEALS(qu).every(r => r.user_id > 0),
+      `api=${TOT(qu)} expect=${WU}`)
+    check('队列 origin 两档相加 == 队列总数（无行被漏掉）',
+      WG + WU === qrows.length, `${WG}+${WU} vs ${qrows.length}`)
 
     const qh = await api('/api/admin/token-deals?view=queue&status=all&limit=100&search=在架', { cookie })
     check('队列 search 未被破坏', qh.status === 200 && TOT(qh) > 0, `total=${TOT(qh)}`)

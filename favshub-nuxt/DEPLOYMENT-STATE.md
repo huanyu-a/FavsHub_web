@@ -10,7 +10,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:307f82451ad7da164041a475a1f5c730498ccdeec8811c34349b43b0ecfa418d` |
 | **CI run** | `42578064759`，`success`；上游 `42567342652`（1.0.97）success；再上游 `42566989864`（1.0.96）在「第三批服务端」步骤 `exit 1`，**推送步骤在该步之后，故 1.0.96 没有镜像** |
 | **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}` |
-| **断言总数** | **2192**（20 个套件）· `ts:check` 963 个具名导入。⚠️ 该数字含**尚未发版**的门禁修正与新增套件（见「1.0.98 之后的门禁自身修正」），生产镜像的 revision 仍是 `e4aeeb4` |
+| **断言总数** | **2197**（20 个套件）· `ts:check` 963 个具名导入。⚠️ 该数字含**尚未发版**的门禁修正与新增套件（见「1.0.98 之后的门禁自身修正」），生产镜像的 revision 仍是 `e4aeeb4` |
 | **线上数据分布** | `published 83 / rejected 23 / invalid 11 / deleted 5 / pending 2 / offline 1`（合计 125）—— 1.0.98 部署**前后逐项一致**；此前 1.0.97 窗口内的变化来自并发的人工审核（见下节） |
 | **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.98`、`generated_at=2026-11-09T07:15Z`，由 CI 构建期生成） |
 | **回滚锚点** | 镜像 tag `rollback-1.0.97-20261109151949` + 库备份 `data/backups/favshub.db.pre-deploy-20261109151949`；上一轮还有 `rollback-1.0.95-20261109132351` 与其库备份 |
@@ -18,7 +18,9 @@
 
 ### 1.0.98 之后的门禁自身修正（2026-11-09，未发版）
 
-三处都是**门禁自己的缺陷**，不改任何运行时行为，因此不 bump `VERSION`、不重发镜像。
+以下都是**门禁自己的缺陷**，不改任何运行时行为，因此不 bump `VERSION`、不重发镜像。
+结论以一次**独立只读审查**收尾（该审查逐条复核、自己做变异注入与端口占用复现、
+全部按字节还原并校验 md5）；下面带 ⚠️ 的两处正是它推翻我原说法的地方。
 
 **1. `ssrf-pin-check` 的 TLS 断言依赖公网 → 断言数抖动 + 覆盖静默消失**
 
@@ -35,6 +37,21 @@
 正例证明 pin 之下 SNI/主机名校验照常工作；**负例**（主机名与证书不符必须被拒）
 才真正证明校验没被关掉。断言数 12 → 13，连跑五次稳定 13/0。
 反向验证：把校验改成 `rejectUnauthorized: false` 后，正例仍绿、负例如实报红。
+
+> ⚠️ **上面这句「反向验证」是我当时的过度声称，2026-11-09 被独立审查推翻。**
+> 负例注入的是**本套件自己那份复刻件**（`pinnedRequest`），而该套件**不 import 生产代码**。
+> 审查者改的是**生产源码** `server/api/token-deals/fetch-models.post.ts` 的 `requestOnce`，
+> 结果套件 **13/0 全绿、毫无反应** —— 也就是说「关掉证书校验」这个回归在**真实出站路径**上
+> 仍然无人守，我却把它写成已经被守住。
+>
+> 已补 3 条**源码漂移**断言（该文件的第 6 组本来就是干这个的，只是漏了这几项）：
+> 禁 `rejectUnauthorized: false`、禁空 `servername`（会连带废掉 SNI 主机名校验）、
+> 必须经 `lookup` 把已校验地址钉上。断言数 13 → **16**。
+> 反向验证（这次是对的方向）：往生产源码注入 `rejectUnauthorized: false` →
+> `✗ 真实源码未关闭证书校验`，退出码 1；源码按字节还原（md5 一致）。
+>
+> 教训：**「复刻测试」与「源码漂移断言」是两件事**。复刻只能证明「这个写法管用」，
+> 证明不了「源码里真这么写」。凡是靠复刻验证的安全属性，都必须另有一条钉住真实源码。
 
 **2. `assertion-count --check` 把「套件挂了」误报成「文档写错了」**
 
@@ -87,6 +104,26 @@
 故改为只断言「未触发 5xx、给出可读的 400」，并在命中护栏文案时打印一行说明本次实际路径。
 「公网地址不得被误判为内网」这条不变式由**确定性**的 `private-ip-check.mjs`（公网清单
 `1.1.1.1`/`8.8.8.8` + 各内网段紧邻边界）守着，不依赖网络、不因 fake-ip 摇摆。
+
+**6. 独立审查提出、随后修掉的四处（前四条由该审查逐条复核通过）**
+
+| 审查发现 | 处置 |
+|---|---|
+| **[MAJOR]** `ssrf-pin-check` 的 TLS 负例只覆盖**复刻件**；往**生产源码**注入 `rejectUnauthorized: false` 后套件仍 13/0 绿 | 补 3 条源码漂移断言（13→**16**），注入后如实报红（见上文第 1 条） |
+| **[MINOR]** `assertion-count.mjs` 的文档正则漏检本文件 `:13` 的「**断言总数**」表格行（恰恰是每轮最先被改的一处）；只改该处仍打印「✓ 一致」并 exit 0 | 加一条锚定表格竖线的正则；复现测试：改该处 → `✗ 1 处文档数字与实测不符`，exit 1 |
+| **[MINOR]** 新套件「队列也吃 origin 参数」判据是 `[].every(...)` → **恒真**（队列播种行全为 `user_id=1`，`origin=guest` 返回空集） | 播种改为**留一行游客行**，并加三条非真空断言（guest/user 各自的精确集合 + 两档相加 == 队列总数）；反向验证：注入「guest 恒返回空」→ `api=0 expect=1` 报红 |
+| **[NIT]** `second-batch-e2e` 那条断言的判据（6 条已知文案白名单）**比断言名更严**，护栏改一句文案就**假红** | 判据与名字对齐：只要求「非 5xx + 有可读错误文案」 |
+| **[NIT]** `docker-publish.yml` 注释仍写「重跑一遍上面 **8 个套件**，实测 37 秒」（实际 20 个，实测 73 秒） | 改为 20 个 / 73 秒，并去掉会过期的明细 |
+| **[NIT]** `ssrf-pin-check` 重写后留下死代码 `requireFromRoot` | 删除（连带未再使用的 `createRequire` 导入） |
+
+审查者**自己跑过**的关键复现（可信度高，均按字节还原并校验 md5）：三次变异注入 `.output`
+产物均被精确捕获且退出码 1（`api=24/24 expect=6`、`8 vs 4`、`api=24 expect=1`，与提交信息逐字吻合）；
+占用 3266 后 `state-machine` 仍 107/0；`--check` 的「套件挂了先修套件」分支实测触发且**不再**
+打印误导性的「文档写错了」；TLS 靶标连跑四次 13/0 且确认全程离线。
+
+审查者**未能核实**的（如实记录）：CI 侧真跑（本提交未触发 workflow）、
+openssl 缺失分支、以及 UI 层 —— `pages/admin/token-deals.vue:865-871` 拼 7 个筛选参数、
+`:919` 取 `lifecycle_counts` 这层**至今没有任何测试**（当前静态比对无缺陷，但无回归保护）。
 
 ### 1.0.98：审核队列换「请求序号守卫」（2026-11-09）
 
@@ -1038,10 +1075,9 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 先跑 **10 个测试套件**（3 个自包含：`private-ip-check` / `sanitize-test` /
-`ssrf-pin-check`；7 个跑产物：`second-batch-e2e` / `third-batch-detail` /
-`third-batch-notify` / `third-batch-ratelimit` / `cache-privacy-check` /
-`third-batch-server` / `state-machine` / `admin-invalid-filters`，共 **2192 项断言**），另加 `ts:check`
+推送后 CI 先跑 **20 个测试套件**（5 个自包含：`private-ip-check` / `sanitize-test` /
+`ssrf-pin-check` / `category-source-check` / `favicon-resolve-check`；15 个跑产物，含
+`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2197 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -1049,7 +1085,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `ts:check`（具名导入） | 963 | |
 | `private-ip-check` | 102 | **是** |
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
-| `ssrf-pin-check` | 13 | 含本地自签 TLS 靶标的正/负例（原为连公网的 1 例，见下） |
+| `ssrf-pin-check` | 16 | 含本地自签 TLS 靶标的正/负例；另有 3 条**生产源码**漂移断言（禁 `rejectUnauthorized: false` / 禁空 SNI / 必须走 lookup 钉地址） |
 | `category-source-check` | 86 | **是**（`--experimental-strip-types`） |
 | `favicon-resolve-check` | 36 | **是**（`--experimental-strip-types`） |
 | `cache-privacy-check` | 15 | 含密钥形态串脱敏 7 项 |
@@ -1066,13 +1102,21 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `third-batch-ratelimit` | 115 | |
 | `third-batch-server` | 147 | |
 | `state-machine` | 107 | |
-| `admin-invalid-filters` | 83 | 后台「已失效」面板七个筛选 + 三档 chip 计数口径一致性；自建库自播种，不依赖本机 dev 库 |
-| **合计（断言）** | **2192** | |
+| `admin-invalid-filters` | 85 | 后台「已失效」面板七个筛选 + 三档 chip 计数口径一致性；自建库自播种（含一行游客行，使队列 `origin` 分组非真空） |
+| **合计（断言）** | **2197** | |
 
 > 2026-11-09：上表的 `ts:check` 之前写 954，实测 963（早已过时，无人发现 ——
 > 因为它那一列**不参与** `assertion-count` 的总数校验，脚本明确不计入）。
 > `ssrf-pin-check` 由 12 → 13：那条依赖公网的 TLS 断言改成**本地自签靶标的正/负两例**，
 > 顺带修掉它的「网络不通就静默跳过」——详见「1.0.98 之后的门禁自身修正」一节。
+>
+> 2026-11-09 独立审查后补到 **16**：审查者往**生产源码**注入 `rejectUnauthorized: false`
+> 时该套件仍 13/0 全绿 —— 因为负例只覆盖套件自己那份**复刻件**，真实出站路径无人守。
+> 现补 3 条源码漂移断言（禁 `rejectUnauthorized: false`、禁空 `servername`、
+> 必须经 `lookup` 钉已校验地址）。反向验证：注入后如实报红。
+> 另修 `assertion-count.mjs` 文档正则漏检本文件 `:13`「断言总数」写法
+> （只改那一处曾仍打印「✓ 一致」并 exit 0），以及 `admin-invalid-filters` 里
+> 一条 `[].every()` 恒真的**真空断言**（队列里全无游客行 → 现补一行游客行）。
 
 `sanitize-test` 与 `private-ip-check` 都要 **Node ≥ 22.6**（`--experimental-strip-types`
 直接加载 `.ts` 源文件），CI 用的是 `node-version: 22`，不要降到 20 ——

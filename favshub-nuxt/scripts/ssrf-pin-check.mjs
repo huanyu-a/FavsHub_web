@@ -24,7 +24,6 @@
 import http from 'node:http'
 import https from 'node:https'
 import { execFileSync } from 'node:child_process'
-import { createRequire } from 'node:module'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -167,9 +166,6 @@ console.log(`node ${process.version}`)
 // 改为本地自签证书靶标 + **正负两例**：正例证明 pin 之后 SNI/主机名校验照常工作，
 // 负例（主机名与证书不匹配必须被拒）才真正证明校验**没有被关掉**。全程离线、确定性。
 {
-  const requireFromRoot = createRequire(join(ROOT, 'package.json'))
-  void requireFromRoot
-
   const dir = mkdtempSync(join(tmpdir(), 'ssrf-pin-tls-'))
   const keyPath = join(dir, 'key.pem')
   const crtPath = join(dir, 'crt.pem')
@@ -308,6 +304,24 @@ console.log(`node ${process.version}`)
     /DNS_TIMEOUT_MS/.test(src) && /Promise\.race/.test(src))
   check('真实源码按序尝试全部已校验地址（双栈回退，而非只钉 addrs[0]）',
     /target\.addrs\[i\]/.test(src) && !/addrs\[0\]\.address/.test(src))
+
+  // ⚠️ 这一条是 2026-11-09 独立审查抓出来的**覆盖缺口**，必须留着。
+  //
+  // 上面第 3 组的负例（主机名与证书不符必须被拒）只覆盖本文件 `pinnedRequest` 那份**复刻件**。
+  // 审查者往**生产源码** `server/api/token-deals/fetch-models.post.ts` 的 `requestOnce` 里
+  // 注入 `rejectUnauthorized: false`，本套件**仍然 13/0 全绿** —— 也就是说
+  // 「关掉证书校验」这个回归在真实出站路径上原本无人守，而我当时的注释把它说成已被守住。
+  //
+  // 生产路径不 import 本文件的复刻件，所以断言只能靠**源码文本**来钉。
+  // 三条一起查：① 不得出现 `rejectUnauthorized: false`（关校验的写法）；
+  // ② 必须显式把已校验地址交给 `lookup`（钉地址的正路）；③ 不得出现 `servername: ''`
+  // 这类会连带废掉 SNI 主机名校验的写法。
+  check('真实源码未关闭证书校验（rejectUnauthorized: false）',
+    !/rejectUnauthorized\s*:\s*false/.test(src))
+  check('真实源码未清空 SNI（servername 不得为空串）',
+    !/servername\s*:\s*(''|""|``)/.test(src))
+  check('真实源码把已校验地址交给 lookup（钉地址走正路，而非另开 socket）',
+    /lookup\s*:/.test(src) && /target\.addrs/.test(src))
 }
 
 console.log(`\n═══ 结果：${pass} 通过 / ${fail} 失败 ═══`)

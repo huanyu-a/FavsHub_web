@@ -665,8 +665,13 @@ async function main() {
     // 「公网地址不得被误判为内网」这条不变式由**确定性**的
     // `scripts/private-ip-check.mjs`（`1.1.1.1` / `8.8.8.8` 等公网清单 + 边界段）守着，
     // 那条不依赖网络、不会因 fake-ip 而摇摆。
+    // 判据与断言名**严格对齐**：只要求「不是 5xx」且「给出一句可读的中文出站错误」。
+    // 早先把 6 条已知文案写成白名单，比断言名更严 —— 将来护栏改一句文案就会**假红**，
+    // 而假红会让人习惯性忽略这个套件（独立审查 2026-11-09 提的 NIT）。
+    // 真正该钉的「护栏不许误拦公网地址」不在这条上，见上面注释与 private-ip-check.mjs。
+    const pubErr = String(pub.json?.error || '')
     check('公网字面量未触发 5xx（护栏与出站环节给出可读的 400）',
-      pub.status === 400 && /内网|不是 JSON|模型清单接口|无法连接|响应超时|重定向次数超限/.test(String(pub.json?.error || '')),
+      pub.status === 400 && pubErr.length > 0,
       `status=${pub.status} body=${pub.text.slice(0, 160)}`)
     console.log(`  ⚠ 成功出站路径本机无法验证（fake-ip DNS），留待生产验收`)
     if (/不允许访问内网地址/.test(String(pub.json?.error || ''))) {
