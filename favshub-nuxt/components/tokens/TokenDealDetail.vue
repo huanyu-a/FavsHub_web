@@ -28,12 +28,24 @@
   ── 两条**数据事实**（别当成 bug）──
   a) `requirements` 可能为空是**正常状态**。对标站导入的 138 条渠道里只有 15 条能切出
      独立的「领取条件」，其余 123 条的条件与使用限制本来就写在同一句里（对方站点自己也是
-     合并的：详情页标题叫「限制」，对比表列名是「领取与使用限制」）。因此信息面板对
-     「条件类」格子用三态规则（两格 / 一格跨行「限制与领取条件」/ 实名兜底），
-     详见 `specCells` 的注释 —— 目的是「不许出现空白格，也不许两格显示同一段文本」。
-  b) `verify_scope` 大多数条目为空（138 条里约 134 条），所以「核实情况」区块
-     **大部分条目不会渲染** —— 这是预期行为。该区块只在真有核实信息时出现，
-     不会留下「只有标题」的半截空壳（见 `verifyBlock`）。
+     合并的：详情页标题叫「限制」，对比表列名是「领取与使用限制」）。因此「条件类」用
+     三态规则（两块 / 一块「限制与领取条件」/ 实名兜底），详见 `conditionCells` 的注释
+     —— 目的是「不许出现空白块，也不许两块显示同一段文本」。
+  b) `verify_scope` 大多数条目为空（138 条里约 134 条）。2026-11-12 起「核实情况」整块
+     删除（核验状态由中部圆形水印徽标 `verifyState` 承担），该字段**不再在详情正文渲染**，
+     但仍随详情接口下发（后台与 AI 通道照旧可用）。
+
+  ══ 2026-11-12 首屏瘦身（用户反馈）══
+  用户原话：「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示
+  免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」
+  「核实情况不是已经用背景水印替代了么」。据此：
+    1. 首屏信息面板（`.tdd-spec`）**只留「免费额度」** —— 有效期、领取条件、限制全部移出；
+    2. 「有效期」不重复展示：header 的 `.tdd-meta` 里已有 `expiryText`（永久有效 / 已过期 /
+       N 天后到期），面板那一格删掉；
+    3. 「领取条件 / 限制」移到 **FAQ 上方**（`.tdd-conditions`）—— 它们只在读者决定
+       「要不要去领」之后才需要细读，不该占首屏；
+    4. 「核实情况」整块删除：核验状态（已核验 / 待核验 + 核验时点）由中部圆形水印徽标
+       （`DealBadge` + `verifyState`）承担，正文不再重复一遍。
 -->
 <template>
   <Teleport to="body" :disabled="isPage">
@@ -147,72 +159,28 @@
                  纯文本插值（{{ }} 由 Vue 转义），运营侧只许写一句话，不含富文本。 -->
             <p v-if="summaryText" class="tdd-summary">{{ summaryText }}</p>
 
-            <!-- ── 结构化信息面板（2026-11-04 改版，核心区块）──
-                 对齐对标站「额度 / 限制 / 有效期」的信息密度：读者第一眼就能判断
-                 「给多少、要不要满足条件、有什么坑、什么时候结束」。
+            <!-- ── 结构化信息面板（2026-11-12 首屏瘦身）──
+                 首屏**只留「免费额度」**。用户原话：「这俩板块太长了，应该放到详情页常见问题
+                 上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」。
                  设计要点：
-                  1. 格子由 `specCells` 计算（见 script）：**空值格子不入列**，
-                     所以旧数据（无 requirements / limits 列）不会留空框；
-                     全空时连整块都不渲染（`v-if="specCells.length"`）。
-                  2.「领取条件 / 限制」是**三态**的（lead 2026-11-04 决策）：
-                     两字段都有且不同 → 两格；否则合并成**一格跨满整行**「限制与领取条件」；
-                     都空但有实名标签 → 一格「领取条件」。
-                     数据事实：导入的 138 条渠道里只有 15 条能切出独立「领取条件」，
-                     `requirements` 为空是**正常状态**（来源本身把条件与限制写在一句里），
-                     不是数据缺失；合并态让这一格 100% 有内容，且不会两格显示同一段文本。
-                  3. `.tdd-facts` 这个类名**刻意保留**（外层网格容器）：它是既有的
+                  1. 面板由 `quotaCell` 驱动（见 script）：`quota` 为空时整块不渲染
+                     （`v-if`），旧数据不会留空框。
+                  2. **「有效期」不再出现在面板里** —— header 的 `.tdd-meta` 已有 `expiryText`
+                     （永久有效 / 已过期 / N 天后到期），重复展示是冗余（用户明确指出）。
+                  3. **「领取条件 / 限制」移到 FAQ 上方**（`.tdd-conditions`，见下文）——
+                     它们是「要不要去领」的决策细节，不该占首屏。
+                  4. `.tdd-facts` 这个类名**刻意保留**（外层网格容器）：它是既有的
                      「关键信息」区块，样式与「水印半透明（方案 A）」规则都挂在它上面；
                      `.tdd-spec` 只做「统一形态」的补充命名，不另起一套色板。
-                  4. 领取条件 / 限制 是**普通用户可写**字段 → 富文本只吃服务端消毒后的
-                     `requirements_html` / `limits_html`（与 note_html 同一路 renderRichText）。
-                     前端绝不自己 marked 解析原文；无 HTML 时只做**纯文本转义渲染**兜底。
                   5. 是否实名徽标已移至 header（2026-10-30 九轮），不再占本区块位置。 -->
-            <div v-if="specCells.length" class="tdd-facts tdd-spec">
-              <div
-                v-for="cell in specCells"
-                :key="cell.key"
-                class="tdd-fact"
-                :class="[`is-${cell.key}`, { 'is-wide': cell.wide }]"
-              >
+            <div v-if="quotaCell" class="tdd-facts tdd-spec">
+              <div class="tdd-fact is-quota">
                 <span class="fact-label">
-                  <i :class="cell.icon" aria-hidden="true"></i>{{ cell.label }}
+                  <i class="ri-coin-line" aria-hidden="true"></i>免费额度
                 </span>
-                <!-- 服务端已消毒的 HTML：用 :deep() 命中（scoped 样式管不到 v-html 节点） -->
-                <div v-if="cell.html" class="fact-value tdd-rich" v-html="cell.html"></div>
-                <span v-else class="fact-value">{{ cell.text }}</span>
+                <span class="fact-value">{{ quotaCell.text }}</span>
               </div>
             </div>
-
-            <!-- ── 核实范围 + 核验时点（2026-11-04 改版）──
-                 情报站与「纯聚合站」的区别就在这段诚实披露：说清这次核实**看了什么、
-                 没验证什么**，读者才不会把「官网页面上确实这么写」误读成「我实测能领到」。
-                 - `verify_scope`（W1 新增，≤500）：核实范围文案；
-                 - `verified_at` / `verify_note` / `verify_stale`：既有字段，迁到这里集中展示；
-                 - `verified_by` **任何身份都不读**（服务端已下发空串，见 CLAUDE.md「核验人永不出现在前端」）。
-                 四类信息全缺时整块不渲染（旧数据不留空框）。 -->
-            <section v-if="verifyBlock" class="tdd-section tdd-verify">
-              <h4 class="section-title"><i class="ri-shield-check-line"></i> 核实情况</h4>
-              <div class="verify-head">
-                <span class="verify-state" :class="verifyBlock.stale ? 'is-pending' : 'is-ok'">
-                  <i :class="verifyBlock.stale ? 'ri-time-line' : 'ri-checkbox-circle-line'" aria-hidden="true"></i>
-                  {{ verifyBlock.stale ? '待复核' : '已核实' }}
-                </span>
-                <span v-if="verifyBlock.date" class="verify-date">核实日期 {{ verifyBlock.date }}</span>
-                <span v-else class="verify-date">尚无核实记录</span>
-              </div>
-              <div v-if="verifyBlock.scope" class="verify-scope">
-                <span class="verify-scope-label">核实范围</span>
-                <p class="verify-scope-text">{{ verifyBlock.scope }}</p>
-              </div>
-              <p v-if="verifyBlock.stale" class="verify-hint">
-                {{ verifyBlock.date
-                  ? `距上次核实已 ${verifyBlock.days > 0 ? verifyBlock.days : '多'} 天，条款可能已有调整，领取前请以官方页面为准。`
-                  : '站点尚未人工核实过这条通告，信息来自公开渠道整理，领取前请以官方页面为准。' }}
-              </p>
-              <p v-if="verifyBlock.note" class="verify-note">
-                <i class="ri-chat-quote-line" aria-hidden="true"></i> {{ verifyBlock.note }}
-              </p>
-            </section>
 
             <!-- 接入信息 -->
             <section class="tdd-section">
@@ -304,6 +272,34 @@
                    备注是普通用户可写字段，对原文直接 v-html 等于开 XSS 口子。 -->
               <div v-if="deal.note_html" class="tdd-note markdown-body" v-html="deal.note_html"></div>
               <p v-else class="tdd-note">{{ deal.note }}</p>
+            </section>
+
+            <!-- ── 领取条件 / 限制（2026-11-12 从首屏移到 FAQ 上方）──
+                 用户原话：「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏」。
+                 理由：这两块是成段文字（导入数据的 `limits` 常有几百字），放首屏会把
+                 「免费额度 / 接入信息 / 支持模型」挤到折叠线以下；读者决定「要不要去领」
+                 之后才需要细读它们，所以放在 FAQ 之前（同一屏尾部的「细节区」）。
+                 - 数据源 `conditionCells`（见 script）：空值不入列 → 不留空块；
+                 - 「领取条件 / 限制」是**三态**（见 conditionCells 注释）：两块 / 一块
+                   「限制与领取条件」/ 实名兜底，绝不出现两块显示同一段文本；
+                 - 富文本只吃服务端消毒后的 `requirements_html` / `limits_html`。 -->
+            <section v-if="conditionCells.length" class="tdd-section tdd-conditions">
+              <h4 class="section-title"><i class="ri-forbid-2-line"></i> 领取条件与限制</h4>
+              <div class="tdd-conditions-grid">
+                <div
+                  v-for="cell in conditionCells"
+                  :key="cell.key"
+                  class="tdd-condition"
+                  :class="[`is-${cell.key}`, { 'is-wide': cell.wide }]"
+                >
+                  <span class="fact-label">
+                    <i :class="cell.icon" aria-hidden="true"></i>{{ cell.label }}
+                  </span>
+                  <!-- 服务端已消毒的 HTML：用 :deep() 命中（scoped 样式管不到 v-html 节点） -->
+                  <div v-if="cell.html" class="fact-value tdd-rich" v-html="cell.html"></div>
+                  <span v-else class="fact-value">{{ cell.text }}</span>
+                </div>
+              </div>
             </section>
 
             <!-- ── 常见问题 FAQ（2026-11-04 改版）──
@@ -1347,46 +1343,43 @@ function richCell(html?: string, raw?: string): { html?: string; text?: string }
 }
 
 /**
- * 有效期文案：由 `expires_at` 推导。
- * 绝对日期一律走 `formatTime()`（固定 Asia/Shanghai），否则 SSR 与客户端可能算出不同日期。
- * 无 `expires_at` → 「长期有效（未标注截止）」，与 header 的 `expiryText` 口径一致。
+ * 首屏「免费额度」单格。
+ *
+ * 2026-11-12 首屏瘦身：面板只保留这一格。
+ *   - 「有效期」删掉 —— header 的 `.tdd-meta` 已有 `expiryText`（永久有效 / 已过期 /
+ *     N 天后到期），重复展示是冗余（用户明确指出「有效期之前不是转移到了 header 部分了么」）。
+ *   - 「领取条件 / 限制」移到 FAQ 上方 → 见 `conditionCells`。
+ * `quota` 为空 → 返回 null → 模板整块 `v-if` 掉（旧数据不留空框）。
  */
-const validityText = computed(() => {
-  const ts = Number(deal.value?.expires_at || 0)
-  if (!ts) return '长期有效（未标注截止）'
-  const date = formatTime(ts)
-  const diff = ts - Date.now()
-  if (diff <= 0) return `已于 ${date} 过期`
-  const days = Math.ceil(diff / 86400000)
-  if (days <= 1) return `${date} 截止 · 今天到期`
-  return `${date} 截止 · 剩 ${days} 天`
+const quotaCell = computed(() => {
+  const quota = String(deal.value?.quota || '').trim()
+  return quota ? { text: quota } : null
 })
 
 /**
- * 四格结构化面板的数据源：额度 / 领取条件 / 限制 / 有效期。
+ * 「领取条件 / 限制」的数据源（2026-11-12 从首屏面板移到 FAQ 上方）。
  *
- * **空值格子不入列** —— 这就是「旧数据不留空框」的实现方式：不是渲染一个空占位，
- * 而是根本不产生这一格。四格全空时数组为空 → 模板整块 `v-if` 掉。
- * 「有效期」恒有值（无 expires_at 时是「长期有效…」），所以正常情况下至少出一格。
+ * **空值不入列** —— 「旧数据不留空块」的实现方式：不是渲染一个空占位，
+ * 而是根本不产生这一项。全空时数组为空 → 模板整块 `v-if` 掉。
  *
- * ── 「条件类」格子的三态规则（2026-11-04 lead 决策，**改设计不改数据**）──
+ * ── 「条件类」的三态规则（2026-11-04 lead 决策，**改设计不改数据**）──
  * 数据事实：对标站导入的 138 条渠道里只有 15 条能切出**独立**的「领取条件」，
  * 其余 123 条的领取条件与使用限制本来就揉在同一句里（对方站点自己也是合并的 ——
  * 详情页标题叫「限制」，对比表列名是「领取与使用限制」）。
  * 所以 `requirements` 为空是**正常状态**，不是数据缺失，更不是 bug；硬拆只会得到
  * 「一个空格子 + 一段重复文本」。规则：
  *
- *   1. `requirements` 非空 **且** 与 `limits` 不同 → 两格：「领取条件」+「限制」；
- *   2. 否则 `limits` 非空 → **一格占满整行**，标题「限制与领取条件」（`.is-wide`
- *      跨列，避免出现半行空白）；这一条让 138 条渠道的该格信息 100% 有内容；
- *   3. 否则 `real_name` 有值 → 一格「领取条件」，用既有中文标签拼一句
+ *   1. `requirements` 非空 **且** 与 `limits` 不同 → 两块：「领取条件」+「限制」；
+ *   2. 否则 `limits` 非空 → **一块占满整行**，标题「限制与领取条件」（`.is-wide`
+ *      跨列，避免出现半行空白）；这一条让 138 条渠道的该项信息 100% 有内容；
+ *   3. 否则 `real_name` 有值 → 一块「领取条件」，用既有中文标签拼一句
  *      （`no` → 「无需实名」/ `id_card` → 「需实名认证（身份证）」…）；
- *   4. 都不满足 → 不产生这一格。
+ *   4. 都不满足 → 不产生这一块。
  *
  * 两种「合并成一句」的情形（`requirements === limits`，或 `requirements` 为空）
- * 都收敛到规则 2，因此**不会出现两格显示同一段文本**，也不会出现空白格。
+ * 都收敛到规则 2，因此**不会出现两块显示同一段文本**，也不会出现空白块。
  */
-const specCells = computed(() => {
+const conditionCells = computed(() => {
   const d = deal.value
   const cells: Array<{
     key: string
@@ -1399,10 +1392,7 @@ const specCells = computed(() => {
   }> = []
   if (!d) return cells
 
-  const quota = String(d.quota || '').trim()
-  if (quota) cells.push({ key: 'quota', icon: 'ri-coin-line', label: '免费额度', text: quota })
-
-  // ── 条件类格子（三态，见上方注释）──
+  // ── 条件类（三态，见上方注释）──
   const reqRaw = String(d.requirements || '').trim()
   const limRaw = String(d.limits || '').trim()
   const reqCell = richCell(d.requirements_html, d.requirements)
@@ -1426,39 +1416,7 @@ const specCells = computed(() => {
       text: realNameRequirementText.value,
     })
   }
-
-  cells.push({ key: 'validity', icon: 'ri-calendar-check-line', label: '有效期', text: validityText.value })
   return cells
-})
-
-/**
- * 核实情况（核实范围 + 核验时点）。
- *
- * 触发条件：**有实质核实信息**（`verify_scope` / `verified_at` / `verify_note` 任一非空）。
- * 全缺 → null → 整块不渲染 —— 存量「从未补充过新字段、也从未人工核验」的旧数据因此
- * 与改版前完全一致，不会多出一块只有「尚无核实记录」的空壳。
- * 注：`verify_stale`（待复核）**刻意不作为触发条件** —— 它是「已有核验但过期了」的提示，
- * 没有核验日期/范围时它没有任何可承载的内容；「从未核验」这个状态本来就由水印徽标传达
- * （见 `verifyState`），不需要第二块地方重复说一遍。
- *
- * ⚠️ 刻意**不读** `verified_by`：CLAUDE.md 规定核验人任何身份都不下发，
- *    前端也不得渲染。即使服务端将来漏了脱敏，这里也没有渲染路径（纵深防御）。
- */
-const verifyBlock = computed(() => {
-  const d = deal.value
-  if (!d) return null
-  const scope = String(d.verify_scope || '').trim()
-  const note = String(d.verify_note || '').trim()
-  const ts = Number(d.verified_at || 0)
-  if (!scope && !note && !ts) return null
-  const days = Number(d.verify_age_days ?? -1)
-  return {
-    scope,
-    note,
-    stale: !!d.verify_stale,
-    days: Number.isFinite(days) ? days : -1,
-    date: ts > 0 ? formatTime(ts) : '',
-  }
 })
 
 /**
@@ -2569,12 +2527,14 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-/* ── 结构化信息面板：额度 / 领取条件 / 限制 / 有效期（2026-11-04 改版）──
-   `.tdd-facts` 是**既有容器**（grid + auto-fit），这里只做增量：
-     1. 单元格下限 140px → 200px：「领取条件 / 限制」是成句内容，
-        140px 会把它们压成窄柱（一行三五个字），200px 才能在桌面两列排布下正常成行；
-     2. 空值格子根本不会被渲染（见 specCells 的空值不入列策略）→ 无需 :empty 兜底；
-     3. 富文本格（.tdd-rich）与纯文字格（.fact-value）视觉保持一致。
+/* ── 首屏信息面板：只剩「免费额度」（2026-11-12 首屏瘦身）──
+   用户原话：「首屏优先显示免费额度、接入信息、支持模型」。所以这一块从原来的
+   「额度 / 领取条件 / 限制 / 有效期」四格收成单格：
+     - 「有效期」→ header 的 `.tdd-meta`（`expiryText`）已经在显示，删掉这格避免重复；
+     - 「领取条件 / 限制」→ 移到 FAQ 上方（`.tdd-conditions`，见下方样式段）。
+   剩下这格是**短句**，`minmax(200px, 1fr)` 的 auto-fit 在桌面上自然成一列；
+   手机上由媒体查询降为 1fr（`minmax` 下限在 360px 屏上会横向挤压）。
+   空值处理：`quota` 为空时整个面板不渲染（`v-if="quotaCell"`）→ 不留空框。
    配色全部走既有变量，未引入新色板。 */
 .tdd-spec {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2587,9 +2547,37 @@ onUnmounted(() => {
   gap: 4px;
 }
 .tdd-fact .fact-label i { font-size: 13px; }
-/* 合并态格子跨满整行（「限制与领取条件」，见 specCells 的三态规则）：
-   两列布局下若只占一列，右侧会留一块空白，看着像「这里缺了点东西」。 */
-.tdd-fact.is-wide { grid-column: 1 / -1; }
+
+/* ── 领取条件 / 限制（2026-11-12 从首屏移到 FAQ 上方）──
+   为什么不复用 `.tdd-facts`：那套网格是为「短句信息格」调的（140/200px 下限、
+   `.tdd-fact` 单列堆叠），而这里是**成段富文本**（导入数据的 `limits` 常有几百字），
+   需要更宽的单列下限才能正常成行；共用网格会让两处的断点互相牵制。
+   视觉上它与 FAQ 同属「细节区」：沿用 --surface-sunken 50% 底 + 10px 圆角的卡片语言，
+   但加一道 --divider 描边，把「整段条款」与「问答」区分开。
+   空值不入列（见 `conditionCells`）：两块都为空 → 整块不渲染，不留空块。
+   合并态「限制与领取条件」用 `.is-wide` 占满整行，避免右侧留半行空白。 */
+.tdd-conditions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.tdd-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--divider);
+  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
+}
+.tdd-condition .fact-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tdd-condition .fact-label i { font-size: 13px; }
+.tdd-condition.is-wide { grid-column: 1 / -1; }
 /* 富文本格容器。元素级排版（p / ul / table / code…）与备注共用同一套规则，
    见上方「备注富文本」段里并列 `.tdd-rich` 的各条 :deep() 选择器 —— 刻意不复制规则体，
    否则两处排版会随时间漂移。这里只补容器自身属性。 */
@@ -3470,73 +3458,12 @@ onUnmounted(() => {
 .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(6px); }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   ── 核实情况 / FAQ / 相关推荐 / 底部导航 / 收藏（2026-11-04 改版）─────────
+   ── FAQ / 相关推荐 / 底部导航 / 收藏（2026-11-04 改版）────────────────────
    配色一律复用站点既有变量（--success / --warning / --divider / --surface-sunken…），
    不引入新色板；移动端覆盖写在下方本组件自己的 @media 里。
+   「核实情况」段（.verify-*）2026-11-12 随正文区块一并删除：核验状态改由中部
+   圆形水印徽标承担（`DealBadge` + `verifyState`），正文不再有第二处重复展示。
    ══════════════════════════════════════════════════════════════════════════ */
-
-/* 核实情况：状态 chip + 核实日期同排；核实范围单独成块（左侧竖线，视觉上像「引用/出处」） */
-.verify-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.verify-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.verify-state i { font-size: 13px; }
-.verify-state.is-ok {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
-}
-.verify-state.is-pending {
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-  color: color-mix(in srgb, var(--warning) 80%, var(--text-primary));
-}
-.verify-date { font-size: 12px; color: var(--text-tertiary); }
-.verify-scope {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border-left: 3px solid var(--border);
-  background: color-mix(in srgb, var(--surface-sunken) 50%, transparent);
-}
-.verify-scope-label {
-  display: block;
-  margin-bottom: 2px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-.verify-scope-text {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
-.verify-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--warning);
-}
-.verify-note {
-  display: flex;
-  gap: 6px;
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-tertiary);
-}
-.verify-note i { flex-shrink: 0; margin-top: 2px; }
 
 /* FAQ：原生 <details>，零 JS 状态、SSR 直出、键盘与读屏默认可达。
    自绘三角替代各浏览器默认 marker（Chrome/Safari 走 ::-webkit-details-marker，
@@ -3674,8 +3601,9 @@ onUnmounted(() => {
   /* ── 2026-11-04 新增块的移动端覆盖 ──
      项目约定（CLAUDE.md「移动端覆盖必须写进组件内」）：外部 CSS 与组件 scoped 规则
      同特异度、靠加载顺序决胜，所以这些覆盖只能放在本组件自己的 @media 里。 */
-  /* 四格面板：手机上单列，避免 200px 下限在 360px 屏上退化成横向挤压 */
+  /* 首屏面板（单格）与条件区：手机上单列，避免列宽下限在 360px 屏上退化成横向挤压 */
   .tdd-spec { grid-template-columns: 1fr; }
+  .tdd-conditions-grid { grid-template-columns: 1fr; }
   /* 相关推荐：网格 → 横向滚动条，一屏能扫到下一张卡（scroll-snap 停在卡边界） */
   .related-strip {
     display: flex;

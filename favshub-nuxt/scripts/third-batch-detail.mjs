@@ -12,7 +12,8 @@
  *      且正文里再没有旧的「人工核验 / 最近核验」文字块；
  *   ② 是否实名徽标：四种取值各自渲染、位置在正文**结尾**，`real_name === ''` 时**不渲染**；
  *   ③ 分类移到 header（彩色徽标），且正文事实区不再有「分类」；
- *   ④ 正文不再出现「发布者」；⑤ 正文不再出现「有效期」（header 的仍保留）；
+ *   ④ 正文不再出现「发布者」；⑤ 首屏面板只留「免费额度」（有效期已在 header，不重复）；
+ *   ⑤-b 领取条件 / 限制位于 FAQ 上方（不在首屏），核实情况整块已由水印徽标替代；
  *   ⑥ 备注富文本：`note_html` 的标签真的被渲染（不是被转义），且 `<script>` / `onerror` 被消毒掉；
  *   ⑦ 徽标几何：360/375/414/768/1024/1440 × 页面/弹窗两种容器，逐个算直径与容器宽度；
  *   ⑧ 领取地址 `{邀请码}`：未抽码时**不做成可点链接**（只提示），抽中后服务端给出已替换且
@@ -341,6 +342,17 @@ async function main() {
     ...base, title: '乙站 待核验通告', provider: '乙站', url: 'https://b.example.com/join',
     call_url: 'https://api.b.example.com/v1', category: 'token', real_name: '',
   })
+  // 2026-11-12：样本专门用于验证「领取条件 / 限制」已从首屏移到 FAQ 上方。
+  //   只填 `limits`（不填 `requirements`）→ 触发三态规则里的「合并态」
+  //   （一块「限制与领取条件」跨满整行），这也是导入数据 123/138 的真实形态。
+  //   同时填 `faq`，才能断言「条件区在 FAQ 之前」。
+  const LIMITS_TEXT = '单个账号限领一份，多账号同 IP 会被风控回收'
+  const idConditions = await createDeal({
+    ...base, title: '壬站 条件与限制', provider: '壬站', url: 'https://c.example.com/apply',
+    call_url: '', real_name: '',
+    limits: LIMITS_TEXT,
+    faq: [{ q: '额度什么时候到期？', a: '领取后 30 天内有效。' }],
+  })
   // 四种取值各一条
   const idNo = await createDeal({ ...base, title: '丙站 无需实名', provider: '丙站', real_name: 'no' })
   const idFace = await createDeal({ ...base, title: '丁站 需人脸', provider: '丁站', real_name: 'face' })
@@ -357,7 +369,7 @@ async function main() {
   const idClaim = await createDeal({
     ...base, title: '辛站 邀请码占位符', provider: '辛站', url: CLAIM_TEMPLATE, call_url: '',
   })
-  console.log(`  · 已造 8 条样本通告（已核验 / 待核验 / 四种实名 / XSS 备注 / 占位符领取地址）`)
+  console.log(`  · 已造 9 条样本通告（已核验 / 待核验 / 四种实名 / XSS 备注 / 占位符领取地址 / 条件与限制）`)
 
   // ═══ ① 核验大徽标（需求 1）═══
   console.log('\n▶ ① 核验大徽标：已核验=绿 / 待核验=黄，旧的核验文字块已消失')
@@ -386,6 +398,13 @@ async function main() {
       const all = allClassTokensWith(body, 'deal-badge')
       return all.some(t => t.includes('is-circle') && t.includes('is-anchor-top'))
     })(), JSON.stringify(allClassTokensWith(body, 'deal-badge')))
+    // 2026-11-12：核实情况整块删除（用户：「核实情况不是已经用背景水印替代了么」）。
+    // 核验状态只由中部圆形水印承担，正文不再有第二处重复。
+    check('正文里不再有「核实情况」区块标题', !body.includes('核实情况'), body.slice(0, 200))
+    check('正文里不再有「核实范围」文字块', !body.includes('核实范围'))
+    check('正文里不再有 .tdd-verify 区块类名', !body.includes('tdd-verify'))
+    // `verify_scope` 仍随接口下发（后台 / AI 通道照旧可用），故这里只断言**渲染层**没有它。
+    // 注意水印徽标的 sr-only 文案里也有「核验」字样，所以不能直接判 `!body.includes('核验')`。
     check('圆形水印源码位置仍在原核验区块处（接入信息之后、支持模型之前）', (() => {
       const badge = body.indexOf('is-anchor-top')
       const access = body.indexOf('接入信息')
@@ -394,22 +413,47 @@ async function main() {
     })(), `badge@${body.indexOf('is-anchor-top')} access@${body.indexOf('接入信息')} models@${body.indexOf('支持模型')}`)
   }
 
-  // ═══ ② 去冗余：发布者 / 有效期（需求 4、5）═══
-  console.log('\n▶ ② 正文去掉「发布者」与「有效期」（header 的有效期保留）')
+  // ═══ ② 首屏瘦身：面板只剩免费额度（2026-11-12）═══
+  console.log('\n▶ ② 首屏面板只留「免费额度」；有效期不再重复、领取条件/限制移出首屏')
   {
     const body = bodyHtmlOf(pageVerified)
     // 2026-11-04：断言从「整段正文」收窄到「事实区 .tdd-facts」。
-    // 原因：新版在正文里新增了 verify_scope（核实范围）与 FAQ，两者都会自然地
-    // 出现「有效期」字样（如「核对过…与有效期」「额度什么时候到期？」）。
-    // 用整段 body.includes 会把这类**合理的**新文案判成回归。
-    // 本断言真正要保证的是：有效期不再作为**事实区的一行**重复展示（已移到 header 徽标）。
+    // 原因：正文里还有 FAQ，问题里会自然地出现「有效期」字样
+    // （如「额度什么时候到期？」），用整段 body.includes 会把合理文案判成回归。
+    // 2026-11-12：`.tdd-facts` 现在只剩「免费额度」一格（`v-if="quotaCell"`），
+    // 所以切片里**不该**再有任何「领取条件 / 限制 / 有效期」字样。
     const facts = slice(body, 'class="tdd-facts', '</div>')
     check('正文不含「发布者」', !body.includes('发布者'))
-    check('事实区不含「有效期」行', !facts.includes('有效期'), facts.slice(0, 120))
-    check('正文仍保留「免费额度」事实行', body.includes('免费额度'))
+    check('首屏面板不含「有效期」（已移到 header）', !facts.includes('有效期'), facts.slice(0, 160))
+    check('首屏面板不含「领取条件」/「限制」（已移到 FAQ 上方）',
+      !facts.includes('领取条件') && !facts.includes('限制'), facts.slice(0, 160))
+    check('正文仍保留「免费额度」', body.includes('免费额度'))
     const head = headHtmlOf(pageVerified)
     check('header 仍展示有效期文案（永久有效 / 天后到期 / 已过期）',
       /永久有效|天后到期|今天到期|已过期/.test(head), head.slice(0, 200))
+  }
+
+  // ═══ ②-b 领取条件 / 限制：位于 FAQ 上方，且三态规则生效（2026-11-12）═══
+  console.log('\n▶ ②-b 领取条件 / 限制已移到 FAQ 上方（合并态占满整行）')
+  {
+    const pageCond = (await api(`/tokens/${idConditions}.html`)).text
+    const body = bodyHtmlOf(pageCond)
+    const cond = slice(body, 'class="tdd-section tdd-conditions', '</section>')
+    check('条件区已渲染（.tdd-conditions）', cond.length > 0, body.slice(0, 200))
+    check('条件区文案 = 「限制与领取条件」（只有 limits → 合并态）',
+      cond.includes('限制与领取条件'), cond.slice(0, 200))
+    check('条件区渲染了 limits 原文', cond.includes(LIMITS_TEXT), cond.slice(0, 240))
+    check('合并态带 is-wide（跨满整行，不留半行空白）', cond.includes('is-wide'))
+    check('条件区不含空的「领取条件」块（requirements 为空时不硬拆）',
+      !/label">[^<]*<\/i>领取条件</.test(cond), cond.slice(0, 240))
+    // 位置：必须在 FAQ 之前、且不在首屏（即排在「支持模型」之后）
+    const iCond = body.indexOf('class="tdd-section tdd-conditions')
+    const iFaq = body.indexOf('class="tdd-section tdd-faq')
+    const iModels = body.indexOf('支持模型')
+    check('条件区在 FAQ 之前', iCond > 0 && iFaq > iCond, `cond@${iCond} faq@${iFaq}`)
+    check('条件区不在首屏（排在「支持模型」之后）', iModels > 0 && iCond > iModels,
+      `models@${iModels} cond@${iCond}`)
+    check('FAQ 仍在渲染（faq 列生效）', iFaq > 0 && body.includes('额度什么时候到期'))
   }
 
   // ═══ ③ 分类移到 header（需求 3）═══
@@ -423,14 +467,14 @@ async function main() {
       return !!t && t.some(x => ['is-blue', 'is-purple', 'is-primary'].includes(x))
     })(), JSON.stringify(classTokensWith(head, 'tdd-category')))
     const bodyPending = bodyHtmlOf(pagePending)
-    // 2026-11-04：`.tdd-facts` 现在是 v-if="specCells.length" 条件渲染 ——
+    // 2026-11-12：`.tdd-facts` 现在是 v-if="quotaCell" 条件渲染 ——
     // 只有填了 models / call_url 等规格信息才出现。测试造的 pending 样本没有这些字段，
     // 于是整块不渲染、切片为空，旧断言 `facts.length > 0` 必然失败。
     // 真正的意图是「正文里没有分类文字」，就按这个意思断言，不依赖某个块是否存在。
     const facts = slice(bodyPending, 'class="tdd-facts', '接入信息')
     check('正文事实区不含「分类」文字',
       !facts.includes('分类'),
-      facts.length ? facts.slice(0, 160) : '(该样本无 spec 信息，.tdd-facts 未渲染)')
+      facts.length ? facts.slice(0, 160) : '(该样本无 quota，.tdd-facts 未渲染)')
     // 默认分类（API 额度）也要有徽标：否则正文那条被移走后信息就消失了
     check('默认分类 token 也渲染徽标（「API 额度」）', headHtmlOf(pagePending).includes('API 额度'))
   }
@@ -575,6 +619,24 @@ async function main() {
       const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
       const m = (sfc.match(/\.tdd-facts\s*\{([^}]*)\}/) || [])[1] || ''
       return /display:\s*grid/.test(m)
+    })())
+    // 2026-11-12：条件区是**独立网格**（成段富文本需要更宽的单列下限），不复用 .tdd-facts
+    check('CSS：.tdd-conditions-grid 是 grid 且合并态可跨满整行', (() => {
+      const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
+      const g = (sfc.match(/\.tdd-conditions-grid\s*\{([^}]*)\}/) || [])[1] || ''
+      return /display:\s*grid/.test(g)
+        && /\.tdd-condition\.is-wide\s*\{\s*grid-column:\s*1\s*\/\s*-1/.test(sfc)
+    })())
+    check('CSS：手机上条件区与首屏面板都降为单列（组件内 @media 覆盖）', (() => {
+      const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
+      const mq = (sfc.match(/@media\s*\(max-width:\s*640px\)\s*\{([\s\S]*?)\n\}/) || [])[1] || ''
+      return /\.tdd-spec\s*\{\s*grid-template-columns:\s*1fr/.test(mq)
+        && /\.tdd-conditions-grid\s*\{\s*grid-template-columns:\s*1fr/.test(mq)
+    })())
+    check('CSS：核实情况样式已彻底移除（无残留 .verify- 规则）', (() => {
+      const sfc = readFileSync(join(ROOT, 'components', 'tokens', 'TokenDealDetail.vue'), 'utf8')
+      // 允许注释里提到 .verify-*，但不允许出现真正的规则块
+      return !/^\s*\.verify-[a-z-]+\s*(\{|,)/m.test(sfc)
     })())
     // ── 窄屏 header 容量核算（4 个元素：分类 + 品质 + 实名 + 关闭）──
     check('窄屏容量核算：360px 下 header 右侧 4 个元素可容纳（换行后不溢出）', (() => {

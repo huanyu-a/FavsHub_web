@@ -157,7 +157,7 @@ jobs:
       # `favshub-nuxt/scripts/assertion-count.mjs` 的套件清单，或跑一次
       # `node scripts/assertion-count.mjs` 生成的 `assertion-count.json`。
       #
-      # CI 断言总计 2308（共 23 个套件）（= 本文件 `--check` 那一步实测并校验的值；
+      # CI 断言总计 2323（共 23 个套件）（= 本文件 `--check` 那一步实测并校验的值；
       # 改了套件就靠它报红 —— 总数与「共 N 个套件」两个数字都有守卫）。
       - name: Test — 第二批次 e2e（权限/可见性/SSRF）
         working-directory: favshub-nuxt
