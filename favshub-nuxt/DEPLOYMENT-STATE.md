@@ -1,20 +1,77 @@
 **最后更新：2026-11-12（第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.101（2026-11-12）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.102（2026-11-16）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.101` |
-| **来源提交** | `0272268a235e01815ee49776178afb54c6d54f37` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.101`、`revision=0272268a…` —— 部署前拿它当**闸门**：本次实测 label 与本地 release 提交逐字符一致后才 `up -d`（不符合就不重建容器，生产继续跑旧版） |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:ab3668d70df44fea3ac4e391afb8f070e79ad6537bf945c137453f39e3f88bd7`（容器 Image `sha256:5429694a6fb8`） |
-| **CI run** | `43154521715`，`success`（约 2 分钟；两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
-| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.101`**、`generated_at=2026-11-12T04:22Z` |
-| **断言总数** | **2323**（共 23 个套件）· `ts:check` 965 个具名导入。本次 +15 条（详情页套件 252 → 267），该数字由 `assertion-count.mjs --check` 实测校验 |
-| **线上数据分布** | `approved 101 / pending 3 / rejected 23`（合计 127，软删 5）—— 本次为**纯前端展示层改动，无数据库迁移**，部署后由服务器侧只读查询测得 |
-| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.101`；仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库 —— 这一步是**必须**的：VERSION 一变，清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
-| **回滚锚点** | 镜像 tag `rollback-20261112-123011` ← `b5291f05776f`（1.0.100 实际运行的镜像，label `revision=d0648c54…`）+ 库备份 `data/backups/favshub.db.pre-1.0.101-20261112-123011`（4,923,392 字节，sha256 `c4cd1d5a30874d53…`）；更早还有 `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
-| **部署后校验** | `post-deploy-verify.mjs --base https://hao.bx9y.com.cn` → **5 通过 / 0 失败**（含 `public-field-matrix` 18/0、`full-deal-row-audit` 两行可见性哨兵） |
+| **版本** | `1.0.102` |
+| **来源提交** | `6b7cbe5baafd23ea98e176689aa3a3545121f4db` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.102`、`revision=6b7cbe5baafd23ea98e176689aa3a3545121f4db` —— 部署前拿它当**闸门**：本次实测 label 与本地 release 提交逐字符一致后才 `up -d`（不符合就不重建容器，生产继续跑旧版） |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:ccd67baa9bf2122cd4a4273583c4bda6cf49e816c43db53766cadba76aa39dd6`（容器 Image `sha256:315f319b6a8b`） |
+| **CI run** | `43847720672`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
+| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`（连测 5 次均 200、约 120ms）；线上技能包实测 **`site_version=1.0.102`**、`generated_at=2026-11-16T10:16Z` |
+| **断言总数** | **2323**（共 23 个套件，本次**未变** —— 新规则用沙盒实测覆盖，未改既有套件）· `ts:check` **972** 个具名导入（965 → 972，新增 `pinned-rank.ts` 的导出） |
+| **线上数据分布** | `published 88 / pending 2 / rejected 23 / invalid 12 / offline 2 / deleted 5`（合计 132）—— 本次为**纯排序与下发字段改动，无数据库迁移**，部署后由服务器侧只读查询测得 |
+| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.102`；仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库 —— VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
+| **回滚锚点** | 镜像 tag `rollback-20261116` ← `5429694a6fb8`（1.0.101 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261116181735`（5,185,536 字节，sha256 `2693f9ea8d4c1a60…`）；更早还有 `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
+| **部署后校验** | `post-deploy-verify.mjs --base https://hao.bx9y.com.cn` → **4 通过 / 1 失败**（首轮 `/api/health` 偶发超时，复测 5/5 均 200；`full-deal-row-audit` 单跑 **87 条全通过、错误 0、两行都无 0**） |
+
+### 1.0.102：置顶位每页热度前 3（2026-11-16）
+
+**需求**：「每个页面的置顶都改为热度最高的 3 个置顶，`/tokens` 频道首页同样展示为 3 个」。
+
+**改前的问题**：`token_deals.pinned` 是个**开关** —— 管理员点一次就永远置顶。
+线上 8 条同时置顶，前台 `ORDER BY d.pinned DESC` 把它们整堆顶在最前。
+置顶位本该是稀缺资源，全都置顶等于没有置顶，真正的热门条目被挤到看不见的位置。
+
+**改后**：
+
+- **候选池不变**：仍只认 `pinned = 1` 的条目，置顶按钮继续有效，
+  只是它现在表示「入选候选池」而非「自动顶到最前」。
+- **热度** = 投票净分 `vote_up - vote_down`，与站点现有 `sort=hot` **同一表达式**
+  （口径若分家，同一条目会在「最热」里第 3、在置顶位里第 8，用户看到自相矛盾的排名）。
+- **每页只留 3 个**，排名在**当前查询范围内**算：分类页带 `category` 筛选 → 该分类前 3；
+  `/tokens` 首页不带筛选 → 全站前 3；候选不足 3 个时有多少显示多少。
+  其余候选落回普通排序。
+
+**两个实现判断**（都写进了 `server/utils/pinned-rank.ts` 的注释）：
+
+1. **刻意不按 category 分区**（不用 `PARTITION BY`）。分区会让首页变成「每分类各 3 个」——
+   线上 4 个分类、8 个候选 → 首页出现 6 个置顶，与「首页展示 3 个」直接冲突。
+   排名范围 = 用户筛选范围，这个语义才与页面自洽。
+2. **置顶组内不强制按热度排**。「热度最高的 3 个」说的是**哪 3 条入选**，不是显示顺序；
+   强制按 rank 排会让「评分」「最新」按钮对这 3 条失效。故：**入选按热度，组内按用户选的 sort**。
+
+**下发字段 `pinned` 改为「实际占位」**：卡片靠 `pinned=1` 画图钉。若候选池第 4~N 名仍下发 1，
+它们会散在列表中间却带着图钉，看起来像置顶失效。故公开列表与 AI 通道都把 `pinned`
+换算成「是否真的占住置顶位」，并剔除内部字段 `pinned_rank`。
+**管理端读库原值**，管理员仍能看到完整候选池。
+
+**实现**：新增 `server/utils/pinned-rank.ts`。用窗口函数 `ROW_NUMBER` 让
+「排名 + 排序 + 分页」在**同一条 SQL** 内完成 —— 若先查出来在内存里排，第 2 页会重新从 1 开始数，
+置顶位会在第 2 页又冒出来一遍。
+⚠️ 排名 CTE 复用 `whereClause`，占位符出现**两次**，`params` 必须**传两遍**；
+只传一遍不报错，而是参数整体错位、筛选莫名失效（变异测试已钉住）。
+
+**验证**：
+
+- 沙盒真实 SQLite **22 项断言**全通过，含变异测试（参数改单传立刻 `RangeError`，证明测试有效）。
+- 真实端点（生产构建 + 生产数据）实测：首页（7 个 published 候选）→ 置顶 3；
+  `/tokens/api`（token 4 候选）→ 3；`/tokens/server`（cloud 1 候选）→ 1；
+  `/tokens/client`（client 2 候选，其中 `码道CodeArts` 为 `invalid` 被正确排除）→ 2；
+  `/tokens/domain`（无候选）→ 0。前端 `pin-mark` 计数与 API 逐页一致，落选候选不再画图钉。
+- 回归：`api-public-surface` 261、`state-machine` 107、`admin-auth-guard` 221、
+  `deal-subscriptions` 53、`public-secret-scan` 23、`category-source-check` 86、
+  `cache-privacy-check` 15 —— 全部通过。
+  冒烟测试 34 通过 / 1 失败，那 1 项「含作者信息 `username=undefined`」是**改动前就存在**的
+  （接口下发 `nickname`，测试断言 `username`），与本次无关。
+
+**部署踩到的两处假警报**（都不是回归，记下来免得下次重查）：
+
+- `cache-privacy-check` 首轮 5 项失败、`state-machine` 3 项失败，全部因为本地 `.output`
+  还是 4 天前的旧构建 —— 这些脚本跑的是生产产物而非 dev server，**改完代码要先 `pnpm build`**。
+- `full-deal-row-audit` 报「错误 8」，是**我自己连续跑多轮全量**触发的限流抖动
+  （正是脚本注释里记的 2026-11-04 现象）；静置 20 秒后单跑 87 条全绿、错误 0。
 
 ### 1.0.101：详情页首屏瘦身（2026-11-12）
 
