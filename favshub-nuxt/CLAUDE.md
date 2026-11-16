@@ -269,6 +269,13 @@ JSON 数组：`JSON.parse` 后 `Array.isArray()`；**空数组也要执行清除
 - 评测：一人一评（`UNIQUE(deal_id, user_id)`）——重复提交为**更新**（不新增计数）；`rating` 限 1-5，越界 400。
   登录用户评测（即时公开、无审核）自 2026-10-12 起同样有限频（每用户 20/h、每 IP 40/h）与广告黑名单过滤
 - 置顶：**仅管理员**（普通用户 403）；删除：作者或管理员 —— **软删除**（见下「生命周期」）
+- **置顶位（2026-11-16）**：`token_deals.pinned` 是「进候选池」的开关，**不再等于顶在最前**。
+  前台每个页面只让**热度最高的 3 个**候选占住置顶位：热度 = 投票净分 `vote_up - vote_down`
+  （与 `sort=hot` 同一口径）。排名在**当前查询范围内**算 —— 分类页带 `category` 筛选故取该分类前 3，
+  `/tokens` 首页不带筛选故取全站前 3；候选不足 3 个时有多少显示多少，其余候选落回普通排序。
+  实现见 `server/utils/pinned-rank.ts`（窗口函数 `ROW_NUMBER`，排名与分页在同一条 SQL 内完成）。
+  ⚠️ 下发给前端的 `pinned` 字段是「**实际占位**」而非库里的开关值 —— 卡片画图钉依据它，
+  候选池第 4~7 名必须下发 0，否则会散在列表中间却带着图钉。
 - 计数：`vote_up` / `vote_down` / `rating_sum` / `rating_count` 为缓存列，统一由 `syncDealCounters(db, id)` 在 `db.transaction` 内重算，勿在各接口里手工 ±1
 - 排序：`hot`（净票数）/ `rating`（平均分）/ `expiring`（临期）；筛选 `region` / `quality` / `source_tag` / 关键词
 - 种子：`token_deals` 为空时插入 10 条默认通告（`seed-token-deals.ts`）

@@ -36,6 +36,7 @@ import {
   isStatePubliclyVisible,
 } from './token-deals'
 import { appendDealEvent } from './deal-events'
+import { occupiesPinnedSlot, pinnedOrderPrefix, pinnedRankQuery } from './pinned-rank'
 import {
   submitDealEdit,
   listDealEdits,
@@ -691,10 +692,18 @@ export function listTokenDeals(db: DB, userId: number, query: any) {
 
   const whereSql = where.join(' AND ')
   const total = (db.prepare(`SELECT COUNT(*) AS c FROM token_deals td WHERE ${whereSql}`).get(...params) as { c: number }).c
+  // 置顶位（2026-11-16）：与 Web 通道同口径 —— 每个分类只把「已置顶候选」里
+  // 热度（vote_up - vote_down）最高的 3 条顶到最前，其余落回普通排序。
+  // 原先是 `td.pinned DESC`：所有置顶条目整堆顶在前面（线上曾有 7 条同时置顶）。
+  //
+  // whereSql 在 SQL 里出现两次（排名 CTE 一次、主查询一次），参数要传两遍，
+  // 否则参数错位 → 筛选莫名失效而不是报错。
   const deals = db.prepare(
-    `SELECT td.* FROM token_deals td WHERE ${whereSql}
-      ORDER BY td.pinned DESC, td.created_at DESC LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset) as any[]
+    `WITH pr AS (${pinnedRankQuery(whereSql, 'td')})
+     SELECT td.*, pr.pinned_rank AS pinned_rank FROM token_deals td
+     LEFT JOIN pr ON pr.id = td.id WHERE ${whereSql}
+      ORDER BY ${pinnedOrderPrefix()}, td.created_at DESC LIMIT ? OFFSET ?`
+  ).all(...params, ...params, limit, offset) as any[]
 
   // 核验派生字段：AI 侧只读（不能自封核验），核验人不外泄
   const now = Date.now()
@@ -748,11 +757,26 @@ const DEAL_PRIVATE_FIELDS = [
   // 情报来源（2026-11-04）：导入时记下的对标站点详情页地址，属运营留痕。
   // AI 通道走 `SELECT td.*`，不显式剥离就会随列表/详情一起下发。
   'source_url',
+  // 分类内置顶排名（2026-11-16）：内部字段，不下发。
+  // 它只用于把 `pinned` 换算成「是否真的占住置顶位」。
+  'pinned_rank',
 ] as const
 
-/** 就地剥离内部字段（不动 `models` 反序列化，方便列表循环里单独调用） */
+/**
+ * 就地剥离内部字段（不动 `models` 反序列化，方便列表循环里单独调用）
+ *
+ * 顺带把 `pinned` 换算成「**实际占住置顶位**」（2026-11-16）：
+ * 库里 pinned=1 只是「进了候选池」，而每个分类只有热度最高的 3 条才占住置顶位。
+ * 不换算的话，候选池里第 4~7 名会带着 pinned=1 下发，调用方（AI / 订阅脚本）
+ * 会以为它们也被顶在最前 —— 与 Web 通道显示的不一致。
+ *
+ * ⚠️ 换算必须在删除 `pinned_rank` **之前**做 —— 顺序反了就没有 rank 可用了。
+ */
 function stripDealPrivateFieldList(row: any): void {
   if (!row || typeof row !== 'object') return
+  if ('pinned_rank' in row) {
+    row.pinned = occupiesPinnedSlot(row.pinned_rank) ? 1 : 0
+  }
   for (const f of DEAL_PRIVATE_FIELDS) {
     if (f in row) delete row[f]
   }

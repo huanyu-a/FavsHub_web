@@ -25,6 +25,9 @@ import {
   escapeLike, isVerifyStale as isVerifyStaleRow, parseFaq, publicVisibleClause,
   verifyAgeDays, verifyStaleDays,
 } from '../../utils/token-deals'
+import {
+  hotOrder, occupiesPinnedSlot, pinnedOrderPrefix, pinnedRankQuery,
+} from '../../utils/pinned-rank'
 
 function parseModels(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return []
@@ -45,7 +48,9 @@ function parseModels(raw: unknown): string[] {
  *   5. 创建时间倒序
  */
 const NEXUS_ORDER = [
-  'd.pinned DESC',
+  // 置顶位：与其它排序同源（每分类热度前 3）。原先这里是 `d.pinned DESC`，
+  // 会把所有置顶条目全堆到最前 —— 与 2026-11-16 的新口径不一致，故一并改掉。
+  pinnedOrderPrefix(),
   'CASE WHEN m.channel_id IS NULL THEN 2 WHEN n.status = 1 THEN 0 ELSE 1 END ASC',
   'CASE WHEN n.eval_total > 0 THEN CAST(n.eval_ok AS REAL) / n.eval_total ELSE -1 END DESC',
   'CASE WHEN n.eval_avg_ms > 0 THEN n.eval_avg_ms ELSE 999999999 END ASC',
@@ -163,42 +168,69 @@ export default defineEventHandler(async (event) => {
     params.push(exclude)
   }
 
-  const defaultOrder = 'd.pinned DESC, d.created_at DESC'
+  // ── 置顶位（2026-11-16）：每个页面取热度最高的 3 个 ──────────────────
+  //
+  // 原来这里是 `d.pinned DESC, ...`：管理员置顶过的条目**全部**堆在最前
+  // （线上曾有 7 条同时置顶，等于没有置顶位）。现在改为：
+  //   候选池 = pinned = 1 的条目
+  //   排名   = 在**当前筛选范围**内按投票净分（vote_up - vote_down）从高到低
+  //   生效   = 只有前 3 名占住置顶位，其余落回普通排序
+  //
+  // 排名用 SQL 窗口函数在**同一条 SQL** 里算完，再排序、再分页 ——
+  // 若先查出来在内存里排，第 2 页会重新从 1 开始数，置顶位会在第 2 页又冒出来一遍。
+  //
+  // ⚠️ 排名 CTE 的 WHERE 必须与主查询的 whereClause **完全一致**（同一批筛选、
+  // 同一个可见性口径），否则「置顶位」与「列表里实际看到的条目」对不上。
+  // 这条约束同时决定了「每页 3 个」的语义：分类页带 category 筛选 → 该分类取 3 个；
+  // /tokens 首页不带分类筛选 → 全站取 3 个（见 utils/pinned-rank.ts 的说明）。
+  const rankCte = `pr AS (${pinnedRankQuery(whereClause)})`
+
+  const defaultOrder = `${pinnedOrderPrefix()}, d.created_at DESC`
   // 起点即「最新」：只有**显式** sort=nexus（且 Nexus 表已迁移）才切到 Nexus 优先。
   // 这样未知 / 拼错的 sort 值退回默认，而不是悄悄给出另一种排序（与「默认最新」自述一致）。
   let orderClause = sort === 'nexus' && hasNexus ? NEXUS_ORDER : defaultOrder
   if (sort === 'latest') {
     orderClause = defaultOrder
   } else if (sort === 'hot') {
-    orderClause = 'd.pinned DESC, (d.vote_up - d.vote_down) DESC, d.vote_up DESC, d.created_at DESC'
+    // 热度排序：置顶位优先，其余按净分降序（与 pinned-rank 的热度口径同源）
+    orderClause = `${pinnedOrderPrefix()}, ${hotOrder('d')}`
   } else if (sort === 'rating') {
-    orderClause = 'd.pinned DESC, (CASE WHEN d.rating_count > 0 THEN CAST(d.rating_sum AS REAL) / d.rating_count ELSE 0 END) DESC, d.rating_count DESC'
+    orderClause = `${pinnedOrderPrefix()}, (CASE WHEN d.rating_count > 0 THEN CAST(d.rating_sum AS REAL) / d.rating_count ELSE 0 END) DESC, d.rating_count DESC`
   } else if (sort === 'verified') {
     // 最近核验优先：从未核验的垫底，其余按核验时间倒序
-    orderClause = 'd.pinned DESC, (d.verified_at IS NULL OR d.verified_at = 0) ASC, d.verified_at DESC, d.created_at DESC'
+    orderClause = `${pinnedOrderPrefix()}, (d.verified_at IS NULL OR d.verified_at = 0) ASC, d.verified_at DESC, d.created_at DESC`
   } else if (sort === 'expiring') {
     // 永久有效（expires_at 为空）排在最后，其余按到期时间升序
-    orderClause = 'd.pinned DESC, (d.expires_at IS NULL) ASC, d.expires_at ASC'
+    orderClause = `${pinnedOrderPrefix()}, (d.expires_at IS NULL) ASC, d.expires_at ASC`
   }
 
   const total = (db.prepare(`SELECT COUNT(*) AS total FROM token_deals d WHERE ${whereClause}`)
     .get(...params) as { total: number }).total
 
   const rows = db.prepare(`
+    WITH ${rankCte}
     SELECT d.*,
+      pr.pinned_rank AS pinned_rank,
       CASE WHEN d.guest_name IS NOT NULL AND d.guest_name != '' THEN d.guest_name ELSE u.nickname END AS nickname${nexusSelect}
     FROM token_deals d
     LEFT JOIN users u ON d.user_id = u.id
     ${joinClause}
+    LEFT JOIN pr ON pr.id = d.id
     WHERE ${whereClause}
     ORDER BY ${orderClause}
     LIMIT ? OFFSET ?
-  `).all(...params, limit, offset) as any[]
+  `)
+    // ⚠️ params 要传**两遍**：`whereClause` 在 SQL 里出现了两次
+    // （排名 CTE 一次、主查询一次），占位符因此也是两倍。
+    // 只传一遍会让参数整体错位 —— 前几个条件被喂给 CTE 之后，
+    // 主查询拿到的是错位的值，表现为「筛选莫名其妙不生效」而不是报错。
+    // 顺序：CTE 的占位符在最前（WITH 子句先于主查询），然后主查询的，最后 LIMIT/OFFSET。
+    .all(...params, ...params, limit, offset) as any[]
 
   const deals = rows.map((row) => {
     const {
       nexus_channel_id, nexus_name, nexus_status, nexus_eval_ok,
-      nexus_eval_total, nexus_eval_avg_ms, nexus_eval_at, ...rest
+      nexus_eval_total, nexus_eval_avg_ms, nexus_eval_at, pinned_rank, ...rest
     } = row
 
     const nexus = nexus_channel_id != null
@@ -218,6 +250,13 @@ export default defineEventHandler(async (event) => {
     return {
       ...rest,
       models: parseModels(row.models),
+      // 置顶位（2026-11-16）：下发的 `pinned` 改成「**实际占住置顶位**」，
+      // 而不是数据库里的开关值。候选池里排名 4~7 的条目仍然是 pinned=1，
+      // 但它们没有占住置顶位 —— 卡片画图钉、加「已置顶」底色都依据这个字段，
+      // 若照旧下发 1，它们会散在列表中间却带着图钉，看起来像置顶失效。
+      pinned: occupiesPinnedSlot(pinned_rank) ? 1 : 0,
+      // 分类内置顶排名（内部用，不下发）：1 = 该分类里热度最高的那条
+      pinned_rank: undefined,
       // FAQ 是 JSON 字符串列 → 公开侧一律下发解析后的数组（前端拿到的永远是 [{q,a}]）。
       // `parseFaq` 对脏数据（非法 JSON / 非数组 / 缺字段）回 `[]`，不会 500。
       faq: parseFaq(row.faq),
