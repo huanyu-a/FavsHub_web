@@ -28,7 +28,7 @@
 import { getRawDb } from '../../../database'
 import { requireAdmin } from '../../../utils/auth'
 import {
-  archiveExpiredDeals, DEAL_CATEGORIES, escapeLike, INVALID_REASON_LABELS, isVerifyStale,
+  archiveExpiredDeals, DEAL_CATEGORIES, DEAL_STATES, escapeLike, INVALID_REASON_LABELS, isVerifyStale,
   ORIGIN_FILTERS, QUALITY_LEVELS, REGIONS, SOURCE_TAGS, verifyAgeDays, verifyStaleDays,
 } from '../../../utils/token-deals'
 
@@ -96,7 +96,14 @@ export default defineEventHandler(async (event) => {
   const view = String(query.view || 'queue')
   // 已失效面板内的子筛选（与行分类同优先级：已删除 > 判定失效 > 已过期）
   const lifecycle = String(query.lifecycle || 'all')
-  const status = String(query.status || 'pending')
+  // status 直接映射 `state` 列，故必须过 `DEAL_STATES` 白名单。
+  //
+  // 2026-11-19 修复：原先这里把 `status` 原样拼进 SQL，于是旧值 `approved`
+  // （state 拆成 verified/published 之前的叫法）变成 `WHERE d.state='approved'` —— 恒空集。
+  // 表现就是「角标 78、点进去 0 条 + 空态文案」。白名单之外一律退化成 `all`，
+  // 与本文件既有的约定一致：拼错参数应当看到全部数据，而不是一个空面板让人去猜。
+  const statusRaw = String(query.status || 'pending').trim()
+  const status = statusRaw === 'all' ? 'all' : (pickEnum(statusRaw, DEAL_STATES) || 'all')
   const search = String(query.search || '').trim()
   // 待核验（2026-10-20）：在架条目里筛「超过阈值没人工核验」的，供「待核验」tab 用
   const verifyFilter = String(query.verify || 'all')
@@ -244,8 +251,13 @@ export default defineEventHandler(async (event) => {
     FROM token_deals
   `).get() as { deleted: number | null; invalid: number | null; expired: number | null } | undefined
 
-  // 待核验计数：口径必须与「待核验」tab 完全一致（tab 固定 status=approved），
-  // 否则角标数字会和点进去的条数对不上
+  // 待核验计数：口径必须与「待核验」tab 完全一致（tab 固定 status=published + verify=stale），
+  // 否则角标数字会和点进去的条数对不上。
+  //
+  // ⚠️ 2026-11-19：这里原注释写的是 `status=approved`，而页面 `switchVerifyStale()` 真的照着发
+  // `status=approved` —— 但 state 拆档后库里只有 `published`，于是
+  // `WHERE d.state='approved'` 命中 0 行：角标 78、点进去空白。**两处已同时改为 published**，
+  // 改这个计数的口径时必须同步改页面那个函数（它们是同一件事的两侧）。
   const staleCount = (db.prepare(`
     SELECT COUNT(*) AS c FROM token_deals d
     WHERE ${L.live} AND d.state = 'published'

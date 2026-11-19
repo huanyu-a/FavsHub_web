@@ -661,8 +661,13 @@ const pageList = computed(() => {
   return out
 })
 
+// 键必须与 `status` 的取值一一对应。2026-11-04 把 state 拆成 verified / published 后，
+// 这两张表只留了旧的 `approved`，于是「已审核 / 已发布」两个 tab 的标题与空态文案都是 undefined
+// （渲染成空白），顺手补齐；`approved` 保留给旧值兜底。
 const tabTitle = computed(() => verifyFilter.value === 'stale' ? '待核验通告（默认 30 天未核验）' : ({
   pending: '待审核通告',
+  verified: '已审核通告（可信标记，尚未发布）',
+  published: '已发布通告',
   approved: '已通过通告',
   rejected: '已驳回通告',
   all: '全部通告',
@@ -670,6 +675,8 @@ const tabTitle = computed(() => verifyFilter.value === 'stale' ? '待核验通�
 
 const emptyText = computed(() => verifyFilter.value === 'stale' ? '全部通告都核验过了，很干净' : ({
   pending: '暂无待审核通告',
+  verified: '暂无已审核通告',
+  published: '暂无已发布通告',
   approved: '暂无已通过通告',
   rejected: '暂无已驳回通告',
   all: '暂无通告',
@@ -807,10 +814,17 @@ function switchStatus(next: typeof status.value) {
   loadDeals()
 }
 
-/** 待核验 tab：只看在架（已通过）且超过阈值没核验的通告 */
+/**
+ * 待核验 tab：只看在架（已发布）且超过阈值没核验的通告。
+ *
+ * 2026-11-19 修复：这里原先把 status 设成 `'approved'` —— 那是 2026-11-04 拆分前的旧值。
+ * state 拆成 verified / published 两档后库里的值是 `'published'`，于是服务端
+ * `WHERE d.state = 'approved'` 命中 0 行：角标（服务端按 `state='published'` 计数）显示 78，
+ * 点进去却是空的。角标与列表必须用同一个值 —— 服务端 stale 计数的口径就是 `state='published'`。
+ */
 function switchVerifyStale() {
   tab.value = 'deals'
-  status.value = 'approved'
+  status.value = 'published'
   verifyFilter.value = 'stale'
   page.value = 1
   loadDeals()
