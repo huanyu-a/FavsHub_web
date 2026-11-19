@@ -1,20 +1,60 @@
-**最后更新：2026-11-12（第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
+**最后更新：2026-11-19（第 37 次修订：后台「待核验」tab 角标有数但列表为空 —— `switchVerifyStale()` 仍在发 2026-11-04 拆档前的废弃值 `status=approved`，服务端 `WHERE d.state='approved'` 恒空；角标按 `state='published'` 计数故显示 78。两处口径已统一为 `published`，并给 `status` 加了 `DEAL_STATES` 白名单。**已发版 1.0.103 并部署**）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.102（2026-11-16）
+上一轮第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
+
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.103（2026-11-19）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.102` |
-| **来源提交** | `6b7cbe5baafd23ea98e176689aa3a3545121f4db` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.102`、`revision=6b7cbe5baafd23ea98e176689aa3a3545121f4db` —— 部署前拿它当**闸门**：本次实测 label 与本地 release 提交逐字符一致后才 `up -d`（不符合就不重建容器，生产继续跑旧版） |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:ccd67baa9bf2122cd4a4273583c4bda6cf49e816c43db53766cadba76aa39dd6`（容器 Image `sha256:315f319b6a8b`） |
-| **CI run** | `43847720672`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
-| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`（连测 5 次均 200、约 120ms）；线上技能包实测 **`site_version=1.0.102`**、`generated_at=2026-11-16T10:16Z` |
-| **断言总数** | **2323**（共 23 个套件，本次**未变** —— 新规则用沙盒实测覆盖，未改既有套件）· `ts:check` **972** 个具名导入（965 → 972，新增 `pinned-rank.ts` 的导出） |
-| **线上数据分布** | `published 88 / pending 2 / rejected 23 / invalid 12 / offline 2 / deleted 5`（合计 132）—— 本次为**纯排序与下发字段改动，无数据库迁移**，部署后由服务器侧只读查询测得 |
-| **技能包版本** | `1.12.0`（线上 `/skills/favshub-data-ops.json` 实测 `site_version=1.0.102`；仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库 —— VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
-| **回滚锚点** | 镜像 tag `rollback-20261116` ← `5429694a6fb8`（1.0.101 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261116181735`（5,185,536 字节，sha256 `2693f9ea8d4c1a60…`）；更早还有 `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
-| **部署后校验** | `post-deploy-verify.mjs --base https://hao.bx9y.com.cn` → **4 通过 / 1 失败**（首轮 `/api/health` 偶发超时，复测 5/5 均 200；`full-deal-row-audit` 单跑 **87 条全通过、错误 0、两行都无 0**） |
+| **版本** | `1.0.103` |
+| **来源提交** | `e26bc1a271036f14c978135d769c4906b850d5fd` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.103`、`revision=e26bc1a271036f14c978135d769c4906b850d5fd` —— 部署前拿它当**闸门**：本次实测 label 与实际运行容器 `Version=1.0.103` 逐字符一致后才 `up -d` |
+| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:2942b8348bfbf37de65dde01cd166b5ebb2079219754ec007978b7e8e6ef42bf`（容器 Image `sha256:185887eea2e9`） |
+| **CI run** | `44496586479`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
+| **健康检查** | `docker ps` → `Up (healthy)`、`RestartCount=0`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.103`** |
+| **断言总数** | **2323**（共 23 个套件，本次**未变** —— 纯口径修复，未新增套件）· `ts:check` **973** 个具名导入（972 → 973，新增 `index.get.ts` 对 `DEAL_STATES` 的具名导入） |
+| **线上数据分布** | `published 88 / pending 0 / rejected 25 / invalid 13 / offline 3 / deleted 5`（合计 134）—— 无数据库迁移（启动日志 `token_deals.state 回填 133 行` 是既有的幂等回填），部署后由服务器侧只读查询测得 |
+| **技能包版本** | `1.12.0`（仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库，`site v1.0.103`；VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
+| **回滚锚点** | 镜像 tag `rollback-20261119-172516` ← `315f319b6a8b`（1.0.102 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261119172516`（5,292,032 字节，`integrity_check=ok`）；更早还有 `rollback-20261116` / `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
+| **部署后校验** | 三路：① 容器内前端产物实测 `R.value="published",j.value="stale"`、旧写法 `value="approved"` **出现 0 次**；② 生产库按服务端口径算得待核验 **78 条**，而 `state='approved'` 仅 **0 行**（旧查询恒空的直接证据）；③ 公网 `/api/health` ok、`site_version=1.0.103`、`/tokens` 与 `/tokens/keys` 均 200（`/admin/token-deals` 302 = 未登录跳转，符合预期） |
+
+### 1.0.103：后台「待核验」角标有数但列表为空（2026-11-19）
+
+**现象**：`/admin/token-deals` 的「待核验」tab 角标显示 **78**，点进去却 **0 条**，
+还配着空态文案「全部通告都核验过了，很干净」。
+
+**根因**（读码 + 生产库双向取证，不是猜测）：2026-11-04 把 `token_deals.state` 从单一
+`approved` 拆成 `verified` / `published` 两档后，页面 `switchVerifyStale()` **仍发旧值
+`status=approved`**，服务端无白名单、原样拼进 SQL → `WHERE d.state='approved'`。
+而生产库里 `state='approved'` 的行数**恰好是 0**（实测），于是恒为空集；
+角标走的是另一条正确的计数（`state='published'` + 核验时间超阈值）→ **78**。
+两侧口径不同源，就是「角标有数、列表空白」的全部成因。
+
+**改法两处**（同一件事的两侧，改一处必须改另一处）：
+
+- `pages/admin/token-deals.vue`：`switchVerifyStale()` 的 `status.value` 由 `'approved'` → **`'published'`**；
+- `server/api/admin/token-deals/index.get.ts`：`status` 过 `DEAL_STATES` 白名单，
+  白名单外**退化为 `all`** —— 与本文件既有约定一致（拼错参数应当看到全部数据，
+  而不是一个空面板让人去猜）。这层是**纵深防御**：即便日后又有调用方发废弃值，也不会再静默空表。
+- 顺带补齐 `tabTitle` / `emptyText` 两张表缺失的 `verified` / `published` 键
+  —— 拆档后「已审核 / 已发布」两个 tab 的标题与空态文案一直是 `undefined`（渲染成空白），同一波漏改。
+
+**验证**：
+
+- 本地真实服务 + 真实 SQLite 造数实测：旧值 `state='approved'` → **0 行**；
+  新口径 `status=published&verify=stale` → **12 条 == 角标 12**。其余 tab 回归正常，
+  且 `state=verified` 的样本**没有**混进待核验（证明 `state='published'` 这层过滤是真生效的）。
+- 门禁：`admin-invalid-filters` **98/0**（含「待核验筛选未破坏」）、`admin-filter-wiring` **46/0**、
+  `admin-filter-params` 等价复算 **12/0**（③ 参数名逐字对齐 + `query.status` / `query.verify` 读取处）。
+- 部署后：容器内产物 grep 到 `R.value="published",j.value="stale"`，`value="approved"` 0 次。
+
+**一处环境坑**（记下来免得重查）：`admin-filter-params.mjs` / `admin-filter-wiring.mjs` 在
+**Windows 上跑不起来** —— 它们 `await import(join(ROOT, '*.ts'))` 得到 `D:\...`，
+Node 的 ESM loader 只认 `file/data/node` 协议，报 `ERR_UNSUPPORTED_ESM_URL_SCHEME: Received protocol 'd:'`。
+这是脚本自身的加载限制（CI 是 ubuntu，不受影响），**不是被测代码的问题**；
+本机验证时把该导入换成 `pathToFileURL(...).href` 即可，断言逻辑一字未改。
+同理，`ai-api-gate` 在本机 **82 通过 / 6 失败**（`ai-read` 退出码 1、`ai-write` 0 项断言），
+已用 `git stash` 在**未含本次改动**的基线上复跑，失败项**逐条一致** → 属既有环境问题，与本次无关。
 
 ### 1.0.102：置顶位每页热度前 3（2026-11-16）
 
