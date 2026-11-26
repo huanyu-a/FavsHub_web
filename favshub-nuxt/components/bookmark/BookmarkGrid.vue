@@ -1,5 +1,5 @@
 <template>
-  <div class="bookmarks-container" id="bookmarks-list" :class="{ loaded: !isLoading }">
+  <div class="bookmarks-container" id="bookmarks-list" :class="{ loaded: !isLoading, 'density-compact': density === 'compact' }">
     <!-- 加载占位 -->
     <template v-if="isLoading">
       <div class="folder-group flat-layout">
@@ -11,8 +11,24 @@
 
     <!-- 空状态 -->
     <div v-else-if="bookmarks.length === 0" class="bookmarks-empty">
+      <i class="ri-bookmark-line bookmarks-empty-icon" aria-hidden="true"></i>
       <p>暂无书签</p>
       <button class="add-first-btn client-only-user" @click="$emit('add')">添加第一个书签</button>
+    </div>
+
+    <!-- 网格工具条：密度切换（本地持久化，游客同样可用） -->
+    <div v-if="bookmarks.length > 0" class="grid-toolbar">
+      <button
+        type="button"
+        class="density-toggle"
+        :title="density === 'compact' ? '切换为舒适密度' : '切换为紧凑密度'"
+        :aria-label="density === 'compact' ? '切换为舒适密度' : '切换为紧凑密度'"
+        :aria-pressed="density === 'compact'"
+        @click="toggleDensity"
+      >
+        <i :class="density === 'compact' ? 'ri-list-check-2' : 'ri-layout-grid-line'" aria-hidden="true"></i>
+        <span class="density-label">{{ density === 'compact' ? '紧凑' : '舒适' }}</span>
+      </button>
     </div>
 
     <!-- 分组显示 -->
@@ -123,7 +139,17 @@ const sortableInstances = new Map<HTMLElement, { destroy: () => void }>()
 onMounted(() => {
   mounted.value = true
   ensureSortableInstances()
+  try {
+    if (localStorage.getItem('favshub_density') === 'compact') density.value = 'compact'
+  } catch { /* localStorage 不可用时保持默认舒适密度 */ }
 })
+
+// 卡片密度：舒适（默认）/ 紧凑，选择持久化到本地，不依赖登录态
+const density = ref<'comfortable' | 'compact'>('comfortable')
+function toggleDensity() {
+  density.value = density.value === 'compact' ? 'comfortable' : 'compact'
+  try { localStorage.setItem('favshub_density', density.value) } catch { /* 忽略写入失败 */ }
+}
 
 // C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例
 onBeforeUnmount(() => {
@@ -277,5 +303,73 @@ const flatVisibleBookmarks = computed(() => {
 
 .add-bookmark-card {
   min-height: var(--bookmark-card-height, 56px);
+}
+
+/* 空状态图标 */
+.bookmarks-empty-icon {
+  display: block;
+  font-size: 36px;
+  color: var(--text-quaternary);
+  margin-bottom: 10px;
+}
+
+/* 网格工具条：吸附容器右上角，不额外占一行 */
+.grid-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 5;
+}
+.density-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.density-toggle:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.density-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* 紧凑密度：更小的卡片高度/内边距/间距，标题单行截断 */
+.density-compact .folder-bookmarks-grid {
+  gap: 8px;
+}
+.density-compact :deep(.card) {
+  min-height: 44px;
+  padding: 0.5rem 0.625rem;
+  border-radius: 10px;
+}
+.density-compact :deep(.card-title) {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  max-height: 1.3em;
+}
+.density-compact :deep(.card-description) {
+  display: none;
+}
+.density-compact .add-bookmark-card {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .density-label {
+    display: none;
+  }
+  .density-toggle {
+    padding: 4px 7px;
+  }
 }
 </style>

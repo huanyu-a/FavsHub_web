@@ -168,7 +168,7 @@ useHead({
     { name: 'twitter:description', content: metaDescription },
   ],
   link: [
-    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20260830b' },
+    { rel: 'stylesheet', href: '/css/promptpro-bundle.css?v=20261125b' },
     { rel: 'canonical', href: canonicalUrl },
   ],
 })

@@ -1507,7 +1507,7 @@ onBeforeUnmount(() => {
   border: 0.5px solid var(--border);
 }
 .rating-link {
-  color: var(--primary, #1890ff);
+  color: var(--primary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;

@@ -35,33 +35,48 @@
         </div>
       </div>
 
-      <!-- 底部版权、备案与声明 -->
+      <!-- 底部信息：左侧品牌/导航/声明，右侧公众号（PC 同行，移动端纵向堆叠） -->
       <div class="footer-bottom">
-        <div class="footer-brand">
-          <span class="brand-logo">
-            <img src="/images/logo.svg" alt="FavsHub" class="brand-logo-img" />
-            <strong class="brand-name">FavsHub</strong>
-          </span>
-          <span class="brand-desc">网址导航与智能书签管理工作台 · 发现全网高价值资源</span>
+        <div class="footer-main">
+          <div class="footer-brand">
+            <span class="brand-logo">
+              <img src="/images/logo.svg" alt="FavsHub" class="brand-logo-img" />
+              <strong class="brand-name">FavsHub</strong>
+            </span>
+            <span class="brand-desc">网址导航与智能书签管理工作台 · 发现全网高价值资源</span>
+          </div>
+
+          <div class="footer-links">
+            <NuxtLink to="/" class="foot-nav-link">主页导航</NuxtLink>
+            <span class="foot-dot">·</span>
+            <NuxtLink to="/tokens" class="foot-nav-link">白嫖通告</NuxtLink>
+            <span class="foot-dot">·</span>
+            <NuxtLink to="/tokens/keys" class="foot-nav-link">福利 Key</NuxtLink>
+            <span class="foot-dot">·</span>
+            <NuxtLink to="/collections" class="foot-nav-link">精选集</NuxtLink>
+            <span class="foot-dot">·</span>
+            <NuxtLink to="/prompts" class="foot-nav-link">提示词库</NuxtLink>
+            <span class="foot-dot">·</span>
+            <a href="/tokens/eval/" class="foot-nav-link">评测看板</a>
+          </div>
+
+          <div class="footer-meta">
+            <span class="meta-copyright">© {{ currentYear }} FavsHub. All Rights Reserved.</span>
+            <span class="meta-tip">本站所有内容均由用户与网络公开信息聚合，仅供技术交流学习</span>
+          </div>
         </div>
 
-        <div class="footer-links">
-          <NuxtLink to="/" class="foot-nav-link">主页导航</NuxtLink>
-          <span class="foot-dot">·</span>
-          <NuxtLink to="/tokens" class="foot-nav-link">白嫖通告</NuxtLink>
-          <span class="foot-dot">·</span>
-          <NuxtLink to="/tokens/keys" class="foot-nav-link">福利 Key</NuxtLink>
-          <span class="foot-dot">·</span>
-          <NuxtLink to="/collections" class="foot-nav-link">精选集</NuxtLink>
-          <span class="foot-dot">·</span>
-          <NuxtLink to="/prompts" class="foot-nav-link">提示词库</NuxtLink>
-          <span class="foot-dot">·</span>
-          <a href="/tokens/eval/" class="foot-nav-link">评测看板</a>
-        </div>
-
-        <div class="footer-meta">
-          <span class="meta-copyright">© {{ currentYear }} FavsHub. All Rights Reserved.</span>
-          <span class="meta-tip">本站所有内容均由用户与网络公开信息聚合，仅供技术交流学习</span>
+        <div class="mp-card">
+          <img
+            src="/images/wechat-mp-qr-code.png"
+            alt="微信公众号二维码：拉着猫咪逛公园"
+            class="mp-qr"
+            loading="lazy"
+          />
+          <div class="mp-text">
+            <span class="mp-title"><i class="ri-wechat-line"></i> 关注公众号</span>
+            <span class="mp-desc">微信搜一搜「拉着猫咪逛公园」或扫码关注</span>
+          </div>
         </div>
       </div>
     </div>
@@ -114,23 +129,78 @@ onMounted(() => {
 .site-footer-inner {
   max-width: 1360px;
   margin: 0 auto;
-  padding: 32px 24px 28px;
+  padding: 24px 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
-/* 友情链接板块 */
+/* 友情链接板块：PC 标题与链接同行，移动端纵向 */
 .links-section {
-  padding-bottom: 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding-bottom: 16px;
   border-bottom: 1px dashed var(--border);
+}
+
+/* 公众号 */
+.mp-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  /* 二维码图片为白底，卡片固定白色，深浅主题下均保持可扫 */
+  background: #ffffff;
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  max-width: 100%;
+  flex-shrink: 0;
+}
+.mp-qr {
+  /* 独立方形二维码（非横幅缩略），保证可扫描尺寸 */
+  width: 128px;
+  height: 128px;
+  display: block;
+  flex-shrink: 0;
+}
+.mp-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mp-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.mp-title i {
+  color: #07c160;
+  font-size: 17px;
+}
+.mp-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #4b5563;
+  max-width: 22ch;
+}
+@media (max-width: 640px) {
+  .mp-qr {
+    width: 140px;
+    height: 140px;
+  }
 }
 
 .links-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 14px;
+  flex-shrink: 0;
 }
 
 .links-title {
@@ -215,13 +285,20 @@ onMounted(() => {
   padding-left: 6px;
 }
 
-/* 底部信息 */
+/* 底部信息：PC 左文右码同行 */
 .footer-bottom {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.footer-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 
 .footer-brand {
@@ -229,7 +306,6 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
 .brand-logo {
@@ -257,7 +333,6 @@ onMounted(() => {
 .footer-links {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -280,22 +355,26 @@ onMounted(() => {
 
 .footer-meta {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 12px;
   color: var(--text-tertiary);
 }
 
 @media (max-width: 768px) {
   .site-footer-inner {
-    padding: 24px 16px 80px; /* 留出移动端底部导航空间 */
-    gap: 18px;
+    padding: 20px 16px 80px; /* 留出移动端底部导航空间 */
+    gap: 14px;
   }
-  .links-header {
+  .links-section {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 10px;
+  }
+  .links-header {
+    flex-wrap: wrap;
+    gap: 4px 10px;
   }
   .link-chip {
     max-width: 100%;
@@ -304,9 +383,29 @@ onMounted(() => {
   .link-chip-desc {
     display: none;
   }
+  .footer-bottom {
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-main {
+    align-items: center;
+    text-align: center;
+  }
   .footer-brand {
     flex-direction: column;
     gap: 4px;
+    justify-content: center;
+  }
+  .footer-links {
+    justify-content: center;
+  }
+  .footer-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .mp-card {
+    justify-content: center;
   }
 }
 </style>

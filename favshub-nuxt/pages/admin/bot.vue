@@ -410,7 +410,7 @@
               <p>对接腾讯官方开放平台（OpenAPI API v2）或企业通道，全流程合法合规，无第三方协议冻结封号风险。</p>
             </div>
             <div class="compare-item">
-              <div class="ci-title"><i class="ri-key-line" style="color: #1890ff;"></i> 本地凭证隔离</div>
+              <div class="ci-title"><i class="ri-key-line" style="color: var(--primary);"></i> 本地凭证隔离</div>
               <p>机器人的 AppSecret 仅保存在本机 Hermes 配置中，不向 FavsHub 站点泄漏；FavsHub 仅作为只读数据源。</p>
             </div>
             <div class="compare-item">
@@ -957,11 +957,11 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .tab-nav button:hover {
-  color: var(--primary, #1890ff);
+  color: var(--primary);
 }
 .tab-nav button.active {
-  color: var(--primary, #1890ff);
-  border-bottom-color: var(--primary, #1890ff);
+  color: var(--primary);
+  border-bottom-color: var(--primary);
   font-weight: 600;
 }
 .tab-badge {
@@ -974,7 +974,7 @@ onMounted(async () => {
 }
 .tab-nav button.active .tab-badge {
   background: rgba(24, 144, 255, 0.15);
-  color: var(--primary, #1890ff);
+  color: var(--primary);
 }
 
 /* 提示条 */
@@ -1073,7 +1073,7 @@ onMounted(async () => {
   padding: 3px 8px;
   border-radius: 4px;
   background: rgba(24, 144, 255, 0.12);
-  color: #1890ff;
+  color: var(--primary);
 }
 .badge-pill {
   font-size: 11px;
@@ -1130,7 +1130,7 @@ onMounted(async () => {
   border-radius: 50%;
 }
 input:checked + .slider {
-  background-color: #1890ff;
+  background-color: var(--primary);
 }
 input:checked + .slider:before {
   transform: translateX(20px);
@@ -1155,7 +1155,7 @@ input:checked + .slider:before {
   transition: border-color 0.2s;
 }
 .fg input:focus, .fg select:focus, .search-input:focus {
-  border-color: #1890ff;
+  border-color: var(--primary);
   outline: none;
 }
 .fg small {
@@ -1174,7 +1174,7 @@ input:checked + .slider:before {
 }
 .notice-box.is-info {
   background: rgba(24, 144, 255, 0.08);
-  border-left: 3px solid #1890ff;
+  border-left: 3px solid var(--primary);
 }
 .notice-box.is-error {
   background: rgba(255, 77, 79, 0.08);
@@ -1217,8 +1217,8 @@ input:checked + .slider:before {
 }
 .btn-copy {
   padding: 6px 12px;
-  border: 1px solid #1890ff;
-  background: #1890ff;
+  border: 1px solid var(--primary);
+  background: var(--primary);
   color: #fff;
   border-radius: 4px;
   cursor: pointer;
@@ -1226,7 +1226,7 @@ input:checked + .slider:before {
   white-space: nowrap;
 }
 .btn-copy:hover {
-  background: #40a9ff;
+  background: var(--primary-hover);
 }
 
 .toggle-details {
@@ -1273,15 +1273,15 @@ input:checked + .slider:before {
   transition: all 0.2s;
 }
 .btn-primary {
-  background: #1890ff;
+  background: var(--primary);
   color: #fff;
 }
 .btn-primary:hover {
-  background: #40a9ff;
+  background: var(--primary-hover);
 }
 .btn-outline {
-  border-color: #1890ff;
-  color: #1890ff;
+  border-color: var(--primary);
+  color: var(--primary);
   background: transparent;
 }
 .btn-outline:hover:not(:disabled) {

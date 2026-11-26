@@ -39,7 +39,7 @@ const iconClass = computed(() => {
 })
 
 const isEmoji = computed(() => {
-  return props.node.icon && /[\p{Emoji}]/u.test(props.node.icon) && !/ri-/.test(props.node.icon)
+  return props.node.icon && /[\p{Extended_Pictographic}]/u.test(props.node.icon) && !/ri-/.test(props.node.icon)
 })
 
 function onClick() {

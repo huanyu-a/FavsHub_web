@@ -16,28 +16,38 @@
  */
 @layer tokens, reset, base, components, utilities, overrides;
 
+/* 品牌展示字体：自托管拉丁子集，避免第三方字体请求并兼容 font-src 'self'。
+   中文自动回退到系统宋体；正文仍使用系统无衬线字体，不增加正文渲染成本。 */
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-latin-wght-normal.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* ════════════════════════════════════════════
    @property 注册 — 让 CSS 自定义属性可被 transition / View Transitions 插值
    initial-value 仅作为 fallback，实际值由下方 :root 的 light-dark() 提供。
    ════════════════════════════════════════════ */
-@property --primary          { syntax: '<color>'; inherits: true; initial-value: #4F46E5; }
-@property --primary-hover    { syntax: '<color>'; inherits: true; initial-value: #4338CA; }
-@property --primary-light    { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.08); }
-@property --primary-medium   { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.15); }
-@property --primary-dark     { syntax: '<color>'; inherits: true; initial-value: #3730A3; }
+@property --primary          { syntax: '<color>'; inherits: true; initial-value: #10B981; }
+@property --primary-hover    { syntax: '<color>'; inherits: true; initial-value: #059669; }
+@property --primary-light    { syntax: '<color>'; inherits: true; initial-value: rgba(16,185,129,0.10); }
+@property --primary-medium   { syntax: '<color>'; inherits: true; initial-value: rgba(16,185,129,0.16); }
+@property --primary-dark     { syntax: '<color>'; inherits: true; initial-value: #065F46; }
 @property --surface          { syntax: '<color>'; inherits: true; initial-value: #F8F7F4; }
-@property --surface-raised   { syntax: '<color>'; inherits: true; initial-value: #FCFBF9; }
+@property --surface-raised   { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
 @property --surface-sunken   { syntax: '<color>'; inherits: true; initial-value: #F1F0EC; }
 @property --surface-hover    { syntax: '<color>'; inherits: true; initial-value: #F5F5F0; }
 @property --surface-active   { syntax: '<color>'; inherits: true; initial-value: #E5E5E0; }
-@property --surface-selected { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.10); }
-@property --sidebar-bg       { syntax: '<color>'; inherits: true; initial-value: rgba(252,251,249,0.95); }
+@property --surface-selected { syntax: '<color>'; inherits: true; initial-value: rgba(16,185,129,0.12); }
+@property --sidebar-bg       { syntax: '<color>'; inherits: true; initial-value: rgba(255,255,255,0.85); }
 @property --text-primary     { syntax: '<color>'; inherits: true; initial-value: #1F2937; }
 @property --text-secondary   { syntax: '<color>'; inherits: true; initial-value: #4B5563; }
 @property --text-tertiary    { syntax: '<color>'; inherits: true; initial-value: #9CA3AF; }
 @property --text-inverse     { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
 @property --border           { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.06); }
-@property --border-focus     { syntax: '<color>'; inherits: true; initial-value: rgba(79,70,229,0.4); }
+@property --border-focus     { syntax: '<color>'; inherits: true; initial-value: rgba(16,185,129,0.4); }
 @property --divider          { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.06); }
 @property --overlay          { syntax: '<color>'; inherits: true; initial-value: rgba(0,0,0,0.4); }
 @property --accent-blue      { syntax: '<color>'; inherits: true; initial-value: #3B82F6; }
@@ -46,6 +56,7 @@
 @property --accent-yellow    { syntax: '<color>'; inherits: true; initial-value: #F59E0B; }
 @property --success          { syntax: '<color>'; inherits: true; initial-value: #10B981; }
 @property --danger           { syntax: '<color>'; inherits: true; initial-value: #EF4444; }
+@property --danger-hover     { syntax: '<color>'; inherits: true; initial-value: #DC2626; }
 @property --warning          { syntax: '<color>'; inherits: true; initial-value: #F59E0B; }
 
 /* ════════════════════════════════════════════
@@ -54,21 +65,21 @@
 :root {
   color-scheme: light dark;
 
-  /* ── 强调色（由 themes.css 覆盖；默认翠绿 Emerald，与 theme-bg-4 一致） ── */
-  --primary:        light-dark(#059669, #34D399);
-  --primary-hover:  light-dark(#047857, #10B981);
-  --primary-light:  light-dark(rgba(5,150,105,0.08), rgba(52,211,153,0.12));
-  --primary-medium: light-dark(rgba(5,150,105,0.15), rgba(52,211,153,0.2));
+  /* ── 强调色（由 themes.css 覆盖；默认亮翡翠 #10B981，与原扩展一致：常态亮绿、hover 深绿） ── */
+  --primary:        light-dark(#10B981, #34D399);
+  --primary-hover:  light-dark(#059669, #10B981);
+  --primary-light:  light-dark(rgba(16,185,129,0.10), rgba(52,211,153,0.12));
+  --primary-medium: light-dark(rgba(16,185,129,0.16), rgba(52,211,153,0.2));
   --primary-dark:   light-dark(#065F46, #059669);
 
-  /* ── 面色 ── */
+  /* ── 面色（浅色：柔和底色 + 纯白卡片，还原原扩展的通透感） ── */
   --surface:          light-dark(#F8F7F4, #0F172A);
-  --surface-raised:   light-dark(#FCFBF9, #1E293B);
+  --surface-raised:   light-dark(#FFFFFF, #1E293B);
   --surface-sunken:   light-dark(#F1F0EC, #0B1120);
   --surface-hover:    light-dark(#F5F5F0, rgba(51,65,85,0.6));
   --surface-active:   light-dark(#E5E5E0, rgba(71,85,105,0.8));
-  --surface-selected: light-dark(rgba(5,150,105,0.10), rgba(52,211,153,0.15));
-  --sidebar-bg:       light-dark(rgba(252,251,249,0.95), rgba(15,23,42,0.95));
+  --surface-selected: light-dark(rgba(16,185,129,0.12), rgba(52,211,153,0.15));
+  --sidebar-bg:       light-dark(rgba(255,255,255,0.85), rgba(15,23,42,0.95));
 
   /* ── 文字色 ── */
   --text-primary:   light-dark(#1F2937, #E2E8F0);
@@ -78,7 +89,7 @@
 
   /* ── 边框 / 分割线 ── */
   --border:       light-dark(rgba(31,41,55,0.08), #334155);
-  --border-focus: light-dark(rgba(79,70,229,0.4), rgba(96,165,250,0.4));
+  --border-focus: light-dark(rgba(16,185,129,0.4), rgba(96,165,250,0.4));
   --divider:      light-dark(rgba(31,41,55,0.06), rgba(255,255,255,0.06));
 
   /* ── 阴影 ── */
@@ -89,6 +100,11 @@
   --shadow-md:  0 4px 12px var(--shadow-color);
   --shadow-lg:  0 12px 40px var(--shadow-color);
   --shadow-xl:  0 20px 60px var(--shadow-color);
+
+  /* 双层海拔：近距离环境影 + 远距离方向影，深浅色共用同一阴影色 token */
+  --elev-1: 0 1px 2px var(--shadow-color);
+  --elev-2: 0 1px 2px var(--shadow-color), 0 4px 12px var(--shadow-color);
+  --elev-3: 0 2px 4px var(--shadow-color), 0 12px 32px var(--shadow-color);
 
   /* ── 覆盖层 ── */
   --overlay: light-dark(rgba(0,0,0,0.4), rgba(0,0,0,0.6));
@@ -103,6 +119,7 @@
   /* ── 语义状态色（独立于强调色，不随主题变） ── */
   --success:       light-dark(#10B981, #3FB950);
   --danger:        light-dark(#EF4444, #F85149);
+  --danger-hover:  light-dark(#DC2626, #F87171);
   --warning:       light-dark(#F59E0B, #D29922);
 
   /* ── 状态色浅底（由状态色派生，随主题自动适配） ── */
@@ -123,7 +140,14 @@
 
   /* ── 字体 ── */
   --font-system: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Fraunces', 'Noto Serif SC', 'Songti SC', 'STSong', serif;
   --font-mono: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+
+  /* 后台侧栏轻微沾染主题色，保持导航与当前主题属于同一套视觉语言 */
+  --admin-sidebar-bg: light-dark(
+    color-mix(in srgb, var(--primary) 4%, var(--surface-sunken)),
+    color-mix(in srgb, var(--primary) 8%, var(--surface-sunken))
+  );
 }
 
 /* ── 强制态覆盖（用户手选 light/dark 时 color-scheme 单值） ── */

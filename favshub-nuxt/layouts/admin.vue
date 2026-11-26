@@ -289,11 +289,11 @@ useHead({
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon.png' },
     { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260928' },
-    { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260929b' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20261125e' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20261125d' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261125c' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
-    { rel: 'stylesheet', href: '/css/admin.css?v=20261102' },
+    { rel: 'stylesheet', href: '/css/admin.css?v=20261125a' },
   ],
 })
 </script>

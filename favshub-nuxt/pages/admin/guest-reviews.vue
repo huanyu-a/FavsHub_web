@@ -509,7 +509,7 @@ onMounted(() => {
   margin-bottom: 14px;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--primary, #1890ff);
+  border-left: 3px solid var(--primary);
   border-radius: 6px;
   font-size: 13px;
   color: var(--text-primary);
@@ -519,7 +519,7 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;
-  color: var(--primary, #1890ff);
+  color: var(--primary);
 }
 .banner-clear-btn {
   display: inline-flex;

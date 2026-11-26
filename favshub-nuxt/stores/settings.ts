@@ -58,8 +58,8 @@ const SETTINGS_DEFAULTS: Record<string, any> = {
   selectedSearchEngine: '',
   customSearchEngines: [],
   // Background (theme-bg-* naming; old gradient-background-* auto-migrated)
-  // 站点默认主题：薄荷绿（不分用户、不分是否登录，未手动选择者一律生效）
-  selectedBackground: 'theme-bg-4',
+  // 站点默认主题：暖灰白（不分用户、不分是否登录，未手动选择者一律生效）
+  selectedBackground: 'theme-bg-7',
   useDefaultBackground: '',
   // Welcome message text
   welcomeMessage: '',

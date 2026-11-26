@@ -15,7 +15,7 @@
 html[data-theme="light"].theme-bg-1 {
   --text-primary:   #1E293B;
   --text-secondary: #475569;
-  --text-tertiary:  #94A3B8;
+  --text-tertiary:  #64748B;
   --divider:        rgba(30,41,59,0.06);
   --overlay:        rgba(15,23,42,0.35);
   --accent-purple:  #8B5CF6;
@@ -31,13 +31,13 @@ html[data-theme="light"].theme-bg-1 {
 
 /* ── 1. 薄雾灰 — Slate 灰底 + Teal ── */
 html[data-theme="light"].theme-bg-1 {
-  --surface:          #CBD5E1;
-  --surface-raised:   #E2E8F0;
-  --surface-sunken:   #94A3B8;
-  --surface-hover:    #C0C9D6;
-  --surface-active:   #B4BDCB;
+  --surface:          #DFE5EC;
+  --surface-raised:   #FFFFFF;
+  --surface-sunken:   #D2DAE4;
+  --surface-hover:    #D8DFE9;
+  --surface-active:   #C9D2DF;
   --surface-selected: rgba(13,148,136,0.10);
-  --sidebar-bg:       rgba(226,232,240,0.9);
+  --sidebar-bg:       rgba(255,255,255,0.85);
   --border:           rgba(30,41,59,0.12);
   --border-focus:     rgba(13,148,136,0.4);
   --primary:          #0D9488;
@@ -48,20 +48,20 @@ html[data-theme="light"].theme-bg-1 {
   --accent-blue:      #0EA5E9;
 }
 
-/* ── 4. 薄荷绿 — Mint 绿底 + Emerald ── */
+/* ── 4. 薄荷绿 — 原扩展配色：#F2F8F0 柔和绿底 + 纯白卡片 + 亮翡翠 #10B981 ── */
 html[data-theme="light"].theme-bg-4 {
   --surface:          #F2F8F0;
-  --surface-raised:   #F8FBF7;
+  --surface-raised:   #FFFFFF;
   --surface-sunken:   #E8F0E4;
   --surface-hover:    #EBF2E8;
   --surface-active:   #DFE9DB;
-  --surface-selected: rgba(5,150,105,0.10);
-  --sidebar-bg:       rgba(248,251,247,0.92);
-  --border-focus:     rgba(5,150,105,0.4);
-  --primary:          #059669;
-  --primary-hover:    #047857;
-  --primary-light:    rgba(5,150,105,0.08);
-  --primary-medium:   rgba(5,150,105,0.15);
+  --surface-selected: rgba(16,185,129,0.12);
+  --sidebar-bg:       rgba(255,255,255,0.85);
+  --border-focus:     rgba(16,185,129,0.4);
+  --primary:          #10B981;
+  --primary-hover:    #059669;
+  --primary-light:    rgba(16,185,129,0.10);
+  --primary-medium:   rgba(16,185,129,0.16);
   --primary-dark:     #065F46;
   --success:          #059669;
 }
@@ -69,12 +69,12 @@ html[data-theme="light"].theme-bg-4 {
 /* ── 6. 淡藤紫 — Wisteria 淡紫底 + Violet ── */
 html[data-theme="light"].theme-bg-6 {
   --surface:          #F4F1F8;
-  --surface-raised:   #FBFAFD;
+  --surface-raised:   #FFFFFF;
   --surface-sunken:   #EBE7F0;
   --surface-hover:    #EEEBF3;
   --surface-active:   #E1DCE9;
   --surface-selected: rgba(124,58,237,0.10);
-  --sidebar-bg:       rgba(251,250,253,0.92);
+  --sidebar-bg:       rgba(255,255,255,0.85);
   --border-focus:     rgba(124,58,237,0.4);
   --primary:          #7C3AED;
   --primary-hover:    #6D28D9;
@@ -86,18 +86,18 @@ html[data-theme="light"].theme-bg-6 {
 
 /* ── 7. 暖灰白（默认）— 仅 background，其余继承 :root ── */
 
-/* ── 9. 天青 — 默认亮色 + Blue ── */
+/* ── 9. 天青 — 淡蓝灰底 + 纯白卡片 + Blue ── */
 html[data-theme="light"].theme-bg-tian-qing {
-  --surface:          #f8fafc;
+  --surface:          #F3F6FB;
   --surface-raised:   #ffffff;
-  --surface-sunken:   #f1f5f9;
-  --surface-hover:    #f1f5f9;
-  --surface-active:   #e2e8f0;
+  --surface-sunken:   #E9EEF6;
+  --surface-hover:    #EDF1F8;
+  --surface-active:   #DFE6F1;
   --surface-selected: rgba(59,130,246,0.10);
-  --sidebar-bg:       rgba(248,250,252,0.95);
+  --sidebar-bg:       rgba(255,255,255,0.85);
   --text-primary:     #1e293b;
   --text-secondary:   #64748b;
-  --text-tertiary:    #94a3b8;
+  --text-tertiary:    #64748b;
   --border:           #e2e8f0;
   --border-focus:     #3b82f6;
   --primary:          #3b82f6;
@@ -108,18 +108,18 @@ html[data-theme="light"].theme-bg-tian-qing {
   --accent-blue:      #3b82f6;
 }
 
-/* ── 10. 琥珀 — 暖象牙 + 陶土 ── */
+/* ── 10. 琥珀 — 暖象牙底 + 纯白卡片 + 陶土 ── */
 html[data-theme="light"].theme-bg-hu-po {
   --surface:          #FAF9F5;
-  --surface-raised:   #FFFEFB;
+  --surface-raised:   #FFFFFF;
   --surface-sunken:   #F5F4EF;
   --surface-hover:    #EFEEE9;
   --surface-active:   #E2DFD3;
   --surface-selected: rgba(217,119,87,0.10);
-  --sidebar-bg:       rgba(255,254,251,0.95);
+  --sidebar-bg:       rgba(255,255,255,0.85);
   --text-primary:     #141413;
   --text-secondary:   #6B6860;
-  --text-tertiary:    #9B978F;
+  --text-tertiary:    #8A857C;
   --border:           #E2DFD3;
   --border-focus:     #D97757;
   --primary:          #D97757;
@@ -133,15 +133,15 @@ html[data-theme="light"].theme-bg-hu-po {
 /* ── 11. 霜华 — Catppuccin Latte ── */
 html[data-theme="light"].theme-bg-na-tie {
   --surface:          #eff1f5;
-  --surface-raised:   #e6e9ef;
+  --surface-raised:   #fafbfc;
   --surface-sunken:   #e6e9ef;
   --surface-hover:    #dce0e8;
   --surface-active:   #ccd0da;
   --surface-selected: rgba(30,102,245,0.10);
-  --sidebar-bg:       rgba(239,241,245,0.95);
+  --sidebar-bg:       rgba(255,255,255,0.85);
   --text-primary:     #4c4f69;
   --text-secondary:   #6c6f85;
-  --text-tertiary:    #9ca0b0;
+  --text-tertiary:    #8c8fa1;
   --text-inverse:     #eff1f5;
   --border:           #ccd0da;
   --border-focus:     #1e66f5;
@@ -184,15 +184,15 @@ html[data-theme="dark"].theme-bg-zi-teng {
 /* ── 13. 星云 — Atom One Dark ── */
 html[data-theme="dark"].theme-bg-xing-yun {
   --surface:          #282c34;
-  --surface-raised:   #2c313a;
+  --surface-raised:   #323842;
   --surface-sunken:   #21252b;
-  --surface-hover:    #2c313a;
+  --surface-hover:    #383e49;
   --surface-active:   #3e4451;
   --surface-selected: rgba(97,175,239,0.15);
   --sidebar-bg:       rgba(33,37,43,0.95);
   --text-primary:     #abb2bf;
-  --text-secondary:   #7f848e;
-  --text-tertiary:    #5c6370;
+  --text-secondary:   #8b93a1;
+  --text-tertiary:    #7d8590;
   --text-inverse:     #282c34;
   --border:           #3e4451;
   --border-focus:     #61afef;
@@ -221,7 +221,7 @@ html[data-theme="dark"].theme-bg-ji-guang {
   --sidebar-bg:       rgba(46,52,64,0.95);
   --text-primary:     #d8dee9;
   --text-secondary:   #81a1c1;
-  --text-tertiary:    #616e88;
+  --text-tertiary:    #7a869e;
   --text-inverse:     #2e3440;
   --border:           #434c5e;
   --border-focus:     #88c0d0;
@@ -250,7 +250,7 @@ html[data-theme="dark"].theme-bg-zi-teng {
   --sidebar-bg:       rgba(33,34,44,0.95);
   --text-primary:     #F8F8F2;
   --text-secondary:   #BFC7D5;
-  --text-tertiary:    #6272A4;
+  --text-tertiary:    #8A96C2;
   --text-inverse:     #282A36;
   --border:           #44475A;
   --border-focus:     #BD93F9;

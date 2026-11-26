@@ -157,7 +157,7 @@ function getAuthHeaders() {
   return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
 }
 const tab = ref('list')
-function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }
+function isEmoji(v: string) { return /[\p{Extended_Pictographic}]/u.test(v) }
 // Bookmark list state
 const bookmarks = ref<any[]>([])
 const loading = ref(false)

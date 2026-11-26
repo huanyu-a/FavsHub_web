@@ -175,7 +175,9 @@ function getAuthOpts(): Record<string, any> {
 const activeTab = ref('list')
 
 function isEmoji(v: string) {
-  return /[\p{Emoji}]/u.test(v)
+  // \p{Emoji} 会把 ASCII 数字/#/* 也算作 emoji，含数字的 Remix 图标类名
+  // （如 ri-robot-2-line）会被误判为 emoji 而显示成原文；Extended_Pictographic 才准确
+  return /[\p{Extended_Pictographic}]/u.test(v)
 }
 
 // ── 统计 ──────────────────────────────────────────────

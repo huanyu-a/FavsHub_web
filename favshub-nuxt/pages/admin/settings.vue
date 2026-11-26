@@ -91,11 +91,11 @@ useHead({ title: '个人设置' })
 
 // 浅色主题（7 套）
 const lightThemes = [
-  { value: 'theme-bg-1', label: '薄雾灰', accent: '#0D9488', style: { background: '#CBD5E1' } },
-  { value: 'theme-bg-4', label: '薄荷绿', accent: '#059669', style: { background: '#F2F8F0' } },
+  { value: 'theme-bg-7', label: '暖灰白', accent: '#10B981', style: { background: '#F8F7F4' } },
+  { value: 'theme-bg-1', label: '薄雾灰', accent: '#0D9488', style: { background: '#DFE5EC' } },
+  { value: 'theme-bg-4', label: '薄荷绿', accent: '#10B981', style: { background: '#F2F8F0' } },
   { value: 'theme-bg-6', label: '淡藤紫', accent: '#7C3AED', style: { background: '#F4F1F8' } },
-  { value: 'theme-bg-7', label: '暖灰白', accent: '#4F46E5', style: { background: '#F8F7F4' } },
-  { value: 'theme-bg-tian-qing', label: '天青', accent: '#3b82f6', style: { background: '#f8fafc' } },
+  { value: 'theme-bg-tian-qing', label: '天青', accent: '#3b82f6', style: { background: '#F3F6FB' } },
   { value: 'theme-bg-hu-po', label: '琥珀', accent: '#D97757', style: { background: '#FAF9F5' } },
   { value: 'theme-bg-na-tie', label: '霜华', accent: '#1e66f5', style: { background: '#eff1f5' } },
 ]
@@ -131,7 +131,7 @@ function normalizeBg(bg: string): string {
 }
 
 const form = reactive<Record<string, any>>({
-  selectedBackground: normalizeBg(settingsStore.get('selectedBackground', 'theme-bg-4')),
+  selectedBackground: normalizeBg(settingsStore.get('selectedBackground', 'theme-bg-7')),
   backgroundType: settingsStore.get('backgroundType', 'none'),
   showSearchBox: settingsStore.get('showSearchBox', true),
   showWelcomeMessage: settingsStore.get('showWelcomeMessage', true),

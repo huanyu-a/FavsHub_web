@@ -308,7 +308,7 @@
 import BackToTop from '~/components/BackToTop.vue'
 definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '提示词管理' })
-function isEmoji(v: string) { return /[\p{Emoji}]/u.test(v) }
+function isEmoji(v: string) { return /[\p{Extended_Pictographic}]/u.test(v) }
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)

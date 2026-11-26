@@ -78,7 +78,7 @@ body {
 }
 
 .btn-danger:hover {
-    background: light-dark(#dc2626, #f87171);
+    background: var(--danger-hover);
 }
 
 /* 主内容区 - 左侧布局 */
@@ -154,7 +154,7 @@ body {
     border-radius: 16px;
     padding: 18px;
     border: none;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -2px rgba(16, 24, 40, 0.05);
+    box-shadow: var(--elev-2);
     transition: box-shadow 0.18s, transform 0.18s;
     cursor: pointer;
     position: relative;
@@ -163,8 +163,8 @@ body {
 }
 
 .prompt-card:hover {
-    box-shadow: 0 6px 16px -4px rgba(16, 24, 40, 0.13), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
-    transform: translateY(-3px);
+    box-shadow: var(--elev-3);
+    transform: translateY(-2px);
 }
 
 .prompt-card-header {
@@ -716,8 +716,8 @@ body {
 }
 
 .vtag {
-    background: light-dark(#e0e7ff, rgba(224,231,255,0.15));
-    color: light-dark(#6366f1, #a5b4fc);
+    background: var(--primary-light);
+    color: var(--primary);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 11px;
@@ -730,8 +730,8 @@ body {
 }
 
 .vtag-cur {
-    background: light-dark(#fef3c7, rgba(254,243,199,0.15));
-    color: light-dark(#d97706, #fbbf24);
+    background: var(--warning-soft);
+    color: var(--warning);
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 10px;
@@ -995,12 +995,12 @@ body {
 }
 
 .compare-stats .added {
-    background: light-dark(#dcfce7, rgba(220,252,231,0.15));
+    background: var(--success-soft);
     color: var(--success);
 }
 
 .compare-stats .removed {
-    background: light-dark(#fee2e2, rgba(254,226,226,0.15));
+    background: var(--danger-soft);
     color: var(--danger);
 }
 
@@ -1045,7 +1045,7 @@ body {
 }
 
 .diff-line.added {
-    background: light-dark(#dcfce7, rgba(220,252,231,0.15));
+    background: var(--success-soft);
 }
 
 .diff-line.added .diff-line-content {
@@ -1053,7 +1053,7 @@ body {
 }
 
 .diff-line.removed {
-    background: light-dark(#fee2e2, rgba(254,226,226,0.15));
+    background: var(--danger-soft);
 }
 
 .diff-line.removed .diff-line-content {
@@ -3749,7 +3749,7 @@ body {
   cursor: pointer;
   transition: border-color .2s, color .2s, background .2s;
 }
-.btn-outline:hover { border-color: var(--primary); color: var(--primary); background: light-dark(#eef2ff, rgba(238,242,255,0.1)); }
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
 
 /* 右键菜单（Teleport 到 body，不可 scoped） */
 .folder-context-menu {
@@ -3779,7 +3779,7 @@ body {
   color: var(--danger);
 }
 .folder-context-item.danger:hover {
-  background: light-dark(#fef2f2, rgba(254,242,242,0.1));
+  background: var(--danger-soft);
 }
 .folder-context-overlay {
   position: fixed;
@@ -3825,13 +3825,13 @@ body {
   margin-right: 4px;
 }
 .diff-line.add {
-  background: light-dark(#dcfce7, rgba(220,252,231,0.15));
+  background: var(--success-soft);
 }
 .diff-line.add .diff-line-content {
   color: var(--success);
 }
 .diff-line.del {
-  background: light-dark(#fee2e2, rgba(254,226,226,0.15));
+  background: var(--danger-soft);
 }
 .diff-line.del .diff-line-content {
   color: var(--danger);
@@ -4007,7 +4007,7 @@ body {
 }
 
 .prompt-btn.fav-btn:hover {
-    background: light-dark(#fffbeb, rgba(255,251,235,0.1));
+    background: var(--warning-soft);
 }
 
 /* Description */

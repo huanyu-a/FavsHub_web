@@ -86,9 +86,9 @@ useHead({
   ],
   link: [
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'stylesheet', href: '/css/tokens.css?v=20260928' },
-    { rel: 'stylesheet', href: '/css/themes.css?v=20260828' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20260929b' },
+    { rel: 'stylesheet', href: '/css/tokens.css?v=20261125e' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20261125d' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261125c' },
   ],
 })
 
