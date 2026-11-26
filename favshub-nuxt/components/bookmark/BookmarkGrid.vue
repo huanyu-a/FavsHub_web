@@ -31,8 +31,8 @@
       </button>
     </div>
 
-    <!-- 分组显示 -->
-    <template v-else-if="folderGroups.length > 0">
+    <!-- 分组显示（独立条件：勿接在工具条的 v-if 后形成 else 链，否则会被工具条吞掉） -->
+    <template v-if="bookmarks.length > 0 && folderGroups.length > 0">
       <div
         v-for="(group, gIdx) in folderGroups"
         :key="group.folderId ?? 'recommended'"
@@ -54,7 +54,7 @@
     </template>
 
     <!-- 无分组（选中单个文件夹）扁平显示 -->
-    <div v-else class="folder-group flat-layout">
+    <div v-else-if="bookmarks.length > 0" class="folder-group flat-layout">
       <div :ref="setGridRef" class="folder-bookmarks-grid">
         <BookmarkCard
           v-for="bookmark in flatVisibleBookmarks"

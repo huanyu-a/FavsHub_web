@@ -219,7 +219,7 @@ onMounted(() => {
 
 .links-hint {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .links-grid {
@@ -276,7 +276,7 @@ onMounted(() => {
 }
 
 .link-chip-desc {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
@@ -327,7 +327,7 @@ onMounted(() => {
 
 .brand-desc {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .footer-links {
@@ -359,7 +359,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 4px 12px;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 768px) {
