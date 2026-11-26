@@ -34,16 +34,17 @@ function navigate(item: NavItem) {
 </script>
 
 <template>
-  <nav class="border-t border-slate-200 bg-white px-2 py-1 shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
+  <nav class="border-t border-stone-200/90 bg-white/95 px-2 py-1.5 shadow-[0_-6px_18px_rgba(41,37,36,0.035)] backdrop-blur">
     <ul class="grid grid-cols-4 gap-1">
       <li v-for="item in items" :key="item.key">
         <button
           type="button"
-          class="flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs transition-colors"
-          :class="currentRouteName === item.key ? 'bg-sky-50 text-sky-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'"
+          class="flex w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium transition-colors"
+          :class="currentRouteName === item.key ? 'bg-emerald-50 text-emerald-700' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-800'"
+          :aria-current="currentRouteName === item.key ? 'page' : undefined"
           @click="navigate(item)"
         >
-          <n-icon :component="item.icon" size="18" />
+          <n-icon :component="item.icon" size="19" />
           <span>{{ t(item.labelKey) }}</span>
         </button>
       </li>

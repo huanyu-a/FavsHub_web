@@ -229,10 +229,10 @@ onMounted(() => {
     <main class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
       <div class="space-y-3">
         <!-- 服务器地址 -->
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section class="fh-surface-card p-4">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.settings.server_section') }}</h2>
-            <p class="mt-1 text-xs text-slate-500">{{ t('ui.settings.server_desc') }}</p>
+            <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.settings.server_section') }}</h2>
+            <p class="mt-1 text-xs text-stone-500">{{ t('ui.settings.server_desc') }}</p>
           </div>
 
           <div class="space-y-3">
@@ -244,9 +244,9 @@ onMounted(() => {
         </section>
 
         <!-- 登录/注册 -->
-        <section v-if="!isLoggedIn" class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section v-if="!isLoggedIn" class="fh-surface-card p-4">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.settings.account_section') }}</h2>
+            <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.settings.account_section') }}</h2>
           </div>
 
           <div class="space-y-3">
@@ -264,11 +264,16 @@ onMounted(() => {
         </section>
 
         <!-- 已登录状态 -->
-        <section v-else class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-sm font-semibold text-slate-900">{{ currentUser?.username }}</div>
-              <div class="text-xs text-slate-500">{{ t('ui.settings.logged_in') }}</div>
+        <section v-else class="fh-surface-card p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-sm font-semibold text-emerald-700">
+                {{ currentUser?.username?.slice(0, 1).toUpperCase() }}
+              </div>
+              <div class="min-w-0">
+                <div class="truncate text-sm font-semibold text-stone-900">{{ currentUser?.username }}</div>
+                <div class="mt-0.5 text-xs text-stone-500">{{ t('ui.settings.logged_in') }}</div>
+              </div>
             </div>
             <n-button secondary type="error" @click="handleLogout">
               {{ t('ui.settings.logout') }}
@@ -277,22 +282,22 @@ onMounted(() => {
         </section>
 
         <!-- 悬浮球设置 -->
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section class="fh-surface-card p-4">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.settings.floating_ball') }}</h2>
-              <p class="mt-1 text-xs text-slate-500">{{ t('ui.settings.floating_ball_desc') }}</p>
+              <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.settings.floating_ball') }}</h2>
+              <p class="mt-1 text-xs text-stone-500">{{ t('ui.settings.floating_ball_desc') }}</p>
             </div>
             <n-switch :value="floatingBallEnabled" @update:value="handleToggleFloatingBall" />
           </div>
         </section>
 
         <!-- 语言设置 -->
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section class="fh-surface-card p-4">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.settings.language') }}</h2>
-              <p class="mt-1 text-xs text-slate-500">{{ t('ui.settings.language_desc') }}</p>
+              <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.settings.language') }}</h2>
+              <p class="mt-1 text-xs text-stone-500">{{ t('ui.settings.language_desc') }}</p>
             </div>
             <n-radio-group :value="language" size="small" @update:value="handleLanguageChange">
               <n-radio-button value="zh">{{ t('ui.settings.lang_zh') }}</n-radio-button>

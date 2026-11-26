@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { CloudUploadOutline, CloudDownloadOutline } from '@vicons/ionicons5';
+import { CloudUploadOutline, CloudDownloadOutline, SyncOutline } from '@vicons/ionicons5';
 import BottomNav from '@/components/BottomNav.vue';
 import PopupLayout from '@/components/PopupLayout.vue';
 import PageTitle from '@/components/title.vue';
@@ -375,12 +375,17 @@ async function handleSync() {
           <p class="mt-1 leading-6">{{ t('ui.sync.notice_desc') }}</p>
         </section>
 
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.upload_section') }}</h2>
-            <p class="mt-1 text-xs leading-5 text-slate-500">
-              {{ t('ui.sync.upload_desc') }}
-            </p>
+        <section class="fh-surface-card p-4">
+          <div class="mb-3 flex items-start gap-2.5">
+            <span class="fh-icon-badge" aria-hidden="true">
+              <n-icon :component="CloudUploadOutline" size="16" />
+            </span>
+            <div>
+              <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.sync.upload_section') }}</h2>
+              <p class="mt-1 text-xs leading-5 text-stone-500">
+                {{ t('ui.sync.upload_desc') }}
+              </p>
+            </div>
           </div>
 
           <n-button type="primary" block :loading="isSyncing" @click="handleSync">
@@ -390,40 +395,50 @@ async function handleSync() {
             {{ t('ui.sync.upload_button') }}
           </n-button>
 
-          <div v-if="faviconProgress" class="mt-2 text-center text-xs text-blue-500">
+          <div v-if="faviconProgress" class="mt-2 text-center text-xs text-emerald-700">
             {{ faviconProgress }}
           </div>
-          <div v-if="syncResult" class="mt-3 text-center text-xs text-slate-500">
+          <div v-if="syncResult" class="mt-3 text-center text-xs text-stone-500">
             {{ syncResult }}
           </div>
         </section>
 
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.download_section') }}</h2>
-            <p class="mt-1 text-xs leading-5 text-slate-500">
-              {{ t('ui.sync.download_desc') }}
-            </p>
+        <section class="fh-surface-card p-4">
+          <div class="mb-3 flex items-start gap-2.5">
+            <span class="fh-icon-badge" aria-hidden="true">
+              <n-icon :component="CloudDownloadOutline" size="16" />
+            </span>
+            <div>
+              <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.sync.download_section') }}</h2>
+              <p class="mt-1 text-xs leading-5 text-stone-500">
+                {{ t('ui.sync.download_desc') }}
+              </p>
+            </div>
           </div>
 
-          <n-button type="info" block :loading="isDownloading" @click="handleDownloadToBrowser">
+          <n-button type="primary" secondary block :loading="isDownloading" @click="handleDownloadToBrowser">
             <template #icon>
               <n-icon :component="CloudDownloadOutline" />
             </template>
             {{ t('ui.sync.download_button') }}
           </n-button>
 
-          <div v-if="downloadResult" class="mt-3 text-center text-xs text-slate-500">
+          <div v-if="downloadResult" class="mt-3 text-center text-xs text-stone-500">
             {{ downloadResult }}
           </div>
         </section>
 
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('ui.sync.warm_section') }}</h2>
-            <p class="mt-1 text-xs leading-5 text-slate-500">
-              {{ t('ui.sync.warm_desc') }}
-            </p>
+        <section class="fh-surface-card p-4">
+          <div class="mb-3 flex items-start gap-2.5">
+            <span class="fh-icon-badge" aria-hidden="true">
+              <n-icon :component="SyncOutline" size="16" />
+            </span>
+            <div>
+              <h2 class="text-sm font-semibold text-stone-900">{{ t('ui.sync.warm_section') }}</h2>
+              <p class="mt-1 text-xs leading-5 text-stone-500">
+                {{ t('ui.sync.warm_desc') }}
+              </p>
+            </div>
           </div>
 
           <n-button
@@ -459,7 +474,7 @@ async function handleSync() {
             </div>
           </template>
 
-          <div v-if="faviconWarmingProgress" class="mt-2 text-center text-xs text-blue-500">
+          <div v-if="faviconWarmingProgress" class="mt-2 text-center text-xs text-emerald-700">
             {{ faviconWarmingProgress }}
           </div>
         </section>

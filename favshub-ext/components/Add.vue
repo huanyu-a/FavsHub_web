@@ -166,7 +166,7 @@ onMounted(() => {
 
     <main class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
       <div class="space-y-3">
-        <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
+        <section class="fh-surface-card p-4">
           <n-form ref="formRef" :model="formValue" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
             <n-form-item :label="t('ui.add.label_url')" path="url">
               <n-input v-model:value="formValue.url" placeholder="https://example.com" @keyup.enter="handleSubmit" />

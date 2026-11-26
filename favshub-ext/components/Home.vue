@@ -166,10 +166,14 @@ onMounted(() => {
 
 <template>
   <PopupLayout>
-    <header class="relative z-20 shrink-0 border-b border-slate-200 bg-white/95 px-4 pb-3 pt-4 backdrop-blur">
+    <header class="relative z-20 shrink-0 border-b border-stone-200/90 bg-white/90 px-4 pb-3 pt-4 backdrop-blur">
       <div class="flex items-center justify-between">
-        <div>
-          <div class="text-lg font-semibold tracking-[0.2em] text-sky-700">FavsHub</div>
+        <div class="flex items-center gap-2.5">
+          <span class="fh-brand-mark" aria-hidden="true">F</span>
+          <div>
+            <div class="fh-brand-name">FavsHub</div>
+            <div class="fh-brand-caption">BOOKMARK WORKSPACE</div>
+          </div>
         </div>
         <div class="flex items-center gap-0.5">
           <n-button
@@ -195,21 +199,21 @@ onMounted(() => {
       <section>
         <div class="mb-3 flex items-center justify-between px-1">
           <div>
-            <h1 class="text-base font-semibold text-slate-900">{{ t('ui.home.bookmark_categories') }}</h1>
+            <h1 class="text-base font-semibold text-stone-900">{{ t('ui.home.bookmark_categories') }}</h1>
           </div>
         </div>
 
         <div v-if="isLoading" class="flex min-h-56 items-center justify-center">
           <n-spin size="small">
             <template #description>
-              <span class="text-xs text-slate-500">{{ t('ui.home.loading') }}</span>
+              <span class="text-xs text-stone-500">{{ t('ui.home.loading') }}</span>
             </template>
           </n-spin>
         </div>
 
-        <div v-else-if="errorMessage" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.error_title') }}</div>
-          <p class="mt-1 text-xs leading-5 text-slate-500">{{ errorMessage }}</p>
+        <div v-else-if="errorMessage" class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center">
+          <div class="text-sm font-medium text-stone-700">{{ t('ui.home.error_title') }}</div>
+          <p class="mt-1 text-xs leading-5 text-stone-500">{{ errorMessage }}</p>
           <n-button class="mt-4" secondary type="primary" @click="loadBookmarks">
             <template #icon>
               <n-icon :component="RefreshOutline" />
@@ -218,9 +222,9 @@ onMounted(() => {
           </n-button>
         </div>
 
-        <div v-else-if="!isLoggedIn" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.login_required_title') }}</div>
-          <p class="mt-1 text-xs leading-5 text-slate-500">{{ t('ui.home.login_required_desc') }}</p>
+        <div v-else-if="!isLoggedIn" class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center">
+          <div class="text-sm font-medium text-stone-700">{{ t('ui.home.login_required_title') }}</div>
+          <p class="mt-1 text-xs leading-5 text-stone-500">{{ t('ui.home.login_required_desc') }}</p>
           <n-button class="mt-4" type="primary" @click="goToSettings">
             <template #icon>
               <n-icon :component="LogInOutline" />
@@ -229,9 +233,9 @@ onMounted(() => {
           </n-button>
         </div>
 
-        <div v-else-if="!folders.length && !bookmarks.length && !showBrowserBookmarks" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-          <div class="text-sm font-medium text-slate-700">{{ t('ui.home.empty_title') }}</div>
-          <p class="mt-1 text-xs leading-5 text-slate-500">{{ t('ui.home.empty_desc') }}</p>
+        <div v-else-if="!folders.length && !bookmarks.length && !showBrowserBookmarks" class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-8 text-center">
+          <div class="text-sm font-medium text-stone-700">{{ t('ui.home.empty_title') }}</div>
+          <p class="mt-1 text-xs leading-5 text-stone-500">{{ t('ui.home.empty_desc') }}</p>
           <n-button class="mt-4" type="primary" @click="goToSync">
             <template #icon>
               <n-icon :component="CloudUploadOutline" />
@@ -241,18 +245,18 @@ onMounted(() => {
         </div>
 
         <div v-else-if="isSearching" class="space-y-1">
-          <div class="mb-1 px-1 text-xs text-slate-500">
+          <div class="mb-1 px-1 text-xs text-stone-500">
             {{ searchResults.length ? t('ui.home.search_results_found', { n: searchResults.length }) : t('ui.home.search_results_empty', { name: searchQuery.trim() }) }}
           </div>
           <div
             v-for="bookmark in searchResults"
             :key="bookmark.id"
-            class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
+            class="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 transition-colors hover:bg-emerald-50/70"
             @click="openLink(bookmark.url)"
           >
             <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
-            <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
-            <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-sky-600">{{ bookmark.title }}</span>
+            <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-emerald-100 text-[10px] font-bold text-emerald-600">{{ getBookmarkInitial(bookmark.title) }}</div>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-stone-800 hover:text-emerald-600">{{ bookmark.title }}</span>
           </div>
         </div>
 
@@ -274,12 +278,12 @@ onMounted(() => {
             <div
               v-for="bookmark in getRootBookmarks()"
               :key="bookmark.id"
-              class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
+              class="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 transition-colors hover:bg-emerald-50/70"
               @click="openLink(bookmark.url)"
             >
               <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
-              <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
-              <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-sky-600">{{ bookmark.title }}</span>
+              <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-emerald-100 text-[10px] font-bold text-emerald-600">{{ getBookmarkInitial(bookmark.title) }}</div>
+              <span class="min-w-0 flex-1 truncate text-sm font-medium text-stone-800 hover:text-emerald-600">{{ bookmark.title }}</span>
             </div>
           </div>
         </div>
@@ -288,8 +292,8 @@ onMounted(() => {
         <div v-if="showBrowserBookmarks && browserBookmarks.length" class="mt-4">
           <div class="mb-3 flex items-center justify-between px-1">
             <div>
-              <h1 class="text-base font-semibold text-slate-900">{{ t('ui.home.browser_preview_title') }}</h1>
-              <p class="text-xs text-slate-500">{{ t('ui.home.browser_preview_desc') }}</p>
+              <h1 class="text-base font-semibold text-stone-900">{{ t('ui.home.browser_preview_title') }}</h1>
+              <p class="text-xs text-stone-500">{{ t('ui.home.browser_preview_desc') }}</p>
             </div>
             <n-button size="small" type="primary" @click="goToSync">
               <template #icon>
@@ -302,18 +306,18 @@ onMounted(() => {
             <div
               v-for="bookmark in browserBookmarks.slice(0, 50)"
               :key="bookmark.id"
-              class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 transition-colors hover:bg-sky-50/70"
+              class="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2 transition-colors hover:bg-emerald-50/70"
               @click="bookmark.url && openLink(bookmark.url)"
             >
               <img v-if="bookmark.url" :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
               <div v-else class="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-amber-100">
                 <n-icon :component="FolderOpenOutline" size="10" class="text-amber-500" />
               </div>
-              <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
-              <span class="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 hover:text-sky-600">{{ bookmark.title }}</span>
+              <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-emerald-100 text-[10px] font-bold text-emerald-600">{{ getBookmarkInitial(bookmark.title) }}</div>
+              <span class="min-w-0 flex-1 truncate text-sm font-medium text-stone-800 hover:text-emerald-600">{{ bookmark.title }}</span>
             </div>
           </div>
-          <div v-if="browserBookmarks.length > 50" class="mt-2 text-center text-xs text-slate-400">
+          <div v-if="browserBookmarks.length > 50" class="mt-2 text-center text-xs text-stone-500">
             {{ t('ui.home.browser_preview_more', { n: browserBookmarks.length }) }}
           </div>
         </div>

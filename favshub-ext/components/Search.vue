@@ -16,7 +16,7 @@ const modelValue = defineModel<string>({ default: '' });
       @update:value="modelValue = $event"
     >
       <template #prefix>
-        <n-icon :component="SearchOutline" class="text-slate-400" />
+        <n-icon :component="SearchOutline" class="text-stone-400" />
       </template>
     </n-input>
   </div>

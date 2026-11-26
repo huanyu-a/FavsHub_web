@@ -37,7 +37,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex flex-col overflow-hidden bg-slate-50 text-slate-900"
+    class="popup-shell flex flex-col overflow-hidden text-stone-800"
     :class="isSidePanel ? 'h-screen w-full' : 'h-[600px] w-[400px]'"
   >
     <slot />

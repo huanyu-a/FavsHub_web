@@ -36,7 +36,7 @@ const hasContent = computed(() => props.folder.children.length > 0 || folderBook
 
 <template>
   <div class="overflow-hidden rounded-xl border bg-white transition-colors"
-    :class="isExpanded ? 'border-sky-200 bg-sky-50/30' : 'border-slate-200'"
+    :class="isExpanded ? 'border-emerald-200 bg-emerald-50/30' : 'border-stone-200'"
     :style="{ marginLeft: depth > 0 ? `${depth * 12}px` : '0' }"
   >
     <button
@@ -47,18 +47,18 @@ const hasContent = computed(() => props.folder.children.length > 0 || folderBook
       <n-icon
         :component="isExpanded ? ChevronDownOutline : ChevronForwardOutline"
         size="14"
-        class="shrink-0 text-slate-400"
+        class="shrink-0 text-stone-500"
       />
       <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-amber-500">
         <n-icon :component="FolderOpenOutline" size="14" />
       </div>
       <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium text-slate-800">{{ folder.name }}</div>
+        <div class="truncate text-sm font-medium text-stone-800">{{ folder.name }}</div>
       </div>
-      <span v-if="folderBookmarks.length" class="text-xs text-slate-400">{{ folderBookmarks.length }}</span>
+      <span v-if="folderBookmarks.length" class="text-xs text-stone-500">{{ folderBookmarks.length }}</span>
     </button>
 
-    <div v-if="isExpanded" class="border-t border-slate-100 px-2 py-2 space-y-1">
+    <div v-if="isExpanded" class="border-t border-stone-100 px-2 py-2 space-y-1">
       <!-- 子文件夹（递归） -->
       <FolderItem
         v-for="child in folder.children"
@@ -75,15 +75,15 @@ const hasContent = computed(() => props.folder.children.length > 0 || folderBook
       <div
         v-for="bookmark in folderBookmarks"
         :key="bookmark.id"
-        class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-sky-50/70"
+        class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-emerald-50/70"
         @click="emit('open', bookmark.url)"
       >
         <img :src="getFaviconUrl(bookmark.url)" :alt="bookmark.title" class="h-4 w-4 shrink-0 rounded-sm" loading="lazy" @error="handleFaviconError($event)" />
-        <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-sky-100 text-[10px] font-bold text-sky-600">{{ getBookmarkInitial(bookmark.title) }}</div>
-        <span class="min-w-0 flex-1 truncate text-sm text-slate-700 hover:text-sky-600">{{ bookmark.title }}</span>
+        <div class="hidden h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-emerald-100 text-[10px] font-bold text-emerald-600">{{ getBookmarkInitial(bookmark.title) }}</div>
+        <span class="min-w-0 flex-1 truncate text-sm text-stone-700 hover:text-emerald-600">{{ bookmark.title }}</span>
       </div>
 
-      <div v-if="!hasContent" class="px-3 py-3 text-center text-xs text-slate-400">
+      <div v-if="!hasContent" class="px-3 py-3 text-center text-xs text-stone-500">
         {{ t('ui.folder.empty') }}
       </div>
     </div>

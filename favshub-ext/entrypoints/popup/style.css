@@ -1,9 +1,158 @@
 @import "tailwindcss";
 
-/* Keep scrollbars slim and soft so they match the popup's light blue accents. */
+:root {
+  color-scheme: light;
+  --fh-bg: #f8f7f4;
+  --fh-surface: #ffffff;
+  --fh-surface-soft: #f0fdf4;
+  --fh-primary: #047857;
+  --fh-primary-hover: #065f46;
+  --fh-primary-pressed: #064e3b;
+  --fh-text: #1f2937;
+  --fh-text-secondary: #6b7280;
+  --fh-border: #e7e5e4;
+  --fh-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --fh-font-brand: Georgia, "Times New Roman", "Songti SC", serif;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-width: 0;
+  background: var(--fh-bg);
+  color: var(--fh-text);
+  font-family: var(--fh-font-body);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--fh-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--fh-primary);
+  outline-offset: 2px;
+}
+
+.popup-shell {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.055), transparent 34%),
+    var(--fh-bg);
+}
+
+.fh-brand-mark {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--fh-primary);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.18);
+  color: #fff;
+  font-family: var(--fh-font-brand);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fh-brand-mark--sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.fh-brand-name {
+  color: var(--fh-text);
+  font-family: var(--fh-font-brand);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.fh-brand-caption {
+  margin-top: 3px;
+  color: var(--fh-text-secondary);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1;
+}
+
+.fh-surface-card {
+  border: 1px solid var(--fh-border);
+  border-radius: 14px;
+  background: var(--fh-surface);
+  box-shadow: 0 1px 2px rgba(41, 37, 36, 0.025);
+}
+
+.fh-icon-badge {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--fh-surface-soft);
+  color: var(--fh-primary-hover);
+}
+
+/* Naive UI 的细节与全站一致：暖白输入面、柔和边框、翡翠绿焦点。 */
+.n-input,
+.n-base-selection {
+  --n-border-radius: 10px !important;
+}
+
+.n-input .n-input-wrapper,
+.n-base-selection .n-base-selection-label {
+  background-color: var(--fh-surface);
+}
+
+.n-button {
+  --n-border-radius: 10px !important;
+  font-weight: 500;
+}
+
+.n-button:not(.n-button--disabled-type) {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.n-button:not(.n-button--disabled-type):active {
+  transform: translateY(1px);
+}
+
+.n-form-item .n-form-item-label {
+  color: var(--fh-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.n-message {
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(41, 37, 36, 0.12);
+}
+
+/* Slim scrollbars match the emerald accents. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(45, 140, 240, 0.3) transparent;
+  scrollbar-color: rgba(16, 185, 129, 0.28) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -11,25 +160,33 @@
   height: 5px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   border: 1px solid transparent;
   border-radius: 9999px;
-  background: rgba(45, 140, 240, 0.24);
+  background: rgba(16, 185, 129, 0.24);
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(45, 140, 240, 0.38);
+  background: rgba(16, 185, 129, 0.4);
 }
 
 ::-webkit-scrollbar-thumb:active {
-  background: rgba(31, 115, 216, 0.48);
+  background: rgba(5, 150, 105, 0.5);
 }
 
-::-webkit-scrollbar-corner {
-  background: transparent;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
