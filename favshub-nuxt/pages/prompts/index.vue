@@ -487,7 +487,19 @@ const promptFolderTree = computed(() => {
     }
   }
   setDepth(roots, 0)
-  return roots
+
+  // 前台不展示空分类；自身为 0 但含非空子分类的父节点必须保留，否则子分类会失去入口。
+  // 空分类的创建/重命名/删除仍在后台 /admin/prompts 管理。
+  function pruneEmpty(nodes: PromptFolderNode[]): PromptFolderNode[] {
+    const visible: PromptFolderNode[] = []
+    for (const n of nodes) {
+      n.children = pruneEmpty(n.children)
+      n._hasChildren = n.children.length > 0
+      if (n._count > 0 || n.children.length > 0) visible.push(n)
+    }
+    return visible
+  }
+  return pruneEmpty(roots)
 })
 
 // Collect all folder IDs for expand-all toggle
