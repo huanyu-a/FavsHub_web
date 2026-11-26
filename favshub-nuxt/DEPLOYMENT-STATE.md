@@ -1,4 +1,9 @@
-**最后更新：2026-11-19（第 37 次修订：后台「待核验」tab 角标有数但列表为空 —— `switchVerifyStale()` 仍在发 2026-11-04 拆档前的废弃值 `status=approved`，服务端 `WHERE d.state='approved'` 恒空；角标按 `state='published'` 计数故显示 78。两处口径已统一为 `published`，并给 `status` 加了 `DEAL_STATES` 白名单。**已发版 1.0.103 并部署**）**
+**最后更新：2026-11-26（第 38 次修订：前端 UI 全面改版 —— 11 套主题归一化（暖白默认 #F8F7F4）、语义令牌补齐、全局焦点/选区/减弱动画无障碍、紧凑页脚 + 公众号方形二维码（PC 128px/移动 140px）、书签网格舒适/紧凑密度切换（localStorage 持久化）、修复 isEmoji 误判 ASCII 数字导致 Remix 图标类名渲染为原文（4 处）、清除 legacy Ant Design 蓝 #1890ff 全部残留（bot/token-deals/guest-reviews）。后台 15 页 + PromptPro 全量浏览器走查通过。无服务端 API/数据库变更，无迁移。**已发版 1.0.104 并部署**：提交 `cab39bb3548bab5004436d5d5e77dea1671bda30`（含功能提交 `39b9826`），CI run `45735900371` 全绿（断言数与技能清单守卫均过），镜像 label `version=1.0.104` 核验后 `up -d`；回滚锚点 `rollback-20261126-092835`（=1.0.103 镜像 `185887eea2e9`）。部署后实测：`Up (healthy)`、`RestartCount=0`、`/api/health` ok、`/` 与 `/tokens` 200、`/skills/favshub-data-ops.json` 的 `site_version=1.0.104`、二维码 `/images/wechat-mp-qr-code.png` 200（77,927B）、CSS 缓存版本 `tokens?v=20261125e / themes?v=20261125d / main-bundle?v=20261125c`。**）**
+
+### 1.0.104 附注（2026-11-26）
+- 本版为纯展示层发版：前端组件/全局 CSS/主题默认值（`theme-init.ts` / `themeCookie.ts` / `settings.ts`），无 API、schema、鉴权变更；技能包清单 `site_version` 已重生成入库。
+- 服务器 compose 不接受 `--remove-orphans`（unknown flag），重建用 `docker compose up -d`。
+- 生产 SSR head 未出现明文 `<style>` 块（`features.inlineStyles:false` 保持），样式仍走 `public/css/*` + `?v=` 缓存链。
 
 上一轮第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
 
