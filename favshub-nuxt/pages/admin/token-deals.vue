@@ -214,7 +214,7 @@
       <div v-if="invalidLoading" class="empty-state">加载中...</div>
       <div v-else-if="invalidDeals.length === 0" class="empty-state">{{ invalidEmptyText }}</div>
 
-      <table v-else>
+      <div v-else class="table-wrap table-wide" tabindex="0" role="region" aria-label="已失效通告列表"><table>
         <thead>
           <tr>
             <th style="width: 150px;">服务商</th>
@@ -281,7 +281,7 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <div v-if="invalidTotalPages > 1" class="pagination">
         <button :disabled="invalidPage <= 1" @click="invalidPage--; loadInvalid()">上一页</button>
@@ -356,7 +356,7 @@
       <div v-if="loading" class="empty-state">加载中...</div>
       <div v-else-if="deals.length === 0" class="empty-state">{{ dealsEmptyText }}</div>
 
-      <table v-else>
+      <div v-else class="table-wrap table-wide" tabindex="0" role="region" aria-label="Token 通告审核列表"><table>
         <thead>
           <tr>
             <th style="width: 150px;">服务商</th>
@@ -481,7 +481,7 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <div v-if="totalPages > 1" class="pagination">
         <button :disabled="page <= 1" @click="page--; loadDeals()">上一页</button>
@@ -1415,7 +1415,7 @@ onBeforeUnmount(() => {
   gap: 4px;
   padding: 3px;
   border-radius: 8px;
-  background: var(--bg-hover);
+  background: var(--surface-sunken);
 }
 .lifecycle-filter button {
   border: none;
@@ -1431,9 +1431,9 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
 }
 .lifecycle-filter button.active {
-  background: var(--bg-card);
+  background: var(--surface-raised);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 .lifecycle-tag {
   display: inline-block;
@@ -1444,36 +1444,25 @@ onBeforeUnmount(() => {
   font-weight: 500;
 }
 .lifecycle-tag.lc-expired {
-  background: rgba(245, 158, 11, 0.14);
-  color: #b45309;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 .lifecycle-tag.lc-invalid {
-  background: rgba(239, 68, 68, 0.14);
-  color: #b91c1c;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .lifecycle-tag.lc-deleted {
-  background: var(--bg-hover);
+  background: var(--neutral-soft);
   color: var(--text-secondary);
 }
 .card-hint {
   margin: 0 0 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: var(--bg-hover);
+  background: var(--surface-sunken);
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
-}
-
-.tab-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 16px;
-  background: var(--danger);
-  color: var(--text-inverse);
 }
 
 .cell-provider {

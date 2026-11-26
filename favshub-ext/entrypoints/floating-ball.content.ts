@@ -1,6 +1,8 @@
 import { enableFloatingBallStorage, baseUrlStorage, tokenStorage } from '@/utils/storage';
 import { isSafeUrl } from '@/utils/safe-url';
 import { currentLanguage, translateWith } from '@/utils/server-errors';
+import { themeCssVariables } from '@/utils/theme';
+import { clampFloatingTop, getFloatingTooltipTop, shouldHandleFloatingButtonKeydown } from '@/utils/floating-ball';
 
 /**
  * 悬浮球 content script（注入 <all_urls>）。
@@ -84,6 +86,7 @@ export default defineContentScript({
 
       const host = document.createElement('div');
       host.id = 'favshub-ext';
+      host.dataset.edge = 'right';
       // closed Shadow DOM：宿主页脚本拿不到 shadowRoot 引用，内部数据不可读
       const shadow = host.attachShadow({ mode: 'closed' });
       document.body.appendChild(host);
@@ -128,6 +131,12 @@ export default defineContentScript({
       // ---- 悬浮按钮 ----
       const floatingButton = document.createElement('div');
       floatingButton.id = 'favshub-float-btn';
+      floatingButton.role = 'button';
+      floatingButton.tabIndex = 0;
+      floatingButton.setAttribute('aria-label', `FavsHub — ${tt('ui.fb.tooltip_click_desc')}`);
+      floatingButton.setAttribute('aria-expanded', 'false');
+      floatingButton.setAttribute('aria-controls', 'favshub-sidebar');
+      floatingButton.setAttribute('aria-keyshortcuts', 'Alt+B');
 
       // 获取扩展图标 — 通过 background 转换 data URL（content script 无法直接访问 chrome-extension://）
       (async () => {
@@ -178,7 +187,7 @@ export default defineContentScript({
             <span class="tooltip-desc">${tt('ui.fb.tooltip_key_desc')}</span>
           </div>
         </div>
-        <button class="tooltip-close" title="${tt('ui.fb.hide')}">
+        <button type="button" class="tooltip-close" title="${tt('ui.fb.hide')}" aria-label="${tt('ui.fb.hide')}">
           <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="currentColor">
             <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/>
           </svg>
@@ -190,6 +199,9 @@ export default defineContentScript({
       const sidebarContainer = document.createElement('div');
       sidebarContainer.id = 'favshub-sidebar';
       sidebarContainer.classList.add('collapsed');
+      sidebarContainer.tabIndex = -1;
+      sidebarContainer.setAttribute('aria-label', tt('ui.fb.tooltip_click_desc'));
+      sidebarContainer.setAttribute('aria-hidden', 'true');
 
       const searchSwitcher = document.createElement('aside');
       searchSwitcher.id = 'favshub-search-switch';
@@ -229,13 +241,13 @@ export default defineContentScript({
           const iconHtml = iconSrc
             ? `<img src="${escapeHtml(iconSrc)}" alt="${safeLabel}" class="search-icon">`
             : `<span class="search-icon-placeholder">${safeLabel.charAt(0) || '?'}</span>`;
-          return `<li data-url="${safeUrl}" data-name="${safeName}"${sel}>${iconHtml}<span>${safeLabel}</span></li>`;
+          return `<li data-url="${safeUrl}" data-name="${safeName}" role="button" tabindex="0"${sel}>${iconHtml}<span>${safeLabel}</span></li>`;
         }).join('');
       }
 
       function renderBookmarks(html: string) {
         const list = shadow.querySelector('#favshub-bookmark-list') as HTMLElement | null;
-        if (list) list.innerHTML = html || `<li style="padding:8px 16px;color:#999;font-size:13px;">${tt('ui.fb.no_bookmarks')}</li>`;
+        if (list) list.innerHTML = html || `<li class="floating-empty">${tt('ui.fb.no_bookmarks')}</li>`;
       }
 
       async function loadBookmarks(): Promise<string> {
@@ -269,7 +281,7 @@ export default defineContentScript({
         if (dataLoaded || dataLoading) return;
         dataLoading = true;
         try {
-          renderBookmarks(`<li style="padding:8px 16px;color:#999;font-size:13px;">${tt('ui.fb.loading')}</li>`);
+          renderBookmarks(`<li class="floating-empty">${tt('ui.fb.loading')}</li>`);
           const token = await tokenStorage.getValue();
           const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
           // 引擎与书签串行请求，失败互不影响
@@ -292,113 +304,402 @@ export default defineContentScript({
       }
 
       // ---- 样式（Shadow DOM 内生效，选择器无需前缀；:host 隔离宿主样式继承） ----
+      const cssVariables = (theme: 'light' | 'dark') => Object.entries(themeCssVariables(theme))
+        .map(([name, value]) => `${name}: ${value};`).join(' ');
       const styleSheet = document.createElement('style');
       styleSheet.textContent = `
-        :host { all: initial; }
+        :host {
+          all: initial;
+          ${cssVariables('light')}
+          --fh-focus: #059669;
+          --fh-shadow: 0 14px 38px rgba(41, 37, 36, 0.16), 0 2px 8px rgba(41, 37, 36, 0.08);
+          color-scheme: light;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
 
         #favshub-sidebar {
-          position: fixed !important; top: 0; right: 0; width: 280px !important; height: 100vh;
-          background-color: #ffffff; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
-          transition: transform 0.3s ease; transform: translateX(100%);
-          z-index: 2147483647 !important; padding: 8px; overflow-y: auto;
+          position: fixed !important;
+          top: max(12px, env(safe-area-inset-top, 0px));
+          right: 10px;
+          width: min(320px, calc(100vw - 20px));
+          height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+          max-height: calc(100vh - 24px);
+          padding: 10px;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          border: 1px solid var(--fh-border);
+          border-radius: 18px;
+          background: var(--fh-bg);
+          color: var(--fh-text);
+          box-shadow: var(--fh-shadow);
+          transform: translateX(calc(100% + 24px));
+          opacity: 0;
+          visibility: hidden;
+          transition: transform 180ms ease, opacity 160ms ease, visibility 180ms;
+          z-index: 2147483647 !important;
+          scrollbar-width: thin;
+          scrollbar-color: var(--fh-primary) transparent;
         }
-        #favshub-sidebar.collapsed { transform: translateX(100%) !important; }
-        #favshub-sidebar:not(.collapsed) { transform: translateX(0) !important; }
+        #favshub-sidebar.collapsed { transform: translateX(calc(100% + 24px)) !important; }
+        #favshub-sidebar:not(.collapsed) {
+          transform: translateX(0) !important;
+          opacity: 1;
+          visibility: visible;
+        }
+        :host([data-edge="left"]) #favshub-sidebar {
+          right: auto;
+          left: 10px;
+          transform: translateX(calc(-100% - 24px));
+        }
+        :host([data-edge="left"]) #favshub-sidebar.collapsed { transform: translateX(calc(-100% - 24px)) !important; }
+        :host([data-edge="left"]) #favshub-sidebar:not(.collapsed) { transform: translateX(0) !important; }
+        #favshub-sidebar:focus-visible { outline: 3px solid var(--fh-focus); outline-offset: -3px; }
 
         #favshub-float-btn {
-          position: fixed !important; width: 40px; height: 40px; top: 20%; right: 0;
-          border-radius: 20px 0 0 20px;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; z-index: 2147483647 !important;
-          user-select: none; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
-          transition: width 0.2s;
+          position: fixed !important;
+          top: var(--fh-float-top, 20vh);
+          right: 0;
+          display: flex;
+          width: 44px;
+          height: 44px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--fh-border);
+          border-right: 0;
+          border-radius: 14px 0 0 14px;
+          background: var(--fh-surface);
+          color: var(--fh-primary);
+          box-shadow: -4px 5px 18px rgba(41, 37, 36, 0.14);
+          cursor: grab;
+          touch-action: none;
+          user-select: none;
+          z-index: 2147483647 !important;
+          transition: width 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
         }
-        #favshub-float-btn:hover { width: 60px; }
-        .floating-button-icon { max-width: 24px; max-height: 24px; flex-shrink: 0; pointer-events: none; display: block; }
+        #favshub-float-btn::before {
+          content: "";
+          position: absolute;
+          top: 11px;
+          bottom: 11px;
+          left: 0;
+          width: 3px;
+          border-radius: 0 3px 3px 0;
+          background: var(--fh-primary);
+        }
+        #favshub-float-btn:hover { width: 56px; background: var(--fh-surface-soft); }
+        #favshub-float-btn:active { cursor: grabbing; }
+        #favshub-float-btn:focus-visible {
+          outline: 3px solid var(--fh-focus);
+          outline-offset: 3px;
+          box-shadow: 0 0 0 6px var(--fh-surface), -4px 5px 18px rgba(41, 37, 36, 0.14);
+        }
+        :host([data-edge="left"]) #favshub-float-btn {
+          right: auto;
+          left: 0;
+          border-right: 1px solid var(--fh-border);
+          border-left: 0;
+          border-radius: 0 14px 14px 0;
+          box-shadow: 4px 5px 18px rgba(41, 37, 36, 0.14);
+        }
+        :host([data-edge="left"]) #favshub-float-btn::before { right: 0; left: auto; border-radius: 3px 0 0 3px; }
+        .floating-button-icon {
+          display: block;
+          width: 26px;
+          height: 26px;
+          flex-shrink: 0;
+          border-radius: 7px;
+          pointer-events: none;
+        }
 
-        #favshub-search-switch { height: 100%; display: flex; flex-direction: column; align-items: flex-start; width: 100%; background-color: #ffffff; overflow: auto; padding: 20px 0 0 0; }
-        #favshub-search-switch ul { list-style-type: none; padding: 0; width: 100%; margin: 0; }
+        #favshub-search-switch {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          flex-direction: column;
+          align-items: flex-start;
+          overflow: auto;
+          padding: 12px 0 0;
+          background: transparent;
+        }
+        #favshub-search-switch ul { width: 100%; margin: 0; padding: 0; list-style-type: none; }
         #favshub-search-switch ul li {
-          display: flex; position: relative; font-size: 14px; font-weight: 600; color: #1a202c;
-          line-height: 20px; padding: 8px 16px; margin: 4px 8px !important;
-          align-items: center; cursor: pointer; border-radius: 8px;
-          transition: background-color 0.3s, color 0.3s;
+          position: relative;
+          display: flex;
+          align-items: center;
+          margin: 4px 6px !important;
+          padding: 10px 12px;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          color: var(--fh-text);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 20px;
+          transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
         }
-        #favshub-search-switch ul li:hover { background-color: #f0f0f0; color: #4285f4; }
-        #favshub-search-switch ul li.selected { background-color: #e2e8f0; font-weight: bold; color: #4285f4; }
-
-        .search-icon { height: 16px; margin: 0 8px 0 0; }
+        #favshub-search-switch ul li:hover { background: var(--fh-surface-soft); color: var(--fh-primary-hover); }
+        #favshub-search-switch ul li.selected {
+          border-color: var(--fh-border);
+          background: var(--fh-surface-soft);
+          color: var(--fh-primary);
+          font-weight: 700;
+        }
+        #favshub-search-switch ul li:focus-visible,
+        .bookmark-link:focus-visible,
+        .tooltip-close:focus-visible {
+          outline: 2px solid var(--fh-focus);
+          outline-offset: 2px;
+        }
+        .search-icon { width: 18px; height: 18px; margin: 0 9px 0 0; object-fit: contain; }
         .search-icon-placeholder {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 16px; height: 16px; margin: 0 8px 0 0;
-          font-size: 11px; font-weight: 700; color: #666;
-          background: #e5e7eb; border-radius: 3px;
+          display: inline-flex;
+          width: 18px;
+          height: 18px;
+          align-items: center;
+          justify-content: center;
+          flex: 0 0 auto;
+          margin: 0 9px 0 0;
+          border-radius: 5px;
+          background: var(--fh-surface-soft);
+          color: var(--fh-primary);
+          font-size: 11px;
+          font-weight: 700;
         }
-
-        .bookmark-item { display: flex; align-items: center; margin: 4px 8px !important; padding: 8px 16px; cursor: pointer; transition: background-color 0.3s; }
-        .bookmark-item:hover { background-color: #f0f0f0; }
-        .bookmark-icon { width: 16px; height: 16px; margin: 0 8px 0 0 !important; }
-        .bookmark-link { display: flex; align-items: center; width: 100%; text-decoration: none; color: inherit; }
-        .bookmark-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; font-weight: 600; color: #1a202c !important; line-height: 20px; }
-        #favshub-bookmark-list { padding: 16px 0 60px 0 !important; }
+        .bookmark-item { padding: 5px !important; }
+        .bookmark-link {
+          display: flex;
+          width: 100%;
+          align-items: center;
+          border-radius: 7px;
+          color: inherit;
+          text-decoration: none;
+        }
+        .bookmark-icon { width: 18px; height: 18px; flex: 0 0 auto; margin: 0 9px 0 0 !important; object-fit: contain; }
+        .bookmark-title {
+          overflow: hidden;
+          color: var(--fh-text) !important;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 20px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        #favshub-bookmark-list { margin-top: 10px !important; padding: 10px 0 24px !important; border-top: 1px solid var(--fh-border); }
+        .floating-empty { cursor: default !important; color: var(--fh-text-secondary) !important; font-size: 13px !important; font-weight: 500 !important; }
 
         .floating-tooltip {
-          position: absolute; right: 50px; top: 50%; transform: translateY(-50%);
-          background: white; border-radius: 8px; padding: 16px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.15); width: 280px;
-          opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
+          position: absolute;
+          top: 50%;
+          right: 56px;
+          width: min(280px, calc(100vw - 76px));
+          max-height: calc(100vh - 16px);
+          max-height: calc(100dvh - 16px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          padding: 14px;
+          border: 1px solid var(--fh-border);
+          border-radius: 12px;
+          background: var(--fh-surface);
+          color: var(--fh-text);
+          box-shadow: var(--fh-shadow);
+          opacity: 0;
+          visibility: hidden;
+          transform: translateY(-50%);
+          transition: opacity 160ms ease, visibility 160ms;
           z-index: 2147483647;
         }
-        #favshub-float-btn:hover .floating-tooltip { opacity: 1; visibility: visible; }
-        .floating-tooltip:after {
-          content: ''; position: absolute; right: -6px; top: 50%;
-          transform: translateY(-50%) rotate(45deg); width: 12px; height: 12px;
-          background: white; box-shadow: 3px -3px 3px rgba(0,0,0,0.05);
+        #favshub-float-btn:hover .floating-tooltip,
+        #favshub-float-btn:focus-within .floating-tooltip { opacity: 1; visibility: visible; }
+        .floating-tooltip::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          right: -6px;
+          width: 12px;
+          height: 12px;
+          border-top: 1px solid var(--fh-border);
+          border-right: 1px solid var(--fh-border);
+          background: var(--fh-surface);
+          transform: translateY(-50%) rotate(45deg);
         }
-        .tooltip-content { font-size: 13px; color: #333; padding-right: 24px; }
-        .tooltip-row { display: grid; grid-template-columns: 100px 1fr; gap: 24px; align-items: center; margin: 8px 0; }
-        .tooltip-action { font-weight: 600; color: #666; white-space: nowrap; }
-        .tooltip-desc { color: #666; line-height: 1.4; }
+        :host([data-edge="left"]) .floating-tooltip { right: auto; left: 56px; }
+        :host([data-edge="left"]) .floating-tooltip::after {
+          right: auto;
+          left: -6px;
+          transform: translateY(-50%) rotate(225deg);
+        }
+        .tooltip-content { padding-right: 20px; color: var(--fh-text); font-size: 13px; }
+        .tooltip-row { display: grid; grid-template-columns: 82px 1fr; gap: 12px; align-items: center; margin: 7px 0; }
+        .tooltip-action { color: var(--fh-text); font-weight: 650; white-space: nowrap; }
+        .tooltip-desc { color: var(--fh-text-secondary); line-height: 1.45; }
         .tooltip-close {
-          position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; padding: 4px;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; border: none; background: transparent; border-radius: 4px; color: #888;
+          position: absolute;
+          top: 7px;
+          right: 7px;
+          display: flex;
+          width: 26px;
+          height: 26px;
+          align-items: center;
+          justify-content: center;
+          padding: 4px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: var(--fh-text-secondary);
+          cursor: pointer;
         }
-        .tooltip-close:hover { background: rgba(0,0,0,0.05); color: #666; }
+        .tooltip-close:hover { background: var(--fh-surface-soft); color: var(--fh-primary); }
         .tooltip-close svg { width: 16px; height: 16px; }
 
-        * { user-select: none; -webkit-user-select: none; }
-
+        @media (max-width: 420px) {
+          #favshub-sidebar { right: 8px; width: calc(100vw - 16px); border-radius: 14px; }
+          :host([data-edge="left"]) #favshub-sidebar { left: 8px; }
+          .floating-tooltip { right: 52px; width: min(236px, calc(100vw - 68px)); }
+          :host([data-edge="left"]) .floating-tooltip { left: 52px; }
+          .tooltip-row { grid-template-columns: 1fr; gap: 2px; }
+          .tooltip-action { white-space: normal; }
+        }
         @media (prefers-color-scheme: dark) {
-          #favshub-sidebar, #favshub-search-switch { background-color: #1e1e2e; }
-          #favshub-search-switch ul li, .bookmark-title { color: #e0e0e0 !important; }
-          #favshub-search-switch ul li:hover { background-color: rgba(255,255,255,0.1); color: #4285f4 !important; }
-          .bookmark-item:hover { background-color: rgba(255,255,255,0.1); }
-          .floating-tooltip { background: #1f2937; }
-          .floating-tooltip:after { background: #1f2937; }
-          .tooltip-action { color: #e5e7eb; }
-          .tooltip-desc { color: #9ca3af; }
+          :host {
+            ${cssVariables('dark')}
+            --fh-focus: #6EE7B7;
+            --fh-shadow: 0 16px 42px rgba(0, 0, 0, 0.48), 0 2px 10px rgba(0, 0, 0, 0.32);
+            color-scheme: dark;
+          }
+          #favshub-float-btn { box-shadow: -4px 5px 20px rgba(0, 0, 0, 0.42); }
+          :host([data-edge="left"]) #favshub-float-btn { box-shadow: 4px 5px 20px rgba(0, 0, 0, 0.42); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #favshub-sidebar,
+          #favshub-float-btn,
+          #favshub-search-switch ul li,
+          .floating-tooltip { transition: none !important; }
+          #favshub-float-btn:hover { width: 44px; }
         }
       `;
       shadow.appendChild(styleSheet);
 
       // ---- 交互 ----
-      floatingButton.addEventListener('click', (e) => {
-        if (e.altKey) {
-          browser.runtime.sendMessage({ action: 'open_side_panel' });
+      function setPanelOpen(open: boolean, focusPanel = false) {
+        sidebarContainer.classList.toggle('collapsed', !open);
+        sidebarContainer.setAttribute('aria-hidden', String(!open));
+        floatingButton.setAttribute('aria-expanded', String(open));
+        if (open) {
+          void ensureData();
+          if (focusPanel) {
+            requestAnimationFrame(() => {
+              if (host.isConnected && !sidebarContainer.classList.contains('collapsed')) {
+                sidebarContainer.focus({ preventScroll: true });
+              }
+            });
+          }
+        }
+      }
+
+      function activateFloatingButton(altKey: boolean) {
+        if (altKey) {
+          void browser.runtime.sendMessage({ action: 'open_side_panel' });
           return;
         }
-        const nowCollapsed = sidebarContainer.classList.toggle('collapsed');
-        if (!nowCollapsed) void ensureData();
+        setPanelOpen(sidebarContainer.classList.contains('collapsed'), true);
+      }
+
+      // Vertical dragging stays within the viewport and snaps to the nearest side edge.
+      let floatTop = clampFloatingTop(window.innerHeight * 0.2, window.innerHeight, floatingButton.offsetHeight);
+      let dragState: { pointerId: number; startX: number; startY: number; startTop: number; dragging: boolean } | null = null;
+      let suppressClick = false;
+      const clampFloatTop = (value: number) => clampFloatingTop(value, window.innerHeight, floatingButton.offsetHeight);
+      const syncTooltipPosition = () => {
+        const buttonTop = floatingButton.getBoundingClientRect().top;
+        const tooltipTop = getFloatingTooltipTop(
+          buttonTop,
+          floatingButton.offsetHeight,
+          tooltipDiv.offsetHeight,
+          window.innerHeight,
+        );
+        tooltipDiv.style.top = `${tooltipTop}px`;
+        tooltipDiv.style.transform = 'none';
+      };
+      const applyFloatTop = () => {
+        floatTop = clampFloatTop(floatTop);
+        host.style.setProperty('--fh-float-top', `${floatTop}px`);
+        syncTooltipPosition();
+      };
+      const handleViewportResize = () => applyFloatTop();
+      applyFloatTop();
+      floatingButton.addEventListener('pointerenter', syncTooltipPosition);
+      floatingButton.addEventListener('focusin', syncTooltipPosition);
+      window.addEventListener('resize', handleViewportResize, { passive: true });
+
+      floatingButton.addEventListener('pointerdown', (event) => {
+        if (!event.isPrimary || event.button !== 0 || (event.target as HTMLElement).closest('.floating-tooltip')) return;
+        dragState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startTop: floatTop, dragging: false };
+        try { floatingButton.setPointerCapture(event.pointerId); } catch {}
+      });
+      floatingButton.addEventListener('pointermove', (event) => {
+        if (!dragState || dragState.pointerId !== event.pointerId) return;
+        if (!dragState.dragging && Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) < 5) return;
+        dragState.dragging = true;
+        setPanelOpen(false);
+        floatTop = dragState.startTop + event.clientY - dragState.startY;
+        applyFloatTop();
+        host.dataset.edge = event.clientX < window.innerWidth / 2 ? 'left' : 'right';
+        event.preventDefault();
+      });
+      const finishDragging = (event: PointerEvent) => {
+        if (!dragState || dragState.pointerId !== event.pointerId) return;
+        if (dragState.dragging) {
+          suppressClick = event.type === 'pointerup';
+          if (event.type === 'pointerup') {
+            host.dataset.edge = event.clientX < window.innerWidth / 2 ? 'left' : 'right';
+          }
+          applyFloatTop();
+        }
+        dragState = null;
+        try { floatingButton.releasePointerCapture(event.pointerId); } catch {}
+      };
+      floatingButton.addEventListener('pointerup', finishDragging);
+      floatingButton.addEventListener('pointercancel', finishDragging);
+
+      floatingButton.addEventListener('click', (event) => {
+        if (suppressClick) {
+          suppressClick = false;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        activateFloatingButton(event.altKey);
+      });
+      floatingButton.addEventListener('keydown', (event) => {
+        if (!shouldHandleFloatingButtonKeydown(event.key, event.target, event.currentTarget)) return;
+        event.preventDefault();
+        activateFloatingButton(event.altKey);
       });
 
-      sidebarContainer.addEventListener('mouseleave', () => {
-        sidebarContainer.classList.add('collapsed');
+      sidebarContainer.addEventListener('mouseleave', () => setPanelOpen(false));
+      sidebarContainer.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setPanelOpen(false);
+          floatingButton.focus({ preventScroll: true });
+        }
       });
 
       // 选中文字缓存（事件委托，引擎列表为懒渲染）
       searchSwitcher.addEventListener('mousedown', () => {
         cachedSelectedText = getSelectedText();
+      });
+
+      searchSwitcher.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const target = e.target as HTMLElement;
+        const engineItem = target.closest('#favshub-engine-list li[role="button"]') as HTMLElement | null;
+        if (!engineItem) return;
+        e.preventDefault();
+        cachedSelectedText = getSelectedText();
+        engineItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
 
       searchSwitcher.addEventListener('click', (e) => {
@@ -437,6 +738,7 @@ export default defineContentScript({
 
       // ---- Cleanup on script invalidation/disconnect ----
       return () => {
+        window.removeEventListener('resize', handleViewportResize);
         host.remove();
       };
     }

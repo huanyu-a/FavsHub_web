@@ -1,0 +1,49 @@
+name: Extension quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'favshub-ext/**'
+      - '.github/workflows/quality-ext.yml'
+  pull_request:
+    paths:
+      - 'favshub-ext/**'
+      - '.github/workflows/quality-ext.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  extension-quality:
+    name: Extension quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: favshub-ext/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: favshub-ext
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        working-directory: favshub-ext
+        run: pnpm compile
+
+      - name: Unit tests
+        working-directory: favshub-ext
+        run: pnpm test
+
+      - name: Build
+        working-directory: favshub-ext
+        run: pnpm build

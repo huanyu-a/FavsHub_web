@@ -6,11 +6,13 @@
     <MobileHeader />
     <MobileOverlay />
     <MobileBottomNav />
+    <GlobalSearch />
   </div>
 </template>
 
 <script setup lang="ts">
 import SiteAnnouncement from '~/components/common/SiteAnnouncement.vue'
+import GlobalSearch from '~/components/search/GlobalSearch.vue'
 
 const { isGuest, isAdmin } = useAuth()
 const { initThemeWatchers } = useTheme()
@@ -77,8 +79,8 @@ useHead({
     { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon.png' },
     { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
     { rel: 'stylesheet', href: '/css/tokens.css?v=20261125e' },
-    { rel: 'stylesheet', href: '/css/themes.css?v=20261125d' },
-    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261125c' },
+    { rel: 'stylesheet', href: '/css/themes.css?v=20261126b' },
+    { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261126b' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260928b' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     // Canonical URL: 基于当前路由，防止重复内容

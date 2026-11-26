@@ -25,7 +25,9 @@
   "devDependencies": {
     "@types/chrome": "^0.2.2",
     "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.6.0",
     "@wxt-dev/module-vue": "^1.0.3",
+    "happy-dom": "^21.0.4",
     "naive-ui": "^2.44.1",
     "typescript": "^5.9.3",
     "unplugin-auto-import": "^21.0.0",

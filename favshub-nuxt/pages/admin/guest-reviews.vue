@@ -515,7 +515,7 @@ onMounted(() => {
   color: var(--text-primary);
 }
 .deal-filter-banner code {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--surface-raised);
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;
@@ -535,8 +535,8 @@ onMounted(() => {
   transition: all 0.15s;
 }
 .banner-clear-btn:hover {
-  color: #ff4d4f;
-  background: rgba(255, 77, 79, 0.08);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 .review-list {
   display: flex;
@@ -648,16 +648,4 @@ onMounted(() => {
 .history-time { margin-left: auto; color: var(--text-tertiary); }
 .history-reason { flex-basis: 100%; color: var(--text-tertiary); }
 .deal-input { max-width: 240px; }
-
-/* Tab 上的数字角标（与 token-deals 页 .tab-badge 同款，admin.css 未全局定义） */
-.tab-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 16px;
-  background: var(--danger);
-  color: var(--text-inverse);
-}
 </style>

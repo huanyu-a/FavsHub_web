@@ -29,7 +29,7 @@
         <button v-if="isAdmin" class="btn btn-ghost btn-sm" @click="exportBookmarks"><i class="ri-file-download-line"></i> 导出书签</button>
       </div>
       <div class="card">
-        <table>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="书签列表"><table>
           <thead><tr><th>ID</th><th>图标</th><th>标题</th><th>URL</th><th>文件夹</th><th>标签</th><th>用户</th><th>可见性</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-if="loading"><td colspan="9" class="empty-state">加载中...</td></tr>
@@ -50,7 +50,7 @@
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="pagination" v-if="totalPages > 1">
           <button :disabled="page <= 1" @click="page--; loadBookmarks()">上一页</button>
           <button v-for="p in pages" :key="p" :class="{ active: p === page }" @click="page = p; loadBookmarks()">{{ p }}</button>

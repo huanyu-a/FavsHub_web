@@ -24,6 +24,24 @@ export interface Collection {
   username?: string
 }
 
+interface ReorderItem {
+  id: number
+  sort_order: number
+}
+
+// 队列按 Pinia store 实例隔离；tail 永远消化 rejection，后续拖拽不被前次失败卡死。
+const reorderQueueTails = new WeakMap<object, Promise<void>>()
+const collectionRequestGenerations = new WeakMap<object, number>()
+function advanceCollectionGeneration(store: object): number {
+  const generation = (collectionRequestGenerations.get(store) || 0) + 1
+  collectionRequestGenerations.set(store, generation)
+  return generation
+}
+function bookmarkOwnerKey(): string {
+  const auth = useAuthStore()
+  return auth.user?.id != null ? `user:${auth.user.id}` : `token:${auth.token || 'guest'}`
+}
+
 export const useBookmarksStore = defineStore('bookmarks', {
   state: () => ({
     bookmarks: [] as Bookmark[],
@@ -41,6 +59,10 @@ export const useBookmarksStore = defineStore('bookmarks', {
     collectionCategories: [] as any[],
     collectionBookmarks: [] as any[],
     activeCategoryId: null as number | null,
+    // 首页视图偏好仅在客户端加载，SSR 始终使用稳定默认值
+    density: 'comfortable' as 'comfortable' | 'compact',
+    collapsedGroupKeys: [] as string[],
+    viewPreferencesLoaded: false,
   }),
 
   getters: {
@@ -137,18 +159,37 @@ export const useBookmarksStore = defineStore('bookmarks', {
       this.bookmarks = this.bookmarks.filter(b => b.id !== id)
     },
 
-    async reorderBookmarks(items: { id: number; sort_order: number }[]) {
-      await $fetch('/api/bookmarks/reorder', {
-        method: 'PUT',
-        headers: this._authHeaders(),
-        body: { items },
-        credentials: 'include',
+    reorderBookmarks(items: ReorderItem[]) {
+      const payload = items.map(item => ({ id: item.id, sort_order: item.sort_order }))
+      const auth = useAuthStore()
+      const ownerKey = bookmarkOwnerKey()
+      const rollbackToken = auth.token && auth.token !== 'cookie_auth' ? auth.token : undefined
+      const headers = this._authHeaders()
+      const previous = reorderQueueTails.get(this) || Promise.resolve()
+
+      const run = previous.then(async () => {
+        // 同一 store 若已切换账号，旧操作不得以新账号身份补发或回写。
+        if (bookmarkOwnerKey() !== ownerKey) throw new Error('账号已切换，取消过期的书签排序')
+        try {
+          await $fetch('/api/bookmarks/reorder', {
+            method: 'PUT',
+            headers,
+            body: { items: payload },
+            credentials: 'include',
+          })
+          if (bookmarkOwnerKey() !== ownerKey) return
+          for (const item of payload) {
+            const bookmark = this.bookmarks.find(b => b.id === item.id)
+            if (bookmark) bookmark.sort_order = item.sort_order
+          }
+        } catch (err) {
+          // 回滚也位于同一队列内：B 必须等 A 的 refetch 完成后才能发送。
+          if (bookmarkOwnerKey() === ownerKey) await this.fetchBookmarks(rollbackToken)
+          throw err
+        }
       })
-      // Apply the new sort_order locally so the UI reflects the change immediately
-      for (const item of items) {
-        const bookmark = this.bookmarks.find(b => b.id === item.id)
-        if (bookmark) bookmark.sort_order = item.sort_order
-      }
+      reorderQueueTails.set(this, run.catch(() => {}))
+      return run
     },
 
     // ── Folders ────────────────────────────────────────────────
@@ -197,6 +238,46 @@ export const useBookmarksStore = defineStore('bookmarks', {
       )
     },
 
+    // ── View preferences (local, no account required) ───────────
+
+    loadViewPreferences() {
+      if (this.viewPreferencesLoaded || !import.meta.client) return
+      this.viewPreferencesLoaded = true
+      try {
+        const density = localStorage.getItem('favshub_density')
+        if (density === 'compact' || density === 'comfortable') this.density = density
+        const saved = JSON.parse(localStorage.getItem('favshub_collapsed_groups') || '[]')
+        if (Array.isArray(saved)) {
+          this.collapsedGroupKeys = saved.filter((key): key is string => typeof key === 'string')
+        }
+      } catch { /* localStorage 不可用或内容损坏时保留默认值 */ }
+    },
+
+    setDensity(value: 'comfortable' | 'compact') {
+      this.density = value
+      if (!import.meta.client) return
+      try { localStorage.setItem('favshub_density', value) } catch { /* 忽略写入失败 */ }
+    },
+
+    isGroupExpanded(key: string) {
+      return !this.collapsedGroupKeys.includes(key)
+    },
+
+    setGroupExpanded(key: string, expanded: boolean) {
+      const collapsed = new Set(this.collapsedGroupKeys)
+      if (expanded) collapsed.delete(key)
+      else collapsed.add(key)
+      this.collapsedGroupKeys = Array.from(collapsed)
+      if (!import.meta.client) return
+      try {
+        localStorage.setItem('favshub_collapsed_groups', JSON.stringify(this.collapsedGroupKeys))
+      } catch { /* 忽略写入失败 */ }
+    },
+
+    toggleGroup(key: string) {
+      this.setGroupExpanded(key, !this.isGroupExpanded(key))
+    },
+
     // ── Query helpers ──────────────────────────────────────────
 
     setSearchQuery(q: string) { this.searchQuery = q },
@@ -205,24 +286,33 @@ export const useBookmarksStore = defineStore('bookmarks', {
     // ── 精选集相关 ──────────────────────────────────────────────
 
     async fetchCollectionData(id: string) {
+      const generation = advanceCollectionGeneration(this)
       try {
         const res = await $fetch<{ collection: any; categories: any[]; bookmarks: any[] }>(`/api/collections/${id}`, this._authOptions())
-        this.collectionData = res
-        // 为分类计算书签计数（含子分类书签）
+        if (collectionRequestGenerations.get(this) !== generation) return
         const bms = res.bookmarks || []
-        this.collectionCategories = (res.categories || []).map(c => {
+        // 为分类计算书签计数（含子分类书签）；所有共享状态写入都受 generation 保护。
+        const categories = (res.categories || []).map(c => {
           const childIds = (res.categories || []).filter(x => x.parent_id === c.id).map(x => x.id)
           const count = bms.filter(b => b.category_id === c.id || childIds.includes(b.category_id)).length
           return { ...c, bookmark_count: count }
         })
+        this.collectionData = res
+        this.collectionCategories = categories
         this.collectionBookmarks = bms
         this.activeCategoryId = null
       } catch (err) {
+        // 旧请求的失败同样不得清掉 A→mine / A→B 已建立的新视图。
+        if (collectionRequestGenerations.get(this) !== generation) return
         console.error('加载精选集数据失败', err)
         this.collectionData = null
         this.collectionCategories = []
         this.collectionBookmarks = []
       }
+    },
+
+    invalidateCollectionData() {
+      advanceCollectionGeneration(this)
     },
 
     setActiveCategory(id: number | null) {
@@ -281,6 +371,8 @@ export const useBookmarksStore = defineStore('bookmarks', {
     },
 
     setCurrentCollection(id: string | null) {
+      // null（回个人书签）与切换到另一精选集都会使仍在途的旧请求失效。
+      advanceCollectionGeneration(this)
       this.currentCollectionId = id
       this.viewMode = id ? 'collection' : 'mine'
     },

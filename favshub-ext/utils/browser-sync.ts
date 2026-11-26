@@ -1,307 +1,316 @@
 import { request } from '@/utils/request';
 import { resolveContainerByType, containerTypeFromTitle } from '@/utils/container-sync';
 import { saveSnapshot, loadSnapshot } from '@/utils/sync-snapshot';
-import type { SyncSnapshot } from '@/utils/storage';
-import { computeDiff, encodeKeySegment, type DiffBookmarkEntry, type DiffBrowserEntry, type DiffSnapshotEntry } from '@/utils/diff-engine';
+import { type SyncSnapshot } from '@/utils/storage';
+import {
+  isSameSyncExecutionContext,
+  readSyncExecutionContext,
+  syncRequestOptions,
+  type SyncExecutionContext,
+} from '@/utils/sync-context';
+import { encodeKeySegment, type DiffResult } from '@/utils/diff-engine';
+import {
+  buildDownloadPreview,
+  type DownloadPreview,
+  type SyncServerSnapshot,
+} from '@/utils/sync-preview';
 
-interface FavsHubFolder {
-  id: number;
-  name: string;
-  parent_id: number | null;
-  sort_order: number;
+export type SyncStage = 'read-token' | 'read-server' | 'read-browser' | 'compute-diff' | 'write-browser' | 'write-snapshot';
+
+export interface SyncWriteFailure {
+  operation: 'create-folder' | 'create-bookmark' | 'update-title' | 'remove-bookmark' | 'remove-folder';
+  id?: string;
+  message: string;
 }
 
-interface FavsHubBookmark {
-  id: number;
-  title: string;
-  url: string;
-  folder_id: number | null;
-  container: string;
-  sort_order: number;
-}
-
-export type SyncStats = {
+export interface SyncStats {
   added: number;
   updated: number;
+  moved: number;
   removed: number;
+  foldersAdded: number;
+  foldersRemoved: number;
   isFirstSync: boolean;
-};
+  succeeded: number;
+  failed: number;
+  failures: SyncWriteFailure[];
+  snapshotSaved: boolean;
+}
 
-const CONTAINER_NAMES = new Set([
-  '书签栏', '其他书签', '移动设备书签',
-  'Bookmarks bar', 'Bookmarks Bar', 'Other bookmarks', 'Other Bookmarks',
-  'Mobile bookmarks', 'Mobile Bookmarks',
-  '书签工具栏', '书签菜单', 'Bookmarks Toolbar', 'Bookmarks Menu',
-  '收藏夹栏', '其他收藏夹',
-]);
+export interface DownloadExecutionOptions {
+  preview?: DownloadPreview;
+  /** UI 预览时捕获；执行重取仍使用该上下文，并在写前复核 storage 未切换。 */
+  context?: SyncExecutionContext;
+}
 
-/**
- * 从服务端增量合并书签到浏览器（不再清空重建）
- */
-export async function syncFavsHubToBrowser(): Promise<SyncStats> {
-  // ===== 阶段 0：数据获取 =====
-  const [foldersRes, bmRes] = await Promise.all([
-    request<{ folders: FavsHubFolder[] }>('/api/folders'),
-    request<{ bookmarks: FavsHubBookmark[] }>('/api/bookmarks'),
-  ]);
-  const folders = foldersRes.folders || [];
-  const bookmarks = bmRes.bookmarks || [];
-  if (!folders.length && !bookmarks.length) throw new Error('服务器暂无书签数据');
+export class SyncStageError extends Error {
+  constructor(
+    readonly stage: SyncStage,
+    readonly code: string,
+    readonly originalError?: unknown,
+  ) {
+    super(code);
+    this.name = 'SyncStageError';
+  }
+}
 
-  const snapshot = await loadSnapshot();
-  const tree = await browser.bookmarks.getTree();
+export class SyncWriteError extends SyncStageError {
+  constructor(readonly stats: SyncStats) {
+    super('write-browser', 'SYNC_WRITE_PARTIAL');
+    this.name = 'SyncWriteError';
+  }
+}
 
-  // ===== 辅助：构建服务端文件夹路径 Map =====
-  const folderMap = new Map<number, FavsHubFolder>();
-  for (const f of folders) folderMap.set(f.id, f);
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  function getFolderPath(folderId: number | null): string {
-    if (folderId === null) return '';
-    const parts: string[] = [];
-    let fid: number | null = folderId;
-    while (fid !== null) {
-      const f = folderMap.get(fid);
-      if (!f) break;
-      parts.unshift(encodeKeySegment(f.name));
-      fid = f.parent_id;
+async function atStage<T>(stage: SyncStage, callback: () => Promise<T>): Promise<T> {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof SyncStageError) throw error;
+    throw new SyncStageError(stage, errorMessage(error), error);
+  }
+}
+
+async function readLocalState() {
+  return atStage('read-browser', async () => {
+    const [snapshot, tree] = await Promise.all([loadSnapshot(), browser.bookmarks.getTree()]);
+    return { snapshot, tree };
+  });
+}
+
+async function fetchServerSnapshot(context: SyncExecutionContext) {
+  return atStage('read-server', () => request<SyncServerSnapshot>('/api/sync/snapshot', syncRequestOptions(context)));
+}
+
+function collectBrowserMaps(tree: chrome.bookmarks.BookmarkTreeNode[]) {
+  const folderMap = new Map<string, { browserId: string }>();
+  const urlById = new Map<string, string>();
+  const walk = (node: chrome.bookmarks.BookmarkTreeNode, container: string, parentPath: string) => {
+    for (const child of node.children || []) {
+      if (child.url) {
+        urlById.set(child.id, child.url);
+      } else {
+        const segment = encodeKeySegment(child.title);
+        const path = parentPath ? `${parentPath}/${segment}` : segment;
+        folderMap.set(`${container}/${path}`, { browserId: child.id });
+        walk(child, container, path);
+      }
     }
-    return parts.join('/');
+  };
+  for (const container of tree[0]?.children || []) {
+    walk(container, containerTypeFromTitle(container.title) || 'bar', '');
   }
+  return { folderMap, urlById };
+}
 
-  // 找出每个文件夹的 container 类型
-  const subFolders = new Map<number | null, FavsHubFolder[]>();
-  for (const f of folders) {
-    const k = f.parent_id;
-    if (!subFolders.has(k)) subFolders.set(k, []);
-    subFolders.get(k)!.push(f);
+function normalizeUrl(url: string): string {
+  let normalized = (url || '').trim();
+  while (normalized.length > 1 && normalized.endsWith('/') && !normalized.endsWith('://')) {
+    normalized = normalized.slice(0, -1);
   }
-  const bmByFolder = new Map<number | null, FavsHubBookmark[]>();
-  for (const bm of bookmarks) {
-    const k = bm.folder_id;
-    if (!bmByFolder.has(k)) bmByFolder.set(k, []);
-    bmByFolder.get(k)!.push(bm);
-  }
+  return normalized;
+}
 
-  function getFolderContainer(folderId: number): string {
-    const bms = bmByFolder.get(folderId) || [];
-    for (const bm of bms) {
-      if (bm.container) return bm.container;
-    }
-    for (const child of (subFolders.get(folderId) || [])) {
-      const ct = getFolderContainer(child.id);
-      if (ct) return ct;
-    }
-    return 'bar';
-  }
+function finalizeMovedStats(
+  stats: SyncStats,
+  diff: DiffResult,
+  successfulAdds: Set<number>,
+  successfulRemovals: Set<number>,
+  browserUrlById: Map<string, string>,
+) {
+  const additionsByUrl = new Map<string, number[]>();
+  diff.toAddBookmarks.forEach((action, index) => {
+    if (!successfulAdds.has(index)) return;
+    const url = normalizeUrl(action.serverEntry.url);
+    const indexes = additionsByUrl.get(url) || [];
+    indexes.push(index);
+    additionsByUrl.set(url, indexes);
+  });
+  let moved = 0;
+  diff.toRemoveBookmarks.forEach((action, index) => {
+    if (!successfulRemovals.has(index)) return;
+    const url = browserUrlById.get(action.browserId);
+    if (!url) return;
+    const addIndex = additionsByUrl.get(normalizeUrl(url))?.shift();
+    if (addIndex === undefined) return;
+    moved++;
+  });
+  stats.moved = moved;
+  stats.added = successfulAdds.size - moved;
+  stats.removed = successfulRemovals.size - moved;
+}
 
-  // ===== 阶段 1：构建比较 Map =====
-
-  // 服务端书签 Map: key → DiffBookmarkEntry
-  const serverMap = new Map<string, DiffBookmarkEntry>();
-  for (const bm of bookmarks) {
-    const container = bm.container || 'bar';
-    const relativePath = bm.folder_id != null ? getFolderPath(bm.folder_id) : '';
-    const key = `${container}/${relativePath}/${bm.url}`;
-    serverMap.set(key, {
-      key,
-      title: bm.title,
-      url: bm.url,
-      folderPath: relativePath,
-      container,
-    });
-  }
-
-  // 服务端文件夹 key 集合
-  const serverFolderKeys = new Set<string>();
-  for (const f of folders) {
-    const container = getFolderContainer(f.id);
-    const path = getFolderPath(f.id);
-    const key = `${container}/${path}`;
-    serverFolderKeys.add(key);
-  }
-
-  // 浏览器书签 Map: key → DiffBrowserEntry
-  const browserMap = new Map<string, DiffBrowserEntry>();
-  const browserFolderMap = new Map<string, { browserId: string }>();
+async function applyDownloadDiff(preview: DownloadPreview, tree: chrome.bookmarks.BookmarkTreeNode[]): Promise<SyncStats> {
+  const { diff } = preview;
+  const stats: SyncStats = {
+    added: 0,
+    updated: 0,
+    moved: 0,
+    removed: 0,
+    foldersAdded: 0,
+    foldersRemoved: 0,
+    isFirstSync: diff.isFirstSync,
+    succeeded: 0,
+    failed: 0,
+    failures: [],
+    snapshotSaved: false,
+  };
+  const fail = (operation: SyncWriteFailure['operation'], error: unknown, id?: string) => {
+    stats.failed++;
+    stats.failures.push({ operation, id, message: errorMessage(error) });
+  };
 
   const containerMap = new Map<string, chrome.bookmarks.BookmarkTreeNode>();
-  for (const c of (tree[0]?.children ?? [])) containerMap.set(c.title, c);
-
-  for (const containerNode of containerMap.values()) {
-    const containerType = containerTypeFromTitle(containerNode.title) || 'bar';
-    await walkBrowserTree(containerNode.id, containerType, '');
-  }
-
-  async function walkBrowserTree(parentId: string, containerType: string, parentPath: string) {
-    const children = await browser.bookmarks.getChildren(parentId);
-    for (const child of children) {
-      if (child.url) {
-        const key = `${containerType}/${parentPath}/${child.url}`;
-        browserMap.set(key, { key, title: child.title, browserId: child.id });
-      } else {
-        // 文件夹名转义后再拼入路径，防止名称中的 '/' 与 key 分隔符歧义
-        const folderPath = parentPath ? `${parentPath}/${encodeKeySegment(child.title)}` : encodeKeySegment(child.title);
-        const folderKey = `${containerType}/${folderPath}`;
-        browserFolderMap.set(folderKey, { browserId: child.id });
-        await walkBrowserTree(child.id, containerType, folderPath);
-      }
-    }
-  }
-
-  // 快照 Map
-  const snapshotMap = snapshot
-    ? new Map(snapshot.bookmarks.map(b => [b.key, { key: b.key, title: b.title } as DiffSnapshotEntry]))
-    : null;
-  const snapshotFolderMap = snapshot
-    ? new Map(snapshot.folders.map(f => [f.key, {}]))
-    : null;
-
-  // ===== 阶段 2：计算 Diff =====
-  const diff = computeDiff(
-    serverMap, browserMap, snapshotMap,
-    serverFolderKeys, browserFolderMap, snapshotFolderMap,
-  );
-
-  // ===== 阶段 3：先添加文件夹和书签（安全优先） =====
+  for (const container of tree[0]?.children || []) containerMap.set(container.title, container);
   const fallback = resolveContainerByType('bar', containerMap) ?? [...containerMap.values()][0];
-  let added = 0;
-  let updated = 0;
-  let removed = 0;
+  const { folderMap: browserFolderMap, urlById } = collectBrowserMaps(tree);
+  const createdFolderIds = new Map<string, string>();
+  const successfulAdds = new Set<number>();
+  const successfulRemovals = new Set<number>();
 
-  // 创建新文件夹
-  const createdFolderIds = new Map<string, string>(); // folderKey → browserId
-  // 按路径深度排序，确保父文件夹先创建
-  const sortedFolders = [...diff.toAddFolders].sort((a, b) => {
-    const depthA = a.key.split('/').length;
-    const depthB = b.key.split('/').length;
-    return depthA - depthB;
-  });
-
+  const sortedFolders = [...diff.toAddFolders].sort((a, b) => a.key.split('/').length - b.key.split('/').length);
   for (const folder of sortedFolders) {
-    let parentId: string;
+    const containerType = folder.key.split('/')[0] || 'bar';
+    const containerNode = resolveContainerByType(containerType, containerMap);
+    let parentId: string | undefined;
     if (folder.parentKey && createdFolderIds.has(folder.parentKey)) {
-      parentId = createdFolderIds.get(folder.parentKey)!;
-    } else {
-      // 找容器节点
-      const containerType = folder.key.split('/')[0] || 'bar';
-      const containerNode = resolveContainerByType(containerType, containerMap);
-      parentId = containerNode?.id ?? fallback.id;
-
-      // 尝试找到已有的中间文件夹
-      if (folder.parentKey && browserFolderMap.has(folder.parentKey)) {
-        parentId = browserFolderMap.get(folder.parentKey)!.browserId;
-      }
+      parentId = createdFolderIds.get(folder.parentKey);
+    } else if (folder.parentKey && browserFolderMap.has(folder.parentKey)) {
+      parentId = browserFolderMap.get(folder.parentKey)!.browserId;
+    } else if (!folder.parentKey) {
+      parentId = containerNode?.id ?? fallback?.id;
     }
-
+    if (!parentId) {
+      fail('create-folder', new Error('SYNC_BROWSER_PARENT_MISSING'), folder.key);
+      continue;
+    }
     try {
       const created = await browser.bookmarks.create({ parentId, title: folder.name });
       createdFolderIds.set(folder.key, created.id);
-    } catch {
-      // 创建失败则跳过
+      stats.foldersAdded++;
+      stats.succeeded++;
+    } catch (error) {
+      fail('create-folder', error, folder.key);
     }
   }
 
-  // 创建新书签
-  for (const action of diff.toAddBookmarks) {
+  for (const [index, action] of diff.toAddBookmarks.entries()) {
     const entry = action.serverEntry;
     const containerType = entry.container || 'bar';
-
-    // 找到父文件夹的浏览器 ID
-    let parentId: string;
     const folderKey = `${containerType}/${entry.folderPath}`;
-    if (createdFolderIds.has(folderKey)) {
-      parentId = createdFolderIds.get(folderKey)!;
-    } else if (browserFolderMap.has(folderKey)) {
-      parentId = browserFolderMap.get(folderKey)!.browserId;
-    } else {
-      const containerNode = resolveContainerByType(containerType, containerMap);
-      parentId = containerNode?.id ?? fallback.id;
+    let parentId: string | undefined;
+    if (createdFolderIds.has(folderKey)) parentId = createdFolderIds.get(folderKey);
+    else if (browserFolderMap.has(folderKey)) parentId = browserFolderMap.get(folderKey)!.browserId;
+    else if (!entry.folderPath) {
+      parentId = resolveContainerByType(containerType, containerMap)?.id ?? fallback?.id;
     }
-
+    if (!parentId) {
+      fail('create-bookmark', new Error('SYNC_BROWSER_PARENT_MISSING'), entry.key);
+      continue;
+    }
     try {
       await browser.bookmarks.create({ parentId, title: entry.title, url: entry.url });
-      added++;
-    } catch {
-      // 创建失败则跳过
+      successfulAdds.add(index);
+      stats.succeeded++;
+    } catch (error) {
+      fail('create-bookmark', error, entry.key);
     }
   }
 
-  // ===== 阶段 4：更新标题 =====
   for (const action of diff.toUpdateTitles) {
     try {
-      // 验证 ID 仍存在
       await browser.bookmarks.get(action.browserId);
       await browser.bookmarks.update(action.browserId, { title: action.newTitle });
-      updated++;
-    } catch {
-      // ID 失效则跳过
+      stats.updated++;
+      stats.succeeded++;
+    } catch (error) {
+      fail('update-title', error, action.browserId);
     }
   }
 
-  // ===== 阶段 5：最后删除 =====
-  for (const action of diff.toRemoveBookmarks) {
+  for (const [index, action] of diff.toRemoveBookmarks.entries()) {
     try {
       await browser.bookmarks.get(action.browserId);
       await browser.bookmarks.remove(action.browserId);
-      removed++;
-    } catch {
-      // ID 已不存在则跳过
+      successfulRemovals.add(index);
+      stats.succeeded++;
+    } catch (error) {
+      fail('remove-bookmark', error, action.browserId);
     }
   }
 
-  // 删除空文件夹（按路径深度倒序，先删子文件夹）
-  const sortedRemoveFolders = [...diff.toRemoveFolders].sort((a, b) => {
-    const depthA = a.key.split('/').length;
-    const depthB = b.key.split('/').length;
-    return depthB - depthA;
-  });
-
+  const sortedRemoveFolders = [...diff.toRemoveFolders].sort((a, b) => b.key.split('/').length - a.key.split('/').length);
   for (const action of sortedRemoveFolders) {
     try {
       const children = await browser.bookmarks.getChildren(action.browserId);
-      if (children.length === 0) {
-        await browser.bookmarks.removeTree(action.browserId);
-      }
-    } catch {
-      // ID 已不存在则跳过
+      if (children.length) throw new Error('SYNC_BROWSER_FOLDER_NOT_EMPTY');
+      await browser.bookmarks.removeTree(action.browserId);
+      stats.foldersRemoved++;
+      stats.succeeded++;
+    } catch (error) {
+      fail('remove-folder', error, action.browserId);
     }
   }
 
-  // ===== 阶段 6：保存新快照 =====
-  const newSnapshot = await buildSnapshot(containerMap);
-  await saveSnapshot(newSnapshot);
-
-  return { added, updated, removed, isFirstSync: diff.isFirstSync };
+  finalizeMovedStats(stats, diff, successfulAdds, successfulRemovals, urlById);
+  if (stats.failed) throw new SyncWriteError(stats);
+  return stats;
 }
 
-/**
- * 从当前浏览器书签树构建快照
- */
-async function buildSnapshot(
-  containerMap: Map<string, chrome.bookmarks.BookmarkTreeNode>,
-): Promise<SyncSnapshot> {
+function buildSnapshotFromTree(tree: chrome.bookmarks.BookmarkTreeNode[]): SyncSnapshot {
   const bookmarks: SyncSnapshot['bookmarks'] = [];
   const folders: SyncSnapshot['folders'] = [];
-
-  for (const containerNode of containerMap.values()) {
-    const containerType = containerTypeFromTitle(containerNode.title) || 'bar';
-    await walkForSnapshot(containerNode.id, containerType, '');
-  }
-
-  async function walkForSnapshot(parentId: string, containerType: string, parentPath: string) {
-    const children = await browser.bookmarks.getChildren(parentId);
-    for (const child of children) {
+  const walk = (node: chrome.bookmarks.BookmarkTreeNode, container: string, parentPath: string) => {
+    for (const child of node.children || []) {
       if (child.url) {
-        const key = `${containerType}/${parentPath}/${child.url}`;
-        bookmarks.push({ key, title: child.title });
+        bookmarks.push({ key: `${container}/${parentPath}/${child.url}`, title: child.title });
       } else {
-        const folderPath = parentPath ? `${parentPath}/${encodeKeySegment(child.title)}` : encodeKeySegment(child.title);
-        const folderKey = `${containerType}/${folderPath}`;
-        folders.push({ key: folderKey });
-        await walkForSnapshot(child.id, containerType, folderPath);
+        const segment = encodeKeySegment(child.title);
+        const path = parentPath ? `${parentPath}/${segment}` : segment;
+        folders.push({ key: `${container}/${path}` });
+        walk(child, container, path);
       }
     }
+  };
+  for (const container of tree[0]?.children || []) {
+    walk(container, containerTypeFromTitle(container.title) || 'bar', '');
+  }
+  return { bookmarks, folders, timestamp: Date.now() };
+}
+
+/** 下载执行；传入 preview 时，写浏览器前精确复核 revision、完整 diff、树和快照。 */
+export async function syncFavsHubToBrowser(options: DownloadExecutionOptions = {}): Promise<SyncStats> {
+  const context = options.context
+    ?? await atStage('read-token', () => readSyncExecutionContext());
+  const server = await fetchServerSnapshot(context);
+  const local = await readLocalState();
+  const current = await atStage('compute-diff', async () => buildDownloadPreview({
+    revision: server.revision,
+    folders: server.folders || [],
+    bookmarks: server.bookmarks || [],
+    snapshot: local.snapshot,
+    tree: local.tree,
+  }));
+
+  if (options.context) {
+    const latestContext = await atStage('read-token', () => readSyncExecutionContext());
+    if (!isSameSyncExecutionContext(context, latestContext)) {
+      throw new SyncStageError('compute-diff', 'SYNC_PREVIEW_STALE');
+    }
+  }
+  if (options.preview && (current.revision !== options.preview.revision
+    || current.planSignature !== options.preview.planSignature)) {
+    throw new SyncStageError('compute-diff', 'SYNC_PREVIEW_STALE');
   }
 
-  return { bookmarks, folders, timestamp: Date.now() };
+  const stats = await atStage('write-browser', () => applyDownloadDiff(current, local.tree));
+  const latestTree = await atStage('read-browser', () => browser.bookmarks.getTree());
+  await atStage('write-snapshot', async () => {
+    await saveSnapshot(buildSnapshotFromTree(latestTree));
+  });
+  stats.snapshotSaved = true;
+  return stats;
 }

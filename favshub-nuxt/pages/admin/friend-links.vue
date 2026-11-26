@@ -26,7 +26,7 @@
         </div>
       </div>
 
-      <div class="table-container">
+      <div class="table-container" tabindex="0" role="region" aria-label="友情链接列表">
         <table>
           <thead>
             <tr>
@@ -298,23 +298,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.search-input {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-primary);
-  font-size: 13px;
-  width: 200px;
-}
-.table-container {
-  overflow-x: auto;
-}
+.search-input { width: 200px; }
 .link-logo {
   width: 22px;
   height: 22px;
@@ -363,7 +347,7 @@ onMounted(() => {
   font-size: 12px;
 }
 .required {
-  color: var(--danger, #ef4444);
+  color: var(--danger);
 }
 .logo-input-wrap {
   display: flex;
@@ -397,6 +381,8 @@ onMounted(() => {
 }
 .form-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
+.form-row > .fg { min-width: 200px; }
 </style>

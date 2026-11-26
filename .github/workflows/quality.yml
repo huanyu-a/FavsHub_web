@@ -1,0 +1,58 @@
+name: Nuxt quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'favshub-nuxt/**'
+      - 'favshub-data-ops/**'
+      - '.github/workflows/quality.yml'
+  pull_request:
+    paths:
+      - 'favshub-nuxt/**'
+      - 'favshub-data-ops/**'
+      - '.github/workflows/quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  nuxt-quality:
+    name: Nuxt quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: favshub-nuxt/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: favshub-nuxt
+        run: pnpm install --frozen-lockfile
+
+      - name: Import/export static check
+        working-directory: favshub-nuxt
+        run: pnpm ts:check
+
+      - name: TypeScript/Vue full typecheck (non-blocking; existing debt)
+        continue-on-error: true
+        working-directory: favshub-nuxt
+        run: |
+          echo "::warning::Non-blocking full typecheck: existing type debt remains unresolved; diagnostics below are not a passing result."
+          pnpm typecheck
+
+      - name: Unit tests
+        working-directory: favshub-nuxt
+        run: pnpm test
+
+      - name: Build
+        working-directory: favshub-nuxt
+        run: pnpm build

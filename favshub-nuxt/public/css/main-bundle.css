@@ -5284,7 +5284,7 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 }
 .engine-dialog-close:hover { color: var(--text-primary); background: var(--surface-hover); }
 .engine-dialog-close:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .engine-dialog-close:active { transform: scale(0.96); }
@@ -5321,6 +5321,10 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
   position: relative;
 }
 .engine-dialog-item:hover { background: var(--surface-hover); }
+.engine-dialog-item:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 .engine-dialog-item.selected { background: var(--primary-light); }
 .engine-dialog-item input[type="checkbox"] {
   position: absolute;
@@ -5477,7 +5481,7 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 .bookmarks-empty {
   text-align: center;
   padding: 56px 40px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .bookmarks-empty p {
   font-size: 15px;
@@ -5486,7 +5490,7 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
 .add-first-btn {
   margin-top: 16px;
   padding: 10px 22px;
-  background: var(--primary);
+  background: var(--control-accent);
   color: var(--text-inverse);
   border: none;
   border-radius: 10px;
@@ -5496,12 +5500,12 @@ html[data-admin="true"] .client-only-admin { display: inline-flex !important; }
   transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .add-first-btn:hover {
-  background: var(--primary-hover);
+  background: var(--control-accent);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
 .add-first-btn:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .add-first-btn:active {

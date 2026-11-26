@@ -21,7 +21,7 @@
     />
 
     <!-- 主内容区（布局样式由全局 .home-shell > main 提供，背景继承 var(--surface)） -->
-    <main>
+    <main ref="homeMain">
       <!-- 欢迎消息 - ClientOnly: greeting 依赖 authStore.user，SSR/客户端不一致 -->
       <ClientOnly>
         <WelcomeMessage v-if="settingsStore.get('showWelcomeMessage', true)" />
@@ -146,9 +146,132 @@
   </div>
 </template>
 
-<script setup lang="ts">
-definePageMeta({ layout: 'default' })
+<script lang="ts">
+export interface HomeScrollPosition {
+  main: number
+  window: number
+}
 
+/** 无记录与损坏记录都显式归零，避免新视图继承上一视图的滚动偏移。 */
+export function parseHomeScrollPosition(raw: string | null): HomeScrollPosition {
+  const zero = { main: 0, window: 0 }
+  if (!raw) return zero
+  try {
+    const saved = JSON.parse(raw) as { main?: unknown; window?: unknown } | null
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return zero
+    if (saved.main != null && (typeof saved.main !== 'number' || !Number.isFinite(saved.main))) return zero
+    if (saved.window != null && (typeof saved.window !== 'number' || !Number.isFinite(saved.window))) return zero
+    return {
+      main: Math.max(0, typeof saved.main === 'number' ? saved.main : 0),
+      window: Math.max(0, typeof saved.window === 'number' ? saved.window : 0),
+    }
+  } catch {
+    return zero
+  }
+}
+
+/** 每个关键 await 前后都检查路由活跃状态，离路后不再执行后续挂载步骤。 */
+export async function runHomeMountSequence(
+  isActive: () => boolean,
+  steps: Array<() => void | Promise<void>>,
+): Promise<boolean> {
+  for (const step of steps) {
+    if (!isActive()) return false
+    await step()
+  }
+  return isActive()
+}
+
+export interface HomeScrollRestoreOptions {
+  isActive: () => boolean
+  nextTick: () => Promise<void>
+  requestFrame: (callback: () => void) => void
+  hasHash: () => boolean
+  restoreHash: () => void
+  readPosition: () => HomeScrollPosition
+  applyPosition: (position: HomeScrollPosition) => void
+  setRestoring: (value: boolean) => void
+}
+
+/** double-rAF 的两个回调及最终应用前均防离路/版本失效。 */
+export async function restoreHomeScrollWhenActive(
+  options: HomeScrollRestoreOptions,
+  preserveInitialHash = false,
+): Promise<boolean> {
+  if (!options.isActive()) return false
+  options.setRestoring(true)
+  await options.nextTick()
+  if (!options.isActive()) return false
+
+  await new Promise<void>(resolve => {
+    options.requestFrame(() => {
+      if (!options.isActive()) {
+        resolve()
+        return
+      }
+      options.requestFrame(() => resolve())
+    })
+  })
+  if (!options.isActive()) return false
+
+  if (preserveInitialHash && options.hasHash()) options.restoreHash()
+  else options.applyPosition(options.readPosition())
+
+  options.requestFrame(() => {
+    if (options.isActive()) options.setRestoring(false)
+  })
+  return true
+}
+
+export interface HomeCollectionLoaderStore {
+  isLoading: boolean
+  fetchCollectionData: (id: string) => Promise<void>
+  setCurrentCollection: (id: string | null) => void
+  fetchBookmarks: () => Promise<void>
+  invalidateCollectionData: () => void
+}
+
+/** 页面级提交令牌与 store generation 双层隔离，防止乱序响应改变当前视图。 */
+export function createHomeCollectionLoader(store: HomeCollectionLoaderStore) {
+  let lastLoadedCollectionId: string | null | undefined
+  let collectionLoadToken = 0
+
+  return {
+    async load(collectionId: string) {
+      // watch 与 onMounted 在 hydration 阶段可能同时命中同一精选集。
+      if (lastLoadedCollectionId === collectionId) return
+      lastLoadedCollectionId = collectionId
+      const token = ++collectionLoadToken
+      store.isLoading = true
+      try {
+        await store.fetchCollectionData(collectionId)
+        if (token !== collectionLoadToken) return
+        store.setCurrentCollection(collectionId)
+      } catch (err) {
+        if (token === collectionLoadToken) console.error('加载精选集书签失败', err)
+      } finally {
+        if (token === collectionLoadToken) store.isLoading = false
+      }
+    },
+
+    async loadMine() {
+      // 必须先使 A 的页面提交令牌失效，再切换视图并拉取个人书签。
+      ++collectionLoadToken
+      lastLoadedCollectionId = undefined
+      store.setCurrentCollection(null)
+      await store.fetchBookmarks()
+    },
+
+    invalidate() {
+      ++collectionLoadToken
+      lastLoadedCollectionId = undefined
+      store.invalidateCollectionData()
+    },
+  }
+}
+</script>
+
+<script setup lang="ts">
 import Sidebar from '~/components/sidebar/Sidebar.vue'
 import SearchBar from '~/components/search/SearchBar.vue'
 import BookmarkGrid from '~/components/bookmark/BookmarkGrid.vue'
@@ -157,6 +280,8 @@ import WelcomeMessage from '~/components/WelcomeMessage.vue'
 import YearProgress from '~/components/YearProgress.vue'
 import BackToTop from '~/components/BackToTop.vue'
 import SiteFooter from '~/components/common/SiteFooter.vue'
+
+definePageMeta({ layout: 'default', scrollToTop: false })
 
 const authStore = useAuthStore()
 const bookmarksStore = useBookmarksStore()
@@ -181,6 +306,79 @@ const searchQuery = ref('')
 
 // 精选集相关
 const currentCollectionId = computed(() => route.query.collection as string | undefined)
+
+// 桌面/平板滚动在 main，手机滚动在 window；两种位置按书签视图分别保存。
+// sessionStorage 同时覆盖 SPA 返回与当前标签页刷新，不跨标签页泄漏浏览状态。
+const homeMain = ref<HTMLElement | null>(null)
+const SCROLL_STORAGE_PREFIX = 'favshub_home_scroll:'
+let scrollSaveFrame: number | null = null
+let scrollRestoreVersion = 0
+let restoringScroll = false
+let leavingHome = false
+let previousScrollRestoration: ScrollRestoration | null = null
+let activeScrollViewId: string | null | undefined = currentCollectionId.value
+let homeMounted = false
+
+function scrollStorageKey(collectionId: string | null | undefined = activeScrollViewId) {
+  return SCROLL_STORAGE_PREFIX + encodeURIComponent(collectionId || 'mine')
+}
+
+function saveScrollPosition(collectionId: string | null | undefined = activeScrollViewId) {
+  if (!import.meta.client) return
+  try {
+    sessionStorage.setItem(scrollStorageKey(collectionId), JSON.stringify({
+      main: Math.max(0, homeMain.value?.scrollTop || 0),
+      window: Math.max(0, window.scrollY || 0),
+    }))
+  } catch { /* 存储不可用时保留浏览器原生行为 */ }
+}
+
+function scheduleScrollSave() {
+  if (restoringScroll || scrollSaveFrame !== null) return
+  scrollSaveFrame = requestAnimationFrame(() => {
+    scrollSaveFrame = null
+    saveScrollPosition()
+  })
+}
+
+async function restoreScrollPosition(preserveInitialHash = false) {
+  const version = ++scrollRestoreVersion
+  await restoreHomeScrollWhenActive({
+    isActive: () => homeMounted && !leavingHome && version === scrollRestoreVersion,
+    nextTick: () => nextTick(),
+    requestFrame: callback => { requestAnimationFrame(() => callback()) },
+    hasHash: () => Boolean(window.location.hash),
+    restoreHash: () => {
+      let id = window.location.hash.slice(1)
+      try { id = decodeURIComponent(id) } catch { /* 非法编码的 hash 按原样查找 */ }
+      document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'auto' })
+    },
+    readPosition: () => {
+      try {
+        return parseHomeScrollPosition(sessionStorage.getItem(scrollStorageKey()))
+      } catch {
+        return { main: 0, window: 0 }
+      }
+    },
+    applyPosition: saved => {
+      if (homeMain.value) homeMain.value.scrollTop = saved.main
+      window.scrollTo({ top: saved.window, behavior: 'auto' })
+    },
+    setRestoring: value => { restoringScroll = value },
+  }, preserveInitialHash)
+}
+
+function handlePageHide() {
+  saveScrollPosition()
+}
+
+onBeforeRouteLeave((_to, _from, next) => {
+  leavingHome = true
+  homeCollectionLoader.invalidate()
+  ++scrollRestoreVersion
+  saveScrollPosition()
+  next()
+})
 
 const displayBookmarks = computed(() => {
   // 精选集浏览模式：展示全部书签，按分类分组（不做筛选，全部可见）
@@ -271,48 +469,50 @@ async function loadRemainingBookmarks() {
   await bookmarksStore.fetchBookmarks()
 }
 
-// 按 collection_id 加载精选集书签（直接从 collection_bookmarks 表读取）
-// frontend #14：去重守卫，避免 watch 与 onMounted 在 hydration 阶段重复加载
-let lastLoadedCollectionId: string | null | undefined
-let collectionLoadToken = 0
-async function loadCollectionBookmarks(collectionId: string) {
-  if (lastLoadedCollectionId === collectionId) return
-  lastLoadedCollectionId = collectionId
-  const token = ++collectionLoadToken
-  bookmarksStore.isLoading = true
-  try {
-    await bookmarksStore.fetchCollectionData(collectionId)
-    if (token !== collectionLoadToken) return // 已被更新的请求取代
-    bookmarksStore.setCurrentCollection(collectionId)
-  } catch (err) {
-    console.error('加载精选集书签失败', err)
-  } finally {
-    if (token === collectionLoadToken) bookmarksStore.isLoading = false
-  }
-}
+// 精选集请求由页面提交令牌与 store generation 双重隔离。
+const homeCollectionLoader = createHomeCollectionLoader(bookmarksStore)
 
-// 监听精选集切换，加载对应书签
+// 监听精选集切换，加载对应书签；各视图保留自己的滚动位置
 watch(currentCollectionId, async (newId, oldId) => {
+  if (leavingHome) return
+  saveScrollPosition(oldId ?? null)
+  activeScrollViewId = newId ?? null
+  restoringScroll = true
+  ++scrollRestoreVersion
   if (newId) {
-    await loadCollectionBookmarks(newId)
+    await homeCollectionLoader.load(newId)
   } else if (oldId) {
-    // 从精选集切换回全部书签时重置
-    bookmarksStore.setCurrentCollection(null)
-    await bookmarksStore.fetchBookmarks()
+    // loadMine 先递增页面令牌并使 store 旧请求失效，再拉取个人书签。
+    await homeCollectionLoader.loadMine()
   }
+  await restoreScrollPosition()
 })
 
 // SSR hydration 后检查 URL 是否带有 collection 参数，加载对应书签
 onMounted(async () => {
-  // C2: 补齐 SSR 未加载的剩余书签
-  loadRemainingBookmarks()
-  if (authStore.isLoggedIn) {
-    await bookmarksStore.fetchMyCollections()
+  homeMounted = true
+  homeMain.value?.addEventListener('scroll', scheduleScrollSave, { passive: true })
+  window.addEventListener('scroll', scheduleScrollSave, { passive: true })
+  window.addEventListener('pagehide', handlePageHide)
+  if ('scrollRestoration' in history) {
+    previousScrollRestoration = history.scrollRestoration
+    history.scrollRestoration = 'manual'
   }
-  // 如果 URL 带有 collection 参数，立即加载对应精选集书签
-  if (currentCollectionId.value) {
-    await loadCollectionBookmarks(currentCollectionId.value)
-  }
+  restoringScroll = true
+
+  await runHomeMountSequence(() => homeMounted && !leavingHome, [
+    // 等渐进渲染所需的数据到位后恢复，避免先按 30 条的短页面定位。
+    () => loadRemainingBookmarks(),
+    async () => {
+      if (authStore.isLoggedIn) await bookmarksStore.fetchMyCollections()
+    },
+    async () => {
+      // URL 带有 collection 参数时加载对应精选集；await 后由 runner 再查活跃状态。
+      const collectionId = currentCollectionId.value
+      if (collectionId) await homeCollectionLoader.load(collectionId)
+    },
+    () => restoreScrollPosition(true),
+  ])
 })
 
 function selectCollection(id: string) {
@@ -330,6 +530,17 @@ function scheduleHighlightClear(fn: () => void, delay: number) {
 }
 
 onBeforeUnmount(() => {
+  leavingHome = true
+  homeMounted = false
+  homeCollectionLoader.invalidate()
+  ++scrollRestoreVersion
+  saveScrollPosition()
+  if (scrollSaveFrame !== null) cancelAnimationFrame(scrollSaveFrame)
+  scrollSaveFrame = null
+  homeMain.value?.removeEventListener('scroll', scheduleScrollSave)
+  window.removeEventListener('scroll', scheduleScrollSave)
+  window.removeEventListener('pagehide', handlePageHide)
+  if (previousScrollRestoration !== null) history.scrollRestoration = previousScrollRestoration
   for (const t of highlightTimeouts) clearTimeout(t)
   highlightTimeouts = []
 })
@@ -412,7 +623,12 @@ async function executeDelete() {
 }
 
 async function handleReorder(items: { id: number; sort_order: number }[]) {
-  await bookmarksStore.reorderBookmarks(items)
+  try {
+    await bookmarksStore.reorderBookmarks(items)
+  } catch (error) {
+    // store 已在同一串行队列内完成 refetch；这里只记录，不发起第二次回滚。
+    console.error('保存书签顺序失败，已在队列内恢复原顺序', error)
+  }
 }
 </script>
 
@@ -482,7 +698,7 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 }
 
 .collection-tab:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -492,12 +708,12 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 
 .collection-tab.active {
   background: var(--surface-raised);
-  color: var(--primary);
+  color: var(--control-accent);
   box-shadow: var(--shadow-sm);
 }
 
 .collection-tab-market {
-  color: var(--primary);
+  color: var(--control-accent);
 }
 
 .collection-tab i {
@@ -529,6 +745,20 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   background: var(--warning);
   border-radius: 10px;
   padding: 0 4px;
+}
+
+@media (max-width: 1024px) {
+  .home-shell > main {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 768px) {
+  /* 手机端由 window 滚动；取消 main 的滚动容器以启用吸顶标题与位置恢复 */
+  .home-shell > main {
+    overflow: visible;
+    min-height: 100vh;
+  }
 }
 
 @media (max-width: 768px) {

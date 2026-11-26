@@ -30,7 +30,7 @@
           <button class="btn btn-ghost btn-sm" @click="loadPrompts">刷新</button>
         </div>
       </div>
-      <table>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="提示词列表"><table>
         <thead><tr><th>标题</th><th>描述</th><th>文件夹</th><th>标签</th><th>用户</th><th>版本</th><th>更新时间</th><th>可见性</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-if="pLoading"><td colspan="10" class="empty-state">加载中...</td></tr>
@@ -52,7 +52,7 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
       <div class="pagination" v-if="pTotalPages > 1">
         <button :disabled="pPage <= 1" @click="pPage--; loadPrompts()">上一页</button>
         <button v-for="n in pPages" :key="n" :class="{ active: n === pPage }" @click="pPage = n; loadPrompts()">{{ n }}</button>
@@ -99,7 +99,7 @@
       <div class="card-header"><h3>标签管理</h3>
         <button class="btn btn-primary btn-sm" @click="createTag">新建标签</button>
       </div>
-      <table>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="标签列表"><table>
         <thead><tr><th>名称</th><th>颜色</th><th>用户</th><th>使用次数</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-if="tagLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
@@ -114,18 +114,18 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <!-- 回收站 -->
     <div v-if="tab === 'trash'" class="card">
       <div class="card-header">
         <h3>回收站</h3>
         <div>
-          <button class="btn btn-ghost btn-sm" @click="emptyTrash" :disabled="trashList.length === 0">清空回收站</button>
+          <button class="btn btn-danger btn-sm" @click="emptyTrash" :disabled="trashList.length === 0">清空回收站</button>
           <button class="btn btn-ghost btn-sm" @click="loadTrash">刷新</button>
         </div>
       </div>
-      <table>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="回收站提示词列表"><table>
         <thead><tr><th>标题</th><th>描述</th><th>用户</th><th>删除时间</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-if="trashLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
@@ -141,14 +141,14 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <!-- 历史记录 -->
     <div v-if="tab === 'history'" class="card">
       <div class="card-header"><h3>版本历史记录</h3>
         <button class="btn btn-ghost btn-sm" @click="loadHistory">刷新</button>
       </div>
-      <table>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="提示词版本历史列表"><table>
         <thead><tr><th>提示词</th><th>版本号</th><th>用户</th><th>创建时间</th><th>预览</th></tr></thead>
         <tbody>
           <tr v-if="hLoading"><td colspan="5" class="empty-state">加载中...</td></tr>
@@ -160,14 +160,14 @@
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ h.content?.slice(0, 80) || '-' }}</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <!-- 审核请求（仅管理员） -->
     <div v-if="tab === 'reviews' && isAdmin" class="card">
       <div class="card-header"><h3>审核请求</h3><button class="btn btn-ghost btn-sm" @click="loadReviews">刷新</button></div>
       <div v-if="rLoading" class="loading-sm">加载中...</div>
       <div v-else-if="reviews.length === 0" class="empty-state">暂无审核请求</div>
-      <table v-else>
+      <div v-else class="table-wrap" tabindex="0" role="region" aria-label="提示词审核请求列表"><table>
         <thead><tr><th>提示词</th><th>提交者</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="r in reviews" :key="r.id">
@@ -186,11 +186,11 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
 	    <!-- 审核详情弹窗 -->
 	    <div v-if="reviewDetail" :class="['modal-overlay', { active: !!reviewDetail }]" @click.self="reviewDetail = null">
-	      <div class="modal" style="max-width:800px;">
+	      <div class="modal modal-large">
 	        <div class="modal-header"><h3>审核详情</h3><button class="modal-close" @click="reviewDetail = null">&times;</button></div>
 	        <div class="modal-body">
 	          <div style="margin-bottom:12px;display:flex;gap:16px;color:var(--text-secondary);font-size:13px;">
@@ -225,7 +225,7 @@
 	            <div class="fg"><label>描述</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;">{{ reviewDetail.description || '-' }}</div></div>
 	            <div class="fg"><label>内容</label><pre style="padding:10px;background:var(--surface-sunken);border-radius:6px;max-height:300px;overflow:auto;white-space:pre-wrap;font-size:13px;">{{ reviewDetail.content }}</pre></div>
 	          </template>
-	          <div v-if="reviewDetail.admin_comment" class="fg"><label>审核意见</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;color:var(--accent-red);">{{ reviewDetail.admin_comment }}</div></div>
+	          <div v-if="reviewDetail.admin_comment" class="fg"><label>审核意见</label><div style="padding:6px 10px;background:var(--surface-sunken);border-radius:6px;color:var(--danger);">{{ reviewDetail.admin_comment }}</div></div>
 	          <div class="form-btns" v-if="reviewDetail.status === 'pending'">
 	            <button class="btn btn-ghost" @click="reviewDetail = null">取消</button>
 	            <button class="btn btn-danger" @click="rejectReview(reviewDetail)">拒绝</button>

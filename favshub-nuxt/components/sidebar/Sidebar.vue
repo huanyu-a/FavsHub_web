@@ -45,45 +45,60 @@
             <li
               class="folder-item"
               :class="{ selected: activeCategoryId === null }"
-              role="button"
-              tabindex="0"
-              @click="$emit('select-collection-category', null)"
-              @keydown.enter="$emit('select-collection-category', null)"
-              @keydown.space.prevent="$emit('select-collection-category', null)"
+                @click="$emit('select-collection-category', null)"
             >
-              <i class="ri-apps-line folder-icon"></i>
-              <span class="folder-name">全部分类</span>
-              <span class="item-count">{{ visibleCollectionTotal }}</span>
+              <span
+                class="folder-select"
+                role="button"
+                tabindex="0"
+                :aria-label="`全部分类 ${visibleCollectionTotal}，选择全部分类`"
+                @keydown.enter="$emit('select-collection-category', null)"
+                @keydown.space.prevent="$emit('select-collection-category', null)"
+              >
+                <i class="ri-apps-line folder-icon"></i>
+                <span class="folder-name">全部分类</span>
+                <span class="item-count">{{ visibleCollectionTotal }}</span>
+              </span>
             </li>
             <!-- 按层级渲染：父分类紧接着其子分类（隐藏空分类） -->
             <template v-for="cat in visibleCollectionRoots" :key="cat.id">
               <li
                 class="folder-item"
                 :class="{ selected: activeCategoryId === cat.id }"
-                role="button"
-                tabindex="0"
                 @click="$emit('select-collection-category', cat.id)"
-                @keydown.enter="$emit('select-collection-category', cat.id)"
-                @keydown.space.prevent="$emit('select-collection-category', cat.id)"
               >
-                <i class="ri-folder-line folder-icon"></i>
-                <span class="folder-name">{{ cat.name }}</span>
-                <span class="item-count">{{ cat.bookmark_count || 0 }}</span>
+                <span
+                  class="folder-select"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`${cat.name} ${cat.bookmark_count || 0}，选择分类`"
+                    @keydown.enter="$emit('select-collection-category', cat.id)"
+                  @keydown.space.prevent="$emit('select-collection-category', cat.id)"
+                >
+                  <i class="ri-folder-line folder-icon"></i>
+                  <span class="folder-name">{{ cat.name }}</span>
+                  <span class="item-count">{{ cat.bookmark_count || 0 }}</span>
+                </span>
               </li>
               <li
                 v-for="child in visibleCollectionChildren(cat.id)"
                 :key="child.id"
                 class="folder-item folder-item--child"
                 :class="{ selected: activeCategoryId === child.id }"
-                role="button"
-                tabindex="0"
                 @click="$emit('select-collection-category', child.id)"
-                @keydown.enter="$emit('select-collection-category', child.id)"
-                @keydown.space.prevent="$emit('select-collection-category', child.id)"
               >
-                <i class="ri-corner-down-right-line folder-icon folder-icon--sub"></i>
-                <span class="folder-name">{{ child.name }}</span>
-                <span class="item-count">{{ child.bookmark_count || 0 }}</span>
+                <span
+                  class="folder-select"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`${child.name} ${child.bookmark_count || 0}，选择分类`"
+                    @keydown.enter="$emit('select-collection-category', child.id)"
+                  @keydown.space.prevent="$emit('select-collection-category', child.id)"
+                >
+                  <i class="ri-corner-down-right-line folder-icon folder-icon--sub"></i>
+                  <span class="folder-name">{{ child.name }}</span>
+                  <span class="item-count">{{ child.bookmark_count || 0 }}</span>
+                </span>
               </li>
             </template>
           </ul>
@@ -94,20 +109,28 @@
             <li
               class="folder-item folder-item--all"
               :class="{ selected: currentFolderId === null }"
-              role="button"
-              tabindex="0"
-              @click="onAllClick"
-              @keydown.enter="onAllClick"
-              @keydown.space.prevent="onAllClick"
+                @click="onAllClick"
               @contextmenu.prevent="onAllContextMenu"
             >
-              <i class="ri-apps-line folder-icon"></i>
-              <span class="folder-name">全部</span>
-              <span class="item-count item-count--pinned">{{ totalBookmarkCount }}</span>
+              <span
+                class="folder-select"
+                role="button"
+                tabindex="0"
+                :aria-label="`全部 ${totalBookmarkCount}，选择全部书签`"
+                @keydown.enter="onAllClick"
+                @keydown.space.prevent="onAllClick"
+              >
+                <i class="ri-apps-line folder-icon"></i>
+                <span class="folder-name">全部</span>
+                <span class="item-count item-count--pinned">{{ totalBookmarkCount }}</span>
+              </span>
               <span
                 class="folder-toggle folder-toggle--all"
                 role="button"
                 tabindex="0"
+                :aria-label="allExpanded ? '收起全部文件夹' : '展开全部文件夹'"
+                :aria-expanded="allExpanded"
+                :title="allExpanded ? '收起全部文件夹' : '展开全部文件夹'"
                 @click.stop="toggleAllFolders"
                 @keydown.enter.stop="toggleAllFolders"
                 @keydown.space.prevent.stop="toggleAllFolders"
@@ -200,16 +223,21 @@
                   v-for="c in collections"
                   :key="c.id"
                   class="collection-item"
-                  role="button"
-                  tabindex="0"
                   @click="$emit('select-collection', c.id)"
-                  @keydown.enter="$emit('select-collection', c.id)"
-                  @keydown.space.prevent="$emit('select-collection', c.id)"
                 >
-                  <span class="collection-item-icon"><AppIcon :value="c.icon" fallback="ri-book-2-line" /></span>
-                  <span class="collection-item-name">{{ c.name }}</span>
-                  <span class="collection-item-count">{{ c.bookmark_count }}</span>
-                  <span v-if="c.new_count && c.new_count > 0" class="collection-new-badge">{{ c.new_count }}</span>
+                  <span
+                    class="collection-select"
+                    role="button"
+                    tabindex="0"
+                    :aria-label="`${c.name} ${c.bookmark_count}${c.new_count && c.new_count > 0 ? ' ' + c.new_count : ''}，打开精选集`"
+                    @keydown.enter="$emit('select-collection', c.id)"
+                    @keydown.space.prevent="$emit('select-collection', c.id)"
+                  >
+                    <span class="collection-item-icon"><AppIcon :value="c.icon" fallback="ri-book-2-line" /></span>
+                    <span class="collection-item-name">{{ c.name }}</span>
+                    <span class="collection-item-count">{{ c.bookmark_count }}</span>
+                    <span v-if="c.new_count && c.new_count > 0" class="collection-new-badge">{{ c.new_count }}</span>
+                  </span>
                 </li>
               </ul>
               <NuxtLink v-else to="/collections" class="collections-empty">
@@ -597,6 +625,14 @@ async function deleteFolder(folder: FolderNode) {
   color: var(--text-primary);
   transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1), color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+#categories-list .folder-select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 24px;
+  cursor: pointer;
+}
 #categories-list .folder-item--child {
   padding-left: 28px;
 }
@@ -615,8 +651,8 @@ async function deleteFolder(folder: FolderNode) {
 #categories-list .folder-item:hover {
   background: var(--surface-selected);
 }
-#categories-list .folder-item:focus-visible {
-  outline: 2px solid var(--primary);
+#categories-list .folder-select:focus-visible {
+  outline: 2px solid light-dark(var(--primary-dark), var(--primary));
   outline-offset: 2px;
 }
 #categories-list .folder-item:active {
@@ -624,15 +660,16 @@ async function deleteFolder(folder: FolderNode) {
   transform: scale(0.98);
 }
 #categories-list .folder-item.selected {
-  background: var(--primary);
-  color: var(--text-inverse);
+  background: var(--primary-medium);
+  color: var(--text-primary);
+  box-shadow: inset 3px 0 var(--primary);
 }
 #categories-list .folder-item.selected:hover {
-  background: var(--primary-hover);
-  color: var(--text-inverse);
+  background: var(--surface-selected);
+  color: var(--text-primary);
 }
 #categories-list .folder-item.selected span {
-  color: var(--text-inverse);
+  color: inherit;
 }
 #categories-list .folder-icon {
   font-size: 16px;
@@ -647,7 +684,7 @@ async function deleteFolder(folder: FolderNode) {
 }
 #categories-list .folder-item.selected .folder-icon,
 #categories-list .folder-item.selected .folder-icon--sub {
-  color: var(--text-inverse);
+  color: light-dark(var(--primary-dark), var(--primary));
 }
 #categories-list .folder-name {
   flex: 1;
@@ -675,14 +712,17 @@ async function deleteFolder(folder: FolderNode) {
   margin-left: 0;
 }
 #categories-list .folder-item.selected .item-count {
-  color: var(--text-inverse);
-  background: color-mix(in srgb, var(--text-inverse) 20%, transparent);
+  color: var(--text-primary);
+  background: var(--surface-hover);
 }
 #categories-list .folder-toggle {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  min-width: 24px;
+  min-height: 24px;
   margin-left: 2px;
   border-radius: 6px;
 }
@@ -691,8 +731,15 @@ async function deleteFolder(folder: FolderNode) {
   right: 32px;
 }
 #categories-list .folder-toggle:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid light-dark(var(--primary-dark), var(--primary));
   outline-offset: 2px;
+}
+
+.sidebar-hub-link {
+  color: var(--text-secondary);
+}
+.sidebar-hub-link.active {
+  color: light-dark(var(--primary-dark), var(--primary));
 }
 
 .sidebar-collections-panel {
@@ -707,7 +754,7 @@ async function deleteFolder(folder: FolderNode) {
   padding: 0 8px 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -733,7 +780,16 @@ async function deleteFolder(folder: FolderNode) {
   position: relative;
 }
 .collection-item:hover { background: var(--surface-hover); }
-.collection-item:focus-visible {
+.collection-select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 24px;
+  cursor: pointer;
+}
+.collection-select:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

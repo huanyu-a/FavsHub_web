@@ -33,7 +33,7 @@
         </div>
       </div>
 
-      <div class="table-container">
+      <div class="table-container" tabindex="0" role="region" aria-label="公告列表">
         <table>
           <thead>
             <tr>
@@ -369,20 +369,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.search-input {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-primary);
-  font-size: 13px;
-  width: 200px;
-}
+.search-input { width: 200px; }
 /* 2026-10-30：公告状态筛选（复用 .search-input 外观，仅收窄） */
 .status-filter {
   width: 132px;
@@ -394,10 +381,6 @@ onMounted(() => {
 }
 .row-deleted .name-cell strong {
   text-decoration: line-through;
-}
-.modal-large {
-  max-width: 760px;
-  width: 90%;
 }
 .badge-pinned {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
@@ -480,7 +463,7 @@ onMounted(() => {
 .announcement-rendered :deep(img) {
   max-width: 100%;
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow-sm);
   margin: 8px 0;
 }
 .announcement-rendered :deep(blockquote) {
@@ -509,10 +492,12 @@ onMounted(() => {
 }
 .form-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
+.form-row > .fg { min-width: 200px; }
 .required {
-  color: var(--danger, #ef4444);
+  color: var(--danger);
 }
 .help-text {
   font-size: 12px;

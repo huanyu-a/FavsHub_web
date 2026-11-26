@@ -48,7 +48,7 @@
       <div v-if="cLoading" class="empty-state">加载中...</div>
       <div v-else-if="collections.length === 0" class="empty-state">暂无精选集</div>
 
-      <table v-else>
+      <div v-else class="table-wrap" tabindex="0" role="region" aria-label="精选集列表"><table>
         <thead>
           <tr>
             <th>名称</th>
@@ -107,7 +107,7 @@
             </tr>
           </template>
         </tbody>
-      </table>
+      </table></div>
 
       <div class="pagination" v-if="cTotalPages > 1">
         <button :disabled="cPage <= 1" @click="cPage--; loadCollections()">上一页</button>
@@ -392,10 +392,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.admin-page {
-  padding: 24px;
-}
-
 .btn-icon {
   background: none;
   border: none;

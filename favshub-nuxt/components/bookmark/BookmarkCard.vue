@@ -16,6 +16,9 @@
         :src="iconSrc"
         :alt="bookmark.title"
         class="card-favicon-img"
+        width="24"
+        height="24"
+        decoding="async"
         :fetchpriority="faviconPriority ? 'high' : 'auto'"
         :loading="faviconPriority ? 'eager' : 'lazy'"
         @load="onIconLoad"
@@ -172,4 +175,51 @@ onMounted(() => {
   onBeforeUnmount(() => observer.disconnect())
 })
 </script>
+
+<style scoped>
+.bookmark-card {
+  position: relative;
+}
+
+/* 图标容器与成功/失败两种内容保持同尺寸，避免加载前后卡片位移 */
+.favicon {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+}
+.card-favicon-img,
+.card-icon-text {
+  display: inline-flex;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  box-sizing: border-box;
+}
+.card-favicon-img {
+  object-fit: contain;
+}
+.card-icon-text {
+  align-items: center;
+  justify-content: center;
+  color: var(--control-accent);
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--primary-light);
+  border-radius: 6px;
+}
+
+/* 全局样式也有焦点框；组件内补充可见层级，防止被相邻卡片覆盖 */
+.bookmark-card:focus-visible {
+  z-index: 2;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+@media (forced-colors: active) {
+  .bookmark-card:focus-visible {
+    outline-color: Highlight;
+  }
+}
+</style>
 

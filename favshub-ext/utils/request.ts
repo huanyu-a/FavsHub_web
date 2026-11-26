@@ -11,6 +11,9 @@ export interface ApiResponse<T = unknown> {
 
 export interface RequestOptions extends RequestInit {
   auth?: boolean;
+  /** 同步预览/执行可固定同一站点与凭据；普通调用仍从 storage 读取。 */
+  baseUrl?: string;
+  token?: string;
 }
 
 function joinUrl(baseUrl: string, path: string) {
@@ -22,10 +25,10 @@ function joinUrl(baseUrl: string, path: string) {
 }
 
 export async function requestRaw(path: string, options: RequestOptions = {}) {
-  const { auth = true, headers, signal, ...init } = options;
+  const { auth = true, headers, signal, baseUrl: fixedBaseUrl, token: fixedToken, ...init } = options;
   const [baseUrl, token] = await Promise.all([
-    baseUrlStorage.getValue(),
-    auth ? tokenStorage.getValue() : Promise.resolve(''),
+    fixedBaseUrl ?? baseUrlStorage.getValue(),
+    auth ? (fixedToken ?? tokenStorage.getValue()) : Promise.resolve(''),
   ]);
 
   const url = joinUrl(baseUrl, path);

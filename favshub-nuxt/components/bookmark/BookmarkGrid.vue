@@ -1,5 +1,5 @@
 <template>
-  <div class="bookmarks-container" id="bookmarks-list" :class="{ loaded: !isLoading, 'density-compact': density === 'compact' }">
+  <div class="bookmarks-container" id="bookmarks-list" :class="{ loaded: !isLoading, 'density-compact': density === 'compact' }" @keydown="onGridKeydown">
     <!-- 加载占位 -->
     <template v-if="isLoading">
       <div class="folder-group flat-layout">
@@ -16,13 +16,22 @@
       <button class="add-first-btn client-only-user" @click="$emit('add')">添加第一个书签</button>
     </div>
 
-    <!-- 网格工具条：密度切换（本地持久化，游客同样可用） -->
+    <!-- 网格工具条：独立 v-if，不能与下面的分组/平铺分支组成 else 链 -->
     <div v-if="bookmarks.length > 0" class="grid-toolbar">
+      <nav v-if="folderGroups.length > 1" class="category-index" aria-label="分类快速索引">
+        <a
+          v-for="group in folderGroups"
+          :key="group.folderId ?? 'recommended'"
+          class="category-index-link"
+          :href="'#' + groupDomId(group)"
+          @click="jumpToGroup($event, group)"
+        >{{ group.name }}</a>
+      </nav>
       <button
         type="button"
         class="density-toggle"
-        :title="density === 'compact' ? '切换为舒适密度' : '切换为紧凑密度'"
-        :aria-label="density === 'compact' ? '切换为舒适密度' : '切换为紧凑密度'"
+        :title="density === 'compact' ? '当前紧凑密度，点击切换为舒适' : '当前舒适密度，点击切换为紧凑'"
+        :aria-label="density === 'compact' ? '当前紧凑密度，点击切换为舒适' : '当前舒适密度，点击切换为紧凑'"
         :aria-pressed="density === 'compact'"
         @click="toggleDensity"
       >
@@ -34,14 +43,33 @@
     <!-- 分组显示（独立条件：勿接在工具条的 v-if 后形成 else 链，否则会被工具条吞掉） -->
     <template v-if="bookmarks.length > 0 && folderGroups.length > 0">
       <div
-        v-for="(group, gIdx) in folderGroups"
+        v-for="group in folderGroups"
         :key="group.folderId ?? 'recommended'"
         class="folder-group flat-layout"
-        :id="group.folderId === null ? 'folder-group-recommended' : 'folder-group-' + group.folderId"
+        :id="groupDomId(group)"
         :style="{ '--group-accent': groupAccent(group) }"
       >
-        <h3 class="folder-group-title">{{ group.name }}</h3>
-        <div :ref="setGridRef" class="folder-bookmarks-grid">
+        <h3 :id="groupTitleId(group)" class="folder-group-title">
+          <button
+            type="button"
+            class="folder-toggle"
+            :aria-expanded="isGroupExpanded(group)"
+            :aria-controls="groupGridId(group)"
+            :aria-label="(isGroupExpanded(group) ? '收起' : '展开') + group.name"
+            @click="toggleGroup(group)"
+          >
+            <i class="ri-arrow-down-s-line folder-chevron" aria-hidden="true"></i>
+            <span>{{ group.name }}</span>
+          </button>
+        </h3>
+        <div
+          v-show="isGroupExpanded(group)"
+          :id="groupGridId(group)"
+          :ref="setGridRef"
+          class="folder-bookmarks-grid"
+          role="region"
+          :aria-labelledby="groupTitleId(group)"
+        >
           <BookmarkCard
             v-for="bookmark in group.bookmarks"
             :key="bookmark.id"
@@ -105,7 +133,7 @@ const props = defineProps<{
   currentFolderId?: number | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   edit: [bookmark: any]
   delete: [bookmark: any]
   add: []
@@ -114,7 +142,18 @@ defineEmits<{
 
 const gridEls = ref<HTMLElement[]>([])
 function setGridRef(el: any) {
-  if (el && !gridEls.value.includes(el)) gridEls.value.push(el)
+  gridEls.value = gridEls.value.filter(item => item.isConnected)
+  for (const [element, instance] of sortableInstances) {
+    if (!element.isConnected) {
+      instance.destroy()
+      sortableInstances.delete(element)
+    }
+  }
+  if (el && !gridEls.value.includes(el)) {
+    gridEls.value.push(el)
+    // 渐进加载/折叠状态更新产生的新网格也要补建拖拽实例
+    if (mounted.value) nextTick(() => ensureSortableInstances())
+  }
 }
 
 // 相邻分类卡片的强调色轮换：驱动标题下划线与 hover 阴影的着色（--group-accent）
@@ -125,6 +164,72 @@ function groupAccent(group: { folderId: number | null }): string {
   return GROUP_ACCENTS[Math.abs(group.folderId) % GROUP_ACCENTS.length]
 }
 
+function groupDomId(group: { folderId: number | null }): string {
+  return group.folderId === null ? 'folder-group-recommended' : `folder-group-${group.folderId}`
+}
+function groupTitleId(group: { folderId: number | null }): string {
+  return `${groupDomId(group)}-title`
+}
+function groupGridId(group: { folderId: number | null }): string {
+  return `${groupDomId(group)}-bookmarks`
+}
+function groupKey(group: { folderId: number | null }): string {
+  const viewKey = bookmarksStore.viewMode === 'collection'
+    ? `collection:${bookmarksStore.currentCollectionId || 'unknown'}`
+    : 'mine'
+  return `${viewKey}:${group.folderId ?? 'recommended'}`
+}
+function isGroupExpanded(group: { folderId: number | null }): boolean {
+  return bookmarksStore.isGroupExpanded(groupKey(group))
+}
+function toggleGroup(group: { folderId: number | null }) {
+  bookmarksStore.toggleGroup(groupKey(group))
+}
+
+async function jumpToGroup(event: MouseEvent, group: { folderId: number | null }) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  // 收起的分组也允许通过索引定位；标题始终是实际存在的锚点
+  bookmarksStore.setGroupExpanded(groupKey(group), true)
+  await nextTick()
+  const id = groupDomId(group)
+  const target = document.getElementById(id)
+  if (!target) return
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  history.replaceState(history.state, '', `#${id}`)
+}
+
+// 锚点保持原生 Tab/Enter 行为；方向键在当前网格内移动并保证焦点可见
+function onGridKeydown(event: KeyboardEvent) {
+  if (event.altKey || event.ctrlKey || event.metaKey) return
+  const target = event.target as HTMLElement | null
+  const card = target?.closest<HTMLAnchorElement>('.bookmark-card')
+  const grid = card?.closest<HTMLElement>('.folder-bookmarks-grid')
+  if (!card || !grid) return
+
+  const cards = Array.from(grid.querySelectorAll<HTMLAnchorElement>('.bookmark-card'))
+    .filter(el => el.getClientRects().length > 0)
+  const index = cards.indexOf(card)
+  if (index < 0) return
+  const columnCount = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length)
+  let nextIndex = index
+  if (event.key === 'ArrowLeft') nextIndex = index - 1
+  else if (event.key === 'ArrowRight') nextIndex = index + 1
+  else if (event.key === 'ArrowUp') nextIndex = index - columnCount
+  else if (event.key === 'ArrowDown') nextIndex = index + columnCount
+  else if (event.key === 'Home') nextIndex = 0
+  else if (event.key === 'End') nextIndex = cards.length - 1
+  else return
+
+  // 已到网格边界时也不把方向键/Home/End 冒泡成整页滚动
+  event.preventDefault()
+  const next = cards[nextIndex]
+  if (!next || next === card) return
+  next.focus({ preventScroll: true })
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+
 // C2: SSR/hydration 阶段仅渲染前 30 张卡片，挂载后补齐其余（懒加载）
 // mounted 标志保证 SSR HTML 与客户端首帧一致，避免 hydration mismatch
 const INITIAL_RENDER_LIMIT = 30
@@ -133,29 +238,33 @@ const mounted = ref(false)
 // 用响应式 ref 维护，避免在 computed 中做副作用（frontend review）
 const priorityIds = ref(new Set<number>())
 
-// frontend #7/#15：卸载时统一清理
+// frontend #7/#15：卸载时统一清理；generation 使尚未完成的动态 import 不能复活旧实例
 const sortableInstances = new Map<HTMLElement, { destroy: () => void }>()
-
-onMounted(() => {
-  mounted.value = true
-  ensureSortableInstances()
-  try {
-    if (localStorage.getItem('favshub_density') === 'compact') density.value = 'compact'
-  } catch { /* localStorage 不可用时保持默认舒适密度 */ }
-})
-
-// 卡片密度：舒适（默认）/ 紧凑，选择持久化到本地，不依赖登录态
-const density = ref<'comfortable' | 'compact'>('comfortable')
-function toggleDensity() {
-  density.value = density.value === 'compact' ? 'comfortable' : 'compact'
-  try { localStorage.setItem('favshub_density', density.value) } catch { /* 忽略写入失败 */ }
-}
-
-// C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例
-onBeforeUnmount(() => {
-  gridEls.value.length = 0
+let sortableGeneration = 0
+function destroySortableInstances() {
+  ++sortableGeneration
   for (const instance of sortableInstances.values()) instance.destroy()
   sortableInstances.clear()
+}
+
+onMounted(() => {
+  bookmarksStore.loadViewPreferences()
+  mounted.value = true
+  nextTick(() => ensureSortableInstances())
+})
+
+// 视图偏好由 store 统一持久化，游客与登录用户使用同一套本地行为
+const bookmarksStore = useBookmarksStore()
+const density = computed(() => bookmarksStore.density)
+const canSort = computed(() => !props.isGuest && bookmarksStore.viewMode === 'mine')
+function toggleDensity() {
+  bookmarksStore.setDensity(density.value === 'compact' ? 'comfortable' : 'compact')
+}
+
+// C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例并使 pending import 失效
+onBeforeUnmount(() => {
+  gridEls.value.length = 0
+  destroySortableInstances()
 })
 
 // 首屏前 30 张书签 ID 优先 fetchpriority（SSR 与客户端输入一致，无求值顺序漂移）
@@ -181,20 +290,45 @@ function onContextMenu(event: MouseEvent, bookmark: any) {
   contextMenu.visible = true
 }
 
-// 拖拽排序（仅登录用户）— frontend #15：onMounted 内动态加载，实例可被 destroy
+// 拖拽排序：仅个人书签且非游客；游客/精选集销毁，回到个人视图重建
+function onSortableEnd(event: { from: HTMLElement }) {
+  if (!canSort.value) return
+  const items: { id: number; sort_order: number }[] = []
+  // 只读取触发事件的 grid 的直接子卡片；排除添加按钮与其他 grid/嵌套节点。
+  for (const child of Array.from(event.from.children)) {
+    if (!child.classList.contains('bookmark-card')) continue
+    const id = Number((child as HTMLElement).dataset.id)
+    if (!Number.isSafeInteger(id) || id <= 0) continue
+    items.push({ id, sort_order: items.length })
+  }
+  if (items.length) emit('reorder', items)
+}
+
 function ensureSortableInstances() {
-  if (props.isGuest) return
+  if (!canSort.value || !mounted.value) {
+    if (sortableInstances.size) destroySortableInstances()
+    return
+  }
+  const generation = sortableGeneration
   import('sortablejs').then(({ default: Sortable }) => {
+    if (generation !== sortableGeneration || !mounted.value || !canSort.value) return
     for (const el of gridEls.value) {
-      if (!el || sortableInstances.has(el)) continue
+      if (!el?.isConnected || sortableInstances.has(el)) continue
       sortableInstances.set(el, Sortable.create(el, {
         animation: 200,
         ghostClass: 'sortable-ghost',
         draggable: '.bookmark-card',
+        onEnd: onSortableEnd,
       }))
     }
+  }).catch(error => {
+    if (generation === sortableGeneration) console.error('加载拖拽排序组件失败', error)
   })
 }
+watch(canSort, enabled => {
+  if (!enabled) destroySortableInstances()
+  else if (mounted.value) nextTick(() => ensureSortableInstances())
+})
 // 挂载后懒加载补齐的新网格容器也补建拖拽实例
 watch(gridEls, () => ensureSortableInstances())
 
@@ -281,6 +415,8 @@ const flatVisibleBookmarks = computed(() => {
    --bookmark-width      → .folder-bookmarks-grid 列宽 / .bookmark-placeholder / .add-bookmark-card 上限
    --bookmark-card-height → .folder-bookmarks-grid .bookmark-card 高度 */
 .bookmarks-container {
+  --bookmark-sticky-top: 0px;
+  --bookmark-toolbar-height: 44px;
   --bookmark-card-height: v-bind('bookmarkCardHeight ? bookmarkCardHeight + "px" : "auto"');
   --bookmark-container-width: v-bind('bookmarkContainerWidth ? bookmarkContainerWidth + "%" : "100%"');
   --bookmark-width: v-bind('bookmarkWidth ? bookmarkWidth + "px" : "210px"');
@@ -313,33 +449,117 @@ const flatVisibleBookmarks = computed(() => {
   margin-bottom: 10px;
 }
 
-/* 网格工具条：吸附容器右上角，不额外占一行 */
+/* 分类索引与密度共用一个吸顶工具条；分组标题在其下方吸顶 */
 .grid-toolbar {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 5;
+  position: sticky;
+  top: var(--bookmark-sticky-top);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--bookmark-toolbar-height);
+  box-sizing: border-box;
+  margin: -4px -4px 12px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+}
+.category-index {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.category-index-link {
+  flex: 0 0 auto;
+  max-width: 180px;
+  padding: 5px 9px;
+  overflow: hidden;
+  color: var(--text-primary);
+  line-height: 1.4;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 7px;
+  scroll-margin-top: calc(var(--bookmark-sticky-top) + var(--bookmark-toolbar-height) + 64px);
+}
+.category-index-link:hover {
+  color: var(--control-accent);
+  background: var(--control-hover-bg);
+}
+.category-index-link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.folder-group {
+  scroll-margin-top: calc(var(--bookmark-sticky-top) + var(--bookmark-toolbar-height) + 12px);
+}
+.folder-group-title {
+  position: sticky;
+  top: calc(var(--bookmark-sticky-top) + var(--bookmark-toolbar-height));
+  z-index: 20;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0;
+  background: var(--surface-raised);
+}
+.folder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.folder-group:hover .folder-toggle {
+  color: var(--control-accent);
+}
+.folder-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+.folder-chevron {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+.folder-toggle[aria-expanded="false"] .folder-chevron {
+  transform: rotate(-90deg);
+}
+:deep(.bookmark-card) {
+  scroll-margin-block: calc(var(--bookmark-sticky-top) + var(--bookmark-toolbar-height) + 64px) 16px;
 }
 .density-toggle {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
   font-size: 12px;
-  color: var(--text-tertiary);
-  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  /* 11 主题实测：默认文字最低 4.76:1；accent/焦点最低 4.89:1；hover 最低 4.94:1 */
+  background: light-dark(var(--surface-raised), var(--surface-sunken));
   border: 0.5px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .density-toggle:hover {
-  color: var(--primary);
-  border-color: var(--primary);
-  background: var(--primary-light);
+  color: var(--control-accent);
+  border-color: var(--control-accent);
+  background: var(--control-hover-bg);
 }
 .density-toggle:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -364,12 +584,42 @@ const flatVisibleBookmarks = computed(() => {
   min-height: 44px;
 }
 
+@media (max-width: 1024px) {
+  .bookmarks-container {
+    --bookmark-sticky-top: 60px;
+    --bookmark-toolbar-height: 40px;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+  .folder-group-title {
+    margin-bottom: 0.75rem;
+  }
+}
+
 @media (max-width: 640px) {
+  .grid-toolbar {
+    margin-inline: -2px;
+  }
+  .category-index-link {
+    max-width: 128px;
+    padding-inline: 7px;
+  }
   .density-label {
     display: none;
   }
   .density-toggle {
     padding: 4px 7px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bookmarks-container {
+    --bookmark-sticky-top: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folder-chevron {
+    transition: none;
   }
 }
 </style>

@@ -8,7 +8,7 @@
     </header>
     <div v-if="isLoading" class="loading">加载中...</div>
     <div v-else class="card">
-      <table class="data-table">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="用户列表"><table class="data-table">
         <thead>
           <tr>
             <th>ID</th>
@@ -44,7 +44,7 @@
             <td v-else>-</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
       <div v-if="filteredUsers.length === 0" class="empty-state">暂无匹配用户</div>
     </div>
     <!-- 编辑弹窗 (仅管理员) -->

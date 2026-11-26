@@ -1,7 +1,7 @@
 <template>
   <div class="admin-page">
     <header class="page-header">
-      <h2>管理后台</h2>
+      <h1>管理后台</h1>
       <p v-if="isAdmin">欢迎回来，{{ authStore.user?.nickname || authStore.user?.username || '用户' }}！（管理员）</p>
       <p v-else>欢迎回来，{{ authStore.user?.nickname || authStore.user?.username || '用户' }}！</p>
     </header>

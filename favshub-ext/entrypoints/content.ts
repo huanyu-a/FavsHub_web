@@ -25,9 +25,19 @@ export default defineContentScript({
   // 静态匹配占位（不注入任何页面），实际由 background.ts 动态注册到 FavsHub 网站
   matches: ['https://example.invalid/*'],
   runAt: 'document_start',
-  main() {
+  main(ctx) {
     // 在 DOM 上标记扩展模式，让页面的 chrome-shim.js 能检测到
     document.documentElement.setAttribute('data-favshub-ext', 'active');
+
+    // 仅通知枚举主题值，不读取或发送 Cookie、存储内容等页面数据。
+    const notifyWebsiteTheme = () => {
+      const theme = document.documentElement.getAttribute('data-theme');
+      if (theme !== 'light' && theme !== 'dark') return;
+      void browser.runtime.sendMessage({ action: 'favshubWebsiteThemeChanged', theme }).catch(() => {});
+    };
+    const themeObserver = new MutationObserver(notifyWebsiteTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    ctx.onInvalidated(() => themeObserver.disconnect());
 
     // 中继网站页面与 background 之间的消息
     window.addEventListener('message', async (event) => {

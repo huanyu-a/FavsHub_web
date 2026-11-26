@@ -14,7 +14,7 @@
           <button class="btn btn-ghost btn-sm" @click="load">刷新</button>
         </div>
       </div>
-      <table>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="搜索引擎列表"><table>
         <thead><tr><th>ID</th><th>图标</th><th>名称</th><th>标签</th><th>URL</th><th>分类</th><th>默认</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-if="loading"><td colspan="10" class="empty-state">加载中...</td></tr>
@@ -49,7 +49,7 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <!-- 添加/编辑弹窗 -->
     <div v-if="modalVisible" :class="['modal-overlay', { active: modalVisible }]" @click.self="modalVisible = false">

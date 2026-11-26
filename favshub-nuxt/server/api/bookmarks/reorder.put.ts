@@ -15,11 +15,12 @@ export default defineEventHandler(async (event) => {
 
   const db = getRawDb()
   const now = Date.now()
-  const update = db.prepare('UPDATE bookmarks SET sort_order = ?, folder_id = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+  const update = db.prepare('UPDATE bookmarks SET sort_order = ?, updated_at = ? WHERE id = ? AND user_id = ?')
 
   const tx = db.transaction(() => {
     for (const item of items) {
-      update.run(item.sort_order, item.folder_id ?? null, now, item.id, user.id)
+      // 兼容旧 payload 中的 folder_id，但排序端点绝不改变书签所属文件夹。
+      update.run(item.sort_order, now, item.id, user.id)
     }
   })
   tx()

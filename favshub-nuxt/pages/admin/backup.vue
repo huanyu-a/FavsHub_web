@@ -67,7 +67,7 @@
         </div>
         <div v-if="filesLoading" class="loading-sm loading-padded">加载中...</div>
         <div v-else-if="backupFiles.length === 0" class="empty-state">暂无备份文件</div>
-        <table v-else class="data-table">
+        <div v-else class="table-wrap" tabindex="0" role="region" aria-label="备份文件列表"><table class="data-table">
           <thead>
             <tr><th>文件名</th><th>大小</th><th>创建时间</th><th>操作</th></tr>
           </thead>
@@ -81,7 +81,7 @@
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </template>
 

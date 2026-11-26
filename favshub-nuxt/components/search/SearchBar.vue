@@ -8,7 +8,7 @@
       @submit.prevent="handleSearch()"
     >
       <div style="position: relative; height: auto;">
-        <button type="button" class="search-icon-container" title="切换搜索引擎" aria-label="切换搜索引擎" @click="toggleDropdown">
+        <button ref="engineToggleRef" type="button" class="search-icon-container" title="切换搜索引擎" aria-label="切换搜索引擎" @click="toggleDropdown">
           <img
             :src="currentEngine?.icon || '/images/placeholder-icon.svg'"
             :alt="currentEngine?.name || 'search-engine-icon'"
@@ -20,6 +20,7 @@
           ref="inputRef"
           v-model="query"
           class="search-input"
+          aria-label="搜索书签、提示词或网页"
           placeholder="按 Enter 键搜索，或按 Cmd/Ctrl + Enter 键搜索所有搜索引擎"
           rows="1"
           style="width: 100%; resize: none; padding-left: 60px;"
@@ -101,9 +102,16 @@
     <!-- 搜索引擎管理弹窗 -->
     <Teleport to="body">
       <div id="search-engines-dialog" class="engine-dialog-overlay" :class="{ visible: showEngineDialog }" v-if="showEngineDialog" @click.self="closeEngineDialog">
-        <div class="engine-dialog-content">
-          <button type="button" class="engine-dialog-close" aria-label="关闭" @click="closeEngineDialog">&times;</button>
-          <h2 class="engine-dialog-title">搜索引擎设置</h2>
+        <div
+          ref="engineDialogRef"
+          class="engine-dialog-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="search-engines-dialog-title"
+          @keydown="handleEngineDialogKeydown"
+        >
+          <button ref="engineDialogCloseRef" type="button" class="engine-dialog-close" aria-label="关闭搜索引擎设置" @click="closeEngineDialog">&times;</button>
+          <h2 id="search-engines-dialog-title" class="engine-dialog-title">搜索引擎设置</h2>
           <div class="engine-dialog-body">
             <div v-for="cat in engineCategories" :key="cat.key" class="engine-dialog-category">
               <h3 class="engine-dialog-category-title">{{ cat.label }}</h3>
@@ -189,6 +197,9 @@ const emit = defineEmits<{
 }>()
 
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+const engineToggleRef = ref<HTMLButtonElement | null>(null)
+const engineDialogRef = ref<HTMLElement | null>(null)
+const engineDialogCloseRef = ref<HTMLButtonElement | null>(null)
 const query = ref('')
 const showDropdown = ref(false)
 const showSuggestions = ref(false)
@@ -450,14 +461,50 @@ function selectEngine(engine: Engine) {
   showDropdown.value = false
 }
 
-function openEngineDialog() {
+async function openEngineDialog() {
   showDropdown.value = false
   showEngineDialog.value = true
+  await nextTick()
+  engineDialogCloseRef.value?.focus({ preventScroll: true })
 }
 
-function closeEngineDialog() {
+async function closeEngineDialog() {
   showEngineDialog.value = false
-  searchEngineStore.fetchEngines()
+  void searchEngineStore.fetchEngines()
+  await nextTick()
+  const target = engineToggleRef.value
+  if (target?.isConnected) target.focus({ preventScroll: true })
+}
+
+function handleEngineDialogKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    void closeEngineDialog()
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const dialog = engineDialogRef.value
+  if (!dialog) return
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+  )).filter(element => element.getAttribute('aria-hidden') !== 'true')
+  if (focusable.length === 0) {
+    event.preventDefault()
+    return
+  }
+
+  const first = focusable[0]!
+  const last = focusable[focusable.length - 1]!
+  const active = document.activeElement
+  if (event.shiftKey && (active === first || !dialog.contains(active))) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 /** Open URL; on mobile use location.href to avoid popup blockers */
@@ -638,4 +685,11 @@ onBeforeUnmount(() => {
   pendingCleanups.clear()
 })
 </script>
+
+<style scoped>
+.search-input {
+  min-height: 24px;
+  line-height: 21px;
+}
+</style>
 

@@ -1,8 +1,4 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import Add from '@/components/Add.vue';
-import Home from '@/components/Home.vue';
-import Settings from '@/components/Settings.vue';
-import Sync from '@/components/Sync.vue';
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -10,22 +6,22 @@ const router = createRouter({
     {
       path: '/',
       name: 'bookmarks',
-      component: Home,
+      component: () => import('@/components/Home.vue'),
     },
     {
       path: '/add',
       name: 'add',
-      component: Add,
+      component: () => import('@/components/Add.vue'),
     },
     {
       path: '/sync',
       name: 'sync',
-      component: Sync,
+      component: () => import('@/components/Sync.vue'),
     },
     {
       path: '/settings',
       name: 'settings',
-      component: Settings,
+      component: () => import('@/components/Settings.vue'),
     },
   ],
 });

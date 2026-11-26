@@ -9,6 +9,25 @@
  * 加载顺序：tokens.css → themes.css → main-bundle.css
  */
 
+/* 控件语义色：浅色用更深的 primary-dark，深色用 primary。
+   tests/bookmark-grid-interactions.test.ts 直接解析 11 主题生产变量并计算 WCAG 对比度。 */
+:root {
+  --control-accent: light-dark(var(--primary-dark), var(--primary));
+  --focus-ring: light-dark(var(--primary-dark), var(--primary));
+  /* 必须不透明；浅色 surface-active 在琥珀主题仅 4.30:1，故采用实测达标的 surface-hover。 */
+  --control-hover-bg: light-dark(var(--surface-hover), var(--surface));
+}
+html[data-theme="light"] {
+  --control-accent: var(--primary-dark);
+  --focus-ring: var(--primary-dark);
+  --control-hover-bg: var(--surface-hover);
+}
+html[data-theme="dark"] {
+  --control-accent: var(--primary);
+  --focus-ring: var(--primary);
+  --control-hover-bg: var(--surface);
+}
+
 /* ════════════════════════════════════════════
    浅色主题共享值（theme-bg-1 使用 Slate 文字色系）
    ════════════════════════════════════════════ */
