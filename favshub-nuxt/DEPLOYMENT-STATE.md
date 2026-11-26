@@ -1,4 +1,6 @@
-**最后更新：2026-11-26（第 40 次修订：1.0.106 提示词前台隐藏空分类 —— 递归剔除 `prompt_count=0` 且无可见子分类的节点；自身为 0 但含非空子分类的父节点保留。游客分类从 13 个降到 2 个有内容分类，提示词 5 张不受影响。CI run `45741117356` 全绿，镜像 label 核验后部署，容器 healthy。**）**
+**最后更新：2026-11-26（第 41 次修订：1.0.107 前端 UI、交互与同步安全优化 —— 11 主题暖白/Emerald 语义令牌、全局搜索、长列表状态恢复、后台与移动端归一化、扩展三向预览/执行上下文绑定。功能提交 `1e8e62b6a6916affcc85b02956c8d2729ae8dc78`，发布提交 `d3e06ec371e074d4e23351ef4632244bb498350a`。Nuxt quality `45829493005`、Extension quality `45828263357`、Docker Publish `45829530449` 全绿；23 套件 2326 断言及技能清单守卫通过。镜像 `sha256:053e4f8c46631c707a096c6091925e2b5c0c3e1a86d5f47fb01ff6b26c79311c`，label `version=1.0.107 / revision=d3e06ec371e074d4e23351ef4632244bb498350a` 核验后显式 pull 并 `up -d`。生产容器 healthy、RestartCount=0、`/api/health` database=connected、技能清单 `site_version=1.0.107`、首页 200 且 CSS `v=20261126b`。生产 Lighthouse Accessibility/SEO/Agentic=100，Best Practices=54（既有游客 401/第三方与弃用项）；性能 LCP=452ms、CLS=0.06；390×844 无页面横向滚动，Ctrl+K 对话框与输入聚焦通过。回滚锚点 `rollback-20261126-213204`（=1.0.106 镜像 `cbe74ddb0ac4`）；备份 `data/backups/favshub.db.pre-deploy-20261126-213204`（5,500,928B，integrity_check=ok）。完整 Nuxt typecheck 既有类型债仍为非阻断项。**）**
+
+上一轮第 40 次修订：1.0.106 提示词前台隐藏空分类 —— 递归剔除 `prompt_count=0` 且无可见子分类的节点；自身为 0 但含非空子分类的父节点保留。游客分类从 13 个降到 2 个有内容分类，提示词 5 张不受影响。CI run `45741117356` 全绿，镜像 label 核验后部署，容器 healthy。**）**
 
 上一轮第 39 次修订：1.0.105 热修 —— 1.0.104 密度工具条引入回归：工具条独立 `v-if` 后，分组网格仍写 `v-else-if`，导致有书签时网格分支被整条吞掉，生产首页 0 卡片。修为分组/扁平各自显式条件；本地 mock 2 卡实测通过，生产实测 **239 卡 / 25 分组**恢复。附带页脚小字对比度修复。CI run `45739173919` 全绿，镜像 label 1.0.105 核验后部署，容器 healthy、RestartCount=0。**）**
 
