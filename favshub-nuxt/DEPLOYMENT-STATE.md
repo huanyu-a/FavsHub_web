@@ -23,7 +23,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:2942b8348bfbf37de65dde01cd166b5ebb2079219754ec007978b7e8e6ef42bf`（容器 Image `sha256:185887eea2e9`） |
 | **CI run** | `44496586479`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
 | **健康检查** | `docker ps` → `Up (healthy)`、`RestartCount=0`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.103`** |
-| **断言总数** | **2323**（共 23 个套件，本次**未变** —— 纯口径修复，未新增套件）· `ts:check` **973** 个具名导入（972 → 973，新增 `index.get.ts` 对 `DEAL_STATES` 的具名导入） |
+| **断言总数** | **2326**（共 23 个套件，本次**未变** —— 纯口径修复，未新增套件）· `ts:check` **973** 个具名导入（972 → 973，新增 `index.get.ts` 对 `DEAL_STATES` 的具名导入） |
 | **线上数据分布** | `published 88 / pending 0 / rejected 25 / invalid 13 / offline 3 / deleted 5`（合计 134）—— 无数据库迁移（启动日志 `token_deals.state 回填 133 行` 是既有的幂等回填），部署后由服务器侧只读查询测得 |
 | **技能包版本** | `1.12.0`（仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库，`site v1.0.103`；VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
 | **回滚锚点** | 镜像 tag `rollback-20261119-172516` ← `315f319b6a8b`（1.0.102 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261119172516`（5,292,032 字节，`integrity_check=ok`）；更早还有 `rollback-20261116` / `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
@@ -1373,7 +1373,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 `ssrf-pin-check` / `category-source-check` / `favicon-resolve-check` / `admin-filter-params` /
 `admin-filter-wiring` / `lib/free-port.test`；
 15 个跑产物，含
-`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2323 项断言**），另加 `ts:check`
+`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2326 项断言**），另加 `ts:check`
 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
@@ -1402,7 +1402,7 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `admin-invalid-filters` | 98 | 后台通告筛选契约：「已失效」面板七个筛选 + 三档 chip 计数口径一致性 + **队列视图（全部/待审核/已发布…）每个筛选档位**；自建库自播种（含游客行 + 各维度错开下标，避免真空用例） |
 | `admin-filter-wiring` | 46 | **是**（`--experimental-strip-types`）后台筛选栏**接线守卫**：模板控件 ↔ 脚本状态 ↔ 视图 filterState ↔ `ADMIN_DEAL_FILTER_FIELDS` 四条链对账；下拉选项只许来自共享表（禁手写非空 option）；六张选项表与服务端白名单值集**双向相等** |
 | `free-port` | 19 | 空闲端口工具单测：4 条**反例**（ABI 不匹配 / 未就绪 / `ECONNREFUSED` / `EACCES` 必须**不**判为端口冲突）+ 换端口重试行为 + 真子进程竞态 |
-| **合计（断言）** | **2323** | |
+| **合计（断言）** | **2326** | |
 
 > 2026-11-09：上表的 `ts:check` 之前写 954，实测 963（早已过时，无人发现 ——
 > 因为它那一列**不参与** `assertion-count` 的总数校验，脚本明确不计入）。
