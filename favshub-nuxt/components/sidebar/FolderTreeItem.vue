@@ -111,8 +111,23 @@ function toggleExpand(e: Event) {
 </template>
 
 <style scoped>
-.folder-tree-node,
+/* 递归树节点的布局必须显式声明。
+   外部全局样式（main-bundle.css 的 #categories-list 段）是按「扁平列表」写的：
+   每个 li 只含一个可点击行。引入嵌套 ul 后，那些规则会把 li 变成
+   display:flex + overflow:hidden，子列表被压成 0 高度 / display:none
+   —— 表现为「点了展开但什么都看不到」（2026-11-27 用户实测反馈）。
+   这里用 !important 压过全局的 ID 选择器，且只作用于树节点。 */
+.folder-tree-node {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .folder-tree-children {
+  display: block !important;
   margin: 0;
   padding: 0;
   list-style: none;
