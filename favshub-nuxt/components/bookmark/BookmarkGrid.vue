@@ -199,27 +199,47 @@ function setupGroupObserver() {
   if (!import.meta.client) return
   if (groupObserver) return
   const main = document.querySelector('main')
-  groupObserver = new IntersectionObserver((entries) => {
+  groupObserver = new IntersectionObserver(() => {
     if (performance.now() < suppressScrollSpyUntil) return
-    // 选「最接近顶部工具条」的可见分组作为当前分组
-    let bestKey: string | null = null
-    let bestTop = Infinity
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue
-      const key = (entry.target as HTMLElement).dataset.groupKey
-      if (!key) continue
-      if (entry.boundingClientRect.top < bestTop) {
-        bestTop = entry.boundingClientRect.top
-        bestKey = key
-      }
-    }
-    if (bestKey) activeGroupKey.value = bestKey
+    updateActiveGroupFromScroll()
   }, {
     root: main instanceof HTMLElement ? main : null,
     // 上边留出工具条高度、下边留出大半屏 → 只有「当前占据视口上部的分组」才算激活
     rootMargin: '-8% 0px -60% 0px',
     threshold: 0,
   })
+}
+
+/**
+ * 从当前滚动位置算出激活分组。
+ *
+ * 不能只看 IntersectionObserver 的 entries —— 回调只报告**本次变化**的元素，
+ * 当分组 A 滚出视野时 entries 里只有 A（isIntersecting=false），
+ * 此时新的分组 B 可能早就 intersecting 却没进 entries，于是高亮会卡在旧值
+ * （2026-11-27 实测：滚到第 19 个分组，高亮仍停在第一个）。
+ * 这里改为直接按几何位置遍历全部分组，谁的顶边最靠近判定线谁就是当前分组。
+ */
+function updateActiveGroupFromScroll() {
+  if (performance.now() < suppressScrollSpyUntil) return
+  const main = document.querySelector('main')
+  if (!main) return
+  const mainRect = main.getBoundingClientRect()
+  // 判定线：主区顶部往下 1/3 处（其上方的分组即为「当前正在看」的分组）
+  const line = mainRect.top + mainRect.height / 3
+  let bestKey: string | null = null
+  let bestTop = Infinity
+  for (const el of document.querySelectorAll<HTMLElement>('.folder-group[data-group-key]')) {
+    const key = el.dataset.groupKey
+    if (!key) continue
+    const rect = el.getBoundingClientRect()
+    // 只考虑已经滚过判定线（顶部在判定线上方）的分组里最靠下的那个
+    if (rect.top > line) continue
+    if (rect.top > bestTop) {
+      bestTop = rect.top
+      bestKey = key
+    }
+  }
+  if (bestKey) activeGroupKey.value = bestKey
 }
 
 function observeGroups() {
@@ -233,6 +253,23 @@ function observeGroups() {
 onMounted(() => {
   setupGroupObserver()
   observeGroups()
+  // observer 只在交叉关系变化时触发，不保证覆盖「连续滚动」的所有位置，
+  // 因此额外挂一个滚动监听兜底（用 rAF 节流）
+  const main = document.querySelector('main')
+  const target: HTMLElement | Window = main instanceof HTMLElement ? main : window
+  let rafId = 0
+  const onScroll = () => {
+    if (rafId) return
+    rafId = requestAnimationFrame(() => {
+      rafId = 0
+      updateActiveGroupFromScroll()
+    })
+  }
+  target.addEventListener('scroll', onScroll, { passive: true })
+  onBeforeUnmount(() => {
+    target.removeEventListener('scroll', onScroll)
+    if (rafId) cancelAnimationFrame(rafId)
+  })
 })
 
 onBeforeUnmount(() => {
