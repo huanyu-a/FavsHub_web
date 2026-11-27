@@ -221,7 +221,7 @@
             </template>
           </div>
 
-          <!-- 网页搜索：当前引擎 + 切换 + 跳转（移动端主入口，桌面端也有） -->
+          <!-- 网页搜索：当前引擎 + 切换 + 跳转（复用 PC 端 SearchEngineDropdown） -->
           <div class="gs-web-search">
             <div class="gs-web-search-left">
               <img
@@ -245,23 +245,20 @@
                 type="button"
                 class="gs-web-engine-toggle"
                 aria-label="切换搜索引擎"
+                :aria-expanded="showEngineDropdown"
                 @click="showEngineDropdown = !showEngineDropdown"
               >
                 <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
               </button>
             </div>
-            <div v-if="showEngineDropdown" class="gs-engine-dropdown">
-              <button
-                v-for="engine in engines"
-                :key="engine.id"
-                type="button"
-                class="gs-engine-option"
-                :class="{ active: engine.id === currentEngine?.id }"
-                @click="selectEngine(engine)"
-              >
-                <img :src="engine.icon || '/images/placeholder-icon.svg'" :alt="engine.name" class="gs-engine-option-icon">
-                <span>{{ engine.name }}</span>
-              </button>
+            <!-- 引擎网格：与 PC 端搜索栏共用 SearchEngineDropdown 组件与样式 -->
+            <div class="gs-engine-dropdown-wrap">
+              <SearchEngineDropdown
+                :engines="engines"
+                :visible="showEngineDropdown"
+                @select="selectEngine"
+                @manage="manageEngines"
+              />
             </div>
           </div>
 
@@ -283,6 +280,7 @@
 
 <script setup lang="ts">
 import type { GlobalSearchGroup, GlobalSearchType } from '~/composables/useGlobalSearch'
+import SearchEngineDropdown from './SearchEngineDropdown.vue'
 
 const inputRef = ref<HTMLInputElement | null>(null)
 const { isMobile } = useMobile()
@@ -320,6 +318,13 @@ const showEngineDropdown = ref(false)
 function selectEngine(engine: any) {
   searchEngineStore.setCurrentEngine(engine.id)
   showEngineDropdown.value = false
+}
+
+// 「管理」按钮：与 PC 端搜索栏一致，关闭搜索面板后跳转搜索引擎管理页
+function manageEngines() {
+  showEngineDropdown.value = false
+  close()
+  navigateTo('/admin/search-engines')
 }
 
 function searchWeb() {
@@ -473,10 +478,13 @@ watch(isOpen, async (openNow) => {
     previouslyFocused = document.activeElement as HTMLElement | null
     previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    // 弹窗打开时隐藏右下角悬浮件（z-index 高于搜索面板）
+    document.body.classList.add('modal-open')
     await nextTick()
     if (isOpen.value) inputRef.value?.focus()
   } else {
     document.body.style.overflow = previousBodyOverflow
+    document.body.classList.remove('modal-open')
     const focusTarget = previouslyFocused
     previouslyFocused = null
     await nextTick()
@@ -837,41 +845,43 @@ onBeforeUnmount(() => {
 .gs-web-engine-toggle:hover {
   background: var(--surface-hover);
 }
-.gs-engine-dropdown {
+/* 引擎下拉容器：SearchEngineDropdown 自身是 absolute 定位（left:0; top:100%），
+   这里给它一个相对定位的包裹层，让它从网页搜索栏向上弹出。
+   移动端 580px 宽的网格在窄屏放不下 → 由 floating 样式收窄（见下方媒体查询）。 */
+.gs-engine-dropdown-wrap {
   position: absolute;
-  bottom: 100%;
+  left: 16px;
   right: 16px;
-  z-index: 10;
-  min-width: 180px;
-  max-height: 260px;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  bottom: 100%;
+  z-index: 20;
+}
+.gs-engine-dropdown-wrap :deep(.search-engine-dropdown) {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  margin-top: 0;
+  padding: 12px;
   background: var(--surface-raised);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
 }
-.gs-engine-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 8px;
-  color: var(--text-primary);
-  background: transparent;
-  font-size: 13px;
-  cursor: pointer;
-  text-align: left;
+.gs-engine-dropdown-wrap :deep(.search-engine-options-container) {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
 }
-.gs-engine-option:hover { background: var(--surface-hover); }
-.gs-engine-option.active { background: var(--surface-hover); font-weight: 600; }
-.gs-engine-option-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  object-fit: contain;
+
+@media (max-width: 768px) {
+  .gs-engine-dropdown-wrap :deep(.search-engine-options-container) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .gs-engine-dropdown-wrap :deep(.search-engine-options-container) {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .gs-footer {

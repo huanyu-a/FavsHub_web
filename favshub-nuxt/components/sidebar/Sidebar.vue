@@ -351,10 +351,22 @@ let cleanupClickHandler: (() => void) | null = null
 //   - 新增文件夹默认展开，符合直觉。
 const COLLAPSED_STORAGE_KEY = '{{SECRET_6eh2t4u3}}'
 
+// 一次性迁移：清掉 1.0.109–1.0.111 遗留的展开态 key。
+// 旧数据来自「记录展开 ID」的模型，与现模型语义相反（旧的「未展开列表」会被误当成「收起列表」的反面），
+// 且它会让子分类继续不显示，故显式删除而不是忽略。
+const LEGACY_STORAGE_KEYS = ['favshub-sidebar-expanded-v2', 'favshub-sidebar-expanded']
+
+function purgeLegacyStorage() {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try { localStorage.removeItem(key) } catch { /* ignore */ }
+  }
+}
+
 // 用户主动收起的文件夹 ID
 const collapsedIds = ref(new Set<number>())
 
 function restoreCollapsed() {
+  purgeLegacyStorage()
   try {
     const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY)
     if (raw !== null) {

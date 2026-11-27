@@ -31,3 +31,11 @@
     right: 35px;
   }
 }
+
+/* 弹窗打开时隐藏右下角悬浮件：
+   它们的 z-index（10004 / 999999）高于公告弹窗（10000）与全局搜索面板（10020），
+   会压在弹窗内容之上。弹窗组件在 open 时给 body 加 .modal-open。 */
+body.modal-open #floating-actions,
+body.modal-open #back-to-top-container {
+  display: none !important;
+}

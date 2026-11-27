@@ -633,6 +633,13 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
 </script>
 
 <style scoped>
+/* main 是 .home-shell 的 flex item，默认 min-width:auto 会被子元素 min-content
+   （顶部分类导航条、精选集 tabs）撑到远超视口 → 移动端整页横向溢出、卡片被裁切。
+   min-width:0 让它可以收缩到容器宽度，配合子级的 overflow-x:auto 横向滚动。 */
+.home-shell > main {
+  min-width: 0;
+}
+
 .page-footer-container {
   margin-top: auto;
   width: 100%;
@@ -653,6 +660,9 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   display: flex;
   justify-content: center;
   padding: 16px 20px 0;
+  /* flex item 默认 min-width:auto，会被子元素 min-content 撑破容器 → 移动端整页横向溢出 */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .collection-tabs {
@@ -663,6 +673,7 @@ async function handleReorder(items: { id: number; sort_order: number }[]) {
   background: var(--surface-sunken);
   border-radius: 10px;
   max-width: 100%;
+  min-width: 0;
 }
 
 .collection-tabs::-webkit-scrollbar {
