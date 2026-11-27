@@ -198,13 +198,13 @@ let suppressScrollSpyUntil = 0
 function setupGroupObserver() {
   if (!import.meta.client) return
   if (groupObserver) return
-  const main = document.querySelector('main')
+  // root 用 null（viewport）：桌面端 <main> 是滚动容器、移动端是 body，
+  // 用 viewport 做 root 才能在两种情况下都收到交叉变化。
   groupObserver = new IntersectionObserver(() => {
     if (performance.now() < suppressScrollSpyUntil) return
     updateActiveGroupFromScroll()
   }, {
-    root: main instanceof HTMLElement ? main : null,
-    // 上边留出工具条高度、下边留出大半屏 → 只有「当前占据视口上部的分组」才算激活
+    root: null,
     rootMargin: '-8% 0px -60% 0px',
     threshold: 0,
   })
@@ -221,18 +221,16 @@ function setupGroupObserver() {
  */
 function updateActiveGroupFromScroll() {
   if (performance.now() < suppressScrollSpyUntil) return
-  const main = document.querySelector('main')
-  if (!main) return
-  const mainRect = main.getBoundingClientRect()
-  // 判定线：主区顶部往下 1/3 处（其上方的分组即为「当前正在看」的分组）
-  const line = mainRect.top + mainRect.height / 3
+  // 判定线：视口上方 1/3 处。其上方（已滚过）的分组里，最靠下的那个就是当前分组。
+  // 不用 <main> 作参照 —— 桌面端 main 是滚动容器、移动端是 body，
+  // 用 viewport 坐标能同时覆盖两种情况。
+  const line = window.innerHeight / 3
   let bestKey: string | null = null
-  let bestTop = Infinity
+  let bestTop = -Infinity
   for (const el of document.querySelectorAll<HTMLElement>('.folder-group[data-group-key]')) {
     const key = el.dataset.groupKey
     if (!key) continue
     const rect = el.getBoundingClientRect()
-    // 只考虑已经滚过判定线（顶部在判定线上方）的分组里最靠下的那个
     if (rect.top > line) continue
     if (rect.top > bestTop) {
       bestTop = rect.top
@@ -254,9 +252,9 @@ onMounted(() => {
   setupGroupObserver()
   observeGroups()
   // observer 只在交叉关系变化时触发，不保证覆盖「连续滚动」的所有位置，
-  // 因此额外挂一个滚动监听兜底（用 rAF 节流）
-  const main = document.querySelector('main')
-  const target: HTMLElement | Window = main instanceof HTMLElement ? main : window
+  // 因此额外挂滚动监听兜底（rAF 节流）。
+  // 注意：监听 window 而非 main —— 本组件 onMounted 时父级 <main> 尚未挂载，
+  // document.querySelector('main') 会拿到 null，绑不上滚动事件（2026-11-27 实测）。
   let rafId = 0
   const onScroll = () => {
     if (rafId) return
@@ -265,9 +263,9 @@ onMounted(() => {
       updateActiveGroupFromScroll()
     })
   }
-  target.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true })
   onBeforeUnmount(() => {
-    target.removeEventListener('scroll', onScroll)
+    window.removeEventListener('scroll', onScroll, { capture: true } as any)
     if (rafId) cancelAnimationFrame(rafId)
   })
 })
