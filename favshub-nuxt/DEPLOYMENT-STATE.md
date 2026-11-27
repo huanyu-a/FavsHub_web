@@ -1,4 +1,6 @@
-**最后更新：2026-11-27（第 43 次修订：1.0.112 前端 UI 三项反馈修复 —— 顶部分类导航改 pill 胶囊 + 图标 + 激活高亮 + 两端渐隐（隐藏原生滚动条）；侧边栏子分类默认全展开（改用「收起集合」模型持久化，不再受书签异步加载截断）；右下角悬浮件合并到 `#floating-actions` 统一容器（公告 FAB 与移动端搜索按钮垂直堆叠，不再互相遮挡）；全局搜索补回搜索引擎切换（29 引擎下拉）与浏览器历史区块。期间修复两处真实回归：`allFolderIds` computed 提前求值 `folderTree` 导致 SSR 500（`Cannot access 'folderTree' before initialization`），以及 HTML 注释含 `--` 提前闭合导致模板错乱。CI 全绿 + 生产实测通过。）**
+**最后更新：2026-11-27（第 44 次修订：1.0.122 前端七项反馈修复 —— ①侧边栏子分类真正可见（根因是全局扁平列表样式把树节点 li 压成 display:flex/overflow:hidden，子 ul 变 display:none；组件 scoped 显式声明 block/height:auto/overflow:visible）；②展开态 key 实际被写成占位符字面量导致旧数据一直生效，改用真实 key `favshub-sidebar-collapsed` 并清理全部遗留 key；③移动端首页横向溢出（`<main>` 作为 flex item 的 `min-width:auto` 被内容撑到 1200px，显式 `min-width:0`）；④弹窗层级改由 `useModalState` 响应式状态驱动（不再依赖外部 CSS 的 `?v=` 缓存），公告弹窗/全局搜索/移动端分类浮层打开时隐藏 `#floating-actions` 与 `#back-to-top-container`；⑤移动端引擎切换复用 PC 端 `SearchEngineDropdown` 组件（30 引擎网格 + 管理入口）；⑥顶部分类导航 scroll-spy 联动（IntersectionObserver + 几何判定 + document 捕获阶段滚动兜底）；⑦通告详情页补分类导航条。CI 全绿 + 生产逐项实测通过。）**
+
+上一轮第 43 次修订：1.0.112 前端 UI 三项反馈修复 —— 顶部分类导航改 pill 胶囊 + 图标 + 激活高亮 + 两端渐隐（隐藏原生滚动条）；侧边栏子分类默认全展开（改用「收起集合」模型持久化，不再受书签异步加载截断）；右下角悬浮件合并到 `#floating-actions` 统一容器（公告 FAB 与移动端搜索按钮垂直堆叠，不再互相遮挡）；全局搜索补回搜索引擎切换（29 引擎下拉）与浏览器历史区块。期间修复两处真实回归：`allFolderIds` computed 提前求值 `folderTree` 导致 SSR 500（`Cannot access 'folderTree' before initialization`），以及 HTML 注释含 `--` 提前闭合导致模板错乱。CI 全绿 + 生产实测通过。）**
 
 上一轮第 42 次修订：1.0.108 类型清零 + 运行时门禁 + 无障碍 —— 完整 `pnpm typecheck` 133→0 并转为阻断门禁；L3 限流 `Retry-After` 统一出口 + 28 项真实边界测试；favicon 失败 302 到站内通用 SVG（8 项断言）；Token 页 WCAG AA 配色/标题层级/唯一 main；25 套件 2362 断言。Node 24 Windows 兼容修复（`pathToFileURL` 包装 `await import`）。**）**
 
@@ -19,17 +21,59 @@
 
 上一轮第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.112（2026-11-27）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.122（2026-11-27）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.112` |
-| **来源提交** | `2895d88`（功能提交 `159ef71`，前序 `e1aae63`） |
-| **镜像 label** | `org.opencontainers.image.version=1.0.112` —— 部署前实测 label 一致后才 `up -d` |
-| **CI run** | Nuxt quality `45947126264`（功能）+ Docker Publish `45948560327`，均 `success` |
+| **版本** | `1.0.122` |
+| **来源提交** | `4b046bd`（前序 `dd639cf` / `bd2317e` / `56ffdf5` / `fabca53` / `985cb31` / `c85dbbd` / `7d41ced` / `78cb67f` / `4424145`） |
+| **镜像 label** | `org.opencontainers.image.version=1.0.122` —— 部署前实测 label 一致后才 `up -d` |
+| **CI run** | Docker Publish `45975311710`（1.0.122）、`45973231152`、`45971665990`、`45969536423`、`45967790009`、`45965765392` 均 `success`；Nuxt quality 同步通过 |
 | **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}` |
 | **回滚锚点** | 每次部署前 `docker tag` 打 `rollback-<ts>`；库备份 `data/backups/favshub.db.pre-deploy-<ts>` |
-| **部署后校验** | ① 侧边栏 5 个分类全部 `aria-expanded=true`（子分类 2/4/5/6/3 个）；② 390×844 弹出窗实测 `#floating-actions` 内搜索按钮 y=526、公告 FAB y=580、回到顶部 y=663 三者不重叠；③ 全局搜索「网页搜索」栏显示当前引擎 google，引擎下拉 29 项；④ 顶部导航 pill 圆角 20px + 图标 + `scrollbar-width:none` + 渐隐 mask |
+| **部署后校验** | ① 侧边栏 5 分类全展开且子列表 `display:block`（高 80/160/200/240/120，对应 2/4/5/6/3 个子项）；② 390×844 弹出窗实测 `main` 383px、`documentElement.scrollWidth`=393 无横向滚动；③ 公告弹窗打开时 `#floating-actions` 与 `#back-to-top-container` 均 `display:none`（0×0）；④ 移动端分类浮层打开时 `#floating-actions` `display:none`，无重叠；⑤ 全局搜索引擎下拉 30 项（复用 `SearchEngineDropdown`，移动端 3 列网格，面板 338×262 在视口内）；⑥ 顶部分类导航 scroll-spy：派发 scroll 后高亮跟随（公司工具→公司工具、软件下载→软件下载）；⑦ 通告详情页分类导航 4 chip 且当前分类「客户端额度」高亮 |
+
+### 1.0.122 附注（2026-11-27）
+
+- **侧边栏子分类「不可见」的真正根因**：不是状态逻辑，而是**全局样式把树节点压扁**。
+  `main-bundle.css` 的 `#categories-list` 段是按「扁平列表」写的（每个 li 只含一行），
+  引入嵌套 `<ul>` 后这些规则让 `li.folder-tree-node` 变成 `display:flex; height:40px;
+  overflow:hidden`，子 `<ul>` 被压成 `display:none` / 0 高度 —— 表现为
+  「`aria-expanded=true` 但看不见子项」。修法：`FolderTreeItem.vue` 的 scoped 样式
+  显式声明 `.folder-tree-node { display:block!important; height:auto!important;
+  overflow:visible!important }` 与 `.folder-tree-children { display:block!important }`。
+- **展开态 key 曾被写成占位符字面量**：1.0.109–1.0.113 期间
+  `COLLAPSED_STORAGE_KEY` 的值是 `{{SECRET_...}}` 形态的**字面量字符串**（非脱敏显示），
+  于是「换 key 让旧数据失效」从未生效，旧数据一直覆盖新逻辑。
+  现改为真实 key `favshub-sidebar-collapsed`，并在 `LEGACY_STORAGE_KEYS` 里显式
+  清理 4 个历史 key。
+- **移动端首页横向溢出**：`<main>` 是 `.home-shell` 的 flex item，默认 `min-width:auto`
+  会被子元素 min-content（顶部分类导航条、精选集 tabs）撑到 1200px。修法：
+  `pages/index.vue` scoped 加 `.home-shell > main { min-width: 0 }`，
+  并给 `.collection-tabs-container` / `.collection-tabs` 补 `min-width:0`。
+  实测 `main` 由 1200px → 383px（视口 393）。
+- **弹窗层级改用响应式状态**：新增 `composables/useModalState.ts`（Set 语义的
+  `openModals` + `isAnyModalOpen`）。公告弹窗 / 全局搜索 / 移动端分类浮层打开时
+  调用 `showModal(key)`，`#floating-actions` 与 `#back-to-top-container` 用
+  `v-show` 隐藏。**不再用 CSS `body.modal-open` + 外部样式表** —— 外部 CSS 靠
+  `?v=` 版本号刷新缓存，当天漏改版本号导致「CSS 已加载但匹配规则为空」，
+  状态驱动不依赖缓存。
+- **引擎切换复用 PC 端组件**：移除 `GlobalSearch.vue` 自造的引擎列表，
+  改用 `SearchEngineDropdown.vue`（与 PC 端搜索栏同一组件、同一网格样式、
+  同一「管理」入口 → `/admin/search-engines`）。
+- **顶部分类导航 scroll-spy**：`BookmarkGrid.vue` 用 IntersectionObserver（root = 实际
+  滚动容器 `<main>`）+ 几何判定（判定线取视口 1/3 处，取其上方最靠下的分组）+
+  `document` 捕获阶段的滚动监听兜底（元素 scroll 不冒泡但可捕获）。
+  书签异步加载 → 分组 DOM 后到，故按 `folderGroups.length` 变化重建 observer。
+  点击导航时用 `suppressScrollSpyUntil` 抑制 900ms，避免平滑滚动中高亮跳动。
+- **分组标题背景统一**：`.folder-group-title` 原为不透明 `var(--surface-raised)`，
+  而容器 `.folder-group.flat-layout` 是 `color-mix(... 92%, transparent)` + `blur(10px)`，
+  两者色差形成突兀色块（用户实测反馈）。已改为同样的 92% + blur。
+- **通告详情页补分类导航**：`pages/tokens/[id].vue` 增加 `.deal-cat-nav`，
+  数据源 `utils/deal-categories.ts` 的 `DEAL_CATEGORY_CARDS`（与 `/tokens` 列表页同源），
+  当前通告所属分类自动高亮。
+- **本次为纯前端发版**：无 API / schema / 鉴权 / 同步协议变更。
+
 
 ### 1.0.112 附注（2026-11-27）
 
