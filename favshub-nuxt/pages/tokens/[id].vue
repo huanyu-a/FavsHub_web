@@ -18,6 +18,21 @@
       </div>
     </header>
 
+    <!-- 分类导航：与 /tokens 列表页同源（utils/deal-categories.ts），
+         让详情页也能直接切到其它分类，不必先回列表页 -->
+    <nav class="deal-cat-nav" aria-label="白嫖分类导航">
+      <NuxtLink
+        v-for="c in DEAL_CATEGORY_CARDS"
+        :key="c.value"
+        :to="c.to"
+        class="deal-cat-chip"
+        :class="{ active: c.value === currentCategory }"
+      >
+        <i :class="c.icon" aria-hidden="true"></i>
+        <span>{{ c.name }}</span>
+      </NuxtLink>
+    </nav>
+
     <main class="deal-page-main">
       <!-- 加载失败（非 404/403，例如上游异常）：给可重试状态，不留整页空白 -->
       <div v-if="loadError" class="deal-page-state">
@@ -57,6 +72,7 @@
 import TokenDealDetail from '~/components/tokens/TokenDealDetail.vue'
 import TokenDealEditor from '~/components/tokens/TokenDealEditor.vue'
 import SiteFooter from '~/components/common/SiteFooter.vue'
+import { DEAL_CATEGORY_CARDS as dealCategoryCards } from '~/utils/deal-categories'
 
 /**
  * /tokens/<dealId>.html —— 通告详情的伪静态落地页
@@ -93,6 +109,8 @@ interface ITokenDealMeta {
   note?: string
   note_html?: string
   nickname?: string
+  /** 通告分类（token / cloud / domain / client）—— 用于分类导航高亮 */
+  category?: string
 }
 
 /** 评测条目（GET /api/token-deals/:id/reviews 的合并形状，与详情组件的 IReview 一致） */
@@ -119,6 +137,9 @@ const route = useRoute()
 const siteBaseUrl = (useRuntimeConfig().public.baseUrl as string) || 'https://hao.bx9y.com.cn'
 /** 路由参数已由 `[\w-]+` 正则限定，这里再兜一层去掉可能的 .html 后缀（防御式，实测本不需要） */
 const dealId = computed(() => decodeURIComponent(String(route.params.id ?? '')).replace(/\.html$/i, ''))
+
+// 分类导航（与 /tokens 列表页同源）
+const DEAL_CATEGORY_CARDS = dealCategoryCards
 
 /**
  * SSR 取数 —— 关键点：**必须带上浏览器请求头（尤其 cookie）**。
@@ -155,6 +176,9 @@ const { data: reviewsData } = await useAsyncData(
 )
 
 const statusCode = computed(() => Number((error.value as any)?.statusCode || (error.value as any)?.status || 0))
+
+/** 当前通告所属分类 —— 用于分类导航的高亮 */
+const currentCategory = computed(() => String(data.value?.deal?.category ?? 'token'))
 
 /**
  * 服务端把「不存在 / 无权访问」如实变成 4xx：爬虫不该把 404 的详情页当有效页面收录，
@@ -270,6 +294,53 @@ function onSaved(message: string) {
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+/* 分类导航条：与 /tokens 列表页同款 pill 形态，当前分类高亮 */
+.deal-cat-nav {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.deal-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 140ms, background 140ms, border-color 140ms;
+}
+.deal-cat-chip:hover {
+  color: var(--primary);
+  border-color: var(--border-focus);
+  background: var(--surface-hover);
+}
+.deal-cat-chip.active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+  font-weight: 600;
+}
+.deal-cat-chip i { font-size: 15px; }
+@media (max-width: 640px) {
+  .deal-cat-nav {
+    padding: 8px 12px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .deal-cat-nav::-webkit-scrollbar { display: none; }
+  .deal-cat-chip { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; }
 }
 .deal-page-header-inner {
   max-width: 1200px;

@@ -138,6 +138,13 @@ const showFolderPanel = ref(false)
 const expandedFolderId = ref<number | null>(null)
 const promptFolders = ref<any[]>([])
 
+// 分类浮层打开时隐藏右下角悬浮件（它们的 z-index 高于浮层 10001，会压住列表）
+const { showModal, hideModal } = useModalState()
+watch(showFolderPanel, (open) => {
+  if (open) showModal('mobile-folder-panel')
+  else hideModal('mobile-folder-panel')
+})
+
 // 提示词页文件夹筛选状态（共享）
 const activePromptFolderId = useState<string | null>('activePromptFolderId', () => null)
 

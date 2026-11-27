@@ -51,6 +51,7 @@
         :key="group.folderId ?? 'recommended'"
         class="folder-group flat-layout"
         :id="groupDomId(group)"
+        :data-group-key="groupKey(group)"
         :style="{ '--group-accent': groupAccent(group) }"
       >
         <h3 :id="groupTitleId(group)" class="folder-group-title">
@@ -187,6 +188,57 @@ function groupKey(group: { folderId: number | null }): string {
 // 当前激活的分类索引标签（点击或滚动到该分组时高亮）
 const activeGroupKey = ref('')
 
+// ── scroll-spy：顶部导航与主体分组焦点联动 ─────────────────────────
+// IntersectionObserver 观察每个分组容器；把「当前可见分组」同步到顶部导航高亮。
+// 点击导航时用 suppressScrollSpyUntil 短暂抑制 observer 回写，
+// 否则点击 A 分组后滚动过程会一路高亮 B、C，最终才落到 A，造成视觉跳动。
+let groupObserver: IntersectionObserver | null = null
+let suppressScrollSpyUntil = 0
+
+function setupGroupObserver() {
+  if (!import.meta.client) return
+  if (groupObserver) return
+  const main = document.querySelector('main')
+  groupObserver = new IntersectionObserver((entries) => {
+    if (performance.now() < suppressScrollSpyUntil) return
+    // 选「最接近顶部工具条」的可见分组作为当前分组
+    let bestKey: string | null = null
+    let bestTop = Infinity
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      const key = (entry.target as HTMLElement).dataset.groupKey
+      if (!key) continue
+      if (entry.boundingClientRect.top < bestTop) {
+        bestTop = entry.boundingClientRect.top
+        bestKey = key
+      }
+    }
+    if (bestKey) activeGroupKey.value = bestKey
+  }, {
+    root: main instanceof HTMLElement ? main : null,
+    rootMargin: '-10% 0px -55% 0px',
+    threshold: 0,
+  })
+}
+
+function observeGroups() {
+  if (!groupObserver) return
+  groupObserver.disconnect()
+  for (const el of document.querySelectorAll<HTMLElement>('.folder-group[data-group-key]')) {
+    groupObserver.observe(el)
+  }
+}
+
+onMounted(() => {
+  setupGroupObserver()
+  observeGroups()
+})
+
+onBeforeUnmount(() => {
+  groupObserver?.disconnect()
+  groupObserver = null
+})
+
 // 分类图标：按名称哈希稳定选取 Remix 图标，与 FolderTreeItem 同一逻辑
 const GROUP_ICONS = ['ri-folder-line','ri-folder-2-line','ri-folder-3-line','ri-folder-4-line','ri-bookmark-line','ri-star-line']
 function groupIcon(group: { folderId: number | null; name: string }): string {
@@ -209,6 +261,8 @@ async function jumpToGroup(event: MouseEvent, group: { folderId: number | null }
   // 收起的分组也允许通过索引定位；标题始终是实际存在的锚点
   bookmarksStore.setGroupExpanded(groupKey(group), true)
   activeGroupKey.value = groupKey(group)
+  // 抑制 scroll-spy 一小段时间，避免平滑滚动过程中高亮来回跳
+  suppressScrollSpyUntil = performance.now() + 900
   await nextTick()
   const id = groupDomId(group)
   const target = document.getElementById(id)
@@ -278,6 +332,9 @@ const canSort = computed(() => !props.isGuest && bookmarksStore.viewMode === 'mi
 function toggleDensity() {
   bookmarksStore.setDensity(density.value === 'compact' ? 'comfortable' : 'compact')
 }
+
+// 分组数据变化（切换视图）后重新观察分组容器（scroll-spy 依赖 data-group-key）
+watch(() => bookmarksStore.viewMode, () => nextTick(observeGroups))
 
 // C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例并使 pending import 失效
 onBeforeUnmount(() => {
@@ -551,7 +608,10 @@ const flatVisibleBookmarks = computed(() => {
   z-index: 20;
   margin: 0 0 1rem;
   padding: 0.5rem 0;
-  background: var(--surface-raised);
+  /* 与分组容器 flat-layout 的毛玻璃底一致（92% 不透明），
+     否则不透明底色会与半透明容器形成突兀色块（2026-11-27 用户实测反馈） */
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  backdrop-filter: blur(10px);
 }
 .folder-toggle {
   display: flex;
