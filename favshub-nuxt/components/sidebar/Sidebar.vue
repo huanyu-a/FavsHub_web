@@ -349,12 +349,17 @@ let cleanupClickHandler: (() => void) | null = null
 //   - 默认全展开（子分类直接可见），符合用户预期；
 //   - 书签异步加载导致 allFolderIds 不完整时，展开态不会被截断；
 //   - 新增文件夹默认展开，符合直觉。
-const COLLAPSED_STORAGE_KEY = '{{SECRET_6eh2t4u3}}'
+const COLLAPSED_STORAGE_KEY = 'favshub-sidebar-collapsed'
 
-// 一次性迁移：清掉 1.0.109–1.0.111 遗留的展开态 key。
+// 一次性迁移：清掉 1.0.109–1.0.113 遗留的展开态 key。
 // 旧数据来自「记录展开 ID」的模型，与现模型语义相反（旧的「未展开列表」会被误当成「收起列表」的反面），
 // 且它会让子分类继续不显示，故显式删除而不是忽略。
-const LEGACY_STORAGE_KEYS = ['favshub-sidebar-expanded-v2', 'favshub-sidebar-expanded']
+const LEGACY_STORAGE_KEYS = [
+  'favshub-sidebar-expanded',
+  'favshub-sidebar-expanded-v2',
+  '{{SECRET_6eh2t4u3}}',
+  '{{SECRET_4jbf4uzg}}',
+]
 
 function purgeLegacyStorage() {
   for (const key of LEGACY_STORAGE_KEYS) {
