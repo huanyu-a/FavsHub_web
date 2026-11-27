@@ -198,16 +198,30 @@ let suppressScrollSpyUntil = 0
 function setupGroupObserver() {
   if (!import.meta.client) return
   if (groupObserver) return
-  // root 用 null（viewport）：桌面端 <main> 是滚动容器、移动端是 body，
-  // 用 viewport 做 root 才能在两种情况下都收到交叉变化。
+  // root 必须是**实际滚动容器**：桌面端是 <main>（overflow:auto），移动端是 body/window。
+  // 用 viewport（root:null）时桌面端检测不到交叉变化（2026-11-27 实测：滚动后高亮不更新）。
+  const scroller = resolveScrollContainer()
   groupObserver = new IntersectionObserver(() => {
     if (performance.now() < suppressScrollSpyUntil) return
     updateActiveGroupFromScroll()
   }, {
-    root: null,
+    root: scroller instanceof HTMLElement ? scroller : null,
     rootMargin: '-8% 0px -60% 0px',
     threshold: 0,
   })
+}
+
+/** 找当前真正的滚动容器：优先 <main>（桌面端），否则用 window（移动端 body 滚动） */
+function resolveScrollContainer(): HTMLElement | null {
+  const main = document.querySelector('main')
+  if (main instanceof HTMLElement) {
+    const cs = getComputedStyle(main)
+    const scrollable = /(auto|scroll)/.test(cs.overflowY) && main.scrollHeight > main.clientHeight
+    if (scrollable) return main
+    // 内容还没加载完时也可能还没变成滚动容器，后续由 observeGroups 重试
+    return main
+  }
+  return null
 }
 
 /**
@@ -248,6 +262,17 @@ function observeGroups() {
   }
 }
 
+/**
+ * 重建 observer —— 滚动容器可能在书签加载完成后才确定
+ * （桌面端 <main> 的 overflow-y 一开始是 visible，内容够高才变成 auto）。
+ */
+function rebuildGroupObserver() {
+  groupObserver?.disconnect()
+  groupObserver = null
+  setupGroupObserver()
+  observeGroups()
+}
+
 onMounted(() => {
   setupGroupObserver()
   observeGroups()
@@ -256,9 +281,6 @@ onMounted(() => {
   //
   // 监听 document + 捕获阶段：scroll 事件不冒泡，但**可以被捕获**，
   // document 在捕获阶段能收到任意元素（桌面端 <main>、移动端 body）的滚动。
-  // 不能绑 window：捕获阶段不会经过 window 之上的目标；
-  // 也不能在 onMounted 里直接绑 <main>：本组件是父级 <main> 的子组件，
-  // onMounted 时父级尚未挂载，querySelector('main') 拿到 null（2026-11-27 实测两次踩坑）。
   let rafId = 0
   const onScroll = () => {
     if (rafId) return
@@ -524,7 +546,7 @@ const flatVisibleBookmarks = computed(() => {
 // 分组渲染完成后重新挂 scroll-spy 观察。
 // 书签是异步加载的：onMounted 时分组 DOM 还不存在，observer 会观察到 0 个元素，
 // 必须在分组数量变化后重挂，否则滚动联动永远不触发（2026-11-27 实测）。
-watch(() => folderGroups.value.length, () => nextTick(observeGroups))
+watch(() => folderGroups.value.length, () => nextTick(rebuildGroupObserver))
 </script>
 
 <style scoped>
