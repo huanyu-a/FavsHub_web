@@ -345,7 +345,8 @@ function onSelectCollection(id: string) {
 let cleanupClickHandler: (() => void) | null = null
 
 // 侧边栏展开状态持久化：首次默认全部展开，之后记住用户偏好
-const EXPANDED_STORAGE_KEY = 'favshub-sidebar-expanded'
+// v2: 旧 key 数据不完整（部分展开），加版本号使旧数据失效
+const EXPANDED_STORAGE_KEY = 'favshub-sidebar-expanded-v2'
 
 function restoreExpanded() {
   try {
@@ -355,7 +356,7 @@ function restoreExpanded() {
       return
     }
   } catch { /* 首次或数据损坏 */ }
-  // 首次：默认全部展开
+  // 新 key 不存在：默认全部展开
   expandedIds.value = new Set(allFolderIds.value)
 }
 
@@ -366,7 +367,11 @@ function saveExpanded() {
 onMounted(() => {
   loadCollections()
   if (import.meta.client) {
-    restoreExpanded()
+    // 首次恢复：如果 allFolderIds 已有数据（SSR 时已计算），立即恢复
+    if (allFolderIds.value.length > 0 && !restored) {
+      restored = true
+      restoreExpanded()
+    }
     const handler = () => { folderMenu.visible = false }
     document.addEventListener('click', handler)
     cleanupClickHandler = () => document.removeEventListener('click', handler)
@@ -401,19 +406,6 @@ const folderMenu = reactive({
   y: 0,
   folder: null as FolderNode | null,
   isAll: false,
-})
-
-// 收集所有文件夹 ID（含子文件夹）
-const allFolderIds = computed(() => {
-  const ids: number[] = []
-  function walk(nodes: FolderNode[]) {
-    for (const n of nodes) {
-      ids.push(n.id)
-      if (n.children.length) walk(n.children)
-    }
-  }
-  walk(folderTree.value)
-  return ids
 })
 
 // 是否全部展开
@@ -543,6 +535,30 @@ const folderTree = computed(() => {
   }
   setDepth(pruned, 0)
   return pruned
+})
+
+// 收集所有文件夹 ID（含子文件夹）
+// 必须声明在 folderTree 之后：computed 求值时会立即访问 folderTree
+const allFolderIds = computed(() => {
+  const ids: number[] = []
+  function walk(nodes: FolderNode[]) {
+    for (const n of nodes) {
+      ids.push(n.id)
+      if (n.children.length) walk(n.children)
+    }
+  }
+  walk(folderTree.value)
+  return ids
+})
+
+// 监听 allFolderIds 变化：首次计算完成时恢复展开状态（bookmarks 加载是异步的）
+// immediate: false 避免 SSR 时执行回调；onMounted 里手动触发首次恢复
+let restored = false
+watch(allFolderIds, (ids) => {
+  if (ids.length > 0 && !restored && import.meta.client) {
+    restored = true
+    restoreExpanded()
+  }
 })
 
 // 保持 flatFolderTree 兼容

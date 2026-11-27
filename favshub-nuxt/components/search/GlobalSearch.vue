@@ -197,6 +197,50 @@
             </template>
           </div>
 
+          <!-- 网页搜索：当前引擎 + 切换 + 跳转（暂时禁用，排查 SSR 500） -->
+          <div v-if="false" class="gs-web-search">
+            <div class="gs-web-search-left">
+              <img
+                :src="currentEngine?.icon || '/images/placeholder-icon.svg'"
+                :alt="currentEngine?.name || '搜索引擎'"
+                class="gs-web-engine-icon"
+              >
+              <span class="gs-web-engine-name">{{ currentEngine?.name || '网页搜索' }}</span>
+            </div>
+            <div class="gs-web-search-right">
+              <button
+                type="button"
+                class="gs-web-search-btn"
+                :disabled="!normalizedQuery"
+                @click="searchWeb"
+              >
+                <i class="ri-external-link-line" aria-hidden="true"></i>
+                搜索网页
+              </button>
+              <button
+                type="button"
+                class="gs-web-engine-toggle"
+                aria-label="切换搜索引擎"
+                @click="showEngineDropdown = !showEngineDropdown"
+              >
+                <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div v-if="showEngineDropdown" class="gs-engine-dropdown">
+              <button
+                v-for="engine in engines"
+                :key="engine.id"
+                type="button"
+                class="gs-engine-option"
+                :class="{ active: engine.id === currentEngine?.id }"
+                @click="selectEngine(engine)"
+              >
+                <img :src="engine.icon || '/images/placeholder-icon.svg'" :alt="engine.name" class="gs-engine-option-icon">
+                <span>{{ engine.name }}</span>
+              </button>
+            </div>
+          </div>
+
           <footer class="gs-footer">
             <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
             <span><kbd>Enter</kbd> 打开</span>
@@ -242,6 +286,31 @@ const {
   handleInputKeydown,
   handleGlobalKeydown,
 } = useGlobalSearch()
+
+// ── 网页搜索：引擎切换 + 跳转（模板 v-if="false" 禁用，排查 SSR 500）──
+const searchEngineStore = useSearchEnginesStore()
+const engines = computed(() => searchEngineStore.engines)
+const currentEngine = computed(() => searchEngineStore.currentEngine)
+const showEngineDropdown = ref(false)
+
+function selectEngine(engine: any) {
+  searchEngineStore.setCurrentEngine(engine.id)
+  showEngineDropdown.value = false
+}
+
+function searchWeb() {
+  if (!normalizedQuery.value || !currentEngine.value) return
+  const url = currentEngine.value.url.replace('%s', encodeURIComponent(normalizedQuery.value))
+  window.open(url, '_blank', 'noopener')
+}
+
+onMounted(() => {
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.gs-web-search')) {
+      showEngineDropdown.value = false
+    }
+  })
+})
 
 const groupMeta: Array<{ key: GlobalSearchGroup; label: string; icon: string }> = [
   { key: 'bookmarks', label: '个人书签', icon: 'ri-bookmark-3-line' },
@@ -615,6 +684,116 @@ onBeforeUnmount(() => {
 .gs-quick-link strong { overflow: hidden; color: var(--text-primary); font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
 .gs-quick-link small { overflow: hidden; color: var(--text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── 网页搜索栏 ────────────────────────────────────────────── */
+.gs-web-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+.gs-web-search-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gs-web-engine-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+.gs-web-engine-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-web-search-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.gs-web-search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--color-primary, var(--primary));
+  background: var(--surface-raised);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms;
+}
+.gs-web-search-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-focus);
+}
+.gs-web-search-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.gs-web-engine-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-tertiary);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+.gs-web-engine-toggle:hover {
+  background: var(--surface-hover);
+}
+.gs-engine-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 16px;
+  z-index: 10;
+  min-width: 180px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+}
+.gs-engine-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.gs-engine-option:hover { background: var(--surface-hover); }
+.gs-engine-option.active { background: var(--surface-hover); font-weight: 600; }
+.gs-engine-option-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
 .gs-footer {
   display: flex;
   align-items: center;
@@ -647,7 +826,8 @@ onBeforeUnmount(() => {
   display: none;
   position: fixed;
   right: 33px;
-  bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  /* 公告 FAB 在 176px，搜索按钮放它上方（176 + 48 + 12 = 236px） */
+  bottom: calc(236px + env(safe-area-inset-bottom, 0px));
   z-index: 10004;
   width: 44px;
   height: 44px;
@@ -686,6 +866,10 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1024px) {
   .gs-mobile-launcher { display: inline-flex; }
+}
+
+@media (max-width: 768px) {
+  .gs-mobile-launcher { right: 35px; }
 }
 
 @media (max-width: 640px) {
