@@ -345,23 +345,35 @@ function onSelectCollection(id: string) {
 let cleanupClickHandler: (() => void) | null = null
 
 // 侧边栏展开状态持久化：首次默认全部展开，之后记住用户偏好
-// v2: 旧 key 数据不完整（部分展开），加版本号使旧数据失效
+// v2：v1 的 key 数据来自「部分展开」的旧行为，用户从未主动选择过；
+// 沿用会让子分类继续不显示，故换 key 让旧数据失效。
 const EXPANDED_STORAGE_KEY = 'favshub-sidebar-expanded-v2'
+// 用户是否主动操作过展开状态。用于区分「历史遗留的部分展开」与「用户主动收起」。
+const EXPANDED_TOUCHED_KEY = '{{SECRET_4jbf4uzg}}'
 
 function restoreExpanded() {
+  // 只有用户主动操作过（touched 标记）才恢复偏好；
+  // 否则默认全部展开——否则历史遗留的「部分展开」状态会让子分类看起来消失。
   try {
-    const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
-    if (raw !== null) {
-      expandedIds.value = new Set(JSON.parse(raw))
-      return
+    const touched = localStorage.getItem(EXPANDED_TOUCHED_KEY)
+    if (touched === '1') {
+      const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
+      if (raw !== null) {
+        const saved = JSON.parse(raw) as number[]
+        const valid = new Set(allFolderIds.value)
+        expandedIds.value = new Set(saved.filter(id => valid.has(id)))
+        return
+      }
     }
   } catch { /* 首次或数据损坏 */ }
-  // 新 key 不存在：默认全部展开
   expandedIds.value = new Set(allFolderIds.value)
 }
 
 function saveExpanded() {
-  try { localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...expandedIds.value])) } catch {}
+  try {
+    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...expandedIds.value]))
+    localStorage.setItem(EXPANDED_TOUCHED_KEY, '1')
+  } catch {}
 }
 
 onMounted(() => {

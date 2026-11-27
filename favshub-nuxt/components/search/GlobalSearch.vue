@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport to="#floating-actions">
     <button
       v-if="isMobile && !isOpen"
       type="button"
@@ -155,6 +155,30 @@
                 </div>
               </section>
 
+              <!-- 浏览器历史（仅扩展可用时显示） -->
+              <section v-if="browserHistory.length" class="gs-recent-section">
+                <div class="gs-section-heading">
+                  <h3 class="gs-section-title">浏览器历史</h3>
+                </div>
+                <div class="gs-recent-visits">
+                  <a
+                    v-for="item in browserHistory"
+                    :key="item.url"
+                    :href="item.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="gs-result gs-recent-visit"
+                  >
+                    <span class="gs-result-icon"><i class="ri-global-line" aria-hidden="true"></i></span>
+                    <span class="gs-result-copy">
+                      <span class="gs-result-title">{{ item.title || item.url }}</span>
+                      <span v-if="item.url" class="gs-result-subtitle">{{ item.url }}</span>
+                    </span>
+                    <i class="ri-external-link-line gs-visit-type" aria-hidden="true"></i>
+                  </a>
+                </div>
+              </section>
+
               <section v-if="recentVisits.length" class="gs-recent-section">
                 <div class="gs-section-heading">
                   <h3 class="gs-section-title">最近访问</h3>
@@ -197,8 +221,8 @@
             </template>
           </div>
 
-          <!-- 网页搜索：当前引擎 + 切换 + 跳转（暂时禁用，排查 SSR 500） -->
-          <div v-if="false" class="gs-web-search">
+          <!-- 网页搜索：当前引擎 + 切换 + 跳转（移动端主入口，桌面端也有） -->
+          <div class="gs-web-search">
             <div class="gs-web-search-left">
               <img
                 :src="currentEngine?.icon || '/images/placeholder-icon.svg'"
@@ -287,7 +311,7 @@ const {
   handleGlobalKeydown,
 } = useGlobalSearch()
 
-// ── 网页搜索：引擎切换 + 跳转（模板 v-if="false" 禁用，排查 SSR 500）──
+// ── 网页搜索：引擎切换 + 跳转 ──────────────────────────────────
 const searchEngineStore = useSearchEnginesStore()
 const engines = computed(() => searchEngineStore.engines)
 const currentEngine = computed(() => searchEngineStore.currentEngine)
@@ -304,12 +328,68 @@ function searchWeb() {
   window.open(url, '_blank', 'noopener')
 }
 
+// ── 浏览器历史（通过扩展读取；无扩展时为空）────────────────────
+interface BrowserHistoryItem {
+  url: string
+  title: string
+}
+const browserHistory = ref<BrowserHistoryItem[]>([])
+
+function sendExtensionMessage(action: string, extraParams: Record<string, any> = {}): Promise<any> {
+  return new Promise((resolve) => {
+    const requestId = Date.now().toString() + Math.random().toString(36).slice(2)
+    let cleaned = false
+    const cleanup = () => {
+      if (cleaned) return
+      cleaned = true
+      window.removeEventListener('message', handler)
+      clearTimeout(timeoutId)
+    }
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'favshub-ext-response' && event.data?.requestId === requestId) {
+        cleanup()
+        resolve(event.data.payload)
+      }
+    }
+    window.addEventListener('message', handler)
+    window.postMessage({ type: 'favshub-ext-request', action, requestId, ...extraParams }, window.location.origin)
+    const timeoutId = setTimeout(() => { cleanup(); resolve(null) }, 3000)
+  })
+}
+
+async function loadBrowserHistory() {
+  if (!import.meta.client) return
+  if (document.documentElement.getAttribute('data-favshub-ext') !== 'active') return
+  try {
+    const res = await sendExtensionMessage('searchHistory', { text: '', maxResults: 200 })
+    if (!res?.success || !Array.isArray(res.items)) return
+    const domainCounts: Record<string, number> = {}
+    const unique = new Map<string, BrowserHistoryItem>()
+    for (const item of res.items) {
+      if (!item?.url) continue
+      let domain = ''
+      try { domain = new URL(item.url).hostname } catch { continue }
+      if (!domain) continue
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1
+      if (domainCounts[domain] > 3) continue
+      if (unique.has(item.url)) continue
+      unique.set(item.url, { url: item.url, title: item.title || '' })
+      if (unique.size >= 20) break
+    }
+    browserHistory.value = [...unique.values()]
+  } catch { /* 扩展不可用时静默 */ }
+}
+
 onMounted(() => {
   document.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('.gs-web-search')) {
       showEngineDropdown.value = false
     }
   })
+  void loadBrowserHistory()
+  if (searchEngineStore.engines.length === 0) {
+    void searchEngineStore.fetchEngines()
+  }
 })
 
 const groupMeta: Array<{ key: GlobalSearchGroup; label: string; icon: string }> = [
@@ -822,13 +902,9 @@ onBeforeUnmount(() => {
 
 .gs-spinner { animation: gs-spin 800ms linear infinite; }
 
+/* 移动端启动按钮：位置由 #floating-actions 统一容器控制（与公告 FAB 同列堆叠） */
 .gs-mobile-launcher {
   display: none;
-  position: fixed;
-  right: 33px;
-  /* 公告 FAB 在 176px，搜索按钮放它上方（176 + 48 + 12 = 236px） */
-  bottom: calc(236px + env(safe-area-inset-bottom, 0px));
-  z-index: 10004;
   width: 44px;
   height: 44px;
   align-items: center;
@@ -866,10 +942,6 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1024px) {
   .gs-mobile-launcher { display: inline-flex; }
-}
-
-@media (max-width: 768px) {
-  .gs-mobile-launcher { right: 35px; }
 }
 
 @media (max-width: 640px) {

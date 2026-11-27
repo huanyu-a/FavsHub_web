@@ -1,6 +1,8 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
     <slot />
+    <!-- 右下角悬浮件统一容器：公告 FAB 与移动端搜索按钮共用，避免互相遮挡 -->
+    <div id="floating-actions" aria-hidden="false"></div>
     <SiteAnnouncement />
     <FloatingNav />
     <MobileHeader />
@@ -82,6 +84,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20261126b' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261126b' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260928b' },
+    { rel: 'stylesheet', href: '/css/floating-actions.css?v=20261127a' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     // Canonical URL: 基于当前路由，防止重复内容
     { rel: 'canonical', href: canonicalUrl },

@@ -1,22 +1,24 @@
 <template>
   <div class="announcement-widget">
     <!-- 右侧悬浮图标 -->
-    <div
-      v-if="announcements.length > 0"
-      class="announcement-fab"
-      :class="{ 'has-unread': unreadCount > 0 }"
-      title="站点公告"
-      @click="openModal"
-    >
-      <div class="fab-icon-wrap">
-        <i class="ri-notification-3-line fab-icon"></i>
-        <!-- 公告数量 Badge -->
-        <span v-if="displayCount > 0" class="fab-badge" :class="{ 'badge-unread': unreadCount > 0 }">
-          {{ displayCount > 99 ? '99+' : displayCount }}
-        </span>
+    <Teleport to="#floating-actions">
+      <div
+        v-if="announcements.length > 0"
+        class="announcement-fab"
+        :class="{ 'has-unread': unreadCount > 0 }"
+        title="站点公告"
+        @click="openModal"
+      >
+        <div class="fab-icon-wrap">
+          <i class="ri-notification-3-line fab-icon"></i>
+          <!-- 公告数量 Badge -->
+          <span v-if="displayCount > 0" class="fab-badge" :class="{ 'badge-unread': unreadCount > 0 }">
+            {{ displayCount > 99 ? '99+' : displayCount }}
+          </span>
+        </div>
+        <span class="fab-tooltip">站点公告</span>
       </div>
-      <span class="fab-tooltip">站点公告</span>
-    </div>
+    </Teleport>
 
     <!-- 弹窗遮罩与主体 -->
     <Teleport to="body">
@@ -260,10 +262,9 @@ onMounted(() => {
   position: relative;
 }
 
+/* FAB 位于 #floating-actions 统一容器内，位置由容器控制（与移动端搜索按钮同列堆叠） */
 .announcement-fab {
-  position: fixed;
-  right: 24px;
-  bottom: 120px;
+  position: relative;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -732,23 +733,21 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* ── 移动端避让「回到顶部」按钮（2026-10-30）──────────────────────
+/* ── 移动端避让「回到顶部」按钮（2026-10-30 / 2026-11-27 改）──────
    #back-to-top-container 在 ≤1024px 时 bottom: calc(80px + safe-area)，
    其内按钮为 50×50 + margin:32px → 按钮实际占据「下 112–162px、右 32–82px」，
    且容器 z-index:10004 远高于本组件 FAB 的 990，重叠时 FAB 会被盖住且点击无效。
-   因此 FAB 必须整体叠到按钮**上方**：bottom ≥ 162px + 间距；
-   同时把水平中心对齐到按钮中心（距离右缘 57px），视觉上形成一列。 */
+   2026-11-27 起 FAB 与移动端搜索按钮同处 #floating-actions 容器，
+   由容器统一定位与避让，本组件只需在移动端缩小尺寸。 */
 @media (max-width: 1024px) {
   .announcement-fab {
-    right: 33px; /* 57 - 48/2 */
-    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+    width: 44px;
+    height: 44px;
   }
 }
 
 @media (max-width: 768px) {
   .announcement-fab {
-    right: 35px; /* 57 - 44/2 */
-    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
     width: 44px;
     height: 44px;
   }

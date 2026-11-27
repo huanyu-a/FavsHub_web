@@ -1,0 +1,33 @@
+/* 右下角悬浮件统一容器
+ * 公告 FAB 与移动端搜索按钮共用此容器，垂直堆叠，避免互相遮挡。
+ * 位置：回到顶部按钮之上（回到顶部在 ≤1024px 占据右侧 32–82px / 底部 112–162px）。
+ */
+#floating-actions {
+  position: fixed;
+  right: 24px;
+  bottom: 120px;
+  z-index: 10004;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+/* 容器内子元素恢复交互（容器本身不拦截点击） */
+#floating-actions > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 1024px) {
+  #floating-actions {
+    right: 33px;
+    bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 768px) {
+  #floating-actions {
+    right: 35px;
+  }
+}
