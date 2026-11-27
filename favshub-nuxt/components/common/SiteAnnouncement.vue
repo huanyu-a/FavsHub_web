@@ -139,6 +139,8 @@ const isOpen = ref(false)
 const currentView = ref<'list' | 'detail'>('list')
 const activeAnnouncement = ref<AnnouncementItem | null>(null)
 
+const { showModal, hideModal } = useModalState()
+
 // 计算未读数量与展示数量
 const unreadCount = computed(() => {
   return announcements.value.filter(a => !readIds.value.includes(a.id)).length
@@ -201,14 +203,13 @@ async function loadAnnouncements() {
 function openModal() {
   currentView.value = 'list'
   isOpen.value = true
-  // 弹窗打开时隐藏右下角悬浮件（公告 FAB / 搜索按钮 / 回到顶部），
-  // 否则它们的 z-index 高于弹窗，会压在弹窗内容之上
-  document.body.classList.add('modal-open')
+  // 通知全局状态：隐藏右下角悬浮件（它们的 z-index 高于本弹窗）
+  showModal('announcement')
 }
 
 function closeModal() {
   isOpen.value = false
-  document.body.classList.remove('modal-open')
+  hideModal('announcement')
 }
 
 function viewDetail(item: AnnouncementItem) {

@@ -1,5 +1,5 @@
 <template>
-  <div id="back-to-top-container">
+  <div v-show="!isAnyModalOpen" id="back-to-top-container">
     <button id="back-to-top" type="button" :class="{ show: showButton }" title="回到顶部" aria-label="回到顶部" @click="scrollToTop">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px; height:20px;">
         <path d="M12 19V5M5 12l7-7 7 7"></path>
@@ -21,6 +21,9 @@
 const scrollPercent = ref(0)
 const showButton = ref(false)
 const lastScroller = ref<HTMLElement | null>(null)
+// 弹窗打开时隐藏：本组件容器 z-index 为 999999，高于各类弹窗（10000~10080），
+// 不隐藏会压在弹窗内容之上（2026-11-27 用户实测反馈）。
+const { isAnyModalOpen } = useModalState()
 
 interface ScrollMetrics { scrollTop: number; maxScroll: number }
 

@@ -1,8 +1,9 @@
 <template>
   <div :data-guest="isGuest" :data-admin="isAdmin" class="app-shell">
     <slot />
-    <!-- 右下角悬浮件统一容器：公告 FAB 与移动端搜索按钮共用，避免互相遮挡 -->
-    <div id="floating-actions" aria-hidden="false"></div>
+    <!-- 右下角悬浮件统一容器：公告 FAB 与移动端搜索按钮共用，避免互相遮挡。
+         弹窗打开时整体隐藏——否则它们的 z-index 会压在弹窗内容之上。 -->
+    <div id="floating-actions" v-show="!isAnyModalOpen"></div>
     <SiteAnnouncement />
     <FloatingNav />
     <MobileHeader />
@@ -19,6 +20,7 @@ import GlobalSearch from '~/components/search/GlobalSearch.vue'
 const { isGuest, isAdmin } = useAuth()
 const { initThemeWatchers } = useTheme()
 const { isMobile, drawerOpen } = useMobile()
+const { isAnyModalOpen } = useModalState()
 const route = useRoute()
 
 // 具名 keydown 处理器（frontend #3）：Escape 关闭移动端抽屉。
@@ -84,7 +86,7 @@ useHead({
     { rel: 'stylesheet', href: '/css/themes.css?v=20261126b' },
     { rel: 'stylesheet', href: '/css/main-bundle.css?v=20261126b' },
     { rel: 'stylesheet', href: '/css/mobile-responsive.css?v=20260928b' },
-    { rel: 'stylesheet', href: '/css/floating-actions.css?v=20261127a' },
+    { rel: 'stylesheet', href: '/css/floating-actions.css?v=20261127b' },
     { rel: 'stylesheet', href: '/vendor/remixicon.css' },
     // Canonical URL: 基于当前路由，防止重复内容
     { rel: 'canonical', href: canonicalUrl },

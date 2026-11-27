@@ -284,6 +284,7 @@ import SearchEngineDropdown from './SearchEngineDropdown.vue'
 
 const inputRef = ref<HTMLInputElement | null>(null)
 const { isMobile } = useMobile()
+const { showModal, hideModal } = useModalState()
 const {
   isOpen,
   query,
@@ -478,13 +479,13 @@ watch(isOpen, async (openNow) => {
     previouslyFocused = document.activeElement as HTMLElement | null
     previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    // 弹窗打开时隐藏右下角悬浮件（z-index 高于搜索面板）
-    document.body.classList.add('modal-open')
+    // 通知全局状态：隐藏右下角悬浮件（z-index 高于搜索面板）
+    showModal('global-search')
     await nextTick()
     if (isOpen.value) inputRef.value?.focus()
   } else {
     document.body.style.overflow = previousBodyOverflow
-    document.body.classList.remove('modal-open')
+    hideModal('global-search')
     const focusTarget = previouslyFocused
     previouslyFocused = null
     await nextTick()

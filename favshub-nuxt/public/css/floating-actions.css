@@ -32,10 +32,6 @@
   }
 }
 
-/* 弹窗打开时隐藏右下角悬浮件：
-   它们的 z-index（10004 / 999999）高于公告弹窗（10000）与全局搜索面板（10020），
-   会压在弹窗内容之上。弹窗组件在 open 时给 body 加 .modal-open。 */
-body.modal-open #floating-actions,
-body.modal-open #back-to-top-container {
-  display: none !important;
-}
+/* 弹窗打开时隐藏悬浮件由 composables/useModalState.ts 驱动（v-show），
+   不在 CSS 里做：外部 CSS 靠 ?v= 版本号刷新，漏改版本号规则就不生效，
+   而 z-index 冲突（10004 vs 10000~10080）必须在任何缓存状态下都成立。 */
