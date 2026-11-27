@@ -216,7 +216,8 @@ function setupGroupObserver() {
     if (bestKey) activeGroupKey.value = bestKey
   }, {
     root: main instanceof HTMLElement ? main : null,
-    rootMargin: '-10% 0px -55% 0px',
+    // 上边留出工具条高度、下边留出大半屏 → 只有「当前占据视口上部的分组」才算激活
+    rootMargin: '-8% 0px -60% 0px',
     threshold: 0,
   })
 }
@@ -335,7 +336,6 @@ function toggleDensity() {
 
 // 分组数据变化（切换视图）后重新观察分组容器（scroll-spy 依赖 data-group-key）
 watch(() => bookmarksStore.viewMode, () => nextTick(observeGroups))
-
 // C5 + frontend #7/#15：卸载时清空 DOM 引用、销毁拖拽实例并使 pending import 失效
 onBeforeUnmount(() => {
   gridEls.value.length = 0
@@ -481,6 +481,11 @@ const flatVisibleBookmarks = computed(() => {
   if (mounted.value || props.bookmarks.length <= INITIAL_RENDER_LIMIT) return props.bookmarks
   return props.bookmarks.slice(0, INITIAL_RENDER_LIMIT)
 })
+
+// 分组渲染完成后重新挂 scroll-spy 观察。
+// 书签是异步加载的：onMounted 时分组 DOM 还不存在，observer 会观察到 0 个元素，
+// 必须在分组数量变化后重挂，否则滚动联动永远不触发（2026-11-27 实测）。
+watch(() => folderGroups.value.length, () => nextTick(observeGroups))
 </script>
 
 <style scoped>
