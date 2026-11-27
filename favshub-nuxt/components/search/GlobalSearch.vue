@@ -646,8 +646,8 @@ onBeforeUnmount(() => {
 .gs-mobile-launcher {
   display: none;
   position: fixed;
-  left: 12px;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  right: 33px;
+  bottom: calc(176px + env(safe-area-inset-bottom, 0px));
   z-index: 10004;
   width: 44px;
   height: 44px;

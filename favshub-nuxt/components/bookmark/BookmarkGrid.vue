@@ -23,9 +23,13 @@
           v-for="group in folderGroups"
           :key="group.folderId ?? 'recommended'"
           class="category-index-link"
+          :class="{ active: activeGroupKey === groupKey(group) }"
           :href="'#' + groupDomId(group)"
           @click="jumpToGroup($event, group)"
-        >{{ group.name }}</a>
+        >
+          <i :class="groupIcon(group)" class="category-index-icon" aria-hidden="true"></i>
+          <span>{{ group.name }}</span>
+        </a>
       </nav>
       <button
         type="button"
@@ -179,6 +183,19 @@ function groupKey(group: { folderId: number | null }): string {
     : 'mine'
   return `${viewKey}:${group.folderId ?? 'recommended'}`
 }
+
+// 当前激活的分类索引标签（点击或滚动到该分组时高亮）
+const activeGroupKey = ref('')
+
+// 分类图标：按名称哈希稳定选取 Remix 图标，与 FolderTreeItem 同一逻辑
+const GROUP_ICONS = ['ri-folder-line','ri-folder-2-line','ri-folder-3-line','ri-folder-4-line','ri-bookmark-line','ri-star-line']
+function groupIcon(group: { folderId: number | null; name: string }): string {
+  if (group.folderId === null) return 'ri-apps-line'
+  let h = 0
+  for (let i = 0; i < group.name.length; i++) h = ((h << 5) - h) + group.name.charCodeAt(i)
+  return GROUP_ICONS[Math.abs(h) % GROUP_ICONS.length]
+}
+
 function isGroupExpanded(group: { folderId: number | null }): boolean {
   return bookmarksStore.isGroupExpanded(groupKey(group))
 }
@@ -191,6 +208,7 @@ async function jumpToGroup(event: MouseEvent, group: { folderId: number | null }
   event.preventDefault()
   // 收起的分组也允许通过索引定位；标题始终是实际存在的锚点
   bookmarksStore.setGroupExpanded(groupKey(group), true)
+  activeGroupKey.value = groupKey(group)
   await nextTick()
   const id = groupDomId(group)
   const target = document.getElementById(id)
@@ -469,28 +487,56 @@ const flatVisibleBookmarks = computed(() => {
 .category-index {
   display: flex;
   flex: 1;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  padding: 2px;
+  /* 两端渐隐提示可滚动 */
+  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 24px), transparent);
 }
+.category-index::-webkit-scrollbar { display: none; }
 .category-index-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: 0 0 auto;
   max-width: 180px;
-  padding: 5px 9px;
+  padding: 5px 12px;
   overflow: hidden;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.4;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 7px;
+  border-radius: 20px;
+  background: var(--surface-sunken, rgba(0,0,0,0.04));
+  border: 1px solid transparent;
+  transition: color 150ms, background 150ms, border-color 150ms;
   scroll-margin-top: calc(var(--bookmark-sticky-top) + var(--bookmark-toolbar-height) + 64px);
+}
+.category-index-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  opacity: 0.7;
 }
 .category-index-link:hover {
   color: var(--control-accent);
   background: var(--control-hover-bg);
+  border-color: var(--border);
+}
+.category-index-link.active {
+  color: var(--control-accent);
+  background: color-mix(in srgb, var(--control-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--control-accent) 25%, transparent);
+  font-weight: 600;
+}
+.category-index-link.active .category-index-icon {
+  opacity: 1;
 }
 .category-index-link:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -599,9 +645,18 @@ const flatVisibleBookmarks = computed(() => {
   .grid-toolbar {
     margin-inline: -2px;
   }
+  .category-index {
+    gap: 4px;
+    mask-image: linear-gradient(to right, transparent, black 8px, black calc(100% - 16px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 8px, black calc(100% - 16px), transparent);
+  }
   .category-index-link {
-    max-width: 128px;
-    padding-inline: 7px;
+    max-width: 120px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+  .category-index-icon {
+    font-size: 13px;
   }
   .density-label {
     display: none;

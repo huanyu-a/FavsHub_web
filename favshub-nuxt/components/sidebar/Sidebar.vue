@@ -344,9 +344,29 @@ function onSelectCollection(id: string) {
 // 全局点击关闭右键菜单（注册 + 清理）
 let cleanupClickHandler: (() => void) | null = null
 
+// 侧边栏展开状态持久化：首次默认全部展开，之后记住用户偏好
+const EXPANDED_STORAGE_KEY = 'favshub-sidebar-expanded'
+
+function restoreExpanded() {
+  try {
+    const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
+    if (raw !== null) {
+      expandedIds.value = new Set(JSON.parse(raw))
+      return
+    }
+  } catch { /* 首次或数据损坏 */ }
+  // 首次：默认全部展开
+  expandedIds.value = new Set(allFolderIds.value)
+}
+
+function saveExpanded() {
+  try { localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...expandedIds.value])) } catch {}
+}
+
 onMounted(() => {
   loadCollections()
   if (import.meta.client) {
+    restoreExpanded()
     const handler = () => { folderMenu.visible = false }
     document.addEventListener('click', handler)
     cleanupClickHandler = () => document.removeEventListener('click', handler)
@@ -408,6 +428,7 @@ function toggleAllFolders() {
   } else {
     expandedIds.value = new Set(allFolderIds.value)
   }
+  saveExpanded()
 }
 
 // 点「全部」行：选中根目录 + 切换整棵树展开/收起（与 FolderTreeItem 的选中即切换语义一致）
@@ -422,6 +443,7 @@ function toggleExpand(id: number) {
   } else {
     expandedIds.value.add(id)
   }
+  saveExpanded()
 }
 
 function selectAndToggle(folder: FolderNode) {

@@ -39,10 +39,6 @@
       <span class="mobile-nav-icon"><i class="ri-folder-open-line"></i></span>
       <span class="mobile-nav-label">分类</span>
     </button>
-    <button class="mobile-nav-item" type="button" @click="openSearchSheet">
-      <span class="mobile-nav-icon"><i class="ri-search-line"></i></span>
-      <span class="mobile-nav-label">搜索</span>
-    </button>
     <button class="mobile-nav-item" type="button" @click="cycleTheme">
       <span class="mobile-nav-icon"><i :class="themeIcon"></i></span>
       <span class="mobile-nav-label">主题</span>
