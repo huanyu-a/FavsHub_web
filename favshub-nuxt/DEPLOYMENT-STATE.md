@@ -1,4 +1,4 @@
-**最后更新：2026-11-27（第 42 次修订：1.0.108 类型清零 + 运行时门禁 + 无障碍 —— 完整 `pnpm typecheck` 133→0 并转为阻断门禁；L3 限流 `Retry-After` 统一出口 + 28 项真实边界测试；favicon 失败 302 到站内通用 SVG（8 项断言）；Token 页 WCAG AA 配色/标题层级/唯一 main；25 套件 2362 断言。Node 24 Windows 兼容修复（`pathToFileURL` 包装 `await import`）。**）**
+﻿**最后更新：2026-11-27（第 42 次修订：1.0.108 类型清零 + 运行时门禁 + 无障碍 —— 完整 `pnpm typecheck` 133→0 并转为阻断门禁；L3 限流 `Retry-After` 统一出口 + 28 项真实边界测试；favicon 失败 302 到站内通用 SVG（8 项断言）；Token 页 WCAG AA 配色/标题层级/唯一 main；25 套件 2362 断言。Node 24 Windows 兼容修复（`pathToFileURL` 包装 `await import`）。**）**
 
 上一轮第 41 次修订：1.0.107 前端 UI、交互与同步安全优化 —— 11 主题暖白/Emerald 语义令牌、全局搜索、长列表状态恢复、后台与移动端归一化、扩展三向预览/执行上下文绑定。功能提交 `1e8e62b6a6916affcc85b02956c8d2729ae8dc78`，发布提交 `d3e06ec371e074d4e23351ef4632244bb498350a`。Nuxt quality `45829493005`、Extension quality `45828263357`、Docker Publish `45829530449` 全绿；23 套件 2326 断言及技能清单守卫通过。镜像 `sha256:053e4f8c46631c707a096c6091925e2b5c0c3e1a86d5f47fb01ff6b26c79311c`，label `version=1.0.107 / revision=d3e06ec371e074d4e23351ef4632244bb498350a` 核验后显式 pull 并 `up -d`。生产容器 healthy、RestartCount=0、`/api/health` database=connected、技能清单 `site_version=1.0.107`、首页 200 且 CSS `v=20261126b`。生产 Lighthouse Accessibility/SEO/Agentic=100，Best Practices=54（既有游客 401/第三方与弃用项）；性能 LCP=452ms、CLS=0.06；390×844 无页面横向滚动，Ctrl+K 对话框与输入聚焦通过。回滚锚点 `rollback-20261126-213204`（=1.0.106 镜像 `cbe74ddb0ac4`）；备份 `data/backups/favshub.db.pre-deploy-20261126-213204`（5,500,928B，integrity_check=ok）。完整 Nuxt typecheck 既有类型债仍为非阻断项。**）**
 
@@ -17,21 +17,19 @@
 
 上一轮第 36 次修订：详情页首屏信息架构修正 —— 用户三条反馈「这俩板块太长了，应该放到详情页常见问题上方部分，不要放到首屏，首屏优先显示免费额度、接入信息、支持模型」「有效期之前不是转移到了 header 部分了么」「核实情况不是已经用背景水印替代了么」。首屏信息面板从「额度 / 领取条件 / 限制 / 有效期」四格收成**只剩免费额度**，「领取条件 / 限制」下移到 FAQ 上方，「核实情况」整块删除（核验状态本来就由中部圆形水印承担）。上一轮第 35 次修订：清掉门禁自身的三个尾巴（硬编码端口 / openssl 靶标依赖 / UI 接线层零测试）。**已发版 1.0.101 并部署**）**
 
-## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.103（2026-11-19）
+## ✅ 当前状态：生产已跑 CI 构建的正规镜像 1.0.108（2026-11-27）
 
 | 项 | 值 |
 |---|---|
-| **版本** | `1.0.103` |
-| **来源提交** | `e26bc1a271036f14c978135d769c4906b850d5fd` |
-| **镜像 label** | `org.opencontainers.image.version=1.0.103`、`revision=e26bc1a271036f14c978135d769c4906b850d5fd` —— 部署前拿它当**闸门**：本次实测 label 与实际运行容器 `Version=1.0.103` 逐字符一致后才 `up -d` |
-| **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:2942b8348bfbf37de65dde01cd166b5ebb2079219754ec007978b7e8e6ef42bf`（容器 Image `sha256:185887eea2e9`） |
-| **CI run** | `44496586479`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
-| **健康检查** | `docker ps` → `Up (healthy)`、`RestartCount=0`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.103`** |
+| **版本** | `1.0.108` |
+| **来源提交** | `cba273e2447a4cacaaeb81e4d55f5f83abbe6174` |
+| **镜像 label** | `org.opencontainers.image.version=1.0.108`、`revision=cba273e2447a4cacaaeb81e4d55f5f83abbe6174` —— 部署前实测 label 一致后才 `up -d` |
+| **CI run** | Nuxt quality `45926229838` + Docker Publish `45926229863`，均 `success`（25 套件 2362 断言、技能清单守卫、完整 typecheck 均绿） |
+| **健康检查** | `docker ps` → `Up (healthy)`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.108`** |
 | **当前 CI 断言总数** | **2362**（共 25 个套件）· `ts:check` **994** 个具名导入；完整 `pnpm typecheck` 已清零并转为阻断门禁 |
-| **线上数据分布** | `published 88 / pending 0 / rejected 25 / invalid 13 / offline 3 / deleted 5`（合计 134）—— 无数据库迁移（启动日志 `token_deals.state 回填 133 行` 是既有的幂等回填），部署后由服务器侧只读查询测得 |
-| **技能包版本** | `1.12.0`（仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库，`site v1.0.103`；VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
-| **回滚锚点** | 镜像 tag `rollback-20261119-172516` ← `315f319b6a8b`（1.0.102 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261119172516`（5,292,032 字节，`integrity_check=ok`）；更早还有 `rollback-20261116` / `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
-| **部署后校验** | 三路：① 容器内前端产物实测 `R.value="published",j.value="stale"`、旧写法 `value="approved"` **出现 0 次**；② 生产库按服务端口径算得待核验 **78 条**，而 `state='approved'` 仅 **0 行**（旧查询恒空的直接证据）；③ 公网 `/api/health` ok、`site_version=1.0.103`、`/tokens` 与 `/tokens/keys` 均 200（`/admin/token-deals` 302 = 未登录跳转，符合预期） |
+| **技能包版本** | `1.12.0`（`site_version=1.0.108`） |
+| **回滚锚点** | 镜像 tag `rollback-20261127-101351`（=1.0.107 镜像 `sha256:053e4f8c46631c`）+ 库备份 `data/backups/favshub.db.pre-deploy-20261127-101351` |
+| **部署后校验** | ① 首页 200、`/tokens` 200；② favicon 失败 302 → `/images/favicon-fallback.svg`；③ SSRF 私有域名 400 拒绝；④ 技能清单 `site_version=1.0.108`；⑤ `/api/health` database=connected |
 
 ### 1.0.103：后台「待核验」角标有数但列表为空（2026-11-19）
 
