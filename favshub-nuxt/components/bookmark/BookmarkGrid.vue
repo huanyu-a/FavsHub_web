@@ -253,8 +253,12 @@ onMounted(() => {
   observeGroups()
   // observer 只在交叉关系变化时触发，不保证覆盖「连续滚动」的所有位置，
   // 因此额外挂滚动监听兜底（rAF 节流）。
-  // 注意：监听 window 而非 main —— 本组件 onMounted 时父级 <main> 尚未挂载，
-  // document.querySelector('main') 会拿到 null，绑不上滚动事件（2026-11-27 实测）。
+  //
+  // 监听 document + 捕获阶段：scroll 事件不冒泡，但**可以被捕获**，
+  // document 在捕获阶段能收到任意元素（桌面端 <main>、移动端 body）的滚动。
+  // 不能绑 window：捕获阶段不会经过 window 之上的目标；
+  // 也不能在 onMounted 里直接绑 <main>：本组件是父级 <main> 的子组件，
+  // onMounted 时父级尚未挂载，querySelector('main') 拿到 null（2026-11-27 实测两次踩坑）。
   let rafId = 0
   const onScroll = () => {
     if (rafId) return
@@ -263,9 +267,9 @@ onMounted(() => {
       updateActiveGroupFromScroll()
     })
   }
-  window.addEventListener('scroll', onScroll, { passive: true, capture: true })
+  document.addEventListener('scroll', onScroll, { passive: true, capture: true })
   onBeforeUnmount(() => {
-    window.removeEventListener('scroll', onScroll, { capture: true } as any)
+    document.removeEventListener('scroll', onScroll, true)
     if (rafId) cancelAnimationFrame(rafId)
   })
 })
