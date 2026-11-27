@@ -344,46 +344,39 @@ function onSelectCollection(id: string) {
 // 全局点击关闭右键菜单（注册 + 清理）
 let cleanupClickHandler: (() => void) | null = null
 
-// 侧边栏展开状态持久化：首次默认全部展开，之后记住用户偏好
-// v2：v1 的 key 数据来自「部分展开」的旧行为，用户从未主动选择过；
-// 沿用会让子分类继续不显示，故换 key 让旧数据失效。
-const EXPANDED_STORAGE_KEY = 'favshub-sidebar-expanded-v2'
-// 用户是否主动操作过展开状态。用于区分「历史遗留的部分展开」与「用户主动收起」。
-const EXPANDED_TOUCHED_KEY = '{{SECRET_4jbf4uzg}}'
+// 侧边栏展开状态持久化
+// 采用「记录用户主动收起的 ID」而非「记录展开的 ID」：
+//   - 默认全展开（子分类直接可见），符合用户预期；
+//   - 书签异步加载导致 allFolderIds 不完整时，展开态不会被截断；
+//   - 新增文件夹默认展开，符合直觉。
+const COLLAPSED_STORAGE_KEY = '{{SECRET_6eh2t4u3}}'
 
-function restoreExpanded() {
-  // 只有用户主动操作过（touched 标记）才恢复偏好；
-  // 否则默认全部展开——否则历史遗留的「部分展开」状态会让子分类看起来消失。
+// 用户主动收起的文件夹 ID
+const collapsedIds = ref(new Set<number>())
+
+function restoreCollapsed() {
   try {
-    const touched = localStorage.getItem(EXPANDED_TOUCHED_KEY)
-    if (touched === '1') {
-      const raw = localStorage.getItem(EXPANDED_STORAGE_KEY)
-      if (raw !== null) {
-        const saved = JSON.parse(raw) as number[]
-        const valid = new Set(allFolderIds.value)
-        expandedIds.value = new Set(saved.filter(id => valid.has(id)))
-        return
-      }
+    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY)
+    if (raw !== null) {
+      collapsedIds.value = new Set(JSON.parse(raw) as number[])
     }
   } catch { /* 首次或数据损坏 */ }
-  expandedIds.value = new Set(allFolderIds.value)
+  applyCollapsed()
 }
 
-function saveExpanded() {
-  try {
-    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...expandedIds.value]))
-    localStorage.setItem(EXPANDED_TOUCHED_KEY, '1')
-  } catch {}
+function applyCollapsed() {
+  const collapsed = collapsedIds.value
+  expandedIds.value = new Set(allFolderIds.value.filter(id => !collapsed.has(id)))
+}
+
+function saveCollapsed() {
+  try { localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedIds.value])) } catch {}
 }
 
 onMounted(() => {
   loadCollections()
   if (import.meta.client) {
-    // 首次恢复：如果 allFolderIds 已有数据（SSR 时已计算），立即恢复
-    if (allFolderIds.value.length > 0 && !restored) {
-      restored = true
-      restoreExpanded()
-    }
+    restoreCollapsed()
     const handler = () => { folderMenu.visible = false }
     document.addEventListener('click', handler)
     cleanupClickHandler = () => document.removeEventListener('click', handler)
@@ -428,11 +421,13 @@ const allExpanded = computed(() =>
 // 展开/收缩所有文件夹
 function toggleAllFolders() {
   if (allExpanded.value) {
-    expandedIds.value = new Set<number>()
+    // 全部收起 → 记录所有 ID 为已收起
+    collapsedIds.value = new Set(allFolderIds.value)
   } else {
-    expandedIds.value = new Set(allFolderIds.value)
+    collapsedIds.value = new Set<number>()
   }
-  saveExpanded()
+  applyCollapsed()
+  saveCollapsed()
 }
 
 // 点「全部」行：选中根目录 + 切换整棵树展开/收起（与 FolderTreeItem 的选中即切换语义一致）
@@ -443,11 +438,12 @@ function onAllClick() {
 
 function toggleExpand(id: number) {
   if (expandedIds.value.has(id)) {
-    expandedIds.value.delete(id)
+    collapsedIds.value.add(id)
   } else {
-    expandedIds.value.add(id)
+    collapsedIds.value.delete(id)
   }
-  saveExpanded()
+  applyCollapsed()
+  saveCollapsed()
 }
 
 function selectAndToggle(folder: FolderNode) {
@@ -563,14 +559,10 @@ const allFolderIds = computed(() => {
   return ids
 })
 
-// 监听 allFolderIds 变化：首次计算完成时恢复展开状态（bookmarks 加载是异步的）
-// immediate: false 避免 SSR 时执行回调；onMounted 里手动触发首次恢复
-let restored = false
-watch(allFolderIds, (ids) => {
-  if (ids.length > 0 && !restored && import.meta.client) {
-    restored = true
-    restoreExpanded()
-  }
+// 监听 allFolderIds 变化：书签异步加载完成 → 重算展开态
+// （采用「收起集合」模型，展开态 = 全部 ID 减去收起集合，故重算永远安全）
+watch(allFolderIds, () => {
+  if (import.meta.client) applyCollapsed()
 })
 
 // 保持 flatFolderTree 兼容
@@ -643,7 +635,10 @@ async function createSubFolder(parentFolder: FolderNode) {
     const name = validateFolderName(prompt('新建子文件夹'))
     if (name) {
       await bookmarksStore.createFolder({ name, parent_id: parentFolder.id })
-      expandedIds.value.add(parentFolder.id)
+      // 展开父级，让新子文件夹可见
+      collapsedIds.value.delete(parentFolder.id)
+      applyCollapsed()
+      saveCollapsed()
     }
   }
 }
@@ -653,7 +648,8 @@ async function deleteFolder(folder: FolderNode) {
   if (import.meta.client) {
     if (confirm(`确定删除文件夹「${folder.name}」？\n书签将移至未分类，子文件夹将移至上级。`)) {
       await bookmarksStore.deleteFolder(folder.id)
-      expandedIds.value.delete(folder.id)
+      collapsedIds.value.delete(folder.id)
+      saveCollapsed()
     }
   }
 }
