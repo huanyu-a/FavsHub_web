@@ -166,7 +166,7 @@ function onSelect(
   outline-offset: 2px;
 }
 .filter-tab.active {
-  color: var(--primary);
+  color: light-dark(#065F46, #6EE7B7);
   font-weight: 600;
   background: var(--surface-raised);
   box-shadow: var(--shadow-sm);
@@ -218,7 +218,7 @@ function onSelect(
   outline-offset: 2px;
 }
 .filter-chip.active {
-  color: var(--primary);
+  color: light-dark(#065F46, #6EE7B7);
   border-color: var(--primary);
   background: var(--primary-light);
   font-weight: 600;

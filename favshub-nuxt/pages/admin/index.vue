@@ -124,8 +124,8 @@ useHead({ title: '仪表盘' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 const { data, pending: isLoading } = await useFetch('/api/admin/stats', { headers: getAuthHeaders(), credentials: 'include' })
 const stats = computed(() => {
@@ -151,42 +151,42 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 async function exportAdminBookmarks() {
   try {
-    const blob = await $fetch('/api/admin/bookmarks/export', {
+    const blob = await $fetch<Blob>('/api/admin/bookmarks/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-bookmarks-all-${Date.now()}.html`)
+    downloadBlob(blob, `favshub-bookmarks-all-${Date.now()}.html`)
   } catch { alert('导出失败') }
 }
 async function exportMyBookmarks() {
   try {
-    const blob = await $fetch('/api/bookmarks/export', {
+    const blob = await $fetch<Blob>('/api/bookmarks/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-bookmarks-${Date.now()}.html`)
+    downloadBlob(blob, `favshub-bookmarks-${Date.now()}.html`)
   } catch { alert('导出失败') }
 }
 async function exportAdminPrompts() {
   try {
-    const blob = await $fetch('/api/prompts/export?all=1', {
+    const blob = await $fetch<Blob>('/api/prompts/export?all=1', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-prompts-all-${Date.now()}.json`)
+    downloadBlob(blob, `favshub-prompts-all-${Date.now()}.json`)
   } catch { alert('导出失败') }
 }
 async function exportMyPrompts() {
   try {
-    const blob = await $fetch('/api/prompts/export', {
+    const blob = await $fetch<Blob>('/api/prompts/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-prompts-${Date.now()}.json`)
+    downloadBlob(blob, `favshub-prompts-${Date.now()}.json`)
   } catch { alert('导出失败') }
 }
 </script>

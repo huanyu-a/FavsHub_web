@@ -109,8 +109,23 @@ useHead({
   ],
 })
 
-
-
+/**
+ * 精选条目：与 /tokens 页底部同一份数据源（`featured=1`）。
+ *
+ * 本页保留独立路由，作为老链接与搜索收录的落点；`key` 与 /tokens 一致，
+ * 站内跳转时复用同一份 payload，不重复请求。请求失败时 `deals` 为空，
+ * 表格自行渲染空态（`pending` 用于首帧骨架）。
+ */
+const { data: featuredData, pending } = await useFetch<{ deals: IFeaturedDeal[] }>(
+  '/api/token-deals',
+  {
+    query: { featured: 1, limit: 50, page: 1 },
+    server: true,
+    lazy: false,
+    key: 'tokens-featured-deals',
+  },
+)
+const featuredDeals = computed(() => featuredData.value?.deals || [])
 </script>
 
 <style scoped>

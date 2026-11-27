@@ -148,7 +148,8 @@ export default defineAiHandler('read', async (event, token) => {
 
   setResponseHeaders(event, {
     'content-type': 'image/png',
-    'content-length': String(png.length),
+    // content-length 走 number：h3 的 TypedHeaders 对该头声明为 number，Node 的 setHeader 同样接受 number
+    'content-length': png.length,
     // 私有缓存：卡片内容随通告变化，且带鉴权，不适合共享缓存
     'cache-control': 'private, max-age=300',
     // 便于技能侧核对风格与缓存状态

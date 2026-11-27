@@ -98,8 +98,8 @@ interface User {
   bookmark_count?: number
   prompt_count?: number
 }
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 const { data, pending: isLoading, refresh } = await useFetch<{ users: User[] }>('/api/admin/users', { headers: getAuthHeaders(), credentials: 'include' })
 const users = computed(() => data.value?.users || [])

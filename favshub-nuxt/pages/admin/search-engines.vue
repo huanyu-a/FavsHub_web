@@ -84,8 +84,8 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '搜索引擎' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 const engines = ref<any[]>([])
 const loading = ref(false)

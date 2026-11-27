@@ -42,7 +42,8 @@ export default defineEventHandler(async (event) => {
 
   setResponseHeaders(event, {
     'content-type': image.contentType,
-    'content-length': String(image.body.length),
+    // 字节长度用 number：h3 的 TypedHeaders 把 content-length 声明为 number
+    'content-length': image.body.length,
     // 长缓存：URL 本身即内容指纹（同一 QQ 恒得同一密文），可放心缓存 7 天。
     // 头像即使更换，最多滞后 7 天，对评论头像完全可接受。
     'cache-control': 'public, max-age=604800',

@@ -23,3 +23,5 @@ favshub-nuxt/.opencode/
 .workbuddy/
 .pm/
 PROJECT.md
+.playwright-mcp/
+.serena/

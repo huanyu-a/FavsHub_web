@@ -150,8 +150,22 @@ interface ICollectionCategory {
 interface ICollection {
   id: string; name: string; description: string; icon: string; is_public: number; is_official: number
   bookmark_count: number; created_at: number; updated_at?: number; user_id?: number; username?: string
+  nickname?: string | null
   meta_title?: string; meta_description?: string; meta_keywords?: string
   categories?: ICollectionCategory[]
+}
+interface ICollectionCategorySource {
+  id: number; name: string; parent_id: number | null
+}
+interface ICollectionDetailResponse {
+  collection: ICollection
+  categories: ICollectionCategorySource[]
+  bookmarks: ICollectionBookmark[]
+  category_source?: 'folder' | 'collection'
+  is_subscribed?: boolean
+  imported_count?: number
+  total_count?: number
+  new_count?: number
 }
 interface IImportResult {
   success: boolean; imported: number; skipped: number; folder_id: string | null; folder_name: string; collection_name: string
@@ -197,7 +211,7 @@ async function toggleSubscribe() {
 // （软 404），而 sitemap 里同时列着 84 个精选集，等于自己给爬虫喂重复内容。
 // 其它详情页（`/prompts/:id`、`/tokens/:id.html`）都是抛 createError 的，
 // 只有这里漏了 —— 实测 `/collections/nonexistent_xyz` 返回 200，两者返回 404。
-const { data: collectionData, pending, error: collectionError } = await useFetch<{ collection: ICollection; categories: any[]; bookmarks: any[] }>(
+const { data: collectionData, pending, error: collectionError } = await useFetch<ICollectionDetailResponse>(
   () => '/api/collections/' + collectionId.value,
   { server: true, lazy: false }
 )
@@ -243,7 +257,7 @@ const collection = computed(() => {
     .map(cat => {
       const childrenIds = childIds.get(cat.id) || []
       const ownBookmarks = bookmarks.filter(bm => bm.category_id === cat.id)
-      const childrenBookmarks = bookmarks.filter(bm => childrenIds.includes(bm.category_id))
+      const childrenBookmarks = bookmarks.filter(bm => bm.category_id !== null && childrenIds.includes(bm.category_id))
       // 子分类仅保留有书签的
       const children: ICollectionCategory[] = categories
         .filter(c => c.parent_id === cat.id)
@@ -330,7 +344,7 @@ watch(collection, (val) => {
       script: val.categories && val.categories.length > 0 ? [
         {
           type: 'application/ld+json',
-          children: JSON.stringify({
+          innerHTML: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'ItemList',
             name: val.name,

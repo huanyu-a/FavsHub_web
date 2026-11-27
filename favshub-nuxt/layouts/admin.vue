@@ -178,8 +178,8 @@ const isAdmin = computed(() => authStore.isAdmin)
 const sidebarOpen = ref(false)
 function closeSidebar() { sidebarOpen.value = false }
 
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 
 const adminStats = ref<any>(null)

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <main class="tokens-board">
     <!--
       模块页头（2026-11-04 从 pages/tokens/index.vue 抽出，供 /tokens、/tokens/api、
       /tokens/server、/tokens/domain 四个列表页共用）。
@@ -191,7 +191,7 @@
     <Transition name="tokens-toast">
       <div v-if="toastMessage" class="tokens-toast">{{ toastMessage }}</div>
     </Transition>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -577,7 +577,7 @@ onUnmounted(() => {
   padding: 6px 10px;
   border-radius: 6px;
   text-decoration: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
@@ -598,7 +598,7 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 .tokens-header-link.active {
-  color: var(--primary);
+  color: light-dark(#065F46, #6EE7B7);
   background: var(--primary-light);
 }
 .tokens-header-link.active svg { opacity: 1; }
@@ -670,7 +670,7 @@ onUnmounted(() => {
 .hero-count {
   margin: 6px 0 0;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 .hero-toolbar {
@@ -730,21 +730,24 @@ onUnmounted(() => {
   gap: 6px;
   flex-shrink: 0;
   padding: 8px 16px;
-  border: 0.5px solid var(--primary);
+  border: 0.5px solid light-dark(#065F46, #10B981);
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  background: var(--primary);
+  background: light-dark(#065F46, #10B981);
   color: var(--text-inverse);
   transition: background 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hero-publish:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
+  background: light-dark(#064E3B, #34D399);
+  border-color: light-dark(#064E3B, #34D399);
   box-shadow: var(--shadow-sm);
 }
-.hero-publish:active { background: var(--primary-dark); border-color: var(--primary-dark); }
+.hero-publish:active {
+  background: light-dark(#064E3B, #6EE7B7);
+  border-color: light-dark(#064E3B, #6EE7B7);
+}
 .hero-publish:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;

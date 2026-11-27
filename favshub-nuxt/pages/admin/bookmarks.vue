@@ -153,8 +153,8 @@ useHead({ title: '书签管理' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentUserId = computed(() => authStore.user?.id)
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 const tab = ref('list')
 function isEmoji(v: string) { return /[\p{Extended_Pictographic}]/u.test(v) }
@@ -171,7 +171,7 @@ const filterCategory = ref<number | null>(null)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const pages = computed(() => { const a: number[] = []; for (let i = Math.max(1, page.value - 2); i <= Math.min(totalPages.value, page.value + 2); i++) a.push(i); return a })
 // Folder state
-interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; icon?: string; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
+interface FolderNode { id: number; name: string; parent_id?: number | null; parent_name?: string; username?: string; user_id?: number; bookmark_count?: number; icon?: string; login_required?: number; _depth: number; _hasChildren: boolean; _collapsed: boolean; children: FolderNode[] }
 const folderAll = ref<any[]>([])
 const folderLoading = ref(false)
 const allExpanded = ref(true)
@@ -328,12 +328,12 @@ async function retryFailed() { await $fetch('/api/admin/retry-failed-favicons', 
 async function forceLocalize() { await $fetch('/api/admin/force-localize-icons', { method: 'POST', headers: getAuthHeaders() }) }
 async function exportBookmarks() {
   try {
-    const blob = await $fetch('/api/admin/bookmarks/export', {
+    const blob = await $fetch<Blob>('/api/admin/bookmarks/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    const url = URL.createObjectURL(blob as Blob)
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = `favshub-bookmarks-all-${Date.now()}.html`
     document.body.appendChild(a); a.click()
@@ -364,7 +364,7 @@ async function saveFolderEdit() {
   folderEditVisible.value = false
   loadFolders()
 }
-async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch(`/api/admin/folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadFolders() }
+async function delFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; await $fetch<{ success: boolean; message: string }>(`/api/admin/folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadFolders() }
 // 拖拽排序
 async function onFolderReorder(oldIndex: number, newIndex: number) {
   if (oldIndex === newIndex) return

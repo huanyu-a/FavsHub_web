@@ -25,8 +25,9 @@ export function pinyinSearch(text: string, query: string): boolean {
   if (!isPinyinQuery(lowerQuery)) return false
 
   try {
-    // 全拼匹配：从任意位置开始匹配
-    const fullMatch = pinyinMatch(text, lowerQuery, { precision: 'anywhere' })
+    // pinyin-pro 3.28.1 的 matchAboveStart 未实现 precision==='every' 分支，
+    // 因而与旧 'anywhere' 的落空路径完全等价；升级依赖时必须复核差分，避免上游补实现后静默收紧。
+    const fullMatch = pinyinMatch(text, lowerQuery, { precision: 'every' })
     if (fullMatch) return true
 
     // 首字母匹配：取每个汉字的拼音首字母序列

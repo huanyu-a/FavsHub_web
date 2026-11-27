@@ -46,8 +46,8 @@ function maybeInject(tdk: TdkData): void {
 
   // --- 第 4 层：空闲期延迟注入 ---
   const inject = () => injectBaiduTongji(id);
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(inject, { timeout: MAX_IDLE_WAIT_MS });
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(inject, { timeout: MAX_IDLE_WAIT_MS });
   } else {
     window.addEventListener("load", () => setTimeout(inject, 1000));
   }
@@ -59,10 +59,10 @@ function maybeInject(tdk: TdkData): void {
  */
 function injectBaiduTongji(id: string): void {
   // 防重复注入
-  if ((window as any)._hmt && (window as any)._hmt._p) return;
+  if (window._hmt?._p) return;
 
   // 初始化全局队列（百度统计要求）
-  const _hmt = ((window as any)._hmt = (window as any)._hmt || []);
+  const _hmt = window._hmt ??= [];
 
   // --- 第 2 层：动态拼接脚本 URL ---
   const script = document.createElement("script");

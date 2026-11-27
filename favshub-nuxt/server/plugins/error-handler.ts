@@ -16,11 +16,19 @@
  * 真正的约束必须在服务端代码里，即此处。
  */
 import { redactPaths } from '../utils/sanitize'
+import { RETRY_AFTER_SEC } from '../utils/rate-limit'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('error', (error, { event }) => {
     const path = event?.path || ''
     const statusCode = (error as any).statusCode || 500
+
+    // 没有关联请求（Nitro 在响应已落盘或启动期抛错时会传 undefined）→ 无响应可改，
+    // 也不能冒充「页面 SSR」记日志，单独留一条痕迹后返回。
+    if (!event) {
+      console.error(`[Error] (no event) ${statusCode}:`, error?.message || error)
+      return
+    }
 
     // ── 非 API 路径（页面 SSR）：只记日志，不改响应 ──────────────────
     //
@@ -54,6 +62,19 @@ export default defineNitroPlugin((nitro) => {
 
     // 出站脱敏：抹去消息中的文件系统绝对路径（4xx / 5xx 一律执行）
     errorMsg = redactPaths(errorMsg)
+
+    // L3 固定窗口（`checkRateLimit` / `recordFailedLogin`）拿不到 H3Event，
+    // 只能把「剩余窗口秒数」挂在错误对象上（Symbol，见 `utils/rate-limit.ts`），
+    // 由这里——唯一的错误出口——统一落成标准 `Retry-After` 头。
+    // 值域 1..86400 的整数已在 rate-limit 侧收敛；头写不进去不改变 429 语义。
+    const retryAfterSec = (error as unknown as Record<symbol, unknown>)[RETRY_AFTER_SEC]
+    if (statusCode === 429 && typeof retryAfterSec === 'number' && Number.isFinite(retryAfterSec)) {
+      try {
+        setResponseHeader(event, 'Retry-After', retryAfterSec)
+      } catch {
+        /* 头写不进去不改变 429 语义 */
+      }
+    }
 
     setResponseStatus(event, statusCode)
 

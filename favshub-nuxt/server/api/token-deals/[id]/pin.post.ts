@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
   const deal = db.prepare(
     'SELECT id, pinned, state, expires_at FROM token_deals WHERE id = ?'
-  ).get(id) as { id: string; pinned: number; deleted_at: number | null; invalid_at: number | null; expires_at: number | null } | undefined
+  ).get(id) as { id: string; pinned: number; state: string | null; expires_at: number | null } | undefined
   if (!deal) {
     throw createError({ statusCode: 404, data: { error: '通告不存在' } })
   }

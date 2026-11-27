@@ -95,8 +95,22 @@ interface ITokenDealMeta {
   nickname?: string
 }
 
+/** 评测条目（GET /api/token-deals/:id/reviews 的合并形状，与详情组件的 IReview 一致） */
+interface IReview {
+  id: string
+  rating: number
+  content: string
+  created_at: number
+  updated_at: number | null
+  author: string
+  avatar?: string | null
+  source?: 'user' | 'guest'
+  mark_count?: number
+  my_marked?: boolean
+}
+
 interface ReviewsPayload {
-  reviews: { id: string; content: string }[]
+  reviews: IReview[]
   distribution: Record<number, number>
   pagination: { page: number; limit: number; total: number; totalPages: number }
 }
@@ -227,9 +241,9 @@ useHead({
   link: [{ rel: 'canonical', href: canonicalUrl }],
 })
 
-const editorDeal = ref<any>(null)
+const editorDeal = ref<ITokenDealMeta | null>(null)
 
-function onEdit(deal: any) {
+function onEdit(deal: ITokenDealMeta) {
   editorDeal.value = deal
 }
 

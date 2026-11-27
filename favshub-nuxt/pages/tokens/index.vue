@@ -269,14 +269,14 @@ function countOf(category: string): string {
   font-weight: 600;
   padding: 1px 7px;
   border-radius: 999px;
-  color: var(--primary);
+  color: light-dark(#065F46, #6EE7B7);
   background: var(--primary-light);
   font-variant-numeric: tabular-nums;
 }
 .cat-card-desc {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 768px) {

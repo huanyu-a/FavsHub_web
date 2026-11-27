@@ -4,7 +4,8 @@
  * 消除客户端直连 google.com/s2/favicons（国内被墙时请求阻塞 5-10s）：
  *   1. 优先返回本地缓存 /images/favicons/{hostname}.png（已下载过的域名直接 302）
  *   2. 未命中时按 favicon_source_url 配置下载并落盘，再重定向
- *   3. 内网/私有域名一律拒绝（SSRF 防护，DNS 层二次校验见 favicon-download.ts）
+ *   3. 公共域名取图失败时回退站内通用图标，避免浏览器控制台产生预期 404
+ *   4. 内网/私有域名一律拒绝（SSRF 防护，DNS 层二次校验见 favicon-download.ts）
  */
 import { sendRedirect, createError, getQuery, setResponseHeaders } from 'h3'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -14,6 +15,7 @@ import { getFaviconDir, resolveExistingFaviconFile } from '../utils/favicon-dir'
 import { getConfig } from '../utils/config'
 
 const FAVICON_DIR = getFaviconDir()
+const FALLBACK_FAVICON_PATH = '/images/favicon-fallback.svg'
 
 // 同一域名的并发下载去重：多个卡片同时请求未缓存域名时只下载一次
 const inflight = new Map<string, Promise<void>>()
@@ -48,15 +50,23 @@ export default defineEventHandler(async (event) => {
   }
 
   const localPath = `/images/favicons/${safeHostname}.png`
+  const redirectToIcon = (path: string) => {
+    // 302 与通用回退都给 1 小时缓存，减少每次页面加载对 /api/favicon 的穿透（C3）
+    setResponseHeaders(event, {
+      'Cache-Control': 'public, max-age=3600',
+      'Access-Control-Allow-Origin': '*',
+    })
+    return sendRedirect(event, path, 302)
+  }
 
   // 兼容历史两个落盘位置（.output/public 与 public），命中任一即可
   const existing = resolveExistingFaviconFile(safeHostname)
 
   if (!existing) {
-    // 记忆的失败域名直接 404，避免每次页面加载重试下载
+    // 记忆的失败域名直接回退，避免每次页面加载重试下载或重复产生网络 404
     const lastFailed = failedDomains.get(safeHostname)
     if (lastFailed && Date.now() - lastFailed < FAILED_RETRY_MS) {
-      throw createError({ statusCode: 404, data: { error: '图标不可用' } })
+      return redirectToIcon(FALLBACK_FAVICON_PATH)
     }
 
     if (!existsSync(FAVICON_DIR)) mkdirSync(FAVICON_DIR, { recursive: true })
@@ -72,17 +82,10 @@ export default defineEventHandler(async (event) => {
       for (const [k, t] of failedDomains) {
         if (now - t >= FAILED_RETRY_MS) failedDomains.delete(k)
       }
-      // 下载失败：前端回退到文字首字母占位
-      throw createError({ statusCode: 404, data: { error: '图标不可用' } })
+      // 下载失败：返回不冒充目标品牌的站内通用图标，非法/私有域名仍在入口以 400 拒绝
+      return redirectToIcon(FALLBACK_FAVICON_PATH)
     }
   }
 
-  // 302 本身也给 1 小时缓存（覆盖 /api/** 的 no-store），让浏览器缓存重定向，
-  // 减少每次页面加载对 /api/favicon 的穿透（C3）
-  setResponseHeaders(event, {
-    'Cache-Control': 'public, max-age=3600',
-    'Access-Control-Allow-Origin': '*',
-  })
-
-  return sendRedirect(event, localPath, 302)
+  return redirectToIcon(localPath)
 })

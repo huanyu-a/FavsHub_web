@@ -410,7 +410,8 @@ export function syncDealCounters(db: Database.Database, dealId: string): void {
   `).get(dealId) as { up: number | null; down: number | null }
 
   // 游客投票：与登录投票合并计数（游客表缺失即未迁移时按 0 处理，不阻断主流程）
-  let guestVotes = { up: 0, down: 0 }
+  // SUM() 在无行时为 NULL，故显式标注可空 —— 下游统一用 `|| 0` 收敛
+  let guestVotes: { up: number | null; down: number | null } = { up: 0, down: 0 }
   try {
     guestVotes = db.prepare(`
       SELECT

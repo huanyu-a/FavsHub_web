@@ -30,7 +30,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -196,7 +196,7 @@ console.log('\n▶ ④ 下拉选项只许来自共享真源（不许手抄值）
 
 console.log('\n▶ ⑤ 状态变量必须被喂进该视图的筛选状态对象，且 key 合法')
 {
-  const fieldsMod = await import(join(ROOT, 'utils', 'admin-deal-filters.ts'))
+  const fieldsMod = await import(pathToFileURL(join(ROOT, 'utils', 'admin-deal-filters.ts')).href)
   const validKeys = new Set(fieldsMod.ADMIN_DEAL_FILTER_FIELDS.map(f => f.key))
 
   for (const [tab, stateName, modelPrefix] of [
@@ -246,9 +246,9 @@ console.log('\n▶ ⑥ 语义：失效原因只属于「已失效」（队列里
 
 console.log('\n▶ ⑦ 共享选项表 ↔ 服务端白名单：值集必须双向相等')
 {
-  const F = await import(join(ROOT, 'utils', 'deal-fields.ts'))
-  const C = await import(join(ROOT, 'utils', 'deal-categories.ts'))
-  const R = await import(join(ROOT, 'utils', 'deal-invalid-reasons.ts'))
+  const F = await import(pathToFileURL(join(ROOT, 'utils', 'deal-fields.ts')).href)
+  const C = await import(pathToFileURL(join(ROOT, 'utils', 'deal-categories.ts')).href)
+  const R = await import(pathToFileURL(join(ROOT, 'utils', 'deal-invalid-reasons.ts')).href)
 
   const sameSet = (a, b) => {
     const A = new Set(a), B = new Set(b)

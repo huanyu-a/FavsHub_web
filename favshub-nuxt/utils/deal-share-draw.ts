@@ -221,7 +221,7 @@ function font(size: number, weight: 400 | 500 | 600 | 700 | 800 | 900 = 400): st
 }
 
 /** 等宽字体（终端版数字 / 读数 / 标签） */
-function monoFont(size: number, weight: 400 | 600 | 700 = 400): string {
+function monoFont(size: number, weight: 400 | 500 | 600 | 700 | 800 | 900 = 400): string {
   return `${weight} ${size}px ${MONO_STACK}`
 }
 

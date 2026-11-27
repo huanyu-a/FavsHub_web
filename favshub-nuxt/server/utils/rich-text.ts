@@ -57,12 +57,14 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   transformTags: {
     // 外链一律加 rel，避免 target=_blank 的 reverse tabnabbing
     a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
-    // 不允许 iframe / script / style 等（不在白名单里，这里显式丢弃内容）
-    script: () => ({ tagName: 'span', text: '' }),
-    style: () => ({ tagName: 'span', text: '' }),
-    iframe: () => ({ tagName: 'span', text: '' }),
-    object: () => ({ tagName: 'span', text: '' }),
-    embed: () => ({ tagName: 'span', text: '' }),
+    // 不允许 iframe / script / style 等（不在白名单里，这里显式丢弃内容）。
+    // 返回值必须是完整的 sanitize-html `Tag`（`attribs` 必填，缺了它运行时会拿到
+    // 一个没有属性表的结构）；换成空 span 且不带文本 = 连标签带内容一起丢掉。
+    script: () => ({ tagName: 'span', attribs: {}, text: '' }),
+    style: () => ({ tagName: 'span', attribs: {}, text: '' }),
+    iframe: () => ({ tagName: 'span', attribs: {}, text: '' }),
+    object: () => ({ tagName: 'span', attribs: {}, text: '' }),
+    embed: () => ({ tagName: 'span', attribs: {}, text: '' }),
   },
 }
 

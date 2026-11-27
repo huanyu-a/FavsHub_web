@@ -6,7 +6,7 @@
       <button class="icon-picker-clear" type="button" @click="$emit('update:modelValue', '')">&times;</button>
     </div>
     <input v-model="search" type="text" class="icon-picker-search" placeholder="搜索图标...">
-    <div v-if="isLegacyEmoji(modelValue)" class="icon-picker-legacy-tip">
+    <div v-if="isLegacyEmoji(modelValue || '')" class="icon-picker-legacy-tip">
       当前为历史 emoji 图标，重新选择后将替换为图标字体
     </div>
     <div class="icon-picker-grid">

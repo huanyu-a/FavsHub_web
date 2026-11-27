@@ -350,7 +350,7 @@
             </section>
 
             <!-- 待我审核的修改建议 -->
-            <section v-if="deal.can_review && pendingEdits.length" class="tdd-section tdd-edit-review">
+            <section v-if="canReviewEdits && pendingEdits.length" class="tdd-section tdd-edit-review">
               <h4 class="section-title">
                 <i class="ri-inbox-unarchive-line"></i> 待审核的修改建议
                 <span class="review-count">{{ pendingEdits.length }}</span>
@@ -435,10 +435,10 @@
                       :class="n <= Math.round(average || 0) ? 'ri-star-fill' : 'ri-star-line'"
                     ></i>
                   </div>
-                  <span class="rating-count">{{ deal.rating_count }} 人评测</span>
+                  <span class="rating-count">{{ deal.rating_count || 0 }} 人评测</span>
                 </div>
               </div>
-              <div v-if="deal.rating_count > 0" class="tdd-distribution">
+              <div v-if="(deal.rating_count || 0) > 0" class="tdd-distribution">
                 <div v-for="n in [5, 4, 3, 2, 1]" :key="n" class="dist-row">
                   <span class="dist-label">{{ n }} 星</span>
                   <span class="dist-bar"><span class="dist-fill" :style="{ width: distPercent(n) }"></span></span>
@@ -830,8 +830,8 @@
 
         <!-- 建议修改面板 -->
         <TokenDealEditor
-          v-if="proposalOpen && deal"
-          :deal="deal"
+          v-if="proposalOpen && editorDeal"
+          :deal="editorDeal"
           proposal
           @close="proposalOpen = false"
           @saved="onProposalSaved"
@@ -892,6 +892,18 @@ import DealBadge from '~/components/tokens/DealBadge.vue'
 // 显式导入而非依赖自动导入 —— 该文件由 task-4 提供，显式路径能让「模块缺失」在 build 期
 // 直接定位到这一行，而不是在模板里报一个含糊的 auto-import 错误。
 import { useDealFavorites } from '~/composables/useDealFavorites'
+
+/** Nexus 渠道信息（详情端点 `nexus`；未接入或旧库缺表时为 null） */
+interface ITokenDealNexus {
+  channel_id: number
+  name: string
+  status: number
+  enabled: boolean
+  eval_ok: number
+  eval_total: number
+  eval_avg_ms: number
+  eval_at: number
+}
 
 interface ITokenDeal {
   id: string
@@ -969,12 +981,7 @@ interface ITokenDeal {
   vote_down?: number
   rating_sum?: number
   rating_count?: number
-  nexus?: {
-    enabled: boolean
-    eval_ok: number
-    eval_total: number
-    eval_avg_ms: number
-  } | null
+  nexus?: ITokenDealNexus | null
 }
 
 /** 一条核验记录 */
@@ -1130,6 +1137,8 @@ const inviteCopied = ref(false)
 // ── 修改建议 ──
 const myEdit = ref<IDealEdit | null>(null)
 const pendingEdits = ref<IDealEdit[]>([])
+/** 当前访客是否可审核修改建议（详情端点只给摘要 `edits.can_review`，不在 deal 上） */
+const canReviewEdits = ref(false)
 const proposalOpen = ref(false)
 const editBusy = ref(false)
 const rejectTarget = ref<IDealEdit | null>(null)
@@ -1156,7 +1165,8 @@ const challengeFailed = ref(false)
 const challengeDisabledText = ref('')
 /** 仅「挑战配置获取失败」为真：给一个「重试加载」按钮（通道未启用时无从重试） */
 const challengeRetryable = ref(false)
-const turnstileRef = ref<any>(null)
+/** TurnstileBox 通过 defineExpose 暴露的两个方法（失败重试 / 令牌重置） */
+const turnstileRef = ref<{ reset: () => void; retry: () => void } | null>(null)
 
 /** 游客通道被挡（未启用 / 挂件失败 / 还没通过验证）时禁用提交按钮 */
 const guestSubmitBlocked = computed(() =>
@@ -1235,7 +1245,13 @@ const average = computed(() => {
  *   - 其余 → 已核验（绿）
  * 徽标内保留一行小字说明新鲜度（「N 天前」），否则「最近核验」的信息就彻底没了。
  */
-const verifyState = computed(() => {
+const verifyState = computed<{
+  tone: 'pending' | 'ok'
+  label: string
+  sublabel: string
+  title: string
+  srText: string
+}>(() => {
   const d = deal.value
   const days = Number(d?.verify_age_days ?? -1)
   const never = !d || !Number.isFinite(days) || days < 0
@@ -1439,6 +1455,18 @@ function normalizeFaq(raw: unknown): Array<{ q: string; a: string }> {
     .slice(0, FAQ_LIMIT)
 }
 const faqList = computed(() => normalizeFaq(deal.value?.faq))
+
+/**
+ * 传给 TokenDealEditor 的详情快照。
+ *
+ * 编辑器的 `faq` 只接受数组形态（它自己不再解析 JSON 串），而详情类型为兼容旧端点
+ * 保留了 `string` 联合；这里统一走 `normalizeFaq()`，两边契约对得上。
+ */
+const editorDeal = computed(() => {
+  const d = deal.value
+  if (!d) return null
+  return { ...d, faq: normalizeFaq(d.faq) }
+})
 
 /** 相关推荐卡片的最小形状（列表接口下发全量行，这里只取展示需要的几个字段） */
 interface IRelatedDeal {
@@ -1682,6 +1710,7 @@ function applyDealPayload(data: IDealDetailPayload) {
   myVote.value = data.my_vote
   myReview.value = data.my_review
   myEdit.value = data.edits?.my_edit ?? null
+  canReviewEdits.value = !!data.edits?.can_review
   myGuestReview.value = data.guest_review ?? null
   // 回填游客表单：被驳回后重填时预填上次内容，减少重复输入
   if (data.guest_review && data.guest_review.status === 'rejected') {

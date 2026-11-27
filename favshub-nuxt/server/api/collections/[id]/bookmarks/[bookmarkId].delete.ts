@@ -16,12 +16,15 @@ export default defineEventHandler(async (event) => {
   const db = getRawDb()
 
   // 校验精选集存在 & 权限
-  const collection = db.prepare('SELECT id, user_id FROM collections WHERE id = ?').get(id)
+  // better-sqlite3 的 `.get()` 返回 `unknown`，必须显式声明列形状后才能读字段
+  const collection = db.prepare('SELECT id, user_id FROM collections WHERE id = ?')
+    .get(id) as { id: string; user_id: number } | undefined
   if (!collection) {
     throw createError({ statusCode: 404, data: { error: '精选集不存在' } })
   }
   if (collection.user_id !== user.id) {
-    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id)
+    const dbUser = db.prepare('SELECT is_admin FROM users WHERE id = ?')
+      .get(user.id) as { is_admin: number } | undefined
     if (!dbUser?.is_admin) {
       throw createError({ statusCode: 403, data: { error: '无权修改此精选集' } })
     }

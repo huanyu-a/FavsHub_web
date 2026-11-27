@@ -24,7 +24,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -38,7 +38,7 @@ function check(name, ok, detail) {
 }
 
 // ── 加载被测模块（.ts 纯类型 + 普通 JS，Node ≥22.6 可直接剥离类型加载）──
-const mod = await import(join(ROOT, 'utils', 'admin-deal-filters.ts'))
+const mod = await import(pathToFileURL(join(ROOT, 'utils', 'admin-deal-filters.ts')).href)
 const {
   ADMIN_DEAL_FILTER_FIELDS,
   appendAdminDealFilters,

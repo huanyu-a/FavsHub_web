@@ -196,7 +196,9 @@ export default defineEventHandler(async (event) => {
       imported_count: importedCount.count,
       total_count: totalCount,
       new_count: Math.max(0, newCount),
-      ...(page && { pagination: { page, limit, total: totalCount, totalPages: Math.ceil(totalCount / limit) } })
+      // page 与 limit 同时由查询参数派生（limit 为 null 当且仅当 page 为 null），
+      // 显式判断两者，避免把 null 传给除法
+      ...(page && limit ? { pagination: { page, limit, total: totalCount, totalPages: Math.ceil(totalCount / limit) } } : {})
     }
   }
 
@@ -205,6 +207,6 @@ export default defineEventHandler(async (event) => {
     categories,
     bookmarks,
     category_source: useFolderCats ? 'folder' : 'collection',
-    ...(page && { pagination: { page, limit, total: countResult.total, totalPages: Math.ceil(countResult.total / limit) } })
+    ...(page && limit ? { pagination: { page, limit, total: countResult.total, totalPages: Math.ceil(countResult.total / limit) } } : {})
   }
 })

@@ -42,7 +42,7 @@ export default defineEventHandler((event) => {
     applyCorsHeaders()
     setResponseHeader(event, 'Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
     setResponseHeader(event, 'Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    setResponseHeader(event, 'Access-Control-Max-Age', '86400')
+    setResponseHeader(event, 'Access-Control-Max-Age', 86400)
     return sendNoContent(event)
   }
 

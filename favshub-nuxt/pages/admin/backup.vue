@@ -139,8 +139,8 @@ definePageMeta({ middleware: 'admin', layout: 'admin' })
 useHead({ title: '备份管理' })
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
-function getAuthHeaders() {
-  return authStore.token && authStore.token !== 'cookie_auth' ? { Authorization: `Bearer ${authStore.token}` } : {}
+function getAuthHeaders(): Record<string, string> {
+  return authStore.getAuthHeaders()
 }
 const info = ref<any>(null)
 const schedule = reactive({ enabled: true, hour: 3, minute: 0, keepCopies: 7, lastBackupDate: null as string | null })
@@ -185,24 +185,24 @@ async function manualBackup() {
 }
 async function downloadBackup() {
   try {
-    const blob = await $fetch('/api/admin/backup/download', {
+    const blob = await $fetch<Blob>('/api/admin/backup/download', {
       headers: getAuthHeaders(),
       credentials: 'include',
       responseType: 'blob',
     })
-    downloadBlob(blob as Blob, `favshub-backup-${Date.now()}.db`)
+    downloadBlob(blob, `favshub-backup-${Date.now()}.db`)
   } catch (e: any) {
     showMessage('下载失败: ' + (e?.message || '未知错误'), 'error')
   }
 }
 async function downloadFile(name: string) {
   try {
-    const blob = await $fetch(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, {
+    const blob = await $fetch<Blob>(`/api/admin/backup/download?file=${encodeURIComponent(name)}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
       responseType: 'blob',
     })
-    downloadBlob(blob as Blob, name)
+    downloadBlob(blob, name)
   } catch (e: any) {
     showMessage('下载失败: ' + (e?.message || '未知错误'), 'error')
   }
@@ -240,22 +240,22 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 async function exportMyBookmarks() {
   try {
-    const blob = await $fetch('/api/bookmarks/export', {
+    const blob = await $fetch<Blob>('/api/bookmarks/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `favshub-bookmarks-${Date.now()}.html`)
+    downloadBlob(blob, `favshub-bookmarks-${Date.now()}.html`)
   } catch { alert('导出失败') }
 }
 async function exportMyPrompts() {
   try {
-    const blob = await $fetch('/api/prompts/export', {
+    const blob = await $fetch<Blob>('/api/prompts/export', {
       headers: getAuthHeaders(),
       responseType: 'blob',
       credentials: 'include',
     })
-    downloadBlob(blob as Blob, `promptpro-backup-${Date.now()}.json`)
+    downloadBlob(blob, `promptpro-backup-${Date.now()}.json`)
   } catch { alert('导出失败') }
 }
 async function importPrompts(e: Event) {

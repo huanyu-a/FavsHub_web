@@ -1,4 +1,6 @@
-**最后更新：2026-11-26（第 41 次修订：1.0.107 前端 UI、交互与同步安全优化 —— 11 主题暖白/Emerald 语义令牌、全局搜索、长列表状态恢复、后台与移动端归一化、扩展三向预览/执行上下文绑定。功能提交 `1e8e62b6a6916affcc85b02956c8d2729ae8dc78`，发布提交 `d3e06ec371e074d4e23351ef4632244bb498350a`。Nuxt quality `45829493005`、Extension quality `45828263357`、Docker Publish `45829530449` 全绿；23 套件 2326 断言及技能清单守卫通过。镜像 `sha256:053e4f8c46631c707a096c6091925e2b5c0c3e1a86d5f47fb01ff6b26c79311c`，label `version=1.0.107 / revision=d3e06ec371e074d4e23351ef4632244bb498350a` 核验后显式 pull 并 `up -d`。生产容器 healthy、RestartCount=0、`/api/health` database=connected、技能清单 `site_version=1.0.107`、首页 200 且 CSS `v=20261126b`。生产 Lighthouse Accessibility/SEO/Agentic=100，Best Practices=54（既有游客 401/第三方与弃用项）；性能 LCP=452ms、CLS=0.06；390×844 无页面横向滚动，Ctrl+K 对话框与输入聚焦通过。回滚锚点 `rollback-20261126-213204`（=1.0.106 镜像 `cbe74ddb0ac4`）；备份 `data/backups/favshub.db.pre-deploy-20261126-213204`（5,500,928B，integrity_check=ok）。完整 Nuxt typecheck 既有类型债仍为非阻断项。**）**
+**最后更新：2026-11-27（第 42 次修订：1.0.108 类型清零 + 运行时门禁 + 无障碍 —— 完整 `pnpm typecheck` 133→0 并转为阻断门禁；L3 限流 `Retry-After` 统一出口 + 28 项真实边界测试；favicon 失败 302 到站内通用 SVG（8 项断言）；Token 页 WCAG AA 配色/标题层级/唯一 main；25 套件 2362 断言。Node 24 Windows 兼容修复（`pathToFileURL` 包装 `await import`）。**）**
+
+上一轮第 41 次修订：1.0.107 前端 UI、交互与同步安全优化 —— 11 主题暖白/Emerald 语义令牌、全局搜索、长列表状态恢复、后台与移动端归一化、扩展三向预览/执行上下文绑定。功能提交 `1e8e62b6a6916affcc85b02956c8d2729ae8dc78`，发布提交 `d3e06ec371e074d4e23351ef4632244bb498350a`。Nuxt quality `45829493005`、Extension quality `45828263357`、Docker Publish `45829530449` 全绿；23 套件 2326 断言及技能清单守卫通过。镜像 `sha256:053e4f8c46631c707a096c6091925e2b5c0c3e1a86d5f47fb01ff6b26c79311c`，label `version=1.0.107 / revision=d3e06ec371e074d4e23351ef4632244bb498350a` 核验后显式 pull 并 `up -d`。生产容器 healthy、RestartCount=0、`/api/health` database=connected、技能清单 `site_version=1.0.107`、首页 200 且 CSS `v=20261126b`。生产 Lighthouse Accessibility/SEO/Agentic=100，Best Practices=54（既有游客 401/第三方与弃用项）；性能 LCP=452ms、CLS=0.06；390×844 无页面横向滚动，Ctrl+K 对话框与输入聚焦通过。回滚锚点 `rollback-20261126-213204`（=1.0.106 镜像 `cbe74ddb0ac4`）；备份 `data/backups/favshub.db.pre-deploy-20261126-213204`（5,500,928B，integrity_check=ok）。完整 Nuxt typecheck 既有类型债仍为非阻断项。**）**
 
 上一轮第 40 次修订：1.0.106 提示词前台隐藏空分类 —— 递归剔除 `prompt_count=0` 且无可见子分类的节点；自身为 0 但含非空子分类的父节点保留。游客分类从 13 个降到 2 个有内容分类，提示词 5 张不受影响。CI run `45741117356` 全绿，镜像 label 核验后部署，容器 healthy。**）**
 
@@ -25,7 +27,7 @@
 | **RepoDigest** | `ghcr.io/huanyu-a/favshub@sha256:2942b8348bfbf37de65dde01cd166b5ebb2079219754ec007978b7e8e6ef42bf`（容器 Image `sha256:185887eea2e9`） |
 | **CI run** | `44496586479`，`success`（两道一致性守卫 `assertion-count.mjs --check` 与 `build-skill-manifest.mjs --check` 均绿） |
 | **健康检查** | `docker ps` → `Up (healthy)`、`RestartCount=0`；`/api/health` → `{"status":"ok","database":"connected"}`；线上技能包实测 **`site_version=1.0.103`** |
-| **断言总数** | **2326**（共 23 个套件，本次**未变** —— 纯口径修复，未新增套件）· `ts:check` **973** 个具名导入（972 → 973，新增 `index.get.ts` 对 `DEAL_STATES` 的具名导入） |
+| **当前 CI 断言总数** | **2362**（共 25 个套件）· `ts:check` **994** 个具名导入；完整 `pnpm typecheck` 已清零并转为阻断门禁 |
 | **线上数据分布** | `published 88 / pending 0 / rejected 25 / invalid 13 / offline 3 / deleted 5`（合计 134）—— 无数据库迁移（启动日志 `token_deals.state 回填 133 行` 是既有的幂等回填），部署后由服务器侧只读查询测得 |
 | **技能包版本** | `1.12.0`（仓库内两份生成物已用 `scripts/build-skill-manifest.mjs` 重新生成并入库，`site v1.0.103`；VERSION 一变清单里的 site_version 就过期，CI 的 `--check` 会直接拦下） |
 | **回滚锚点** | 镜像 tag `rollback-20261119-172516` ← `315f319b6a8b`（1.0.102 实际运行的镜像）+ 库备份 `data/backups/favshub.db.pre-deploy-20261119172516`（5,292,032 字节，`integrity_check=ok`）；更早还有 `rollback-20261116` / `rollback-20261112-123011` / `rollback-1.0.99-…` / `rollback-1.0.98-…` / `rollback-1.0.97-…` / `rollback-1.0.95-…` |
@@ -1371,16 +1373,17 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | 11 | `/collections/<不存在>` 返回 404，不再软 404 | `4c33a83` |
 
 **正确顺序**：先把本地提交推送到 `origin/main` → 等 CI 构建完 → 再 `pull`。
-推送后 CI 先跑 **共 23 个套件**（8 个自包含：`private-ip-check` / `sanitize-test` /
+推送后 CI 先跑 **共 25 个套件**（8 个自包含：`private-ip-check` / `sanitize-test` /
 `ssrf-pin-check` / `category-source-check` / `favicon-resolve-check` / `admin-filter-params` /
 `admin-filter-wiring` / `lib/free-port.test`；
-15 个跑产物，含
-`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` 等，共 **2326 项断言**），另加 `ts:check`
-与文档数字一致性检查，通过才构建镜像。
+17 个跑产物，含
+`second-batch-e2e` / `third-batch-detail` / `admin-invalid-filters` / `state-machine` /
+`high-cost-endpoint-ratelimit` / `favicon-fallback-check` 等，共 **2362 项断言**），另加 `ts:check`、
+完整 `pnpm typecheck` 与文档数字一致性检查，通过才构建镜像。
 
 | 套件 | 断言数 | 需要 Node 22 |
 |---|---|---|
-| `ts:check`（具名导入） | 965 | |
+| `ts:check`（具名导入） | 994 | |
 | `private-ip-check` | 102 | **是** |
 | `sanitize-test` | 17 | **是**（`--experimental-strip-types`） |
 | `ssrf-pin-check` | 18 | 含**仓库内固定 fixture** TLS 靶标的正/负例（不再依赖 openssl）+ 证书过期与 SAN 守卫；另有 3 条**生产源码**漂移断言（禁 `rejectUnauthorized: false` / 禁空 SNI / 必须走 lookup 钉地址） |
@@ -1404,7 +1407,9 @@ GHCR latest : sha256:7264b8f9b383f24131644489d5aa7f9157c0f61d5b5bfae3552a54d5c38
 | `admin-invalid-filters` | 98 | 后台通告筛选契约：「已失效」面板七个筛选 + 三档 chip 计数口径一致性 + **队列视图（全部/待审核/已发布…）每个筛选档位**；自建库自播种（含游客行 + 各维度错开下标，避免真空用例） |
 | `admin-filter-wiring` | 46 | **是**（`--experimental-strip-types`）后台筛选栏**接线守卫**：模板控件 ↔ 脚本状态 ↔ 视图 filterState ↔ `ADMIN_DEAL_FILTER_FIELDS` 四条链对账；下拉选项只许来自共享表（禁手写非空 option）；六张选项表与服务端白名单值集**双向相等** |
 | `free-port` | 19 | 空闲端口工具单测：4 条**反例**（ABI 不匹配 / 未就绪 / `ECONNREFUSED` / `EACCES` 必须**不**判为端口冲突）+ 换端口重试行为 + 真子进程竞态 |
-| **合计（断言）** | **2326** | |
+| `high-cost-endpoint-ratelimit` | 28 | 真实 Nitro + 临时 SQLite：search 30/min、upload-preview 20/min，认证/参数顺序、分桶隔离、L3 `Retry-After` 与清理 |
+| `favicon-fallback-check` | 8 | 公共域名取图失败 302 到站内通用 SVG；非法/私有域名仍 400；缓存、回环靶标与进程清理 |
+| **合计（断言）** | **2362** | |
 
 > 2026-11-09：上表的 `ts:check` 之前写 954，实测 963（早已过时，无人发现 ——
 > 因为它那一列**不参与** `assertion-count` 的总数校验，脚本明确不计入）。

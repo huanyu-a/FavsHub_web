@@ -3,7 +3,6 @@
     class="deal-card"
     :class="{ 'is-pinned': deal.pinned, 'is-expired': deal.is_expired }"
     :href="detailHref"
-    :aria-label="`${deal.provider}：${deal.title}`"
     @click="onOpenClick"
   >
     <header class="deal-head">
@@ -18,10 +17,10 @@
         >
         <span v-else class="deal-icon deal-icon-fallback">{{ initial }}</span>
         <div class="deal-brand-text">
-          <h3 class="deal-provider">
+          <h2 class="deal-provider">
             {{ deal.provider }}
             <i v-if="deal.pinned" class="ri-pushpin-2-fill pin-mark" title="已置顶"></i>
-          </h3>
+          </h2>
           <p class="deal-meta">
             <span>{{ regionLabel }} · {{ sourceLabel }}</span>
             <span
@@ -59,7 +58,7 @@
       </span>
     </div>
 
-    <h4 class="deal-title">{{ deal.title }}</h4>
+    <h3 class="deal-title">{{ deal.title }}</h3>
 
     <!--
       一句话摘要（2026-11-04）：`summary` 非空用它，否则回落 `quota`（Lead 确认的契约）。
@@ -101,6 +100,18 @@ import { computed, ref } from 'vue'
 import { dealCategoryMeta } from '~/utils/deal-categories'
 import { fallbackProxyIcon } from '~/utils/favicon'
 
+/** Nexus 渠道信息（GET /api/token-deals/:id 的 `nexus`；未接入或旧库缺表时为 null） */
+interface TokenDealNexus {
+  channel_id: number
+  name: string
+  status: number
+  enabled: boolean
+  eval_ok: number
+  eval_total: number
+  eval_avg_ms: number
+  eval_at: number
+}
+
 interface TokenDeal {
   id: string
   provider: string
@@ -128,6 +139,7 @@ interface TokenDeal {
   vote_down?: number
   rating_sum?: number
   rating_count?: number
+  nexus?: TokenDealNexus | null
 }
 
 const props = defineProps<{ deal: TokenDeal }>()
@@ -188,7 +200,7 @@ const categoryLabel = computed(() => {
   const meta = dealCategoryMeta(props.deal.category)
   return meta.showBadge ? meta.label : ''
 })
-/** 配色只用 tokens.css 既有变量派生（--primary / --accent-purple / --accent-blue），不新增变量 */
+/** 分类徽标：默认分类（token）不挂标，配色在局部样式中按 WCAG AA 校准 */
 const categoryClass = computed(() => {
   const meta = dealCategoryMeta(props.deal.category)
   return meta.showBadge ? `category-${meta.value}` : ''
@@ -290,6 +302,13 @@ const expiryWarn = computed(() => {
 
 <style scoped>
 .deal-card {
+  /* 局部 AA 前景色：浅色主题压深，深色主题提亮；不修改全局设计 tokens。 */
+  --deal-primary-text: light-dark(#065F46, #6EE7B7);
+  --deal-warning-text: light-dark(#92400E, #FCD34D);
+  --deal-domain-text: light-dark(#1D4ED8, #93C5FD);
+  --deal-client-text: light-dark(#0E7490, #67E8F9);
+  --deal-cloud-text: light-dark(#5B21B6, #C4B5FD);
+
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -372,7 +391,7 @@ const expiryWarn = computed(() => {
 .deal-meta {
   margin: 0;
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -385,22 +404,21 @@ const expiryWarn = computed(() => {
   padding: 2px 8px;
   border-radius: 6px;
   font-weight: 600;
-  /* 与站点主题同源：背景走 --primary-light，文字走 --primary */
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--deal-primary-text);
 }
 .deal-category.category-client {
   background: color-mix(in srgb, #06b6d4 15%, transparent);
-  color: #0891b2;
+  color: var(--deal-client-text);
 }
-/* 免费云服务器 / 免费域名：配色同样从既有 CSS 变量派生，不新增变量 */
+/* 免费云服务器 / 免费域名：浅底沿用既有变量，前景色由局部 AA 变量校准 */
 .deal-category.category-cloud {
   background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
-  color: var(--accent-purple);
+  color: var(--deal-cloud-text);
 }
 .deal-category.category-domain {
   background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  color: var(--accent-blue);
+  color: var(--deal-domain-text);
 }
 .deal-quality {
   flex-shrink: 0;
@@ -410,13 +428,13 @@ const expiryWarn = computed(() => {
   font-weight: 500;
 }
 .q-top {
-  background: var(--primary);
+  background: var(--deal-primary-text);
   color: var(--text-inverse);
   font-weight: 600;
 }
 .q-high {
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--deal-primary-text);
   font-weight: 600;
 }
 .q-mid {
@@ -426,7 +444,7 @@ const expiryWarn = computed(() => {
 .q-low,
 .q-bottom {
   background: color-mix(in srgb, var(--warning) 12%, transparent);
-  color: var(--warning);
+  color: var(--deal-warning-text);
 }
 
 /* ── Nexus 接入状态条 ── */
@@ -445,18 +463,18 @@ const expiryWarn = computed(() => {
   border-radius: 6px;
   font-weight: 500;
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--deal-primary-text);
 }
 .nexus-tag i {
   font-size: 12px;
 }
 .deal-nexus.is-off .nexus-tag {
   background: color-mix(in srgb, var(--warning) 12%, transparent);
-  color: var(--warning);
+  color: var(--deal-warning-text);
 }
 .deal-nexus.is-none .nexus-tag {
   background: var(--surface-sunken);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: 400;
 }
 .nexus-stat {
@@ -503,7 +521,7 @@ const expiryWarn = computed(() => {
 }
 .quota-label {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .quota-value {
   font-size: 13px;
@@ -528,7 +546,7 @@ const expiryWarn = computed(() => {
   white-space: nowrap;
 }
 .model-chip.is-more {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .deal-foot {
@@ -551,23 +569,23 @@ const expiryWarn = computed(() => {
   gap: 3px;
 }
 .stat.is-up {
-  color: var(--success);
+  color: var(--deal-primary-text);
 }
 .stat.is-down {
   color: var(--danger);
 }
 .stat.is-rating {
-  color: var(--warning);
+  color: var(--deal-warning-text);
 }
 .stat.is-empty {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .deal-expiry {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .deal-expiry.is-warn {
-  color: var(--warning);
+  color: var(--deal-warning-text);
 }
 /* ── 核实状态徽标（已核实 / 待复核） ── */
 .deal-verify {
@@ -581,11 +599,11 @@ const expiryWarn = computed(() => {
   white-space: nowrap;
 }
 .deal-verify.is-ok {
-  color: var(--success);
+  color: var(--deal-primary-text);
   background: var(--success-soft);
 }
 .deal-verify.is-warn {
-  color: var(--warning);
+  color: var(--deal-warning-text);
   background: var(--warning-soft);
 }
 </style>

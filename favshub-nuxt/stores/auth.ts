@@ -103,18 +103,20 @@ export const useAuthStore = defineStore('auth', {
       return res
     },
 
+    /** 构造 Bearer 请求头；Cookie 认证返回空对象，避免可选 undefined 值 */
+    getAuthHeaders(): Record<string, string> {
+      return this.token && this.token !== 'cookie_auth'
+        ? { Authorization: `Bearer ${this.token}` }
+        : {}
+    },
+
     /**
      * 获取当前用户信息
      */
     async fetchMe() {
       // 优先使用存储的 token（扩展端），否则依赖 httpOnly cookie（Web 端）
-      const headers: Record<string, string> = {}
-      if (this.token && this.token !== 'cookie_auth') {
-        headers.Authorization = `Bearer ${this.token}`
-      }
-
       const res = await $fetch<{ user: AuthUser }>('/api/auth/me', {
-        headers,
+        headers: this.getAuthHeaders(),
         credentials: 'include',
       })
       this.user = res.user

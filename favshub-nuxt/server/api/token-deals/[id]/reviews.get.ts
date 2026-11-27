@@ -28,6 +28,22 @@ import { optionalAuthLoose } from '../../../utils/guest-reviews'
 import { isAdminUserById } from '../../../utils/auth'
 import { canReadDeal } from '../../../utils/token-deals'
 
+/** 合并后的评测视图：两类来源统一结构，另附打标派生字段 */
+interface MergedReview {
+  id: string
+  rating: number
+  content: string
+  created_at: number
+  updated_at: number
+  author: string
+  avatar: string | null
+  source: 'user' | 'guest'
+  /** 被标「有用」的次数（本页批量取） */
+  mark_count: number
+  /** 当前访客是否标过 */
+  my_marked: boolean
+}
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const query = getQuery(event)
@@ -74,7 +90,8 @@ export default defineEventHandler(async (event) => {
   } catch { /* 表未迁移时按空处理，不影响登录用户评测展示 */ }
 
   // 合并 + 按更新时间倒序（统一为同一结构，前端不必分支）
-  const merged = [
+  // 打标字段（mark_count / my_marked）在下面按页批量补齐，此处先不含
+  const merged: Omit<MergedReview, 'mark_count' | 'my_marked'>[] = [
     ...userReviews.map(r => ({
       id: `u_${r.id}`,
       rating: r.rating,
@@ -98,19 +115,20 @@ export default defineEventHandler(async (event) => {
   ].sort((a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0))
 
   const total = merged.length
-  const reviews = merged.slice(offset, offset + limit)
+  const pageRows = merged.slice(offset, offset + limit)
 
   // ── 打标计数（本页批量取，避免 N+1）──
   // 身份摘要一次解析，既用于计数也用于「我标过没」；表未迁移时降级为空统计
   const { counts, mine } = reviewMarkStats(
     db,
-    reviews.map(r => r.id),
+    pageRows.map(r => r.id),
     currentFingerprint(event),
   )
-  for (const r of reviews) {
-    r.mark_count = counts[r.id] || 0
-    r.my_marked = mine.has(r.id)
-  }
+  const reviews: MergedReview[] = pageRows.map(r => ({
+    ...r,
+    mark_count: counts[r.id] || 0,
+    my_marked: mine.has(r.id),
+  }))
 
   // ── 星级分布（两类合并）──
   const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }

@@ -46,8 +46,7 @@
             <td><span class="badge" :class="p.login_required ? 'badge-private' : 'badge-public'"><i v-if="p.login_required" class="ri-lock-line"></i> {{ p.login_required ? '仅自己' : '公开' }}</span></td>
             <td class="actions">
               <button class="btn btn-ghost btn-sm" @click="viewHistory(p)">历史</button>
-              <button v-if="!isAdmin && p.owner_is_admin" class="btn btn-ghost btn-sm" @click="openEdit(p)">申请修改</button>
-              <button v-else class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
+              <button class="btn btn-ghost btn-sm" @click="openEdit(p)">编辑</button>
               <button v-if="canDeletePrompt(p)" class="btn btn-danger btn-sm" @click="delPrompt(p)">删除</button>
             </td>
           </tr>
@@ -267,15 +266,14 @@
 	    <!-- 编辑弹窗 -->
 	    <div v-if="editVisible" :class="['modal-overlay', { active: editVisible }]" @click.self="editVisible = false">
 	      <div class="modal">
-	        <div class="modal-header"><h3>{{ ef._reviewMode ? '申请修改' : '编辑提示词' }}</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
+	        <div class="modal-header"><h3>编辑提示词</h3><button class="modal-close" @click="editVisible = false">&times;</button></div>
 	        <div class="modal-body">
-	          <div v-if="ef._reviewMode" class="review-hint"><i class="ri-alert-line"></i> 此提示词由管理员创建，修改将提交给管理员审核</div>
 	          <div class="fg"><label>标题</label><input v-model="ef.title" type="text"></div>
 	          <div class="fg"><label>描述</label><input v-model="ef.description" type="text"></div>
 	          <div class="fg"><label>内容</label><textarea v-model="ef.content" rows="6"></textarea></div>
 	          <div class="fg"><label>文件夹</label><select v-model="ef.folder_id"><option :value="null">未分类</option><option v-for="f in flatPFolders" :key="f.id" :value="f.id">{{ '│  '.repeat(f._depth) }}{{ f.name }}</option></select></div>
 	          <div class="fg toggle-row"><label>登录可见</label><label class="switch"><input type="checkbox" v-model="ef.login_required" :true-value="1" :false-value="0" :disabled="!isAdmin"><span class="slider round"></span></label></div>
-	          <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">{{ ef._reviewMode ? '提交审核' : '保存' }}</button></div>
+	          <div class="form-btns"><button class="btn btn-ghost" @click="editVisible = false">取消</button><button class="btn btn-primary" @click="saveEdit">保存</button></div>
 	        </div>
 	      </div>
 	    </div>
@@ -366,7 +364,7 @@ import IconPicker from '~/components/common/IconPicker.vue'
 const users = ref<any[]>([])
 async function loadUsers() { if (!isAdmin.value) { users.value = [{ id: currentUserId.value, username: '我' }]; return }; try { const r = await $fetch<any>('/api/admin/users'); users.value = r.users || [] } catch { users.value = [] } }
 // Tree building for prompt folders (string IDs)
-interface PFolderNode { id: string; name: string; parent_id?: string | null; parent_name?: string; username?: string; user_id?: number; prompt_count?: number; icon?: string; _depth: number; _hasChildren: boolean; children: PFolderNode[] }
+interface PFolderNode { id: string; name: string; parent_id?: string | null; parent_name?: string; username?: string; user_id?: number; prompt_count?: number; icon?: string; login_required?: number; _depth: number; _hasChildren: boolean; children: PFolderNode[] }
 function buildPTree(list: any[]): PFolderNode[] {
   const map = new Map<string, PFolderNode>()
   const roots: PFolderNode[] = []
@@ -431,7 +429,7 @@ async function saveFolderEdit() {
     alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
 }
-async function delPFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; try { await $fetch(`/api/admin/prompt-folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPFolders() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
+async function delPFolder(f: any) { if (!confirm(`删除「${f.name}」？`)) return; try { await $fetch<{ success: boolean; message: string }>(`/api/admin/prompt-folders/${f.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPFolders() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 // Tags
 const tags = ref<any[]>([])
 const tagLoading = ref(false)
@@ -540,30 +538,25 @@ async function clearDevData() {
 }
 // Edit modal
 const editVisible = ref(false)
-const ef = reactive({ id: '', title: '', description: '', content: '', folder_id: null as string | null, login_required: 0, _reviewMode: false })
+const ef = reactive({ id: '', title: '', description: '', content: '', folder_id: null as string | null, login_required: 0 })
 function openEdit(p: any) { 
   Object.assign(ef, { 
     id: p.id, title: p.title, description: p.description || '', content: p.content || '', 
-    folder_id: p.folder_id ?? null, login_required: p.login_required || 0,
-    _reviewMode: !isAdmin.value && p.owner_is_admin
+    folder_id: p.folder_id ?? null, login_required: p.login_required || 0
   }); 
   editVisible.value = true 
 }
-async function saveEdit() { 
+async function saveEdit() {
   try {
     const body = { ...ef }
-    delete body._reviewMode
-    const res = await $fetch(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
+    await $fetch<{ prompt: { id: string } }>(`/api/admin/prompts/${ef.id}`, { method: 'PUT', headers: getAuthHeaders(), body })
     editVisible.value = false
-    if (res?.review_required) {
-      alert('修改已提交审核，等待管理员审批')
-    }
-    loadPrompts() 
+    loadPrompts()
   } catch (e: any) {
     alert('保存失败: ' + (e?.data?.error || e?.message || '未知错误'))
   }
 }
-async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; try { await $fetch(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
+async function delPrompt(p: any) { if (!confirm(`删除「${p.title}」？`)) return; try { await $fetch<{ success: boolean; message: string }>(`/api/admin/prompts/${p.id}`, { method: 'DELETE', headers: getAuthHeaders() }); loadPrompts(); loadStats() } catch (e: any) { alert('删除失败: ' + (e?.data?.error || e?.message || '未知错误')) } }
 function canDeletePrompt(p: any) { return isAdmin.value || p.user_id === currentUserId.value }
 // Import/Export（兼容 promptpro v1.0 / v2.0 与 FavsHub 格式）
 const importFile = ref<HTMLInputElement | null>(null)

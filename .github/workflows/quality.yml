@@ -42,12 +42,9 @@ jobs:
         working-directory: favshub-nuxt
         run: pnpm ts:check
 
-      - name: TypeScript/Vue full typecheck (non-blocking; existing debt)
-        continue-on-error: true
+      - name: TypeScript/Vue full typecheck
         working-directory: favshub-nuxt
-        run: |
-          echo "::warning::Non-blocking full typecheck: existing type debt remains unresolved; diagnostics below are not a passing result."
-          pnpm typecheck
+        run: pnpm typecheck
 
       - name: Unit tests
         working-directory: favshub-nuxt
@@ -56,3 +53,13 @@ jobs:
       - name: Build
         working-directory: favshub-nuxt
         run: pnpm build
+
+      # 真实 Nitro + 临时 SQLite 的限流边界必须在 build 后显式执行；
+      # 前面 Unit tests 中对应 Vitest 包装在无 .output 时会跳过，不能作为本门禁的替代。
+      - name: Runtime test — high-cost endpoint rate limits
+        working-directory: favshub-nuxt
+        run: node scripts/high-cost-endpoint-ratelimit.mjs
+
+      - name: Runtime test — favicon fallback and SSRF rejection
+        working-directory: favshub-nuxt
+        run: node scripts/favicon-fallback-check.mjs

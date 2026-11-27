@@ -343,8 +343,8 @@ export const useBookmarksStore = defineStore('bookmarks', {
 
     async unsubscribeCollection(id: string) {
       try {
-        await $fetch(`/api/collections/${id}/unsubscribe`, {
-          method: 'POST',
+        await $fetch<{ success: boolean; message: string }>(`/api/collections/${id}/subscribe`, {
+          method: 'DELETE',
           ...this._authOptions(),
         })
         await this.fetchMyCollections()

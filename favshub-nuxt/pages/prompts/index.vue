@@ -193,7 +193,7 @@
                 </div>
                 <div class="meta-right">
                   <span v-if="prompt.current_version" class="version-badge">v{{ prompt.current_version }}</span>
-                  <span v-if="prompt.usage_count >= 50" class="usage-badge" :title="`已被使用 ${prompt.usage_count} 次`"><i class="ri-fire-line"></i> {{ prompt.usage_count }}</span>
+                  <span v-if="prompt.usage_count !== undefined && prompt.usage_count >= 50" class="usage-badge" :title="`已被使用 ${prompt.usage_count} 次`"><i class="ri-fire-line"></i> {{ prompt.usage_count }}</span>
                 </div>
               </div>
             </div>
@@ -370,6 +370,7 @@ interface Prompt {
   content: string
   folder_id?: string
   user_id?: number
+  owner_is_admin?: number | null
   is_favorite?: number
   current_version?: string
   login_required?: number
@@ -379,6 +380,10 @@ interface Prompt {
   created_at?: number
   updated_at?: number
 }
+
+type PromptUpdateResponse =
+  | { prompt: Prompt; restored?: boolean; review_required?: false }
+  | { success: true; message: string; review_id: string; review_required: true }
 
 interface Folder {
   id: string
@@ -888,7 +893,7 @@ async function savePrompt() {
   if (isCreating.value) {
     await $fetch('/api/prompts', { method: 'POST', body })
   } else if (editingPrompt.value) {
-    const res = await $fetch(`/api/prompts/${editingPrompt.value.id}`, { method: 'PUT', body })
+    const res = await $fetch<PromptUpdateResponse>(`/api/prompts/${editingPrompt.value.id}`, { method: 'PUT', body })
     if (res?.review_required) {
       showEditDialog.value = false
       isReviewMode.value = false

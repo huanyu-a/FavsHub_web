@@ -40,6 +40,7 @@ interface ICollection {
   bookmark_count: number
   created_at: number
   username?: string
+  nickname?: string | null
 }
 
 interface IImportResult {

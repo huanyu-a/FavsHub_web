@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBookmarksStore } from '../stores/bookmarks'
 
 beforeEach(() => {
@@ -69,5 +69,24 @@ describe('bookmarks store 视图偏好', () => {
     store.setGroupExpanded('mine:1', true)
     expect(store.collapsedGroupKeys).toEqual(['mine:2'])
     expect(JSON.parse(window.localStorage.getItem('favshub_collapsed_groups') || '[]')).toEqual(['mine:2'])
+  })
+})
+
+describe('精选集订阅请求', () => {
+  it('取消订阅调用真实 DELETE subscribe 路由并随后刷新列表', async () => {
+    const calls: Array<{ url: string; options?: { method?: string } }> = []
+    vi.stubGlobal('$fetch', vi.fn(async (url: string, options?: { method?: string }) => {
+      calls.push({ url, options })
+      if (url === '/api/collections?subscribed=1') return { collections: [] }
+      return { success: true, message: '已取消订阅' }
+    }))
+    const store = useBookmarksStore()
+
+    await store.unsubscribeCollection('collection_abc')
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.url).toBe('/api/collections/collection_abc/subscribe')
+    expect(calls[0]?.options?.method).toBe('DELETE')
+    expect(calls[1]?.url).toBe('/api/collections?subscribed=1')
   })
 })

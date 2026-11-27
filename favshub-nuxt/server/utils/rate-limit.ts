@@ -10,9 +10,43 @@
  * T5（2026-10-30）在本文件末尾追加了「滑动窗口限流引擎 + 阈值表」：
  *   - 全站 API 的 IP 分层限频 + 同 IP 并发上限 → server/middleware/rate-limit.ts
  *   - AI 通道的 10 次/分钟 + 50 次/30 分钟双窗口、per-令牌 / per-IP 并发上限 → server/utils/ai-auth.ts
- * 上面这段固定窗口实现保持原样，继续服务于 30+ 处既有认证类调用点。
+ * 上面这段固定窗口的计数与判定算法保持原样，继续服务于 30+ 处既有认证类调用点；
+ * 429 现通过内部 Symbol 由统一错误出口附加 Retry-After，不改变错误体或调用签名。
  */
 import { createError, setResponseHeader, type H3Event } from 'h3'
+
+/**
+ * L3 固定窗口 429 的 `Retry-After` 载体。
+ *
+ * 为什么挂在错误对象上（而不是就地写响应头）：`checkRateLimit()` 的 30+ 处调用点
+ * 只传 key / limit / window，**拿不到 `H3Event`**，而响应头必须挂到 event 上；
+ * 写进 `error.data` 又会污染错误体（本仓错误体只有 `{ error }`，data 是内部通道）。
+ * 因此用 Symbol 做**内部**通道，由唯一的错误出口
+ * `server/plugins/error-handler.ts` 读取后写入响应头。
+ *
+ * `Symbol.for` 而非局部 Symbol：错误跨模块传递时仍能取到同一个键（HMR 下也稳定）。
+ */
+export const RETRY_AFTER_SEC = Symbol.for('favshub.retryAfterSec')
+
+/**
+ * 窗口剩余毫秒 → 合规的 `Retry-After` 秒数。
+ *
+ * RFC 9110 的 delay-seconds 是**非负整数**；这里收敛到 `1..86400`：
+ * 下界 1 避免 `Retry-After: 0`（客户端会立刻重试，等于没有退避），
+ * 上界 24 小时避免异常时钟算出离谱值。
+ */
+export function retryAfterSeconds(resetAt: number, now: number = Date.now()): number {
+  const sec = Math.ceil((resetAt - now) / 1000)
+  if (!Number.isFinite(sec)) return 1
+  return Math.min(86400, Math.max(1, sec))
+}
+
+/** 构造带 `Retry-After` 秒数的 429；**错误体保持 `{ error }` 不变** */
+function tooManyRequests(message: string, resetAt: number, now: number) {
+  const error = createError({ statusCode: 429, data: { error: message } })
+  ;(error as unknown as Record<symbol, number>)[RETRY_AFTER_SEC] = retryAfterSeconds(resetAt, now)
+  return error
+}
 
 interface RateLimitEntry {
   count: number
@@ -56,10 +90,9 @@ export function checkRateLimit(key: string, limit: number, windowMs: number) {
 
   entry.count++
   if (entry.count > limit) {
-    throw createError({
-      statusCode: 429,
-      data: { error: '请求过于频繁，请稍后再试' },
-    })
+    // 带标准 `Retry-After`（剩余窗口秒数）：错误体与判定顺序不变，
+    // 只是让客户端能按秒退避，而不是拿 429 后自己猜
+    throw tooManyRequests('请求过于频繁，请稍后再试', entry.resetAt, now)
   }
 }
 
@@ -83,10 +116,8 @@ export function recordFailedLogin(username: string) {
   if (entry.count >= limit) {
     const remainingMs = entry.resetAt - now
     const remainingMin = Math.ceil(remainingMs / 60000)
-    throw createError({
-      statusCode: 429,
-      data: { error: `账户已被临时锁定，请在 ${remainingMin} 分钟后重试` },
-    })
+    // 同一类 L3 429 也带标准 `Retry-After`（剩余窗口秒数）；文案保持原样
+    throw tooManyRequests(`账户已被临时锁定，请在 ${remainingMin} 分钟后重试`, entry.resetAt, now)
   }
 }
 
@@ -143,7 +174,7 @@ function isPrivatePeer(ip: string): boolean {
  */
 export function getClientIP(event: H3Event): string {
   const config = useRuntimeConfig(event)
-  const trustProxy = config.trustProxy === 'true' || config.trustProxy === true
+  const trustProxy = config.trustProxy === 'true'
 
   if (trustProxy) {
     // 优先 `X-Real-IP`：反代通常用 `$remote_addr` 覆盖它，客户端伪造不了；
@@ -512,7 +543,7 @@ export function rateLimitError(
 ) {
   const sec = Math.max(1, Math.ceil(retryAfterSec || 1))
   try {
-    setResponseHeader(event, 'Retry-After', String(sec))
+    setResponseHeader(event, 'Retry-After', sec)
     setResponseHeader(event, 'X-RateLimit-Reason', asciiHeader(code))
   } catch {
     /* 头写不进去不改变 429 语义 */

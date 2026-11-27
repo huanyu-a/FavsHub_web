@@ -27,7 +27,7 @@
  *
  * ## 前提（重要）
  *
- * build 后的 5 个套件会 `spawn('node')` 起 `.output/server/index.mjs`，
+ * build 后的端到端套件会 `spawn('node')` 起 `.output/server/index.mjs`，
  * 而 `better-sqlite3` 是原生模块、**ABI 与 Node 大版本绑定**。
  * 因此必须用「构建 `.output` 时所用的那个 Node」来跑，否则会得到误导性的
  * 「应用 30s 内未就绪」（真实原因是 `NODE_MODULE_VERSION` 不匹配）。
@@ -120,6 +120,11 @@ const POST_BUILD = [
   // CI 跑不了 = 等于没有回归保护）；现改为自建库 + 自播种数据。
   // 关键不变式：**chip 数字与列表口径必须同源**，否则出现「chip 说 15、点进去 2 条」。
   { name: 'admin-invalid-filters', script: 'admin-invalid-filters.mjs' },
+  // 高成本端点的真实固定窗口边界：search 30/min、upload-preview 20/min，
+  // 同时硬校验 L3 429 的 Retry-After、认证/参数顺序、分桶隔离与进程清理。
+  { name: 'high-cost-endpoint-ratelimit', script: 'high-cost-endpoint-ratelimit.mjs' },
+  // 公共域名取图失败回退站内通用 SVG，非法/私有域名仍 400；真实 Nitro + 临时库。
+  { name: 'favicon-fallback-check', script: 'favicon-fallback-check.mjs' },
 ]
 
 /**
@@ -167,7 +172,7 @@ function detectAbiMismatch() {
  *       需要 **Node ≥ 22**（`--experimental-strip-types`）。
  *       Node 20 会报 `bad option: --experimental-strip-types`
  *       或 `ERR_UNKNOWN_FILE_EXTENSION`（.ts 无法直接加载）。
- *   · build 后（5 个 e2e）：必须与 `.output` 里原生模块的 ABI 一致，
+ *   · build 后（端到端套件）：必须与 `.output` 里原生模块的 ABI 一致，
  *       否则「应用 30s 内未就绪」。
  *
  * 所以不能全程用同一个 node 二进制。这里按 category 各选一个：
@@ -220,7 +225,11 @@ function pickNodeForPre() {
 function runSuite(s) {
   return new Promise((resolve) => {
     const bin = s.nodeBin || process.execPath
-    const p = spawn(bin, [...(s.args || []), join(ROOT, 'scripts', s.script)], {
+    // Node ≥23 默认开启 type stripping，--experimental-strip-types 在 Windows 上
+    // 反而触发 ERR_UNSUPPORTED_ESM_URL_SCHEME（protocol 'd:'）。过滤掉即可。
+    const nodeMajor = Number(process.versions.node.split('.')[0])
+    const args = (s.args || []).filter(a => !(nodeMajor >= 23 && a === '--experimental-strip-types'))
+    const p = spawn(bin, [...args, join(ROOT, 'scripts', s.script)], {
       cwd: ROOT,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env },
